@@ -10,7 +10,7 @@ x-runtime: &runtime
 services:
   api:
     <<: *runtime
-    profiles: [development, production]
+    profiles: [development, compatibility, observability]
     build:
       context: .
       dockerfile: deploy/docker/api.Dockerfile
@@ -27,7 +27,7 @@ services:
 
   worker:
     <<: *runtime
-    profiles: [development, production]
+    profiles: [intelligence]
     build:
       context: .
       dockerfile: deploy/docker/worker.Dockerfile

@@ -25,19 +25,26 @@ const expectedPaths = [
   "/v1/data-inputs/vmi/context",
   "/v1/stock-health",
   "/v1/replenishment/queue",
+  "/v1/replenishment/recommendations",
+  "/v1/replenishment/change-requests",
+  "/v1/replenishment/approvals",
   "/v1/replenishment/runs",
-  "/v1/replenishment/items/{item_id}/confirm",
+  "/v1/replenishment/items/{item_id}/respond",
+  "/v1/replenishment/change-requests/{change_request_id}/review",
   "/v1/replenishment/plans/{plan_id}/approve",
-  "/v1/forecasts/latest",
-  "/v1/forecasts/monitoring",
-  "/v1/forecasts/runs",
-  "/v1/jobs",
-  "/v1/jobs/{job_id}",
-  "/v1/routes/jobs",
-  "/v1/routes/plans",
-  "/v1/routes/plans/{route_plan_id}",
-  "/v1/routes/plans/{route_plan_id}/review",
-  "/v1/wave3/readiness",
+  "/v1/replenishment/plans/{plan_id}/cancel",
+  "/v1/replenishment/plans/{plan_id}/version",
+  "/v1/replenishment/plans/{plan_id}/issue",
+  "/v1/inventory/fifo",
+  "/v1/inventory/handling-units",
+  "/v1/inventory/receipt-options",
+  "/v1/inventory/receipts",
+  "/v1/inventory/returns",
+  "/v1/inventory/handling-units/{handling_unit_id}/reconcile",
+  "/v1/ad-hoc/issues",
+  "/v1/ad-hoc/issues/{ad_hoc_issue_id}/approve",
+  "/v1/ad-hoc/issues/{ad_hoc_issue_id}/issue",
+  "/v1/traceability",
   "/v1/operations/health",
   "/v1/operations/alerts",
 ];
@@ -83,7 +90,7 @@ assert.deepEqual(Object.keys(openapi.paths).sort(), expectedPaths.sort());
 let authenticatedRole = null;
 if (accessToken) {
   const identity = (await request("/api/v1/me", 200, accessToken)).json();
-  assert.match(identity.role, /^(admin|planner|viewer|district)$/);
+  assert.match(identity.role, /^(admin|planner|academic|picker|viewer|district)$/);
   authenticatedRole = identity.role;
 
   for (const path of [
@@ -92,6 +99,9 @@ if (accessToken) {
     "/api/v1/data-inputs/vmi?limit=1",
     "/api/v1/stock-health",
     "/api/v1/replenishment/queue",
+    "/api/v1/replenishment/recommendations",
+    "/api/v1/replenishment/change-requests",
+    "/api/v1/traceability",
   ]) {
     const result = (await request(path, 200, accessToken)).json();
     assert.ok(Array.isArray(result), `${path}: expected an array`);
@@ -103,7 +113,7 @@ console.log(
     base_url: baseUrl,
     public_checks: 5,
     openapi_paths: expectedPaths.length,
-    authenticated_checks: accessToken ? 6 : 0,
+    authenticated_checks: accessToken ? 9 : 0,
     authenticated_role: authenticatedRole,
     status: "passed",
   }),

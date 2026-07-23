@@ -1,4 +1,10 @@
-export type Role = "admin" | "planner" | "viewer" | "district";
+export type Role =
+  | "admin"
+  | "planner"
+  | "academic"
+  | "picker"
+  | "viewer"
+  | "district";
 
 export type Identity = {
   user_id: string;

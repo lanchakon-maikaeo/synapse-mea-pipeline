@@ -1,39 +1,44 @@
-# SYNAPSE — MEA Supply Chain Intelligence
+# SYNAPSE — MEA VMI Operations
 
-Open-source, data-gated supply-chain pipeline for MEA VMI operations. Release `1.0.0-non-ai` delivers Waves 0–3, API, dashboard and operations; Wave 4 / M11 AI is intentionally excluded.
+Production-oriented, open-source pipeline for MEA stock, replenishment,
+warehouse issue and traceability operations. The active release implements the
+frozen `Business Rules v1`; forecasting, routing and RAG are explicitly
+excluded.
 
 ## Modules
 
 - `pipeline/` — source connectors, ingestion, checksum and idempotency
-- `dashboard/` — Next.js Web App, Supabase Auth and same-origin API
-- `supabase/` — versioned database migrations, rollbacks and acceptance SQL
-- `intelligence/` — deterministic forecast comparison and route optimization worker
-- `api/` — role-aware FastAPI contract
+- `dashboard/` — production Next.js Web App, Supabase Auth and 36-path
+  same-origin operational API
+- `supabase/` — ordered database migrations, RLS, audit, backup evidence and
+  acceptance SQL
+- `api/` — optional self-host compatibility adapter; not the Vercel runtime
 - `deploy/` and `scripts/` — containers, monitoring, backup and restore drill
+- `intelligence/` — retained historical experimental source; not built,
+  scheduled or deployed by the active release
 
-Start with [the end-to-end project pipeline](docs/PROJECT_PIPELINE.md), [module status](docs/MODULE_STATUS.md), [completion record](docs/NON_AI_COMPLETION.md) and [operations runbook](docs/OPERATIONS_RUNBOOK.md).
+Start with the [production operations contract](docs/PRODUCTION_OPERATIONS_V1.md),
+[Business Rules v1](dashboard/docs/BUSINESS_RULES_V1.md) and the
+[operations runbook](docs/OPERATIONS_RUNBOOK.md). Older Wave documents are
+historical implementation records and do not expand the active release scope.
 
-Hosted Web App: <https://mea-synapse-staging.vercel.app>. The public shell does not require a Vercel account; operational data and governed actions still require SYNAPSE Supabase Auth.
+## Deployment topology
 
-This repository is the canonical monorepo for both the data pipeline and the
-tracked `dashboard/` source. The existing private repository
-`lanchakon-maikaeo/synapse-mea-dashboard` remains a Vercel deployment mirror
-for `synapse-mea/mea-synapse-staging`; its imported source head is `8336631`
-(`638ac56` contains the latest source change and `8336631` is the no-op
-deployment trigger).
+- Canonical source: `lanchakon-maikaeo/synapse-mea-pipeline`, branch `main`.
+- Web release target: Vercel workspace/project
+  `synapse-mea/mea-synapse-staging`, URL
+  <https://mea-synapse-staging.vercel.app>.
+- Database/Auth target: managed Supabase project
+  `mklnbumfwojxhqscthjd`.
+- The browser uses only the Supabase publishable key. Database credentials and
+  `service_role` must remain in the deployment secret store.
 
 `https://synapse-mea-dashboard.lanchakon0.chatgpt.site` is a separate
 ChatGPT Sites-hosted snapshot, served through Cloudflare rather than the Vercel
-project. It currently exposes the same 29-path API contract, but its dashboard
-bundle predates revision `804c6f0` and lacks the complete replenishment,
-approval and route-job orchestration. Treat Vercel as the release target and
-do not use the Sites URL as deployment evidence for this Git pipeline.
+project. It is not a release target or deployment evidence for this repository.
 
-Run the database and pipeline verification suite with `make ci`, and run
-`make workspace-ci` for that suite plus the tracked dashboard verification. The
-GitHub Actions workflow always verifies both parts of the monorepo. The suites
-include Python
-module tests, OpenAPI and delivery checks, and a clean PostgreSQL 17 run of all
-15 Supabase migrations, 29 schema/RLS/privilege checks, 17 authenticated
-dispatcher workflow checks, 10 real worker execution checks and the dashboard's
-native Next.js verification.
+Run `make workspace-ci` before release. The production database contract starts
+a clean PostgreSQL 17 instance, applies all 16 migrations and verifies 43
+schema/RLS/privilege controls plus 20 authenticated workflow checks. The
+dashboard gate runs lint, TypeScript, a production Next.js build, rendered
+screen/API tests and the Drizzle database contract.

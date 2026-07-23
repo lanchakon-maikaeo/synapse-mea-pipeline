@@ -2,7 +2,7 @@
 
 COMPOSE ?= $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; fi)
 
-test: api-test pipeline-test intelligence-test openapi-check delivery-check
+test: api-test pipeline-test openapi-check delivery-check
 
 ci: test database-contract-local
 
@@ -45,7 +45,7 @@ compose-check:
 worker-image:
 	docker build --file deploy/docker/worker.Dockerfile --tag synapse-worker:1.0.0 .
 
-database-contract-local: worker-image
+database-contract-local:
 	bash scripts/test_supabase_migrations_local.sh
 
 delivery-check: shell-check compose-check secrets-check

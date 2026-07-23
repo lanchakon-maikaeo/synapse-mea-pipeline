@@ -34,14 +34,12 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-      - name: Install modules
-        run: python -m pip install -e 'api[test]' -e pipeline -e intelligence
+      - name: Install production modules
+        run: python -m pip install -e 'api[test]' -e pipeline
       - name: Test API
         run: python -m unittest discover -s api/tests -v
       - name: Test pipeline
         run: python -m unittest discover -s pipeline/tests -v
-      - name: Test intelligence
-        run: python -m unittest discover -s intelligence/tests -v
       - name: Verify OpenAPI artifact
         run: python api/scripts/export_openapi.py --check
 
@@ -53,8 +51,8 @@ jobs:
           fetch-depth: 0
       - name: Validate shell and Compose
         run: make delivery-check
-      - name: Build runtime images
-        run: docker compose build api worker pipeline
+      - name: Build in-scope runtime images
+        run: docker compose build api pipeline
       - name: Verify Supabase migrations and schema contract
         run: make database-contract-local
       - name: Scan source for high-confidence secrets

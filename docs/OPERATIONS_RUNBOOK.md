@@ -1,116 +1,136 @@
-# SYNAPSE Operations Runbook (release 1.0.0-non-ai)
+# SYNAPSE Operations Runbook — Production Operations v1
 
-This runbook covers the non-AI delivery: data foundation, ingestion and quality, core VMI model, replenishment, forecasting baseline, route optimization, API, dashboard and operations. Wave 4 / M11 AI is intentionally excluded.
+This runbook covers source ingestion, stock/CMP, weekly replenishment,
+District/Planner/Academic approval, receiving, FIFO/Handling Units, issue,
+return/quarantine, ad-hoc issue, traceability, API, dashboard, backup and
+release evidence. Forecasting, routing and RAG are excluded.
 
 ## Ownership and service levels
 
 | Area | Primary owner | Backup owner | Target / trigger |
 |---|---|---|---|
-| Source files and contracts | Procurement data steward | SYNAPSE admin | Import within agreed source window |
-| Stock and CMP export | SAP/WMS data steward | District coordinator | Freshness ≤ 26 hours |
-| Pipeline and quality | Data engineer | SYNAPSE admin | Failed import investigated within 4 hours |
-| Replenishment decisions | Planner | District approver | Every override includes a reason |
-| API and worker | Platform operator | Data engineer | Availability target 99.5% during pilot |
-| Backup and restore | Database operator | Platform operator | Daily logical backup; quarterly restore drill |
-| Security and access | SYNAPSE admin | MEA security | Quarterly role review; immediate leaver removal |
+| Source files and contracts | Procurement data steward | SYNAPSE admin | Import in the agreed source window |
+| Stock export | SAP/WMS data steward | Warehouse operator | Daily; freshness <= 26 hours |
+| Usage/CMP export | SAP data steward | Planner | Monthly |
+| Pipeline and data quality | Data engineer | SYNAPSE admin | Failed import investigated within 4 hours |
+| Weekly plan | Planner | SYNAPSE admin | One governed plan/version per week |
+| District response | District coordinator | Planner on behalf | Every rejection/change has requester and reason |
+| Special approval | Academic Officer | Named delegate | Note required when any line exceeds 9 months |
+| Receipt/FIFO/issue | Picker/warehouse | Planner | Every physical change has an immutable movement |
+| Backup/restore | Database operator | Platform operator | Pre-release backup; quarterly restore drill |
+| Security/access | SYNAPSE admin | MEA security | Quarterly review; immediate leaver removal |
 
 ## Routine checks
 
-1. Open `/health/ready`; a `503` means the database cannot be reached.
+1. Check `/api/health` and `/api/health/ready`.
 2. Review `analytics.v_operations_health` and open `ops.system_alerts`.
-3. Confirm the latest `ops.service_heartbeats.last_seen_at` is less than ten minutes old.
-4. Confirm the newest `ops.backup_runs` record is `succeeded` and verify the artifact checksum.
-5. Run `synapse-intelligence refresh-alerts --stale-hours 26` after scheduled source windows.
+3. Verify newest source batches, file checksums, accepted/rejected counts and
+   stock/usage cadence.
+4. Confirm no `OPENING_UNKNOWN` Handling Unit is being allocated before
+   physical reconciliation.
+5. Review pending abnormal requests and Planner/Academic approval queues.
+6. Confirm the newest required `ops.backup_runs` evidence is `succeeded`.
 
-## API down
+## Repeated API error
 
-1. Run `docker compose ps` and `docker compose logs --since=15m api`.
-2. Check `/health` first, then `/health/ready` to separate process failure from database failure.
-3. Verify `DATABASE_URL`, TLS reachability and connection limits without printing credentials.
-4. Restart only the failed service: `docker compose restart api`.
-5. If the new release caused the incident, follow **Rollback** below.
-
-## Repeated 5xx
-
-1. Correlate the dashboard error's `request_id` with JSON API logs.
-2. Check failed background jobs and operational alerts.
-3. Do not retry approval endpoints blindly; inspect `audit.change_log` first.
+1. Correlate the dashboard `request_id` with Vercel and Supabase logs.
+2. Separate Auth/RBAC/RLS denial from database readiness or application error.
+3. Do not retry approval, issue or return writes blindly; inspect immutable
+   approval/movement/audit evidence first.
 4. Preserve the relevant log window and record an incident before changing data.
+5. A request for forecast, route, job, Wave 3 or RAG paths should return `410
+   scope_excluded`; do not enable a worker to make it pass.
 
 ## Import or data-quality failure
 
-1. Locate the failed batch in `raw.import_batches` and its rows in `raw.import_errors` / staging issue tables.
-2. Correct source mapping or data at source; do not edit verified core rows to hide the issue.
-3. Re-run with the same source checksum. Idempotency prevents duplicate accepted rows.
-4. Refresh alerts and confirm lineage from core record to source row.
+1. Locate the batch in `raw.import_batches` and its source/error rows.
+2. Correct mapping/data at source; never edit verified Core rows to hide an
+   issue.
+3. Re-run the same source checksum. Idempotency prevents duplicate acceptance.
+4. Verify lineage from Core to source row.
+5. Missing Material + Plant stock stays assumed zero and visibly
+   source-missing; it is not fabricated as a real source row.
 
-## Failed worker job
+## Plan or approval incident
 
-1. Inspect `ops.background_jobs.error_message`, payload and attempt count.
-2. For forecast jobs, confirm at least seven months for baselines and fourteen months for AutoETS comparison.
-3. For route jobs, verify geocodes, packaging, vehicle capacities and driver availability.
-4. Permit Haversine only in test by setting `ALLOW_HAVERSINE_FALLBACK=true`; production uses Valhalla.
+1. Confirm the plan version and current state.
+2. Confirm all District changes have requester/reason and all review decisions
+   are immutable.
+3. Above 6 months is a warning; above 9 months requires Academic approval and a
+   note.
+4. A locked plan is never edited in place. Cancel or create a new version so
+   reservations and audit history remain coherent.
+5. Planner on-behalf actions must retain the District requester identity.
+
+## Inventory discrepancy
+
+1. Stop issue for the affected Handling Unit.
+2. Compare current quantity with append-only receipt/reserve/release/issue/
+   return/quarantine movements.
+3. Reconcile an `OPENING_UNKNOWN` unit only after physical verification.
+4. Use a return linked to the original issue. Damaged/test-failed stock must
+   move to Quarantine.
+5. Never update or delete an inventory movement to force a balance.
 
 ## Backup
 
-Run from a host with PostgreSQL client tools compatible with the server:
-
 ```bash
-DATABASE_URL='…' BACKUP_DIR=/secure/synapse/backups scripts/backup_database.sh
+DATABASE_URL='...' \
+BACKUP_DIR='/secure/off-repository/synapse' \
+scripts/backup_database.sh
 ```
 
-The script creates a custom-format dump, a SHA-256 sidecar and a successful evidence row in `ops.backup_runs`. Encrypt the backup volume, restrict directory access to the operator and apply the MEA retention policy.
+The script creates a custom-format dump, SHA-256 sidecar and backup evidence.
+Encrypt the volume, restrict operator access and follow MEA retention policy.
 
 ## Restore drill
 
-Provision an empty, isolated PostgreSQL/Supabase test database. Never use the production project as the drill target.
+Use an empty isolated PostgreSQL/Supabase test target, never Production:
 
 ```bash
-SOURCE_DATABASE_URL='…' DRILL_DATABASE_URL='…' scripts/restore_drill.sh
+SOURCE_DATABASE_URL='...' \
+DRILL_DATABASE_URL='...' \
+scripts/restore_drill.sh
 ```
 
-Evidence is written only after checksum verification, `pg_restore --exit-on-error`, a catalog query and detection of all six SYNAPSE schemas.
+Accept the drill only after checksum verification, `pg_restore
+--exit-on-error`, catalog checks and the production workflow contract.
 
 ## Release
 
-1. Run `make ci`.
-2. Review migrations and matching rollback scripts.
-3. Build immutable images tagged with the release version and commit SHA.
-4. Apply migrations first with the guarded command below, then deploy API,
-   worker and dashboard.
-5. Confirm the release evidence in `ops.release_versions` and run production
-   smoke/RBAC checks.
-
-The database deployment command refuses the wrong environment or a missing
-approval phrase, creates a logical backup first, serializes migration execution
-with a PostgreSQL advisory lock, applies only unregistered migrations, verifies
-the schema contract and records the release SHA:
+1. Run `make workspace-ci` and secret scan.
+2. Verify approved change, Git commit and Vercel/Supabase targets.
+3. Apply the database migration first with the guarded command.
+4. Verify backup/release evidence and all database acceptance checks.
+5. Deploy the verified `main` commit to Vercel.
+6. Wait for `READY`; run public plus authenticated read-only smoke checks.
+7. Capture CI, database, backup and Vercel evidence; revoke any temporary token.
 
 ```bash
-DATABASE_URL='…' \
-BACKUP_DIR=/secure/synapse/backups \
-RELEASE_VERSION='1.0.1-non-ai' \
-RELEASE_GIT_SHA='<published-full-pipeline-sha>' \
+DATABASE_URL='...' \
+BACKUP_DIR='/secure/off-repository/synapse' \
+RELEASE_VERSION='production-operations-v1' \
+RELEASE_GIT_SHA='<published-40-character-sha>' \
 DEPLOY_CONFIRM=APPLY_PENDING_MIGRATIONS \
-RUN_DATA_ACCEPTANCE=true \
 scripts/deploy_database_migrations.sh
 ```
 
-Do not run it with a local-only or unpublished SHA. The default expected
-database environment is `test`; changing `EXPECTED_DATABASE_ENVIRONMENT`
-requires separate change approval.
-
 ## Rollback
 
-1. Stop new writes by pausing the worker and restricting planner traffic.
-2. Redeploy the previously validated image tags.
-3. Use the matching SQL rollback only after checking whether it removes accepted business data. Prefer forward fixes for additive migrations.
-4. If data recovery is required, restore into an isolated database first, validate, then obtain change approval for production recovery.
-5. Add a `rolled_back` record to `ops.release_versions`, preserve audit logs and refresh alerts.
+1. Restrict new writes and preserve the incident window.
+2. Redeploy the previous verified Vercel version if the application caused the
+   issue.
+3. Do not automatically drop tables or erase approval/movement evidence.
+4. Prefer a reviewed forward-fix for additive schema problems.
+5. If data recovery is required, restore the verified pre-release backup into
+   an isolated project, validate, then switch only with change approval.
+6. Record failed/rolled-back release status and operator reason.
 
 ## Security incident
 
-1. Disable or rotate the affected credential in its owning system; never paste it into tickets or chat.
-2. Revoke affected users and review `audit.change_log`, Auth logs and API request IDs.
-3. Preserve evidence, notify MEA security and document the time window.
-4. Re-run the secret scanner and access review before service restoration.
+1. Disable/rotate the credential in its owning system; never paste it into
+   tickets, logs or chat.
+2. Revoke affected users and review Auth, Vercel request IDs, RLS denials and
+   `audit.change_log`.
+3. Preserve evidence and notify MEA security.
+4. Re-run the secret scanner and role review before service restoration.

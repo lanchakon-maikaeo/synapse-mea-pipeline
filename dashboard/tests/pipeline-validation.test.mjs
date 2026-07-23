@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  createForecastRunPayload,
   parseVmiHistory,
   snapshotIso,
   toLocalDateTimeInput,
@@ -70,38 +69,5 @@ test("snapshot validation preserves valid local time and blocks future input", (
   assert.throws(
     () => snapshotIso(toLocalDateTimeInput(new Date(now.getTime() + 360_000)), now),
     /อนาคต/,
-  );
-});
-
-test("forecast payload validation enforces chronology and integer horizon", () => {
-  assert.deepEqual(
-    createForecastRunPayload("2025-01-01", "2026-07-23", "3", "2026-07-23"),
-    {
-      training_start: "2025-01-01",
-      training_end: "2026-07-23",
-      horizon_months: 3,
-    },
-  );
-  assert.throws(
-    () =>
-      createForecastRunPayload(
-        "2026-08-01",
-        "2026-07-23",
-        "3",
-        "2026-07-23",
-      ),
-    /Training start/,
-  );
-  assert.throws(
-    () => createForecastRunPayload("", "2026-07-24", "3", "2026-07-23"),
-    /อนาคต/,
-  );
-  assert.throws(
-    () => createForecastRunPayload("", "2026-02-31", "3", "2026-07-23"),
-    /ไม่ถูกต้อง/,
-  );
-  assert.throws(
-    () => createForecastRunPayload("", "2026-07-23", "3.5", "2026-07-23"),
-    /จำนวนเต็ม/,
   );
 });

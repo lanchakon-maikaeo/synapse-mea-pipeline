@@ -15,6 +15,13 @@
       "when": 1784691322071,
       "tag": "0001_staging_baseline_views_and_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784705712712,
+      "tag": "0002_wise_jamie_braddock",
+      "breakpoints": true
     }
   ]
 }

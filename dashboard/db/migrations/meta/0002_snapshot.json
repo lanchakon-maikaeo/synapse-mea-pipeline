@@ -1,0 +1,3936 @@
+{
+  "id": "88520fdc-f5f1-48f5-ab7d-3afd04b2f8eb",
+  "prevId": "7b5893ee-801f-4d83-a55c-8dbce995e79c",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "ops.calculation_policies": {
+      "name": "calculation_policies",
+      "schema": "ops",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "policy_version": {
+          "name": "policy_version",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trigger_months": {
+          "name": "trigger_months",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "min_target_months": {
+          "name": "min_target_months",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference_months": {
+          "name": "reference_months",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_target_months": {
+          "name": "max_target_months",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "special_approval_months": {
+          "name": "special_approval_months",
+          "type": "numeric(6, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_to": {
+          "name": "effective_to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "calculation_policies_version_uq": {
+          "name": "calculation_policies_version_uq",
+          "columns": [
+            {
+              "expression": "policy_version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "calculation_policy_order_valid": {
+          "name": "calculation_policy_order_valid",
+          "value": "\"ops\".\"calculation_policies\".\"reference_months\" <= \"ops\".\"calculation_policies\".\"trigger_months\" and \"ops\".\"calculation_policies\".\"trigger_months\" <= \"ops\".\"calculation_policies\".\"min_target_months\" and \"ops\".\"calculation_policies\".\"min_target_months\" <= \"ops\".\"calculation_policies\".\"max_target_months\" and \"ops\".\"calculation_policies\".\"max_target_months\" <= \"ops\".\"calculation_policies\".\"special_approval_months\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "audit.change_log": {
+      "name": "change_log",
+      "schema": "audit",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "schema_name": {
+          "name": "schema_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "table_name": {
+          "name": "table_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "record_id": {
+          "name": "record_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before_data": {
+          "name": "before_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after_data": {
+          "name": "after_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "change_log_record_idx": {
+          "name": "change_log_record_idx",
+          "columns": [
+            {
+              "expression": "schema_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "table_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "record_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "core.contract_item_versions": {
+      "name": "contract_item_versions",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "contract_item_id": {
+          "name": "contract_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_no": {
+          "name": "version_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_checksum": {
+          "name": "row_checksum",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordered_qty": {
+          "name": "ordered_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "planned_delivery_date": {
+          "name": "planned_delivery_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accepted_date": {
+          "name": "accepted_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valid_from": {
+          "name": "valid_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "valid_to": {
+          "name": "valid_to",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_batch_id": {
+          "name": "source_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_row_id": {
+          "name": "source_row_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "contract_item_versions_item_version_uq": {
+          "name": "contract_item_versions_item_version_uq",
+          "columns": [
+            {
+              "expression": "contract_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "contract_item_versions_item_checksum_uq": {
+          "name": "contract_item_versions_item_checksum_uq",
+          "columns": [
+            {
+              "expression": "contract_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "row_checksum",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contract_item_versions_contract_item_id_contract_items_id_fk": {
+          "name": "contract_item_versions_contract_item_id_contract_items_id_fk",
+          "tableFrom": "contract_item_versions",
+          "tableTo": "contract_items",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "contract_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "contract_item_versions_source_batch_id_import_batches_id_fk": {
+          "name": "contract_item_versions_source_batch_id_import_batches_id_fk",
+          "tableFrom": "contract_item_versions",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "contract_item_versions_source_row_id_source_rows_id_fk": {
+          "name": "contract_item_versions_source_row_id_source_rows_id_fk",
+          "tableFrom": "contract_item_versions",
+          "tableTo": "source_rows",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_row_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contract_item_versions_version_positive": {
+          "name": "contract_item_versions_version_positive",
+          "value": "\"core\".\"contract_item_versions\".\"version_no\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "core.contract_items": {
+      "name": "contract_items",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "contract_id": {
+          "name": "contract_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "po_item_no": {
+          "name": "po_item_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "installment_no": {
+          "name": "installment_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordered_qty": {
+          "name": "ordered_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "planned_delivery_date": {
+          "name": "planned_delivery_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accepted_date": {
+          "name": "accepted_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "not_seen_in_latest_batch": {
+          "name": "not_seen_in_latest_batch",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "source_batch_id": {
+          "name": "source_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_row_id": {
+          "name": "source_row_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "contract_items_contract_po_item_material_uq": {
+          "name": "contract_items_contract_po_item_material_uq",
+          "columns": [
+            {
+              "expression": "contract_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "po_item_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "material_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "contract_items_fifo_idx": {
+          "name": "contract_items_fifo_idx",
+          "columns": [
+            {
+              "expression": "material_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "accepted_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "installment_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contract_items_contract_id_contracts_id_fk": {
+          "name": "contract_items_contract_id_contracts_id_fk",
+          "tableFrom": "contract_items",
+          "tableTo": "contracts",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "contract_items_material_id_materials_id_fk": {
+          "name": "contract_items_material_id_materials_id_fk",
+          "tableFrom": "contract_items",
+          "tableTo": "materials",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "contract_items_source_batch_id_import_batches_id_fk": {
+          "name": "contract_items_source_batch_id_import_batches_id_fk",
+          "tableFrom": "contract_items",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "contract_items_source_row_id_source_rows_id_fk": {
+          "name": "contract_items_source_row_id_source_rows_id_fk",
+          "tableFrom": "contract_items",
+          "tableTo": "source_rows",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_row_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contract_items_po_item_positive": {
+          "name": "contract_items_po_item_positive",
+          "value": "\"core\".\"contract_items\".\"po_item_no\" > 0 and \"core\".\"contract_items\".\"installment_no\" > 0"
+        },
+        "contract_items_ordered_qty_positive": {
+          "name": "contract_items_ordered_qty_positive",
+          "value": "\"core\".\"contract_items\".\"ordered_qty\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "core.contracts": {
+      "name": "contracts",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "purchase_order_no": {
+          "name": "purchase_order_no",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract_no": {
+          "name": "contract_no",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "procurement_code": {
+          "name": "procurement_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vendor_alias_id": {
+          "name": "vendor_alias_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "not_seen_in_latest_batch": {
+          "name": "not_seen_in_latest_batch",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "contracts_purchase_order_uq": {
+          "name": "contracts_purchase_order_uq",
+          "columns": [
+            {
+              "expression": "purchase_order_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "contracts_contract_no_idx": {
+          "name": "contracts_contract_no_idx",
+          "columns": [
+            {
+              "expression": "contract_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "contracts_vendor_alias_id_vendor_aliases_id_fk": {
+          "name": "contracts_vendor_alias_id_vendor_aliases_id_fk",
+          "tableFrom": "contracts",
+          "tableTo": "vendor_aliases",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "vendor_alias_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "ops.district_change_requests": {
+      "name": "district_change_requests",
+      "schema": "ops",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "plan_item_id": {
+          "name": "plan_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recommendation_id": {
+          "name": "recommendation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "original_qty": {
+          "name": "original_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_qty": {
+          "name": "requested_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delta_percent": {
+          "name": "delta_percent",
+          "type": "numeric(12, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "projected_months": {
+          "name": "projected_months",
+          "type": "numeric(12, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "risk_level": {
+          "name": "risk_level",
+          "type": "request_risk_level",
+          "typeSchema": "ops",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'NORMAL'"
+        },
+        "risk_signals": {
+          "name": "risk_signals",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_by_name": {
+          "name": "requested_by_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_by_user_id": {
+          "name": "requested_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decision": {
+          "name": "decision",
+          "type": "review_decision",
+          "typeSchema": "ops",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "reviewed_by": {
+          "name": "reviewed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_reason": {
+          "name": "review_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "district_change_requests_queue_idx": {
+          "name": "district_change_requests_queue_idx",
+          "columns": [
+            {
+              "expression": "decision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "risk_level",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "district_change_requests_item_idx": {
+          "name": "district_change_requests_item_idx",
+          "columns": [
+            {
+              "expression": "plan_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "district_change_requests_plan_item_id_replenishment_plan_items_id_fk": {
+          "name": "district_change_requests_plan_item_id_replenishment_plan_items_id_fk",
+          "tableFrom": "district_change_requests",
+          "tableTo": "replenishment_plan_items",
+          "schemaTo": "ops",
+          "columnsFrom": [
+            "plan_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "district_change_requests_recommendation_id_quantity_recommendations_id_fk": {
+          "name": "district_change_requests_recommendation_id_quantity_recommendations_id_fk",
+          "tableFrom": "district_change_requests",
+          "tableTo": "quantity_recommendations",
+          "schemaTo": "ops",
+          "columnsFrom": [
+            "recommendation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "district_change_requests_qty_nonnegative": {
+          "name": "district_change_requests_qty_nonnegative",
+          "value": "\"ops\".\"district_change_requests\".\"original_qty\" >= 0 and \"ops\".\"district_change_requests\".\"requested_qty\" >= 0 and (\"ops\".\"district_change_requests\".\"projected_months\" is null or \"ops\".\"district_change_requests\".\"projected_months\" >= 0)"
+        },
+        "district_change_requests_reason_present": {
+          "name": "district_change_requests_reason_present",
+          "value": "length(trim(\"ops\".\"district_change_requests\".\"reason\")) >= 10 and length(trim(\"ops\".\"district_change_requests\".\"requested_by_name\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "core.districts": {
+      "name": "districts",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "district_code": {
+          "name": "district_code",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_th": {
+          "name": "name_th",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plant_code": {
+          "name": "plant_code",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "districts_code_uq": {
+          "name": "districts_code_uq",
+          "columns": [
+            {
+              "expression": "district_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "districts_plant_uq": {
+          "name": "districts_plant_uq",
+          "columns": [
+            {
+              "expression": "plant_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "ops.fifo_allocations": {
+      "name": "fifo_allocations",
+      "schema": "ops",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "plan_item_id": {
+          "name": "plan_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "receipt_lot_id": {
+          "name": "receipt_lot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "handling_unit_id": {
+          "name": "handling_unit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "allocation_sequence": {
+          "name": "allocation_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "allocated_qty": {
+          "name": "allocated_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "remain_before_qty": {
+          "name": "remain_before_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "remain_after_qty": {
+          "name": "remain_after_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "allocation_status",
+          "typeSchema": "ops",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PROPOSED'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "fifo_allocations_item_sequence_uq": {
+          "name": "fifo_allocations_item_sequence_uq",
+          "columns": [
+            {
+              "expression": "plan_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "allocation_sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fifo_allocations_unit_status_idx": {
+          "name": "fifo_allocations_unit_status_idx",
+          "columns": [
+            {
+              "expression": "handling_unit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fifo_allocations_plan_item_id_replenishment_plan_items_id_fk": {
+          "name": "fifo_allocations_plan_item_id_replenishment_plan_items_id_fk",
+          "tableFrom": "fifo_allocations",
+          "tableTo": "replenishment_plan_items",
+          "schemaTo": "ops",
+          "columnsFrom": [
+            "plan_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "fifo_allocations_receipt_lot_id_receipt_lots_id_fk": {
+          "name": "fifo_allocations_receipt_lot_id_receipt_lots_id_fk",
+          "tableFrom": "fifo_allocations",
+          "tableTo": "receipt_lots",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "receipt_lot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "fifo_allocations_handling_unit_id_handling_units_id_fk": {
+          "name": "fifo_allocations_handling_unit_id_handling_units_id_fk",
+          "tableFrom": "fifo_allocations",
+          "tableTo": "handling_units",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "handling_unit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "fifo_allocations_values_valid": {
+          "name": "fifo_allocations_values_valid",
+          "value": "\"ops\".\"fifo_allocations\".\"allocation_sequence\" > 0 and \"ops\".\"fifo_allocations\".\"allocated_qty\" > 0 and \"ops\".\"fifo_allocations\".\"remain_before_qty\" >= 0 and \"ops\".\"fifo_allocations\".\"remain_after_qty\" >= 0 and \"ops\".\"fifo_allocations\".\"remain_after_qty\" = \"ops\".\"fifo_allocations\".\"remain_before_qty\" - \"ops\".\"fifo_allocations\".\"allocated_qty\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "core.handling_units": {
+      "name": "handling_units",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "handling_unit_code": {
+          "name": "handling_unit_code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "receipt_lot_id": {
+          "name": "receipt_lot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_type": {
+          "name": "unit_type",
+          "type": "handling_unit_type",
+          "typeSchema": "core",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_handling_unit_id": {
+          "name": "parent_handling_unit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "initial_qty": {
+          "name": "initial_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "on_hand_qty": {
+          "name": "on_hand_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reserved_qty": {
+          "name": "reserved_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "physical_location_code": {
+          "name": "physical_location_code",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_virtual": {
+          "name": "is_virtual",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "status": {
+          "name": "status",
+          "type": "handling_unit_status",
+          "typeSchema": "core",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'AVAILABLE'"
+        },
+        "opened_at": {
+          "name": "opened_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verified_by": {
+          "name": "verified_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "handling_units_code_uq": {
+          "name": "handling_units_code_uq",
+          "columns": [
+            {
+              "expression": "handling_unit_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "handling_units_lot_status_idx": {
+          "name": "handling_units_lot_status_idx",
+          "columns": [
+            {
+              "expression": "receipt_lot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "handling_units_receipt_lot_id_receipt_lots_id_fk": {
+          "name": "handling_units_receipt_lot_id_receipt_lots_id_fk",
+          "tableFrom": "handling_units",
+          "tableTo": "receipt_lots",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "receipt_lot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "handling_units_qty_valid": {
+          "name": "handling_units_qty_valid",
+          "value": "\"core\".\"handling_units\".\"initial_qty\" >= 0 and \"core\".\"handling_units\".\"on_hand_qty\" >= 0 and \"core\".\"handling_units\".\"reserved_qty\" >= 0 and \"core\".\"handling_units\".\"reserved_qty\" <= \"core\".\"handling_units\".\"on_hand_qty\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "raw.import_batches": {
+      "name": "import_batches",
+      "schema": "raw",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "import_entity_type",
+          "typeSchema": "raw",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_file_name": {
+          "name": "source_file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_sheet": {
+          "name": "source_sheet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_checksum": {
+          "name": "file_checksum",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_business_date": {
+          "name": "source_business_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "imported_at": {
+          "name": "imported_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "imported_by": {
+          "name": "imported_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_count": {
+          "name": "row_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "accepted_count": {
+          "name": "accepted_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "rejected_count": {
+          "name": "rejected_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "import_status",
+          "typeSchema": "raw",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'RECEIVED'"
+        }
+      },
+      "indexes": {
+        "import_batches_entity_checksum_uq": {
+          "name": "import_batches_entity_checksum_uq",
+          "columns": [
+            {
+              "expression": "entity_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "file_checksum",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "import_batches_entity_imported_idx": {
+          "name": "import_batches_entity_imported_idx",
+          "columns": [
+            {
+              "expression": "entity_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "imported_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "import_batches_counts_nonnegative": {
+          "name": "import_batches_counts_nonnegative",
+          "value": "\"raw\".\"import_batches\".\"row_count\" >= 0 and \"raw\".\"import_batches\".\"accepted_count\" >= 0 and \"raw\".\"import_batches\".\"rejected_count\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "ops.import_issues": {
+      "name": "import_issues",
+      "schema": "ops",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_row_id": {
+          "name": "source_row_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "severity": {
+          "name": "severity",
+          "type": "issue_severity",
+          "typeSchema": "ops",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "field_name": {
+          "name": "field_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "issue_code": {
+          "name": "issue_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "import_issues_batch_severity_idx": {
+          "name": "import_issues_batch_severity_idx",
+          "columns": [
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "severity",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "import_issues_batch_id_import_batches_id_fk": {
+          "name": "import_issues_batch_id_import_batches_id_fk",
+          "tableFrom": "import_issues",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "import_issues_source_row_id_source_rows_id_fk": {
+          "name": "import_issues_source_row_id_source_rows_id_fk",
+          "tableFrom": "import_issues",
+          "tableTo": "source_rows",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_row_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "core.inventory_movements": {
+      "name": "inventory_movements",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "movement_type": {
+          "name": "movement_type",
+          "type": "movement_type",
+          "typeSchema": "core",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "handling_unit_id": {
+          "name": "handling_unit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity_delta": {
+          "name": "quantity_delta",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_location_id": {
+          "name": "from_location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_location_id": {
+          "name": "to_location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sap_document_no": {
+          "name": "sap_document_no",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "business_reference_type": {
+          "name": "business_reference_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "business_reference_id": {
+          "name": "business_reference_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reversal_of_movement_id": {
+          "name": "reversal_of_movement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_batch_id": {
+          "name": "source_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "inventory_movements_unit_time_idx": {
+          "name": "inventory_movements_unit_time_idx",
+          "columns": [
+            {
+              "expression": "handling_unit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inventory_movements_material_time_idx": {
+          "name": "inventory_movements_material_time_idx",
+          "columns": [
+            {
+              "expression": "material_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inventory_movements_handling_unit_id_handling_units_id_fk": {
+          "name": "inventory_movements_handling_unit_id_handling_units_id_fk",
+          "tableFrom": "inventory_movements",
+          "tableTo": "handling_units",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "handling_unit_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "inventory_movements_material_id_materials_id_fk": {
+          "name": "inventory_movements_material_id_materials_id_fk",
+          "tableFrom": "inventory_movements",
+          "tableTo": "materials",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "inventory_movements_from_location_id_locations_id_fk": {
+          "name": "inventory_movements_from_location_id_locations_id_fk",
+          "tableFrom": "inventory_movements",
+          "tableTo": "locations",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "from_location_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "inventory_movements_to_location_id_locations_id_fk": {
+          "name": "inventory_movements_to_location_id_locations_id_fk",
+          "tableFrom": "inventory_movements",
+          "tableTo": "locations",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "to_location_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "inventory_movements_source_batch_id_import_batches_id_fk": {
+          "name": "inventory_movements_source_batch_id_import_batches_id_fk",
+          "tableFrom": "inventory_movements",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inventory_movements_delta_nonzero": {
+          "name": "inventory_movements_delta_nonzero",
+          "value": "\"core\".\"inventory_movements\".\"quantity_delta\" <> 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "core.locations": {
+      "name": "locations",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "location_type": {
+          "name": "location_type",
+          "type": "location_type",
+          "typeSchema": "core",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plant_code": {
+          "name": "plant_code",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_location_code": {
+          "name": "storage_location_code",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district_id": {
+          "name": "district_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_th": {
+          "name": "name_th",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "locations_plant_sloc_uq": {
+          "name": "locations_plant_sloc_uq",
+          "columns": [
+            {
+              "expression": "plant_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "storage_location_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "locations_district_idx": {
+          "name": "locations_district_idx",
+          "columns": [
+            {
+              "expression": "district_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "locations_district_id_districts_id_fk": {
+          "name": "locations_district_id_districts_id_fk",
+          "tableFrom": "locations",
+          "tableTo": "districts",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "district_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "core.materials": {
+      "name": "materials",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "material_code": {
+          "name": "material_code",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_unit": {
+          "name": "base_unit",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "source_batch_id": {
+          "name": "source_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "materials_code_uq": {
+          "name": "materials_code_uq",
+          "columns": [
+            {
+              "expression": "material_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "materials_source_batch_id_import_batches_id_fk": {
+          "name": "materials_source_batch_id_import_batches_id_fk",
+          "tableFrom": "materials",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "core.packaging_profiles": {
+      "name": "packaging_profiles",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_type": {
+          "name": "unit_type",
+          "type": "handling_unit_type",
+          "typeSchema": "core",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "units_per_handling_unit": {
+          "name": "units_per_handling_unit",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "length_m": {
+          "name": "length_m",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "width_m": {
+          "name": "width_m",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height_m": {
+          "name": "height_m",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gross_weight_kg": {
+          "name": "gross_weight_kg",
+          "type": "numeric(12, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stackable": {
+          "name": "stackable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "side_loadable": {
+          "name": "side_loadable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "forklift_required": {
+          "name": "forklift_required",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "maximum_stack_layers": {
+          "name": "maximum_stack_layers",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "data_quality": {
+          "name": "data_quality",
+          "type": "packaging_quality",
+          "typeSchema": "core",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DUMMY'"
+        },
+        "source_note": {
+          "name": "source_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_to": {
+          "name": "effective_to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "packaging_profiles_material_type_idx": {
+          "name": "packaging_profiles_material_type_idx",
+          "columns": [
+            {
+              "expression": "material_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "unit_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "packaging_profiles_material_id_materials_id_fk": {
+          "name": "packaging_profiles_material_id_materials_id_fk",
+          "tableFrom": "packaging_profiles",
+          "tableTo": "materials",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "packaging_profiles_units_positive": {
+          "name": "packaging_profiles_units_positive",
+          "value": "\"core\".\"packaging_profiles\".\"units_per_handling_unit\" > 0 and \"core\".\"packaging_profiles\".\"maximum_stack_layers\" > 0"
+        },
+        "packaging_profiles_dimensions_positive": {
+          "name": "packaging_profiles_dimensions_positive",
+          "value": "(\"core\".\"packaging_profiles\".\"length_m\" is null or \"core\".\"packaging_profiles\".\"length_m\" > 0) and (\"core\".\"packaging_profiles\".\"width_m\" is null or \"core\".\"packaging_profiles\".\"width_m\" > 0) and (\"core\".\"packaging_profiles\".\"height_m\" is null or \"core\".\"packaging_profiles\".\"height_m\" > 0) and (\"core\".\"packaging_profiles\".\"gross_weight_kg\" is null or \"core\".\"packaging_profiles\".\"gross_weight_kg\" > 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "ops.plan_approvals": {
+      "name": "plan_approvals",
+      "schema": "ops",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stage": {
+          "name": "stage",
+          "type": "approval_stage",
+          "typeSchema": "ops",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "decision_sequence": {
+          "name": "decision_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "decision": {
+          "name": "decision",
+          "type": "review_decision",
+          "typeSchema": "ops",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor": {
+          "name": "actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "plan_approvals_stage_sequence_uq": {
+          "name": "plan_approvals_stage_sequence_uq",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stage",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "decision_sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plan_approvals_plan_time_idx": {
+          "name": "plan_approvals_plan_time_idx",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "decided_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plan_approvals_plan_id_replenishment_plans_id_fk": {
+          "name": "plan_approvals_plan_id_replenishment_plans_id_fk",
+          "tableFrom": "plan_approvals",
+          "tableTo": "replenishment_plans",
+          "schemaTo": "ops",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "plan_approvals_sequence_positive": {
+          "name": "plan_approvals_sequence_positive",
+          "value": "\"ops\".\"plan_approvals\".\"decision_sequence\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "ops.quantity_recommendations": {
+      "name": "quantity_recommendations",
+      "schema": "ops",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "plan_item_id": {
+          "name": "plan_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "recommendation_method",
+          "typeSchema": "ops",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "engine_version": {
+          "name": "engine_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "history_start_date": {
+          "name": "history_start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "history_end_date": {
+          "name": "history_end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "history_sample_size": {
+          "name": "history_sample_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "last_issued_qty": {
+          "name": "last_issued_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mean_issued_qty": {
+          "name": "mean_issued_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "median_issued_qty": {
+          "name": "median_issued_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "p90_issued_qty": {
+          "name": "p90_issued_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lower_bound_qty": {
+          "name": "lower_bound_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recommended_qty": {
+          "name": "recommended_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "upper_bound_qty": {
+          "name": "upper_bound_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confidence_score": {
+          "name": "confidence_score",
+          "type": "numeric(5, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "quantity_recommendations_item_time_idx": {
+          "name": "quantity_recommendations_item_time_idx",
+          "columns": [
+            {
+              "expression": "plan_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "generated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "quantity_recommendations_plan_item_id_replenishment_plan_items_id_fk": {
+          "name": "quantity_recommendations_plan_item_id_replenishment_plan_items_id_fk",
+          "tableFrom": "quantity_recommendations",
+          "tableTo": "replenishment_plan_items",
+          "schemaTo": "ops",
+          "columnsFrom": [
+            "plan_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "quantity_recommendations_values_valid": {
+          "name": "quantity_recommendations_values_valid",
+          "value": "\"ops\".\"quantity_recommendations\".\"history_sample_size\" >= 0 and \"ops\".\"quantity_recommendations\".\"recommended_qty\" >= 0 and (\"ops\".\"quantity_recommendations\".\"confidence_score\" is null or (\"ops\".\"quantity_recommendations\".\"confidence_score\" >= 0 and \"ops\".\"quantity_recommendations\".\"confidence_score\" <= 1))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "core.receipt_lots": {
+      "name": "receipt_lots",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "lot_code": {
+          "name": "lot_code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract_item_id": {
+          "name": "contract_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "warehouse_location_id": {
+          "name": "warehouse_location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "receipt_reference": {
+          "name": "receipt_reference",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "receipt_sequence": {
+          "name": "receipt_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "fifo_date": {
+          "name": "fifo_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received_qty": {
+          "name": "received_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "opening_qty": {
+          "name": "opening_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_quality": {
+          "name": "source_quality",
+          "type": "source_quality",
+          "typeSchema": "core",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "receipt_lots_code_uq": {
+          "name": "receipt_lots_code_uq",
+          "columns": [
+            {
+              "expression": "lot_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "receipt_lots_fifo_idx": {
+          "name": "receipt_lots_fifo_idx",
+          "columns": [
+            {
+              "expression": "material_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fifo_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "receipt_sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "receipt_lots_material_id_materials_id_fk": {
+          "name": "receipt_lots_material_id_materials_id_fk",
+          "tableFrom": "receipt_lots",
+          "tableTo": "materials",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "receipt_lots_contract_item_id_contract_items_id_fk": {
+          "name": "receipt_lots_contract_item_id_contract_items_id_fk",
+          "tableFrom": "receipt_lots",
+          "tableTo": "contract_items",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "contract_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "receipt_lots_warehouse_location_id_locations_id_fk": {
+          "name": "receipt_lots_warehouse_location_id_locations_id_fk",
+          "tableFrom": "receipt_lots",
+          "tableTo": "locations",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "warehouse_location_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "receipt_lots_qty_nonnegative": {
+          "name": "receipt_lots_qty_nonnegative",
+          "value": "\"core\".\"receipt_lots\".\"received_qty\" >= 0 and \"core\".\"receipt_lots\".\"opening_qty\" >= 0"
+        },
+        "receipt_lots_sequence_positive": {
+          "name": "receipt_lots_sequence_positive",
+          "value": "\"core\".\"receipt_lots\".\"receipt_sequence\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "ops.replenishment_plan_items": {
+      "name": "replenishment_plan_items",
+      "schema": "ops",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district_id": {
+          "name": "district_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district_stock_qty": {
+          "name": "district_stock_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cmp_qty": {
+          "name": "cmp_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "months_remaining": {
+          "name": "months_remaining",
+          "type": "numeric(12, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "min_target_qty": {
+          "name": "min_target_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_target_qty": {
+          "name": "max_target_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_suggested_qty": {
+          "name": "policy_suggested_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "final_approved_qty": {
+          "name": "final_approved_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requires_special_approval": {
+          "name": "requires_special_approval",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "replenishment_plan_items_scope_uq": {
+          "name": "replenishment_plan_items_scope_uq",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "material_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "replenishment_plan_items_district_idx": {
+          "name": "replenishment_plan_items_district_idx",
+          "columns": [
+            {
+              "expression": "district_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "replenishment_plan_items_plan_id_replenishment_plans_id_fk": {
+          "name": "replenishment_plan_items_plan_id_replenishment_plans_id_fk",
+          "tableFrom": "replenishment_plan_items",
+          "tableTo": "replenishment_plans",
+          "schemaTo": "ops",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "replenishment_plan_items_district_id_districts_id_fk": {
+          "name": "replenishment_plan_items_district_id_districts_id_fk",
+          "tableFrom": "replenishment_plan_items",
+          "tableTo": "districts",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "district_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "replenishment_plan_items_material_id_materials_id_fk": {
+          "name": "replenishment_plan_items_material_id_materials_id_fk",
+          "tableFrom": "replenishment_plan_items",
+          "tableTo": "materials",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "replenishment_plan_items_nonnegative": {
+          "name": "replenishment_plan_items_nonnegative",
+          "value": "\"ops\".\"replenishment_plan_items\".\"district_stock_qty\" >= 0 and \"ops\".\"replenishment_plan_items\".\"cmp_qty\" >= 0 and (\"ops\".\"replenishment_plan_items\".\"months_remaining\" is null or \"ops\".\"replenishment_plan_items\".\"months_remaining\" >= 0) and (\"ops\".\"replenishment_plan_items\".\"min_target_qty\" is null or \"ops\".\"replenishment_plan_items\".\"min_target_qty\" >= 0) and (\"ops\".\"replenishment_plan_items\".\"max_target_qty\" is null or \"ops\".\"replenishment_plan_items\".\"max_target_qty\" >= 0) and (\"ops\".\"replenishment_plan_items\".\"policy_suggested_qty\" is null or \"ops\".\"replenishment_plan_items\".\"policy_suggested_qty\" >= 0) and (\"ops\".\"replenishment_plan_items\".\"final_approved_qty\" is null or \"ops\".\"replenishment_plan_items\".\"final_approved_qty\" >= 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "ops.replenishment_plans": {
+      "name": "replenishment_plans",
+      "schema": "ops",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "plan_no": {
+          "name": "plan_no",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "week_start_date": {
+          "name": "week_start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "warehouse_location_id": {
+          "name": "warehouse_location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_id": {
+          "name": "policy_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_no": {
+          "name": "version_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "status": {
+          "name": "status",
+          "type": "plan_status",
+          "typeSchema": "ops",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "source_stock_batch_id": {
+          "name": "source_stock_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_usage_batch_id": {
+          "name": "source_usage_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locked_at": {
+          "name": "locked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locked_by": {
+          "name": "locked_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancellation_reason": {
+          "name": "cancellation_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "replenishment_plans_no_version_uq": {
+          "name": "replenishment_plans_no_version_uq",
+          "columns": [
+            {
+              "expression": "plan_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "replenishment_plans_week_status_idx": {
+          "name": "replenishment_plans_week_status_idx",
+          "columns": [
+            {
+              "expression": "week_start_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "replenishment_plans_warehouse_location_id_locations_id_fk": {
+          "name": "replenishment_plans_warehouse_location_id_locations_id_fk",
+          "tableFrom": "replenishment_plans",
+          "tableTo": "locations",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "warehouse_location_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "replenishment_plans_policy_id_calculation_policies_id_fk": {
+          "name": "replenishment_plans_policy_id_calculation_policies_id_fk",
+          "tableFrom": "replenishment_plans",
+          "tableTo": "calculation_policies",
+          "schemaTo": "ops",
+          "columnsFrom": [
+            "policy_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "replenishment_plans_source_stock_batch_id_import_batches_id_fk": {
+          "name": "replenishment_plans_source_stock_batch_id_import_batches_id_fk",
+          "tableFrom": "replenishment_plans",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_stock_batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "replenishment_plans_source_usage_batch_id_import_batches_id_fk": {
+          "name": "replenishment_plans_source_usage_batch_id_import_batches_id_fk",
+          "tableFrom": "replenishment_plans",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_usage_batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "replenishment_plans_version_positive": {
+          "name": "replenishment_plans_version_positive",
+          "value": "\"ops\".\"replenishment_plans\".\"version_no\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "raw.source_rows": {
+      "name": "source_rows",
+      "schema": "raw",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_name": {
+          "name": "entity_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_row_number": {
+          "name": "source_row_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_payload": {
+          "name": "row_payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_checksum": {
+          "name": "row_checksum",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "source_rows_batch_entity_row_uq": {
+          "name": "source_rows_batch_entity_row_uq",
+          "columns": [
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_row_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "source_rows_batch_checksum_idx": {
+          "name": "source_rows_batch_checksum_idx",
+          "columns": [
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "row_checksum",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "source_rows_batch_id_import_batches_id_fk": {
+          "name": "source_rows_batch_id_import_batches_id_fk",
+          "tableFrom": "source_rows",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "source_rows_row_number_positive": {
+          "name": "source_rows_row_number_positive",
+          "value": "\"raw\".\"source_rows\".\"source_row_number\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "core.stock_snapshots": {
+      "name": "stock_snapshots",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_id": {
+          "name": "location_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_date": {
+          "name": "snapshot_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unrestricted_qty": {
+          "name": "unrestricted_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_missing": {
+          "name": "source_missing",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_row_id": {
+          "name": "source_row_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "stock_snapshots_material_location_batch_uq": {
+          "name": "stock_snapshots_material_location_batch_uq",
+          "columns": [
+            {
+              "expression": "material_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "location_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stock_snapshots_date_idx": {
+          "name": "stock_snapshots_date_idx",
+          "columns": [
+            {
+              "expression": "snapshot_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "stock_snapshots_material_id_materials_id_fk": {
+          "name": "stock_snapshots_material_id_materials_id_fk",
+          "tableFrom": "stock_snapshots",
+          "tableTo": "materials",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "stock_snapshots_location_id_locations_id_fk": {
+          "name": "stock_snapshots_location_id_locations_id_fk",
+          "tableFrom": "stock_snapshots",
+          "tableTo": "locations",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "location_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "stock_snapshots_batch_id_import_batches_id_fk": {
+          "name": "stock_snapshots_batch_id_import_batches_id_fk",
+          "tableFrom": "stock_snapshots",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "stock_snapshots_source_row_id_source_rows_id_fk": {
+          "name": "stock_snapshots_source_row_id_source_rows_id_fk",
+          "tableFrom": "stock_snapshots",
+          "tableTo": "source_rows",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_row_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "stock_snapshots_unrestricted_nonnegative": {
+          "name": "stock_snapshots_unrestricted_nonnegative",
+          "value": "\"core\".\"stock_snapshots\".\"unrestricted_qty\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "core.usage_observations": {
+      "name": "usage_observations",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "material_id": {
+          "name": "material_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "district_id": {
+          "name": "district_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usage_month": {
+          "name": "usage_month",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usage_qty": {
+          "name": "usage_qty",
+          "type": "numeric(20, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_was_dash": {
+          "name": "source_was_dash",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_row_id": {
+          "name": "source_row_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "usage_material_district_month_batch_uq": {
+          "name": "usage_material_district_month_batch_uq",
+          "columns": [
+            {
+              "expression": "material_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "district_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "usage_month",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "usage_district_month_idx": {
+          "name": "usage_district_month_idx",
+          "columns": [
+            {
+              "expression": "district_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "usage_month",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "usage_observations_material_id_materials_id_fk": {
+          "name": "usage_observations_material_id_materials_id_fk",
+          "tableFrom": "usage_observations",
+          "tableTo": "materials",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "material_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "usage_observations_district_id_districts_id_fk": {
+          "name": "usage_observations_district_id_districts_id_fk",
+          "tableFrom": "usage_observations",
+          "tableTo": "districts",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "district_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "usage_observations_batch_id_import_batches_id_fk": {
+          "name": "usage_observations_batch_id_import_batches_id_fk",
+          "tableFrom": "usage_observations",
+          "tableTo": "import_batches",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "usage_observations_source_row_id_source_rows_id_fk": {
+          "name": "usage_observations_source_row_id_source_rows_id_fk",
+          "tableFrom": "usage_observations",
+          "tableTo": "source_rows",
+          "schemaTo": "raw",
+          "columnsFrom": [
+            "source_row_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "usage_qty_nonnegative": {
+          "name": "usage_qty_nonnegative",
+          "value": "\"core\".\"usage_observations\".\"usage_qty\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "core.vendor_aliases": {
+      "name": "vendor_aliases",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "alias_code": {
+          "name": "alias_code",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_dummy": {
+          "name": "is_dummy",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "vendor_aliases_code_uq": {
+          "name": "vendor_aliases_code_uq",
+          "columns": [
+            {
+              "expression": "alias_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "ops.allocation_status": {
+      "name": "allocation_status",
+      "schema": "ops",
+      "values": [
+        "PROPOSED",
+        "RESERVED",
+        "PICKED",
+        "ISSUED",
+        "RELEASED"
+      ]
+    },
+    "ops.approval_stage": {
+      "name": "approval_stage",
+      "schema": "ops",
+      "values": [
+        "PLANNER",
+        "ACADEMIC_OFFICER"
+      ]
+    },
+    "core.handling_unit_status": {
+      "name": "handling_unit_status",
+      "schema": "core",
+      "values": [
+        "AVAILABLE",
+        "RESERVED",
+        "EMPTY",
+        "QUARANTINE",
+        "CLOSED"
+      ]
+    },
+    "core.handling_unit_type": {
+      "name": "handling_unit_type",
+      "schema": "core",
+      "values": [
+        "FULL_PALLET",
+        "BOX",
+        "CRATE",
+        "BUNDLE",
+        "LOOSE",
+        "LONG_MATERIAL"
+      ]
+    },
+    "raw.import_entity_type": {
+      "name": "import_entity_type",
+      "schema": "raw",
+      "values": [
+        "STOCK",
+        "USAGE",
+        "CONTRACT",
+        "VENDOR"
+      ]
+    },
+    "raw.import_status": {
+      "name": "import_status",
+      "schema": "raw",
+      "values": [
+        "RECEIVED",
+        "VALIDATING",
+        "ACCEPTED",
+        "PARTIAL",
+        "REJECTED"
+      ]
+    },
+    "ops.issue_severity": {
+      "name": "issue_severity",
+      "schema": "ops",
+      "values": [
+        "INFO",
+        "WARNING",
+        "ERROR"
+      ]
+    },
+    "core.location_type": {
+      "name": "location_type",
+      "schema": "core",
+      "values": [
+        "WAREHOUSE",
+        "DISTRICT"
+      ]
+    },
+    "core.movement_type": {
+      "name": "movement_type",
+      "schema": "core",
+      "values": [
+        "OPENING",
+        "RECEIPT",
+        "RESERVE",
+        "RELEASE",
+        "ISSUE",
+        "RETURN",
+        "TRANSFER",
+        "ADJUSTMENT",
+        "QUARANTINE"
+      ]
+    },
+    "core.packaging_quality": {
+      "name": "packaging_quality",
+      "schema": "core",
+      "values": [
+        "DUMMY",
+        "ESTIMATED",
+        "VERIFIED"
+      ]
+    },
+    "ops.plan_status": {
+      "name": "plan_status",
+      "schema": "ops",
+      "values": [
+        "DRAFT",
+        "CALCULATED",
+        "DISTRICT_REVIEW",
+        "PLANNER_APPROVED",
+        "ACADEMIC_APPROVED",
+        "LOCKED",
+        "CANCELLED"
+      ]
+    },
+    "ops.recommendation_method": {
+      "name": "recommendation_method",
+      "schema": "ops",
+      "values": [
+        "POLICY_ONLY",
+        "HISTORY_ASSISTED",
+        "MANUAL_REVIEW"
+      ]
+    },
+    "ops.request_risk_level": {
+      "name": "request_risk_level",
+      "schema": "ops",
+      "values": [
+        "NORMAL",
+        "WATCH",
+        "HIGH",
+        "CRITICAL"
+      ]
+    },
+    "ops.review_decision": {
+      "name": "review_decision",
+      "schema": "ops",
+      "values": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED",
+        "CANCELLED"
+      ]
+    },
+    "core.source_quality": {
+      "name": "source_quality",
+      "schema": "core",
+      "values": [
+        "VERIFIED",
+        "SOURCE_DERIVED",
+        "OPENING_UNKNOWN"
+      ]
+    }
+  },
+  "schemas": {
+    "audit": "audit",
+    "core": "core",
+    "ops": "ops",
+    "raw": "raw"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -86,47 +86,24 @@ docker exec "$container" psql -U postgres -d synapse \
   --set=ON_ERROR_STOP=1 \
   --file=/work/supabase/tests/local_pipeline_workflow_verify.sql
 
-worker_database_url="postgresql://postgres:synapse-test@${container}:5432/synapse"
-echo "queued worker jobs"
-docker exec "$container" psql -U postgres -d synapse \
-  --tuples-only --no-align \
-  --command="select job_type || ':' || status || ':' || payload::text from ops.background_jobs order by created_at, job_type"
-for worker_number in 1 2; do
-  docker run --rm --network "$network" \
-    -e DATABASE_URL="$worker_database_url" \
-    -e ALLOW_HAVERSINE_FALLBACK=true \
-    synapse-worker:1.0.0 \
-    synapse-intelligence worker-once \
-      --worker-id "local-contract-worker-${worker_number}"
-done
-echo "worker jobs after execution"
-docker exec "$container" psql -U postgres -d synapse \
-  --tuples-only --no-align \
-  --command="select job_type || ':' || status || ':' || coalesce(error_message, '') from ops.background_jobs order by created_at, job_type"
+contract_database_url="postgresql://postgres:synapse-test@${container}:5432/synapse"
+echo "forecasting and routing worker execution intentionally excluded"
 
-docker exec "$container" psql -U postgres -d synapse \
-  --set=ON_ERROR_STOP=1 \
-  --file=/work/supabase/tests/local_worker_execution_verify.sql
-
-echo "validating M09 district-scope migration rollback/reapply"
-docker exec "$container" psql -U postgres -d synapse \
-  --set=ON_ERROR_STOP=1 \
-  --file=/work/supabase/rollbacks/202607160013_m09_district_scope_status_rollback.sql \
-  >/dev/null
-docker exec "$container" psql -U postgres -d synapse \
-  --set=ON_ERROR_STOP=1 \
-  --file=/work/supabase/migrations/202607160013_m09_district_scope_status.sql \
-  >/dev/null
-docker exec "$container" psql -U postgres -d synapse \
-  --set=ON_ERROR_STOP=1 \
-  --file=/work/supabase/tests/local_schema_contract_verify.sql \
-  >/dev/null
+deployment_evidence_before="$(
+  docker exec "$container" psql -U postgres -d synapse \
+    --tuples-only --no-align \
+    --command="select count(*) from ops.schema_migrations where version='202607230014'"
+)"
+[[ "$deployment_evidence_before" == "1" ]] || {
+  echo "production operations migration registration mismatch" >&2
+  exit 5
+}
 
 echo "validating guarded database deployment command"
 docker run --rm --network "$network" \
   -v "$root:/work:ro" \
   -w /work \
-  -e DATABASE_URL="$worker_database_url" \
+  -e DATABASE_URL="$contract_database_url" \
   -e BACKUP_DIR=/tmp/synapse-contract-backups \
   -e RELEASE_VERSION=local-contract \
   -e RELEASE_GIT_SHA=1111111111111111111111111111111111111111 \

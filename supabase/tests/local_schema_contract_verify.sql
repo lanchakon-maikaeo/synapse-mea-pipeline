@@ -10,7 +10,7 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 15 from ops.schema_migrations)),
+    (select count(*) = 16 from ops.schema_migrations)),
   ('migration_versions_unique',
     (select count(*) = count(distinct version) from ops.schema_migrations)),
   ('environment_is_test',
@@ -37,10 +37,60 @@ values
     to_regclass('core.stock_snapshots') is not null),
   ('replenishment_plans',
     to_regclass('core.replenishment_plans') is not null),
-  ('forecast_jobs',
-    to_regclass('ops.background_jobs') is not null),
-  ('route_plans',
-    to_regclass('core.route_plans') is not null),
+  ('production_roles',
+    exists (
+      select 1
+      from unnest(enum_range(null::public.app_role)) role
+      where role::text = 'academic'
+    )
+    and exists (
+      select 1
+      from unnest(enum_range(null::public.app_role)) role
+      where role::text = 'picker'
+    )),
+  ('khlong_toei_scope',
+    exists (
+      select 1
+      from core.warehouses
+      where warehouse_id = 'WH-KT'
+        and sap_plant_code = '2401'
+        and storage_location = '0001'
+        and is_active
+    )),
+  ('receipt_lots',
+    to_regclass('core.receipt_lots') is not null),
+  ('packaging_profiles',
+    to_regclass('core.packaging_profiles') is not null),
+  ('handling_units',
+    to_regclass('core.handling_units') is not null),
+  ('inventory_movements',
+    to_regclass('core.inventory_movements') is not null),
+  ('quantity_recommendations',
+    to_regclass('ops.quantity_recommendations') is not null),
+  ('district_change_requests',
+    to_regclass('ops.district_change_requests') is not null),
+  ('plan_approvals',
+    to_regclass('ops.plan_approvals') is not null),
+  ('fifo_allocations',
+    to_regclass('ops.fifo_allocations') is not null),
+  ('ad_hoc_issues',
+    to_regclass('ops.ad_hoc_issues') is not null),
+  ('fifo_queue',
+    to_regclass('analytics.v_fifo_queue') is not null),
+  ('traceback_view',
+    to_regclass('analytics.v_issue_traceback') is not null),
+  ('append_only_movements',
+    exists (
+      select 1
+      from pg_trigger
+      where tgname = 'inventory_movements_append_only'
+        and tgrelid = 'core.inventory_movements'::regclass
+        and not tgisinternal
+    )),
+  ('sequential_approval_function',
+    to_regprocedure('core.approve_replenishment_plan(uuid)') is not null),
+  ('ad_hoc_issue_function',
+    to_regprocedure('core.create_ad_hoc_issue(text,text,numeric,text,text,text)') is not null),
   ('operations_health',
     to_regclass('analytics.v_operations_health') is not null),
   ('m09_dispatch',

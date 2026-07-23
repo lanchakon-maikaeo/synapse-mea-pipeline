@@ -73,6 +73,24 @@ export const movementType = core.enum("movement_type", [
   "ADJUSTMENT",
   "QUARANTINE",
 ]);
+export const planStatus = ops.enum("plan_status", [
+  "DRAFT",
+  "CALCULATED",
+  "DISTRICT_REVIEW",
+  "PLANNER_APPROVED",
+  "ACADEMIC_APPROVED",
+  "LOCKED",
+  "CANCELLED",
+]);
+export const recommendationMethod = ops.enum("recommendation_method", [
+  "POLICY_ONLY",
+  "HISTORY_ASSISTED",
+  "MANUAL_REVIEW",
+]);
+export const requestRiskLevel = ops.enum("request_risk_level", ["NORMAL", "WATCH", "HIGH", "CRITICAL"]);
+export const reviewDecision = ops.enum("review_decision", ["PENDING", "APPROVED", "REJECTED", "CANCELLED"]);
+export const approvalStage = ops.enum("approval_stage", ["PLANNER", "ACADEMIC_OFFICER"]);
+export const allocationStatus = ops.enum("allocation_status", ["PROPOSED", "RESERVED", "PICKED", "ISSUED", "RELEASED"]);
 
 export const importBatches = raw.table(
   "import_batches",
@@ -96,6 +114,7 @@ export const importBatches = raw.table(
     check("import_batches_counts_nonnegative", sql`${table.rowCount} >= 0 and ${table.acceptedCount} >= 0 and ${table.rejectedCount} >= 0`),
   ],
 );
+
 export const sourceRows = raw.table(
   "source_rows",
   {
@@ -432,6 +451,155 @@ export const inventoryMovements = core.table(
     index("inventory_movements_unit_time_idx").on(table.handlingUnitId, table.occurredAt),
     index("inventory_movements_material_time_idx").on(table.materialId, table.occurredAt),
     check("inventory_movements_delta_nonzero", sql`${table.quantityDelta} <> 0`),
+  ],
+);
+
+export const replenishmentPlans = ops.table(
+  "replenishment_plans",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    planNo: varchar("plan_no", { length: 50 }).notNull(),
+    weekStartDate: date("week_start_date").notNull(),
+    warehouseLocationId: uuid("warehouse_location_id").notNull().references(() => locations.id, { onDelete: "restrict" }),
+    policyId: uuid("policy_id").notNull().references(() => calculationPolicies.id, { onDelete: "restrict" }),
+    versionNo: integer("version_no").default(1).notNull(),
+    status: planStatus("status").default("DRAFT").notNull(),
+    sourceStockBatchId: uuid("source_stock_batch_id").references(() => importBatches.id, { onDelete: "restrict" }),
+    sourceUsageBatchId: uuid("source_usage_batch_id").references(() => importBatches.id, { onDelete: "restrict" }),
+    createdBy: text("created_by").notNull(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancellationReason: text("cancellation_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("replenishment_plans_no_version_uq").on(table.planNo, table.versionNo),
+    index("replenishment_plans_week_status_idx").on(table.weekStartDate, table.status),
+    check("replenishment_plans_version_positive", sql`${table.versionNo} > 0`),
+  ],
+);
+
+export const replenishmentPlanItems = ops.table(
+  "replenishment_plan_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    planId: uuid("plan_id").notNull().references(() => replenishmentPlans.id, { onDelete: "restrict" }),
+    districtId: uuid("district_id").notNull().references(() => districts.id, { onDelete: "restrict" }),
+    materialId: uuid("material_id").notNull().references(() => materials.id, { onDelete: "restrict" }),
+    districtStockQty: numeric("district_stock_qty", { precision: 20, scale: 3 }).notNull(),
+    cmpQty: numeric("cmp_qty", { precision: 20, scale: 3 }).notNull(),
+    monthsRemaining: numeric("months_remaining", { precision: 12, scale: 3 }),
+    minTargetQty: numeric("min_target_qty", { precision: 20, scale: 3 }),
+    maxTargetQty: numeric("max_target_qty", { precision: 20, scale: 3 }),
+    policySuggestedQty: numeric("policy_suggested_qty", { precision: 20, scale: 3 }),
+    finalApprovedQty: numeric("final_approved_qty", { precision: 20, scale: 3 }),
+    requiresSpecialApproval: boolean("requires_special_approval").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("replenishment_plan_items_scope_uq").on(table.planId, table.districtId, table.materialId),
+    index("replenishment_plan_items_district_idx").on(table.districtId, table.planId),
+    check("replenishment_plan_items_nonnegative", sql`${table.districtStockQty} >= 0 and ${table.cmpQty} >= 0 and (${table.monthsRemaining} is null or ${table.monthsRemaining} >= 0) and (${table.minTargetQty} is null or ${table.minTargetQty} >= 0) and (${table.maxTargetQty} is null or ${table.maxTargetQty} >= 0) and (${table.policySuggestedQty} is null or ${table.policySuggestedQty} >= 0) and (${table.finalApprovedQty} is null or ${table.finalApprovedQty} >= 0)`),
+  ],
+);
+
+export const quantityRecommendations = ops.table(
+  "quantity_recommendations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    planItemId: uuid("plan_item_id").notNull().references(() => replenishmentPlanItems.id, { onDelete: "restrict" }),
+    method: recommendationMethod("method").notNull(),
+    engineVersion: varchar("engine_version", { length: 50 }).notNull(),
+    historyStartDate: date("history_start_date"),
+    historyEndDate: date("history_end_date"),
+    historySampleSize: integer("history_sample_size").default(0).notNull(),
+    lastIssuedQty: numeric("last_issued_qty", { precision: 20, scale: 3 }),
+    meanIssuedQty: numeric("mean_issued_qty", { precision: 20, scale: 3 }),
+    medianIssuedQty: numeric("median_issued_qty", { precision: 20, scale: 3 }),
+    p90IssuedQty: numeric("p90_issued_qty", { precision: 20, scale: 3 }),
+    lowerBoundQty: numeric("lower_bound_qty", { precision: 20, scale: 3 }),
+    recommendedQty: numeric("recommended_qty", { precision: 20, scale: 3 }).notNull(),
+    upperBoundQty: numeric("upper_bound_qty", { precision: 20, scale: 3 }),
+    confidenceScore: numeric("confidence_score", { precision: 5, scale: 4 }),
+    evidence: jsonb("evidence").$type<Record<string, unknown>>().notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("quantity_recommendations_item_time_idx").on(table.planItemId, table.generatedAt),
+    check("quantity_recommendations_values_valid", sql`${table.historySampleSize} >= 0 and ${table.recommendedQty} >= 0 and (${table.confidenceScore} is null or (${table.confidenceScore} >= 0 and ${table.confidenceScore} <= 1))`),
+  ],
+);
+
+export const districtChangeRequests = ops.table(
+  "district_change_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    planItemId: uuid("plan_item_id").notNull().references(() => replenishmentPlanItems.id, { onDelete: "restrict" }),
+    recommendationId: uuid("recommendation_id").references(() => quantityRecommendations.id, { onDelete: "restrict" }),
+    originalQty: numeric("original_qty", { precision: 20, scale: 3 }).notNull(),
+    requestedQty: numeric("requested_qty", { precision: 20, scale: 3 }).notNull(),
+    deltaPercent: numeric("delta_percent", { precision: 12, scale: 4 }),
+    projectedMonths: numeric("projected_months", { precision: 12, scale: 3 }),
+    riskLevel: requestRiskLevel("risk_level").default("NORMAL").notNull(),
+    riskSignals: jsonb("risk_signals").$type<Record<string, unknown>>().notNull(),
+    reason: text("reason").notNull(),
+    requestedByName: text("requested_by_name").notNull(),
+    requestedByUserId: text("requested_by_user_id").notNull(),
+    decision: reviewDecision("decision").default("PENDING").notNull(),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewReason: text("review_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("district_change_requests_queue_idx").on(table.decision, table.riskLevel, table.createdAt),
+    index("district_change_requests_item_idx").on(table.planItemId, table.createdAt),
+    check("district_change_requests_qty_nonnegative", sql`${table.originalQty} >= 0 and ${table.requestedQty} >= 0 and (${table.projectedMonths} is null or ${table.projectedMonths} >= 0)`),
+    check("district_change_requests_reason_present", sql`length(trim(${table.reason})) >= 10 and length(trim(${table.requestedByName})) > 0`),
+  ],
+);
+
+export const planApprovals = ops.table(
+  "plan_approvals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    planId: uuid("plan_id").notNull().references(() => replenishmentPlans.id, { onDelete: "restrict" }),
+    stage: approvalStage("stage").notNull(),
+    decisionSequence: integer("decision_sequence").default(1).notNull(),
+    decision: reviewDecision("decision").notNull(),
+    actor: text("actor").notNull(),
+    reason: text("reason"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("plan_approvals_stage_sequence_uq").on(table.planId, table.stage, table.decisionSequence),
+    index("plan_approvals_plan_time_idx").on(table.planId, table.decidedAt),
+    check("plan_approvals_sequence_positive", sql`${table.decisionSequence} > 0`),
+  ],
+);
+
+export const fifoAllocations = ops.table(
+  "fifo_allocations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    planItemId: uuid("plan_item_id").notNull().references(() => replenishmentPlanItems.id, { onDelete: "restrict" }),
+    receiptLotId: uuid("receipt_lot_id").notNull().references(() => receiptLots.id, { onDelete: "restrict" }),
+    handlingUnitId: uuid("handling_unit_id").notNull().references(() => handlingUnits.id, { onDelete: "restrict" }),
+    allocationSequence: integer("allocation_sequence").notNull(),
+    allocatedQty: numeric("allocated_qty", { precision: 20, scale: 3 }).notNull(),
+    remainBeforeQty: numeric("remain_before_qty", { precision: 20, scale: 3 }).notNull(),
+    remainAfterQty: numeric("remain_after_qty", { precision: 20, scale: 3 }).notNull(),
+    status: allocationStatus("status").default("PROPOSED").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("fifo_allocations_item_sequence_uq").on(table.planItemId, table.allocationSequence),
+    index("fifo_allocations_unit_status_idx").on(table.handlingUnitId, table.status),
+    check("fifo_allocations_values_valid", sql`${table.allocationSequence} > 0 and ${table.allocatedQty} > 0 and ${table.remainBeforeQty} >= 0 and ${table.remainAfterQty} >= 0 and ${table.remainAfterQty} = ${table.remainBeforeQty} - ${table.allocatedQty}`),
   ],
 );
 

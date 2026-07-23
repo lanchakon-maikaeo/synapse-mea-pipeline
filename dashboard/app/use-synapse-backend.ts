@@ -9,18 +9,9 @@ import {
   resolveSignInIdentifier,
   type Identity,
 } from "./lib";
-import type {
-  ForecastRunPayload,
-  RouteJobPayload,
-  VmiInputPayload,
-} from "./pipeline-validation";
+import type { VmiInputPayload } from "./pipeline-validation";
 
-export type {
-  ForecastRunPayload,
-  RouteJobPayload,
-  VmiDemandPoint,
-  VmiInputPayload,
-} from "./pipeline-validation";
+export type { VmiDemandPoint, VmiInputPayload } from "./pipeline-validation";
 
 export type RecordRow = Record<string, unknown>;
 
@@ -32,17 +23,54 @@ export type VmiContext = {
   history: RecordRow[];
 };
 
+export type ReplenishmentResponsePayload = {
+  decision: "confirm" | "reject" | "change";
+  confirmed_qty: number;
+  reason: string;
+  requester_name: string;
+};
+
+export type ReceiptPayload = {
+  contract_item_id: number;
+  location_id: string;
+  acceptance_date: string;
+  quantity: number;
+  handling_unit_code: string;
+  unit_type:
+    | "FULL_PALLET"
+    | "BOX"
+    | "CRATE"
+    | "BUNDLE"
+    | "LOOSE"
+    | "LONG_MATERIAL";
+  opening_status: "SEALED" | "OPENING_UNKNOWN";
+  installment_no?: string;
+  source_reference: string;
+};
+
+export type AdHocIssuePayload = {
+  material_id: string;
+  district_id: string;
+  requested_qty: number;
+  reason: string;
+  requester_name: string;
+  idempotency_key?: string;
+};
+
 export type DashboardData = {
   contracts: RecordRow[];
   quality: RecordRow[];
   stock: RecordRow[];
   warehouseStock: RecordRow[];
   replenishment: RecordRow[];
-  forecasts: RecordRow[];
-  forecastMonitoring: RecordRow[];
-  routes: RecordRow[];
-  jobs: RecordRow[];
-  readiness: RecordRow | null;
+  recommendations: RecordRow[];
+  changeRequests: RecordRow[];
+  approvals: RecordRow[];
+  fifo: RecordRow[];
+  handlingUnits: RecordRow[];
+  receiptOptions: RecordRow[];
+  adHocIssues: RecordRow[];
+  traceability: RecordRow[];
   operations: RecordRow | null;
   alerts: RecordRow[];
   materials: RecordRow[];
@@ -57,11 +85,14 @@ export const emptyData: DashboardData = {
   stock: [],
   warehouseStock: [],
   replenishment: [],
-  forecasts: [],
-  forecastMonitoring: [],
-  routes: [],
-  jobs: [],
-  readiness: null,
+  recommendations: [],
+  changeRequests: [],
+  approvals: [],
+  fifo: [],
+  handlingUnits: [],
+  receiptOptions: [],
+  adHocIssues: [],
+  traceability: [],
   operations: null,
   alerts: [],
   materials: [],
@@ -98,34 +129,63 @@ export function useSynapseBackend() {
       const me = await apiRequest<Identity>("/v1/me", token);
       setIdentity(me);
       identityResolved = true;
-      const broad = me.role !== "district";
-      const planner = me.role === "admin" || me.role === "planner";
-      const requests = await Promise.all([
-        broad
+
+      const contractReader = ["admin", "planner", "viewer"].includes(me.role);
+      const operationsReader = ["admin", "planner", "viewer"].includes(me.role);
+      const warehouseReader = me.role !== "district";
+      const receiver = me.role === "admin" || me.role === "picker";
+      const alertReader = me.role === "admin" || me.role === "planner";
+
+      const [
+        contracts,
+        quality,
+        stock,
+        replenishment,
+        recommendations,
+        changeRequests,
+        approvals,
+        fifo,
+        handlingUnits,
+        receiptOptions,
+        adHocIssues,
+        traceability,
+        operations,
+        alerts,
+        materials,
+        districts,
+        inputSubmissions,
+        warehouseStock,
+        legacyStatus,
+      ] = await Promise.all([
+        contractReader
           ? apiRequest<RecordRow[]>("/v1/contracts?limit=100", token)
           : Promise.resolve([]),
-        broad
+        contractReader
           ? apiRequest<RecordRow[]>("/v1/data-quality?limit=100", token)
           : Promise.resolve([]),
         apiRequest<RecordRow[]>("/v1/stock-health", token),
         apiRequest<RecordRow[]>("/v1/replenishment/queue", token),
-        apiRequest<RecordRow[]>("/v1/forecasts/latest", token),
-        broad
-          ? apiRequest<RecordRow[]>("/v1/forecasts/monitoring", token)
+        apiRequest<RecordRow[]>("/v1/replenishment/recommendations", token),
+        apiRequest<RecordRow[]>("/v1/replenishment/change-requests", token),
+        apiRequest<RecordRow[]>("/v1/replenishment/approvals", token),
+        warehouseReader
+          ? apiRequest<RecordRow[]>("/v1/inventory/fifo", token)
           : Promise.resolve([]),
-        broad
-          ? apiRequest<RecordRow[]>("/v1/routes/plans", token)
+        warehouseReader
+          ? apiRequest<RecordRow[]>("/v1/inventory/handling-units", token)
           : Promise.resolve([]),
-        broad
-          ? apiRequest<RecordRow[]>("/v1/jobs", token)
+        receiver
+          ? apiRequest<RecordRow[]>(
+              "/v1/inventory/receipt-options?limit=500",
+              token,
+            )
           : Promise.resolve([]),
-        broad
-          ? apiRequest<RecordRow>("/v1/wave3/readiness", token)
-          : Promise.resolve(null),
-        broad
+        apiRequest<RecordRow[]>("/v1/ad-hoc/issues", token),
+        apiRequest<RecordRow[]>("/v1/traceability", token),
+        operationsReader
           ? apiRequest<RecordRow>("/v1/operations/health", token)
           : Promise.resolve(null),
-        planner
+        alertReader
           ? apiRequest<RecordRow[]>("/v1/operations/alerts", token)
           : Promise.resolve([]),
         apiRequest<RecordRow[]>("/v1/reference/materials?limit=2000", token),
@@ -134,23 +194,27 @@ export function useSynapseBackend() {
         apiRequest<RecordRow[]>("/v1/warehouse-stock?limit=1000", token),
         apiRequest<RecordRow>("/v1/data-sources/legacy/status", token),
       ]);
+
       setData({
-        contracts: requests[0],
-        quality: requests[1],
-        stock: requests[2],
-        replenishment: requests[3],
-        forecasts: requests[4],
-        forecastMonitoring: requests[5],
-        routes: requests[6],
-        jobs: requests[7],
-        readiness: requests[8],
-        operations: requests[9],
-        alerts: requests[10],
-        materials: requests[11],
-        districts: requests[12],
-        inputSubmissions: requests[13],
-        warehouseStock: requests[14],
-        legacyStatus: requests[15],
+        contracts,
+        quality,
+        stock,
+        replenishment,
+        recommendations,
+        changeRequests,
+        approvals,
+        fifo,
+        handlingUnits,
+        receiptOptions,
+        adHocIssues,
+        traceability,
+        operations,
+        alerts,
+        materials,
+        districts,
+        inputSubmissions,
+        warehouseStock,
+        legacyStatus,
       });
     } catch (loadError) {
       if (!identityResolved) setIdentity(null);
@@ -295,52 +359,12 @@ export function useSynapseBackend() {
     [session],
   );
 
-  const loadJobDetail = useCallback(
-    async (jobId: string) => {
-      if (!session) return null;
-      try {
-        return await apiRequest<RecordRow>(
-          `/v1/jobs/${jobId}`,
-          session.access_token,
-        );
-      } catch (requestError) {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "ไม่สามารถโหลดสถานะ Job ได้",
-        );
-        return null;
-      }
-    },
-    [session],
-  );
-
-  const loadRoutePlanDetail = useCallback(
-    async (routePlanId: string) => {
-      if (!session) return null;
-      try {
-        return await apiRequest<RecordRow>(
-          `/v1/routes/plans/${routePlanId}`,
-          session.access_token,
-        );
-      } catch (requestError) {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : "ไม่สามารถโหลดรายละเอียด Route ได้",
-        );
-        return null;
-      }
-    },
-    [session],
-  );
-
   const createReplenishmentRun = useCallback(
     async () =>
       (await runAction(
         "/v1/replenishment/runs",
         {},
-        "สร้างรอบคำนวณการจ่ายจากข้อมูลที่ตรวจสอบแล้ว",
+        "สร้าง Weekly Plan จากข้อมูลที่ผ่านกติกาแล้ว",
       )) !== null,
     [runAction],
   );
@@ -350,91 +374,177 @@ export function useSynapseBackend() {
       (await runAction(
         "/v1/data-inputs/vmi",
         payload,
-        "เผยแพร่ VMI input ผ่าน Raw → Staging → Core/Analytics แล้ว",
+        "เผยแพร่ข้อมูลผ่าน Raw → Staging → Core/Analytics แล้ว",
+      )) !== null,
+    [runAction],
+  );
+
+  const respondReplenishment = useCallback(
+    async (itemId: string, payload: ReplenishmentResponsePayload) =>
+      (await runAction(
+        `/v1/replenishment/items/${itemId}/respond`,
+        payload,
+        "บันทึก District response พร้อมผู้ขอและเหตุผลแล้ว",
+      )) !== null,
+    [runAction],
+  );
+
+  const reviewChangeRequest = useCallback(
+    async (
+      changeRequestId: string,
+      decision: "approved" | "rejected",
+      reviewNote: string,
+    ) =>
+      (await runAction(
+        `/v1/replenishment/change-requests/${changeRequestId}/review`,
+        { decision, review_note: reviewNote },
+        "บันทึกผล Abnormal Request Review แล้ว",
       )) !== null,
     [runAction],
   );
 
   const approveReplenishmentPlan = useCallback(
-    async (planId: string) =>
+    async (planId: string, note = "") =>
       (await runAction(
         `/v1/replenishment/plans/${planId}/approve`,
+        { note },
+        "บันทึก approval stage และสถานะแผนแล้ว",
+      )) !== null,
+    [runAction],
+  );
+
+  const cancelReplenishmentPlan = useCallback(
+    async (planId: string, reason: string) =>
+      (await runAction(
+        `/v1/replenishment/plans/${planId}/cancel`,
+        { reason },
+        "ยกเลิกแผนและคืน FIFO reservation แล้ว",
+      )) !== null,
+    [runAction],
+  );
+
+  const versionReplenishmentPlan = useCallback(
+    async (planId: string, reason: string) =>
+      (await runAction(
+        `/v1/replenishment/plans/${planId}/version`,
+        { reason },
+        "สร้าง Plan version ใหม่โดยคง audit ของเวอร์ชันเดิมแล้ว",
+      )) !== null,
+    [runAction],
+  );
+
+  const issueReplenishmentPlan = useCallback(
+    async (planId: string) =>
+      (await runAction(
+        `/v1/replenishment/plans/${planId}/issue`,
         {},
-        "อนุมัติแผนการจ่ายและบันทึกผู้ดำเนินการแล้ว",
+        "บันทึกการจ่ายจริงจาก FIFO allocation แล้ว",
       )) !== null,
     [runAction],
   );
 
-  const queueForecastRun = useCallback(
-    async (payload: ForecastRunPayload) =>
+  const receiveHandlingUnit = useCallback(
+    async (payload: ReceiptPayload) =>
       (await runAction(
-        "/v1/forecasts/runs",
+        "/v1/inventory/receipts",
         payload,
-        "ส่ง Forecast run เข้าคิว background worker แล้ว",
+        "รับ Handling Unit พร้อม lot/contract trace แล้ว",
       )) !== null,
     [runAction],
   );
 
-  const queueRouteJob = useCallback(
-    async (payload: RouteJobPayload) =>
-      (await runAction(
-        "/v1/routes/jobs",
-        payload,
-        "ส่ง Route optimization เข้าคิว background worker แล้ว",
-      )) !== null,
-    [runAction],
-  );
-
-  const reviewRoutePlan = useCallback(
+  const reconcileHandlingUnit = useCallback(
     async (
-      routePlanId: string,
-      decision: "approved" | "rejected",
+      handlingUnitId: string,
+      resolvedStatus: "OPEN" | "SEALED",
       reason: string,
     ) =>
       (await runAction(
-        `/v1/routes/plans/${routePlanId}/review`,
-        { decision, reason: reason || null },
-        decision === "approved"
-          ? "อนุมัติ Route plan แล้ว"
-          : "ปฏิเสธ Route plan พร้อมบันทึกเหตุผลแล้ว",
+        `/v1/inventory/handling-units/${handlingUnitId}/reconcile`,
+        { resolved_status: resolvedStatus, reason },
+        "ยืนยัน OPENING_UNKNOWN ด้วยหลักฐานแล้ว",
       )) !== null,
     [runAction],
   );
 
-  const confirmReplenishment = useCallback(
-    async (itemId: string, confirmedQty: number, reason: string) => {
-      return (
-        (await runAction(
-          `/v1/replenishment/items/${itemId}/confirm`,
-          { confirmed_qty: confirmedQty, reason },
-          "บันทึกการยืนยันรายการพร้อมเหตุผลแล้ว",
-        )) !== null
-      );
-    },
+  const createAdHocIssue = useCallback(
+    async (payload: AdHocIssuePayload) =>
+      (await runAction(
+        "/v1/ad-hoc/issues",
+        payload,
+        "สร้าง Ad-hoc Issue แยกจาก Weekly Plan แล้ว",
+      )) !== null,
+    [runAction],
+  );
+
+  const approveAdHocIssue = useCallback(
+    async (adHocIssueId: string, note: string) =>
+      (await runAction(
+        `/v1/ad-hoc/issues/${adHocIssueId}/approve`,
+        { note },
+        "อนุมัติ Ad-hoc Issue และจอง FIFO แล้ว",
+      )) !== null,
+    [runAction],
+  );
+
+  const issueAdHocIssue = useCallback(
+    async (adHocIssueId: string) =>
+      (await runAction(
+        `/v1/ad-hoc/issues/${adHocIssueId}/issue`,
+        {},
+        "บันทึกการจ่าย Ad-hoc จริงแล้ว",
+      )) !== null,
+    [runAction],
+  );
+
+  const recordInventoryReturn = useCallback(
+    async (
+      sourceIssueMovementId: string,
+      quantity: number,
+      damaged: boolean,
+      reason: string,
+    ) =>
+      (await runAction(
+        "/v1/inventory/returns",
+        {
+          source_issue_movement_id: sourceIssueMovementId,
+          quantity,
+          damaged,
+          reason,
+        },
+        damaged
+          ? "รับคืนและย้าย Handling Unit เข้า Quarantine แล้ว"
+          : "บันทึกรับคืนโดยเชื่อมกับรายการจ่ายเดิมแล้ว",
+      )) !== null,
     [runAction],
   );
 
   return {
     actionBusy,
+    approveAdHocIssue,
     approveReplenishmentPlan,
     authBusy,
-    confirmReplenishment,
+    cancelReplenishmentPlan,
+    createAdHocIssue,
     createReplenishmentRun,
     data,
     error,
     identity,
-    loadJobDetail,
-    loadRoutePlanDetail,
+    issueAdHocIssue,
+    issueReplenishmentPlan,
     loadVmiContext,
     loading,
     notice,
     publishVmiInput,
-    queueForecastRun,
-    queueRouteJob,
+    receiveHandlingUnit,
+    reconcileHandlingUnit,
+    recordInventoryReturn,
     refresh,
-    reviewRoutePlan,
+    respondReplenishment,
+    reviewChangeRequest,
     session,
     signIn,
     signOut,
+    versionReplenishmentPlan,
   };
 }

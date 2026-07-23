@@ -34,9 +34,9 @@ export const m09OpenApi = {
   openapi: "3.1.0",
   info: {
     title: "SYNAPSE API",
-    version: "1.0.0",
+    version: "1.1.0",
     description:
-      "Serverless same-origin API for SYNAPSE release 1.0.0-non-ai",
+      "Production warehouse operations API. Forecasting, routing and RAG are excluded from this release.",
   },
   servers: [{ url: "/api" }],
   components: {
@@ -69,24 +69,62 @@ export const m09OpenApi = {
     },
     "/v1/data-inputs/vmi/context": get("Existing Supabase VMI context"),
     "/v1/stock-health": get("Stock health"),
-    "/v1/replenishment/queue": get("Replenishment queue"),
-    "/v1/replenishment/runs": post("Create replenishment run", "201"),
-    "/v1/replenishment/items/{item_id}/confirm": post(
-      "Confirm replenishment item",
+    "/v1/replenishment/queue": get("Weekly replenishment queue"),
+    "/v1/replenishment/recommendations": get(
+      "Rule-based quantity recommendations with evidence",
+    ),
+    "/v1/replenishment/change-requests": get(
+      "District quantity changes and abnormal-request review",
+    ),
+    "/v1/replenishment/approvals": get("Immutable plan approval timeline"),
+    "/v1/replenishment/runs": post("Create weekly replenishment run", "201"),
+    "/v1/replenishment/items/{item_id}/respond": post(
+      "Confirm, reject or change a district replenishment item",
+    ),
+    "/v1/replenishment/change-requests/{change_request_id}/review": post(
+      "Review a district quantity change",
     ),
     "/v1/replenishment/plans/{plan_id}/approve": post(
-      "Approve replenishment plan",
+      "Advance Planner or Academic approval",
     ),
-    "/v1/forecasts/latest": get("Latest forecasts"),
-    "/v1/forecasts/monitoring": get("Forecast monitoring"),
-    "/v1/forecasts/runs": post("Queue forecast run", "202"),
-    "/v1/jobs": get("Background jobs"),
-    "/v1/jobs/{job_id}": get("Background job status"),
-    "/v1/routes/jobs": post("Queue route job", "202"),
-    "/v1/routes/plans": get("Route plans"),
-    "/v1/routes/plans/{route_plan_id}": get("Route plan detail"),
-    "/v1/routes/plans/{route_plan_id}/review": post("Review route plan"),
-    "/v1/wave3/readiness": get("Wave 3 readiness"),
+    "/v1/replenishment/plans/{plan_id}/cancel": post(
+      "Cancel a plan and release reservations",
+    ),
+    "/v1/replenishment/plans/{plan_id}/version": post(
+      "Create a governed version from a locked plan",
+      "201",
+    ),
+    "/v1/replenishment/plans/{plan_id}/issue": post(
+      "Issue a locked weekly plan",
+    ),
+    "/v1/inventory/fifo": get("Traceable FIFO handling-unit queue"),
+    "/v1/inventory/handling-units": get(
+      "All handling units, including blocked opening stock",
+    ),
+    "/v1/inventory/receipt-options": get(
+      "Current contract items eligible for receipt",
+    ),
+    "/v1/inventory/receipts": post("Receive a handling unit", "201"),
+    "/v1/inventory/returns": post(
+      "Return or quarantine an issued quantity",
+      "201",
+    ),
+    "/v1/inventory/handling-units/{handling_unit_id}/reconcile": post(
+      "Reconcile OPENING_UNKNOWN stock",
+    ),
+    "/v1/ad-hoc/issues": {
+      get: get("Ad-hoc issue queue").get,
+      post: post("Create a separate ad-hoc issue", "201").post,
+    },
+    "/v1/ad-hoc/issues/{ad_hoc_issue_id}/approve": post(
+      "Approve and reserve an ad-hoc issue",
+    ),
+    "/v1/ad-hoc/issues/{ad_hoc_issue_id}/issue": post(
+      "Issue an approved ad-hoc request",
+    ),
+    "/v1/traceability": get(
+      "Forward and reverse issue traceback from district to vendor",
+    ),
     "/v1/operations/health": get("Operations health"),
     "/v1/operations/alerts": get("Operations alerts"),
   },

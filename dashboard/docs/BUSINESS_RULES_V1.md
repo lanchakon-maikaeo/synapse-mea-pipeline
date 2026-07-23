@@ -2,10 +2,11 @@
 
 Status: **FROZEN**
 Effective baseline: 22 July 2026
-Environment: Staging first; Production is explicitly out of scope
+Environment: Production deployment baseline
 
 Changes after this baseline require a new version and must not rewrite historical plan or movement results.
-Never run these migrations against Production without separate approval, backup, and release verification.
+Every Production deployment requires a verified logical backup, migration
+contract pass, application smoke test, release evidence and a named operator.
 
 ## Data sources and cadence
 
@@ -58,10 +59,21 @@ Never run these migrations against Production without separate approval, backup,
 - Unknown opening stock remains `OPENING_UNKNOWN` until verified.
 - Dummy packaging is permitted in Staging but cannot automatically approve a real vehicle load.
 
-## Vehicle baseline
+## Production deployment
 
-- Observed payload is approximately 6,000 kg and remains unverified as a legal/safety limit.
-- Average usable deck: 2.45 × 5.20 metres.
-- Side height: approximately 0.50 metres.
-- No overhang and no lifting equipment.
-- Default stacking is one layer/manual review because stacking is operationally difficult.
+- The governed release scope is stock, CMP, weekly replenishment, District
+  response, Planner/Academic approval, locking/versioning/cancellation,
+  receiving, Handling Unit/FIFO allocation, issue, return/quarantine, ad-hoc
+  issue and end-to-end traceability.
+- Authentication, role checks, district scope, RLS, append-only movements,
+  approval history and audit evidence are enforced in the database/API, not
+  only in the browser.
+- Apply ordered migrations with `scripts/deploy_database_migrations.sh`; the
+  command requires an explicit confirmation phrase, creates a backup first and
+  records the release result.
+- Forecasting, routing, and RAG are excluded from this release. They have no
+  production navigation or published OpenAPI paths, and direct legacy requests
+  fail closed.
+- A previous application version may be redeployed, but a database rollback
+  must restore the verified pre-release backup or use a reviewed forward-fix.
+  Production data tables must never be dropped as an automatic rollback.

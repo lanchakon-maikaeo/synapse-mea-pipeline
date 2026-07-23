@@ -15,31 +15,7 @@ export type VmiInputPayload = {
   run_replenishment: boolean;
 };
 
-export type ForecastRunPayload = {
-  training_end: string;
-  training_start?: string;
-  horizon_months: number;
-};
-
-export type RouteJobPayload = {
-  replenishment_plan_id: string;
-  forecast_run_id?: string;
-  matrix_source: "valhalla";
-};
-
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
-const datePattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-
-function isIsoDate(value: string) {
-  if (!datePattern.test(value)) return false;
-  const [year, month, day] = value.split("-").map(Number);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return (
-    parsed.getUTCFullYear() === year &&
-    parsed.getUTCMonth() === month - 1 &&
-    parsed.getUTCDate() === day
-  );
-}
 
 export function toLocalDateInput(value: Date = new Date()) {
   const shifted = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
@@ -127,40 +103,4 @@ export function snapshotIso(value: string, now: Date = new Date()) {
     throw new Error("Snapshot time ต้องไม่อยู่ในอนาคต");
   }
   return snapshot.toISOString();
-}
-
-export function createForecastRunPayload(
-  trainingStart: string,
-  trainingEnd: string,
-  horizon: string,
-  today = toLocalDateInput(),
-): ForecastRunPayload {
-  if (!isIsoDate(trainingEnd)) {
-    throw new Error("Training end ไม่ถูกต้อง");
-  }
-  if (trainingEnd > today) {
-    throw new Error("Training end ต้องไม่อยู่ในอนาคต");
-  }
-  if (
-    trainingStart &&
-    !isIsoDate(trainingStart)
-  ) {
-    throw new Error("Training start ไม่ถูกต้อง");
-  }
-  if (trainingStart && trainingStart > trainingEnd) {
-    throw new Error("Training start ต้องไม่เกิน Training end");
-  }
-  const horizonMonths = Number(horizon);
-  if (
-    !Number.isInteger(horizonMonths) ||
-    horizonMonths < 1 ||
-    horizonMonths > 24
-  ) {
-    throw new Error("Horizon ต้องเป็นจำนวนเต็ม 1–24 เดือน");
-  }
-  return {
-    training_end: trainingEnd,
-    ...(trainingStart ? { training_start: trainingStart } : {}),
-    horizon_months: horizonMonths,
-  };
 }

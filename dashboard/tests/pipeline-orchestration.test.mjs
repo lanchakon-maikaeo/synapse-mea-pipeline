@@ -23,68 +23,105 @@ const paths = [
   "/v1/data-inputs/vmi/context",
   "/v1/stock-health",
   "/v1/replenishment/queue",
+  "/v1/replenishment/recommendations",
+  "/v1/replenishment/change-requests",
+  "/v1/replenishment/approvals",
   "/v1/replenishment/runs",
-  "/v1/replenishment/items/{item_id}/confirm",
+  "/v1/replenishment/items/{item_id}/respond",
+  "/v1/replenishment/change-requests/{change_request_id}/review",
   "/v1/replenishment/plans/{plan_id}/approve",
-  "/v1/forecasts/latest",
-  "/v1/forecasts/monitoring",
-  "/v1/forecasts/runs",
-  "/v1/jobs",
-  "/v1/jobs/{job_id}",
-  "/v1/routes/jobs",
-  "/v1/routes/plans",
-  "/v1/routes/plans/{route_plan_id}",
-  "/v1/routes/plans/{route_plan_id}/review",
-  "/v1/wave3/readiness",
+  "/v1/replenishment/plans/{plan_id}/cancel",
+  "/v1/replenishment/plans/{plan_id}/version",
+  "/v1/replenishment/plans/{plan_id}/issue",
+  "/v1/inventory/fifo",
+  "/v1/inventory/handling-units",
+  "/v1/inventory/receipt-options",
+  "/v1/inventory/receipts",
+  "/v1/inventory/returns",
+  "/v1/inventory/handling-units/{handling_unit_id}/reconcile",
+  "/v1/ad-hoc/issues",
+  "/v1/ad-hoc/issues/{ad_hoc_issue_id}/approve",
+  "/v1/ad-hoc/issues/{ad_hoc_issue_id}/issue",
+  "/v1/traceability",
   "/v1/operations/health",
   "/v1/operations/alerts",
 ];
 
-test("same-origin OpenAPI keeps the complete 29-path backend contract", () => {
-  assert.equal(paths.length, 29);
+test("same-origin OpenAPI exposes the 36-path production operations contract", () => {
+  assert.equal(paths.length, 36);
   for (const path of paths) {
-    assert.match(openapi, new RegExp(JSON.stringify(path).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(
+      openapi,
+      new RegExp(
+        JSON.stringify(path).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      ),
+    );
+  }
+  for (const excluded of [
+    '"/v1/forecasts',
+    '"/v1/routes',
+    '"/v1/jobs',
+    '"/v1/wave3',
+    '"/v1/rag',
+  ]) {
+    assert.ok(!openapi.includes(excluded), excluded);
   }
   assert.match(apiRoute, /m09_dispatch/);
   assert.match(apiRoute, /m10_input_dispatch/);
   assert.match(apiRoute, /m11_legacy_dispatch/);
 });
 
-test("frontend orchestrates every operational read/write stage", () => {
+test("frontend orchestrates the frozen production workflow", () => {
   const requiredHookSignals = [
     "/v1/data-inputs/vmi/context?",
     '"/v1/data-inputs/vmi"',
     "/v1/replenishment/runs",
-    "/v1/replenishment/items/${itemId}/confirm",
+    "/v1/replenishment/items/${itemId}/respond",
+    "/v1/replenishment/change-requests/${changeRequestId}/review",
     "/v1/replenishment/plans/${planId}/approve",
-    "/v1/forecasts/runs",
-    "/v1/jobs/${jobId}",
-    "/v1/routes/jobs",
-    "/v1/routes/plans/${routePlanId}",
-    "/v1/routes/plans/${routePlanId}/review",
+    "/v1/replenishment/plans/${planId}/cancel",
+    "/v1/replenishment/plans/${planId}/version",
+    "/v1/replenishment/plans/${planId}/issue",
+    '"/v1/inventory/receipts"',
+    "/v1/inventory/handling-units/${handlingUnitId}/reconcile",
+    '"/v1/inventory/returns"',
+    '"/v1/ad-hoc/issues"',
+    "/v1/ad-hoc/issues/${adHocIssueId}/approve",
+    "/v1/ad-hoc/issues/${adHocIssueId}/issue",
   ];
   for (const signal of requiredHookSignals) assert.ok(hook.includes(signal), signal);
 
   const requiredUiSignals = [
+    "District → Planner → Academic → Lock",
+    "Quantity Recommendation Evidence",
+    "Abnormal Request Review",
+    "FIFO, Pallets & Remaining Quantity",
+    "Receive Traceable Handling Unit",
+    "Ad-hoc Issue",
+    "Issue Traceback",
+    "APPEND-ONLY RETURN",
+    "OPENING_UNKNOWN",
     "Publish governed input",
-    "อนุมัติแผน",
-    "Queue Forecast Run",
-    "สร้าง Route job",
-    "ROUTE REVIEW",
-    "JOB DETAIL",
-    "ROUTE PLAN + GEOJSON",
+    "36 same-origin API paths",
   ];
   for (const signal of requiredUiSignals) assert.ok(page.includes(signal), signal);
-  assert.match(page, /plan_status\)\.toLowerCase\(\)==="approved"/);
-  assert.match(page, /row\.status\)\.toLowerCase\(\)!=="draft"/);
 });
 
-test("production route jobs cannot select the development Haversine fallback", () => {
-  assert.match(page, /matrix_source:"valhalla"/);
-  assert.doesNotMatch(page, /matrix_source:"haversine-test"/);
+test("excluded modules have no browser orchestration path", () => {
+  for (const excluded of [
+    "/v1/forecasts/",
+    "/v1/routes/",
+    "/v1/jobs",
+    "/v1/wave3/",
+    "/v1/rag/",
+    "matrix_source",
+  ]) {
+    assert.ok(!hook.includes(excluded), excluded);
+    assert.ok(!page.includes(excluded), excluded);
+  }
 });
 
-test("deployment smoke covers public health, auth denial and the full contract", () => {
+test("deployment smoke covers public health, auth denial and full OpenAPI", () => {
   assert.match(smoke, /health\/ready/);
   assert.match(smoke, /database, "ready"/);
   assert.match(smoke, /api\/v1\/me", 401/);
