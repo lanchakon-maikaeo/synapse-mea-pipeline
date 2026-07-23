@@ -23,6 +23,9 @@ User browser
 
 The production web target is `synapse-mea/mea-synapse-staging` on Vercel. The
 managed database/Auth target is Supabase project `mklnbumfwojxhqscthjd`.
+Vercel deploys branch `main` from the canonical
+`lanchakon-maikaeo/synapse-mea-pipeline` repository with Root Directory
+`dashboard`.
 `https://synapse-mea-dashboard.lanchakon0.chatgpt.site` is an independent
 snapshot and is not part of this release pipeline.
 

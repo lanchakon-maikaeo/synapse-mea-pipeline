@@ -5,6 +5,7 @@ Status: code-ready; deployment evidence must be captured per release
 - Canonical repository: `lanchakon-maikaeo/synapse-mea-pipeline`
 - Release branch: `main`
 - Vercel workspace/project: `synapse-mea/mea-synapse-staging`
+- Vercel Root Directory: `dashboard`
 - Web target: <https://mea-synapse-staging.vercel.app>
 Supabase project: `mklnbumfwojxhqscthjd`
 
@@ -100,3 +101,7 @@ The separate URL
 `https://synapse-mea-dashboard.lanchakon0.chatgpt.site` is a ChatGPT
 Sites-hosted snapshot. It is not the Vercel release target and must not be used
 as deployment evidence for this repository.
+
+The former `lanchakon-maikaeo/synapse-mea-dashboard` repository is an archived
+deployment-migration record only. Do not push releases to it or reconnect it to
+Vercel.

@@ -28,6 +28,8 @@ historical implementation records and do not expand the active release scope.
 - Web release target: Vercel workspace/project
   `synapse-mea/mea-synapse-staging`, URL
   <https://mea-synapse-staging.vercel.app>.
+- Vercel Git source: the canonical repository above, with Root Directory
+  `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase project
   `mklnbumfwojxhqscthjd`.
 - The browser uses only the Supabase publishable key. Database credentials and
@@ -36,6 +38,8 @@ historical implementation records and do not expand the active release scope.
 `https://synapse-mea-dashboard.lanchakon0.chatgpt.site` is a separate
 ChatGPT Sites-hosted snapshot, served through Cloudflare rather than the Vercel
 project. It is not a release target or deployment evidence for this repository.
+The former `lanchakon-maikaeo/synapse-mea-dashboard` deployment mirror is
+retained only as an archived migration record and is not connected to Vercel.
 
 Run `make workspace-ci` before release. The production database contract starts
 a clean PostgreSQL 17 instance, applies all 16 migrations and verifies 43

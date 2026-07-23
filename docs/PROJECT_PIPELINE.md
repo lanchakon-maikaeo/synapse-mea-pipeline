@@ -89,8 +89,10 @@ Canonical source รวมอยู่ใน monorepo เดียว:
 - `lanchakon-maikaeo/synapse-mea-pipeline` เก็บ `api/`, `pipeline/`,
   `intelligence/`, `supabase/`, `deploy/`, operations workflow และ Next.js
   source ใน `dashboard/`
-- `lanchakon-maikaeo/synapse-mea-dashboard` คงไว้เป็น deployment mirror ที่
-  Vercel เชื่อมอยู่เดิมระหว่างการย้าย deployment integration มา monorepo
+- Vercel เชื่อมกับ repository นี้โดยตรง ติดตาม branch `main` และใช้ Root
+  Directory `dashboard`
+- `lanchakon-maikaeo/synapse-mea-dashboard` เป็น archived migration record
+  เท่านั้น ไม่ใช่ deployment source
 
 `https://synapse-mea-dashboard.lanchakon0.chatgpt.site` เป็น ChatGPT
 Sites-hosted snapshot แยกต่างหากและ response ถูก serve ผ่าน Cloudflare ไม่ได้
@@ -718,15 +720,16 @@ District user ต้องใช้ `district_id` ตั้งแต่ `5501` �
 
 ### 12.1 Current Vercel project
 
-Vercel project เดิมยังเชื่อม deployment mirror ที่มี Dashboard เป็น repository
-root ส่วน canonical monorepo นี้เก็บแอปไว้ใน `dashboard/` และต้องตั้ง Root
-Directory ให้ตรงกับ path ดังกล่าวเมื่อย้าย Vercel integration
+Vercel project เชื่อม canonical monorepo นี้โดยตรงและเก็บแอปไว้ใน
+`dashboard/`; Root Directory จึงต้องคงเป็น path ดังกล่าว
 
 ค่าปัจจุบัน/ที่แนะนำใน Vercel Project:
 
 | Setting | Value |
 |---|---|
-| Root Directory | `dashboard` สำหรับ monorepo (`.` สำหรับ deployment mirror เดิม) |
+| Git Repository | `lanchakon-maikaeo/synapse-mea-pipeline` |
+| Production Branch | `main` |
+| Root Directory | `dashboard` |
 | Framework Preset | Next.js |
 | Install Command | `npm ci` |
 | Build Command | `npm run build` (`next build --webpack`) |
@@ -751,8 +754,9 @@ NEXT_PUBLIC_SITE_URL=https://<production-domain>
 
 ### 12.3 Deploy flow
 
-1. Import Git repository `lanchakon-maikaeo/synapse-mea-pipeline` เข้า Vercel
-2. ตั้ง Root Directory เป็น `dashboard`
+1. ตรวจว่า Vercel เชื่อม Git repository
+   `lanchakon-maikaeo/synapse-mea-pipeline`
+2. ตรวจว่า Production Branch เป็น `main` และ Root Directory เป็น `dashboard`
 3. ตั้งค่า build ตามตารางด้านบน
 4. เพิ่ม environment variables แยก Preview/Production
 5. Deploy Preview
@@ -813,8 +817,8 @@ flowchart LR
 Canonical monorepo ใช้ `.github/workflows/non-ai-ci.yml` ตรวจ Dashboard,
 Python, delivery, Docker build, secret scan และ clean PostgreSQL
 migration/schema/worker contract ใน commit เดียวกัน ส่วน
-`dashboard/.github/workflows/verify.yml` คงไว้สำหรับ deployment mirror เดิม
-ระหว่างการย้าย Vercel integration
+`dashboard/.github/workflows/verify.yml` คงไว้เป็น standalone verification
+reference เท่านั้นและไม่ใช่ workflow ที่ trigger จาก root monorepo
 
 ลำดับ release ที่ปลอดภัย:
 
