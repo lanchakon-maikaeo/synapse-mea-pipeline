@@ -1,0 +1,97 @@
+name: synapse
+
+x-runtime: &runtime
+  restart: unless-stopped
+  env_file: ${SYNAPSE_ENV_FILE:-.env}
+  init: true
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  api:
+    <<: *runtime
+    profiles: [development, production]
+    build:
+      context: .
+      dockerfile: deploy/docker/api.Dockerfile
+    image: synapse-api:1.0.0
+    ports:
+      - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    networks: [backend, monitoring]
+
+  worker:
+    <<: *runtime
+    profiles: [development, production]
+    build:
+      context: .
+      dockerfile: deploy/docker/worker.Dockerfile
+    image: synapse-worker:1.0.0
+    environment:
+      WORKER_ID: ${WORKER_ID:-worker-01}
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-30}
+      VALHALLA_URL: ${VALHALLA_URL:-http://valhalla:8002}
+      ALLOW_HAVERSINE_FALLBACK: ${ALLOW_HAVERSINE_FALLBACK:-false}
+    networks: [backend]
+
+  pipeline:
+    build:
+      context: .
+      dockerfile: deploy/docker/pipeline.Dockerfile
+    image: synapse-pipeline:1.0.0
+    env_file: ${SYNAPSE_ENV_FILE:-.env}
+    profiles: [tools]
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      - "${IMPORT_DIRECTORY:-./imports}:/imports:ro"
+    networks: [backend]
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [observability]
+    restart: unless-stopped
+    env_file: .env
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        sed "s|METRICS_TOKEN_PLACEHOLDER|$${METRICS_TOKEN}|g"
+        /etc/prometheus/prometheus.template.yml > /tmp/prometheus.yml;
+        exec /bin/prometheus --config.file=/tmp/prometheus.yml
+        --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.template.yml:ro
+      - ./deploy/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_BIND_ADDRESS:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [monitoring]
+
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    profiles: [routing]
+    restart: unless-stopped
+    environment:
+      tile_urls: ${VALHALLA_TILE_URLS:-}
+      use_tiles_ignore_pbf: "True"
+    volumes:
+      - valhalla-data:/custom_files
+    ports:
+      - "${VALHALLA_BIND_ADDRESS:-127.0.0.1}:${VALHALLA_PORT:-8002}:8002"
+    networks: [backend]
+
+networks:
+  backend:
+  monitoring:
+
+volumes:
+  prometheus-data:
+  valhalla-data:

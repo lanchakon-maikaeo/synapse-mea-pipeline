@@ -1,0 +1,19 @@
+groups:
+  - name: synapse-api
+    rules:
+      - alert: SynapseApiDown
+        expr: up{job="synapse-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: SYNAPSE API is unavailable
+          runbook: docs/OPERATIONS_RUNBOOK.md#api-down
+      - alert: SynapseApiServerErrors
+        expr: increase(synapse_api_requests_total{status=~"5.."}[10m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: SYNAPSE API is returning repeated server errors
+          runbook: docs/OPERATIONS_RUNBOOK.md#repeated-5xx

@@ -1,0 +1,14 @@
+# Install for the unprivileged SYNAPSE service account. DATABASE_URL must come
+# from a protected environment file or secret manager, never this repository.
+
+# Idempotently queue the previous calendar month's forecast at 02:05 on day 1.
+5 2 1 * * /opt/synapse/venv/bin/synapse-intelligence schedule-forecast --horizon 3
+
+# Consume at most one retryable forecast/route job every five minutes.
+*/5 * * * * /opt/synapse/venv/bin/synapse-intelligence worker-once --worker-id cron-worker-01
+
+# Refresh persisted accuracy/drift events after the normal worker window.
+30 3 * * * /opt/synapse/venv/bin/synapse-intelligence refresh-drift
+
+# Reconcile import, background-job and freshness alerts every 15 minutes.
+*/15 * * * * /opt/synapse/venv/bin/synapse-intelligence refresh-alerts --stale-hours 26

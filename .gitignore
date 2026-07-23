@@ -1,0 +1,29 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.venv/
+.codex_tmp/
+dist/
+build/
+*.egg-info/
+
+# Local Codex/runtime state
+.agents/
+.synapse-cache/
+skills-lock.json
+
+# Independently versioned dashboard and historical workspaces
+dashboard/
+synapse-prior/
+update-v1/
+
+# Generated exports and source-office artifacts are kept outside Git
+outputs/
+*.docx
+*.pdf
+*.xlsx

@@ -1,0 +1,44 @@
+name: non-ai-ci
+
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install modules
+        run: python -m pip install -e 'api[test]' -e pipeline -e intelligence
+      - name: Test API
+        run: python -m unittest discover -s api/tests -v
+      - name: Test pipeline
+        run: python -m unittest discover -s pipeline/tests -v
+      - name: Test intelligence
+        run: python -m unittest discover -s intelligence/tests -v
+      - name: Verify OpenAPI artifact
+        run: python api/scripts/export_openapi.py --check
+
+  delivery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Validate shell and Compose
+        run: make delivery-check
+      - name: Build runtime images
+        run: docker compose build api worker pipeline
+      - name: Verify Supabase migrations and schema contract
+        run: make database-contract-local
+      - name: Scan source for high-confidence secrets
+        run: bash scripts/scan_secrets.sh

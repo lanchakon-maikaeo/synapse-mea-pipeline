@@ -1,0 +1,113 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+
+from .connectors import CsvConnector, DocumentConnector, ExcelConnector, GoogleSheetsCsvConnector
+from .ingestion import IngestionRunner, PostgresWriter
+from .legacy_actual import download_sources, import_sources
+
+
+def _local_connector(path: str, sheet: str | None):
+    suffix = Path(path).suffix.lower()
+    if suffix == ".xlsx":
+        if not sheet:
+            raise SystemExit("--sheet is required for Excel sources")
+        return ExcelConnector(path, sheet)
+    if suffix == ".csv":
+        return CsvConnector(path)
+    return DocumentConnector(path)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="synapse-pipeline")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    profile = subparsers.add_parser("profile", help="Profile a local tabular source")
+    profile.add_argument("--source", required=True)
+    profile.add_argument("--sheet")
+
+    ingest = subparsers.add_parser("ingest", help="Load a source into raw.source_rows")
+    ingest.add_argument("--source", required=True)
+    ingest.add_argument("--sheet")
+    ingest.add_argument("--entity", required=True)
+    ingest.add_argument("--work-dir", default=".synapse-cache")
+
+    google = subparsers.add_parser("ingest-google-sheet", help="Download and ingest a Google Sheet CSV export")
+    google.add_argument("--spreadsheet-id", required=True)
+    google.add_argument("--gid", default="0")
+    google.add_argument("--entity", required=True)
+    google.add_argument("--work-dir", default=".synapse-cache")
+
+    legacy = subparsers.add_parser("import-legacy-actual", help="Import verified real sources documented by the legacy SYNAPSE project")
+    legacy.add_argument("--work-dir", default=".synapse-cache/legacy-actual")
+    legacy.add_argument("--chunk-size", type=int, default=200)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.command == "profile":
+        connector = _local_connector(args.source, args.sheet)
+        discovered = connector.discover()
+        if not discovered:
+            raise SystemExit("source not found")
+        source = discovered[0]
+        rows = list(connector.iter_rows(source))
+        print(json.dumps({
+            "source": connector.get_metadata(source),
+            "row_count": len(rows),
+            "first_row_number": rows[0].row_number if rows else None,
+            "last_row_number": rows[-1].row_number if rows else None,
+            "headers": list(rows[0].payload) if rows else [],
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "import-legacy-actual":
+        required = {
+            "SUPABASE_URL": os.environ.get("SUPABASE_URL"),
+            "SUPABASE_ANON_KEY": os.environ.get("SUPABASE_ANON_KEY"),
+            "SUPABASE_ACCESS_TOKEN": os.environ.get("SUPABASE_ACCESS_TOKEN"),
+        }
+        missing = [key for key, value in required.items() if not value]
+        if missing:
+            raise SystemExit(f"Missing environment variables: {', '.join(missing)}")
+        sources = download_sources(args.work_dir)
+        results = import_sources(
+            sources,
+            supabase_url=required["SUPABASE_URL"],
+            publishable_key=required["SUPABASE_ANON_KEY"],
+            access_token=required["SUPABASE_ACCESS_TOKEN"],
+            chunk_size=args.chunk_size,
+        )
+        print(json.dumps({
+            "sources": [
+                {"source_key": source.source_key, "rows": len(source.rows), "checksum": source.checksum}
+                for source in sources
+            ],
+            "final_results": results[-3:] if results else [],
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise SystemExit("DATABASE_URL is required for ingestion")
+    writer = PostgresWriter(database_url)
+    try:
+        if args.command == "ingest":
+            connector = _local_connector(args.source, args.sheet)
+            source_sheet = args.sheet
+        else:
+            connector = GoogleSheetsCsvConnector(args.spreadsheet_id, gid=args.gid)
+            source_sheet = f"gid:{args.gid}"
+        results = IngestionRunner(writer, work_dir=args.work_dir).run(
+            connector,
+            source_entity=args.entity,
+            source_sheet=source_sheet,
+        )
+        print(json.dumps([result.__dict__ for result in results], ensure_ascii=False, indent=2))
+        return 0
+    finally:
+        writer.close()
