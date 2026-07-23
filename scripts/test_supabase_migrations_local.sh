@@ -92,10 +92,10 @@ echo "forecasting and routing worker execution intentionally excluded"
 deployment_evidence_before="$(
   docker exec "$container" psql -U postgres -d synapse \
     --tuples-only --no-align \
-    --command="select count(*) from ops.schema_migrations where version='202607230014'"
+    --command="select count(*) from ops.schema_migrations where version='202607230015'"
 )"
 [[ "$deployment_evidence_before" == "1" ]] || {
-  echo "production operations migration registration mismatch" >&2
+  echo "dashboard read-resilience migration registration mismatch" >&2
   exit 5
 }
 

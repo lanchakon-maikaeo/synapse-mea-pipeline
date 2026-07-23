@@ -231,7 +231,7 @@ const titles: Record<ViewKey, [string, string, string]> = {
   release: [
     "RELEASE CONTROL",
     "Production Scope",
-    "Business Rules v1 and migration 014; forecasting, routing and RAG are excluded.",
+    "Business Rules v1 and migration 015; forecasting, routing and RAG are excluded.",
   ],
 };
 
@@ -243,6 +243,21 @@ function text(value: unknown, fallback = "—") {
 
 function bool(value: unknown) {
   return value === true || value === "true";
+}
+
+function record(value: unknown): RecordRow {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as RecordRow)
+    : {};
+}
+
+function rows(value: unknown): RecordRow[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (row): row is RecordRow =>
+          row !== null && typeof row === "object" && !Array.isArray(row),
+      )
+    : [];
 }
 
 function latestSnapshot(data: DashboardData) {
@@ -1429,6 +1444,42 @@ function FifoView({
           <small>base units</small>
         </article>
       </section>
+      {data.warehouseStock.length > 0 && (
+        <section className="panel">
+          <div className="panel-title">
+            <div>
+              <span>ACTUAL WAREHOUSE SNAPSHOTS</span>
+              <h3>Opening stock awaiting Handling Unit registration</h3>
+            </div>
+            <b>{formatNumber(data.warehouseStock.length)}</b>
+          </div>
+          {!data.handlingUnits.length && (
+            <aside className="plain-notice warning">
+              <i>!</i>
+              <div>
+                <strong>Stock exists, but no Handling Unit is registered</strong>
+                <p>
+                  Source-backed warehouse balance is visible below. Register
+                  actual receipts or verified opening units before FIFO issue;
+                  the system does not fabricate pallet or contract lineage.
+                </p>
+              </div>
+            </aside>
+          )}
+          <LiveTable
+            rows={data.warehouseStock.slice(0, 100)}
+            empty="ยังไม่มี Warehouse snapshot"
+            columns={[
+              ["Material", (row) => row.material_id],
+              ["Description", (row) => row.material_name],
+              ["Quantity", (row) => formatNumber(row.quantity_on_hand, 2)],
+              ["Unit", (row) => row.unit],
+              ["Location", (row) => row.location_name_th],
+              ["Snapshot", (row) => formatDateTime(row.snapshot_at)],
+            ]}
+          />
+        </section>
+      )}
       <section className="panel">
         <div className="panel-title">
           <div>
@@ -2363,6 +2414,12 @@ function GovernedInputView({
 
 function OperationsView({ data }: { data: DashboardData }) {
   const health = data.operations ?? {};
+  const sourceStatus = record(data.legacyStatus);
+  const sourceTotals = record(sourceStatus.totals);
+  const sourceRows = rows(sourceStatus.sources);
+  const sourceWarnings = Array.isArray(sourceStatus.warnings)
+    ? sourceStatus.warnings.map((warning) => text(warning))
+    : [];
   return (
     <div className="stack">
       <section className="operations-hero">
@@ -2385,6 +2442,49 @@ function OperationsView({ data }: { data: DashboardData }) {
               <small>live database health</small>
             </article>
           ))}
+      </section>
+      <section className="user-status">
+        {[
+          ["Materials", sourceTotals.materials],
+          ["Warehouse snapshots", sourceTotals.warehouse_stock_snapshots],
+          ["District snapshots", sourceTotals.district_stock_snapshots],
+          ["Usage rates", sourceTotals.usage_rates],
+        ].map(([label, value]) => (
+          <article key={text(label)}>
+            <span>{text(label)}</span>
+            <strong>{formatNumber(value)}</strong>
+            <small>source-backed production rows</small>
+          </article>
+        ))}
+      </section>
+      <section className="panel">
+        <div className="panel-title">
+          <div>
+            <span>DATA SOURCE READINESS</span>
+            <h3>Actual source load status</h3>
+          </div>
+        </div>
+        <LiveTable
+          rows={sourceRows}
+          empty="ยังไม่มี source import evidence"
+          columns={[
+            ["Source", (row) => row.source_key],
+            ["Status", (row) => <Badge>{text(row.status)}</Badge>],
+            ["Expected", (row) => formatNumber(row.expected_rows)],
+            ["Loaded", (row) => formatNumber(row.loaded_rows)],
+            ["Observed", (row) => formatDateTime(row.source_observed_at)],
+            ["Updated", (row) => formatDateTime(row.updated_at)],
+          ]}
+        />
+        {sourceWarnings.map((warning) => (
+          <aside className="plain-notice warning" key={warning}>
+            <i>!</i>
+            <div>
+              <strong>Source readiness warning</strong>
+              <p>{warning}</p>
+            </div>
+          </aside>
+        ))}
       </section>
       <section className="panel">
         <div className="panel-title">
@@ -2444,13 +2544,13 @@ function ReleaseView() {
         <div>
           <span>PRODUCTION OPERATIONS V1</span>
           <h3>Requirement-aligned operational release</h3>
-          <p>Business Rules v1 · Supabase migration 202607230014</p>
+          <p>Business Rules v1 · Supabase migration 202607230015</p>
         </div>
         <Badge>TESTED</Badge>
       </section>
       <section className="acceptance-grid">
         {[
-          ["16 ordered Supabase migrations", "Schema"],
+          ["17 ordered Supabase migrations", "Schema"],
           ["36 same-origin API paths", "API"],
           ["District → Planner → Academic → Lock", "Approval"],
           ["Opened HU → accepted date → PO → item → row", "FIFO"],

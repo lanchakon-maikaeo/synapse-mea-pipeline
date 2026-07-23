@@ -36,7 +36,7 @@ test("keeps the UI aligned with the frozen production operations scope", async (
     "OPENING_UNKNOWN",
     "Ad-hoc Issue",
     "36 same-origin API paths",
-    "16 ordered Supabase migrations",
+    "17 ordered Supabase migrations",
     "scope_excluded",
     "useSynapseBackend",
     "backend.createReplenishmentRun",

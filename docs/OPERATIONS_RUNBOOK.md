@@ -38,10 +38,14 @@ release evidence. Forecasting, routing and RAG are excluded.
 3. If several new `/v1/*` paths return `404` while older paths return `200`,
    compare `max(ops.schema_migrations.version)` with the migration required by
    the deployed Git commit before changing application routing.
-4. Do not retry approval, issue or return writes blindly; inspect immutable
+4. If every API returns `200` but the page remains blank or unresponsive,
+   inspect response row counts and payload size. Dashboard list endpoints must
+   use bounded server-side reads; do not render an entire analytical cube in
+   the initial load.
+5. Do not retry approval, issue or return writes blindly; inspect immutable
    approval/movement/audit evidence first.
-5. Preserve the relevant log window and record an incident before changing data.
-6. A request for forecast, route, job, Wave 3 or RAG paths should return `410
+6. Preserve the relevant log window and record an incident before changing data.
+7. A request for forecast, route, job, Wave 3 or RAG paths should return `410
    scope_excluded`; do not enable a worker to make it pass.
 
 ## Import or data-quality failure

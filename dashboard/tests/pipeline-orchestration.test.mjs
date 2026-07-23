@@ -146,3 +146,11 @@ test("authenticated deployment smoke detects production-operations contract skew
   assert.match(smoke, /authenticatedRole === "admin" \|\| authenticatedRole === "picker"/);
   assert.match(smoke, /authenticatedChecks = 1 \+ authenticatedPaths\.length/);
 });
+
+test("dashboard reads remain bounded and preserve successful partial data", () => {
+  assert.match(hook, /\/v1\/stock-health\?limit=250/);
+  assert.match(hook, /const read = async <T,/);
+  assert.match(hook, /โหลดสำเร็จบางส่วน/);
+  assert.match(page, /ACTUAL WAREHOUSE SNAPSHOTS/);
+  assert.match(page, /DATA SOURCE READINESS/);
+});

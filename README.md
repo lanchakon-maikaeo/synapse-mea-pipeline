@@ -32,8 +32,8 @@ historical implementation records and do not expand the active release scope.
   `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase project
   `mklnbumfwojxhqscthjd`.
-- Managed database status: migration `202607230014` applied and verified on
-  23 July 2026; see the
+- Managed database status: migration `202607230015` applied and verified on
+  23 July 2026. See the
   [contract-sync incident record](docs/incidents/2026-07-23-supabase-contract-sync.md).
 - The browser uses only the Supabase publishable key. Database credentials and
   `service_role` must remain in the deployment secret store.
@@ -45,7 +45,7 @@ The former `lanchakon-maikaeo/synapse-mea-dashboard` deployment mirror is
 retained only as an archived migration record and is not connected to Vercel.
 
 Run `make workspace-ci` before release. The production database contract starts
-a clean PostgreSQL 17 instance, applies all 16 migrations and verifies 43
+a clean PostgreSQL 17 instance, applies all 17 migrations and verifies 44
 schema/RLS/privilege controls plus 20 authenticated workflow checks. The
 dashboard gate runs lint, TypeScript, a production Next.js build, rendered
 screen/API tests and the Drizzle database contract.

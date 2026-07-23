@@ -1,7 +1,7 @@
 # SYNAPSE Production Operations v1
 
-- Status: deployed baseline; managed migration `202607230014` applied and
-  verified 23 July 2026
+- Status: deployed baseline through migration `202607230015`; the latest
+  migration adds bounded dashboard reads and partial-load resilience
 - Business rules: frozen 22 July 2026
 Release scope: stock, replenishment, warehouse issue and traceability
 
@@ -73,7 +73,7 @@ It is additive, preserves historical data and registers version
 contract for the standalone dashboard schema. Do not apply both migration
 families to the same database.
 
-Managed project `mklnbumfwojxhqscthjd` now reports `202607230014` as the latest
+Managed project `mklnbumfwojxhqscthjd` reports `202607230015` as the latest
 registered migration. The recovery and verification evidence for the previous
 web/database contract mismatch is recorded in
 [`docs/incidents/2026-07-23-supabase-contract-sync.md`](./incidents/2026-07-23-supabase-contract-sync.md).
@@ -134,8 +134,8 @@ is captured.
 ## Release acceptance
 
 - Dashboard lint, type-check, production build and tests pass.
-- Clean PostgreSQL applies 16 ordered migrations.
-- All 43 schema/RLS/privilege checks pass.
+- Clean PostgreSQL applies 17 ordered migrations.
+- All 44 schema/RLS/privilege checks pass.
 - All 20 authenticated operational workflow checks pass.
 - Health and readiness endpoints return `200`.
 - Unauthenticated `/api/v1/me` returns `401`.

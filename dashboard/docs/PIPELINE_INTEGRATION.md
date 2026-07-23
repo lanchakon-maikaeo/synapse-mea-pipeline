@@ -1,6 +1,6 @@
 # MEA Synapse — Production Pipeline Integration
 
-Status: deployed; managed Supabase migration `202607230014` verified
+Status: deployed; managed Supabase migration `202607230015` verified
 23 July 2026
 
 - Canonical repository: `lanchakon-maikaeo/synapse-mea-pipeline`
@@ -14,6 +14,11 @@ The managed database and web API are aligned at Production Operations v1.
 Eight authenticated paths that previously returned `404` were verified as
 `200` after migration 014. Incident evidence is in
 [`docs/incidents/2026-07-23-supabase-contract-sync.md`](../../docs/incidents/2026-07-23-supabase-contract-sync.md).
+
+Migration 015 bounds `/v1/stock-health` to 250 rows by default (maximum 500)
+and the dashboard preserves successful endpoint data when a separate read
+fails. This replaced the previous 16,758-row / 9.7 MB initial response. See the
+[dashboard-read incident record](../../docs/incidents/2026-07-23-dashboard-read-resilience.md).
 
 ## Runtime topology
 

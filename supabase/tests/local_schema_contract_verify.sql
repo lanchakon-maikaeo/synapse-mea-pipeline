@@ -10,7 +10,7 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 16 from ops.schema_migrations)),
+    (select count(*) = 17 from ops.schema_migrations)),
   ('migration_versions_unique',
     (select count(*) = count(distinct version) from ops.schema_migrations)),
   ('environment_is_test',
@@ -99,6 +99,12 @@ values
     not has_function_privilege(
       'authenticated',
       'public.m09_dispatch_impl(text,text,jsonb,jsonb,text)',
+      'execute'
+    )),
+  ('m09_dispatch_v14_protected',
+    not has_function_privilege(
+      'authenticated',
+      'public.m09_dispatch_v14(text,text,jsonb,jsonb,text)',
       'execute'
     )),
   ('m10_dispatch',

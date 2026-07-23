@@ -135,6 +135,23 @@ export function useSynapseBackend() {
       const warehouseReader = me.role !== "district";
       const receiver = me.role === "admin" || me.role === "picker";
       const alertReader = me.role === "admin" || me.role === "planner";
+      const failures: string[] = [];
+      const read = async <T,>(
+        label: string,
+        request: Promise<T>,
+        fallback: T,
+      ): Promise<T> => {
+        try {
+          return await request;
+        } catch (requestError) {
+          const message =
+            requestError instanceof Error
+              ? requestError.message
+              : "unknown API error";
+          failures.push(`${label}: ${message}`);
+          return fallback;
+        }
+      };
 
       const [
         contracts,
@@ -157,42 +174,118 @@ export function useSynapseBackend() {
         warehouseStock,
         legacyStatus,
       ] = await Promise.all([
-        contractReader
-          ? apiRequest<RecordRow[]>("/v1/contracts?limit=100", token)
-          : Promise.resolve([]),
-        contractReader
-          ? apiRequest<RecordRow[]>("/v1/data-quality?limit=100", token)
-          : Promise.resolve([]),
-        apiRequest<RecordRow[]>("/v1/stock-health", token),
-        apiRequest<RecordRow[]>("/v1/replenishment/queue", token),
-        apiRequest<RecordRow[]>("/v1/replenishment/recommendations", token),
-        apiRequest<RecordRow[]>("/v1/replenishment/change-requests", token),
-        apiRequest<RecordRow[]>("/v1/replenishment/approvals", token),
-        warehouseReader
-          ? apiRequest<RecordRow[]>("/v1/inventory/fifo", token)
-          : Promise.resolve([]),
-        warehouseReader
-          ? apiRequest<RecordRow[]>("/v1/inventory/handling-units", token)
-          : Promise.resolve([]),
-        receiver
-          ? apiRequest<RecordRow[]>(
-              "/v1/inventory/receipt-options?limit=500",
-              token,
-            )
-          : Promise.resolve([]),
-        apiRequest<RecordRow[]>("/v1/ad-hoc/issues", token),
-        apiRequest<RecordRow[]>("/v1/traceability", token),
-        operationsReader
-          ? apiRequest<RecordRow>("/v1/operations/health", token)
-          : Promise.resolve(null),
-        alertReader
-          ? apiRequest<RecordRow[]>("/v1/operations/alerts", token)
-          : Promise.resolve([]),
-        apiRequest<RecordRow[]>("/v1/reference/materials?limit=2000", token),
-        apiRequest<RecordRow[]>("/v1/reference/districts", token),
-        apiRequest<RecordRow[]>("/v1/data-inputs/vmi?limit=20", token),
-        apiRequest<RecordRow[]>("/v1/warehouse-stock?limit=1000", token),
-        apiRequest<RecordRow>("/v1/data-sources/legacy/status", token),
+        read(
+          "contracts",
+          contractReader
+            ? apiRequest<RecordRow[]>("/v1/contracts?limit=100", token)
+            : Promise.resolve([]),
+          [],
+        ),
+        read(
+          "data quality",
+          contractReader
+            ? apiRequest<RecordRow[]>("/v1/data-quality?limit=100", token)
+            : Promise.resolve([]),
+          [],
+        ),
+        read(
+          "stock health",
+          apiRequest<RecordRow[]>("/v1/stock-health?limit=250", token),
+          [],
+        ),
+        read(
+          "replenishment queue",
+          apiRequest<RecordRow[]>("/v1/replenishment/queue", token),
+          [],
+        ),
+        read(
+          "recommendations",
+          apiRequest<RecordRow[]>("/v1/replenishment/recommendations", token),
+          [],
+        ),
+        read(
+          "change requests",
+          apiRequest<RecordRow[]>("/v1/replenishment/change-requests", token),
+          [],
+        ),
+        read(
+          "approvals",
+          apiRequest<RecordRow[]>("/v1/replenishment/approvals", token),
+          [],
+        ),
+        read(
+          "FIFO",
+          warehouseReader
+            ? apiRequest<RecordRow[]>("/v1/inventory/fifo", token)
+            : Promise.resolve([]),
+          [],
+        ),
+        read(
+          "handling units",
+          warehouseReader
+            ? apiRequest<RecordRow[]>("/v1/inventory/handling-units", token)
+            : Promise.resolve([]),
+          [],
+        ),
+        read(
+          "receipt options",
+          receiver
+            ? apiRequest<RecordRow[]>(
+                "/v1/inventory/receipt-options?limit=500",
+                token,
+              )
+            : Promise.resolve([]),
+          [],
+        ),
+        read(
+          "ad-hoc issues",
+          apiRequest<RecordRow[]>("/v1/ad-hoc/issues", token),
+          [],
+        ),
+        read(
+          "traceability",
+          apiRequest<RecordRow[]>("/v1/traceability", token),
+          [],
+        ),
+        read(
+          "operations health",
+          operationsReader
+            ? apiRequest<RecordRow>("/v1/operations/health", token)
+            : Promise.resolve(null),
+          null,
+        ),
+        read(
+          "operations alerts",
+          alertReader
+            ? apiRequest<RecordRow[]>("/v1/operations/alerts", token)
+            : Promise.resolve([]),
+          [],
+        ),
+        read(
+          "materials",
+          apiRequest<RecordRow[]>("/v1/reference/materials?limit=2000", token),
+          [],
+        ),
+        read(
+          "districts",
+          apiRequest<RecordRow[]>("/v1/reference/districts", token),
+          [],
+        ),
+        read(
+          "governed inputs",
+          apiRequest<RecordRow[]>("/v1/data-inputs/vmi?limit=20", token),
+          [],
+        ),
+        read(
+          "warehouse stock",
+          apiRequest<RecordRow[]>("/v1/warehouse-stock?limit=1000", token),
+          [],
+        ),
+        read(
+          "legacy source status",
+          apiRequest<RecordRow>("/v1/data-sources/legacy/status", token),
+          null,
+        ),
       ]);
 
       setData({
@@ -216,6 +309,13 @@ export function useSynapseBackend() {
         warehouseStock,
         legacyStatus,
       });
+      if (failures.length) {
+        setError(
+          `โหลดสำเร็จบางส่วน (${19 - failures.length}/19): ${failures.join(
+            " | ",
+          )}`,
+        );
+      }
     } catch (loadError) {
       if (!identityResolved) setIdentity(null);
       setError(
