@@ -1,0 +1,21 @@
+.vercel
+.git.nested-backup
+.next
+node_modules
+.vinext
+.wrangler
+dist
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# Local build/cache output
+*.log
+*.tsbuildinfo
+.npm-cache
+
+# OS/editor files
+.DS_Store
+Thumbs.db

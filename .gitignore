@@ -17,8 +17,8 @@ build/
 .synapse-cache/
 skills-lock.json
 
-# Independently versioned dashboard and historical workspaces
-dashboard/
+# Historical workspaces and recoverable local Git metadata
+dashboard/.git.nested-backup/
 synapse-prior/
 update-v1/
 

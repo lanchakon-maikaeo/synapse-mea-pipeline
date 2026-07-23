@@ -65,7 +65,7 @@ flowchart LR
 
 | Path | หน้าที่ | Runtime หลัก |
 |---|---|---|
-| External repository `lanchakon-maikaeo/synapse-mea-dashboard` | Thai role-aware UI, Supabase Auth, same-origin API route | Node.js `>=22.13`, React 19, Next.js 16 |
+| `dashboard/` | Thai role-aware UI, Supabase Auth, same-origin API route | Node.js `>=22.13`, React 19, Next.js 16 |
 | `api/` | API contract ทางเลือกสำหรับ local/self-host | Python `>=3.11`, FastAPI, psycopg |
 | `pipeline/` | Source connectors, checksum, Raw ingestion, legacy actual importer | Python `>=3.11` |
 | `intelligence/` | Forecasting, drift, Valhalla matrix และ OR-Tools routing worker | Python `>=3.11` |
@@ -82,18 +82,15 @@ flowchart LR
 
 ### 3.1 สถานะ deployment ปัจจุบัน
 
-Dashboard ถูก deploy แบบ native Next.js ที่ `https://mea-synapse-staging.vercel.app` จาก GitHub repository `lanchakon-maikaeo/synapse-mea-dashboard` ไปยัง Vercel project `synapse-mea/mea-synapse-staging`
+Dashboard ถูก deploy แบบ native Next.js ที่ `https://mea-synapse-staging.vercel.app` ไปยัง Vercel project `synapse-mea/mea-synapse-staging`
 
-Source ถูกแบ่งเป็น 2 private repositories ตาม release boundary:
+Canonical source รวมอยู่ใน monorepo เดียว:
 
 - `lanchakon-maikaeo/synapse-mea-pipeline` เก็บ `api/`, `pipeline/`,
-  `intelligence/`, `supabase/`, `deploy/` และ operations workflow
-- `lanchakon-maikaeo/synapse-mea-dashboard` เก็บ Next.js dashboard และเป็น
-  repository ที่ Vercel เชื่อมโดยตรง
-
-ใน local workspace อาจมี `dashboard/` เป็น nested checkout เพื่อรัน
-`make workspace-ci` แต่ path นี้ถูก ignore จาก pipeline repository เพื่อไม่ให้
-เกิด source ซ้ำสองชุดหรือ nested Git history ที่ไม่ชัดเจน
+  `intelligence/`, `supabase/`, `deploy/`, operations workflow และ Next.js
+  source ใน `dashboard/`
+- `lanchakon-maikaeo/synapse-mea-dashboard` คงไว้เป็น deployment mirror ที่
+  Vercel เชื่อมอยู่เดิมระหว่างการย้าย deployment integration มา monorepo
 
 `https://synapse-mea-dashboard.lanchakon0.chatgpt.site` เป็น ChatGPT
 Sites-hosted snapshot แยกต่างหากและ response ถูก serve ผ่าน Cloudflare ไม่ได้
@@ -721,13 +718,15 @@ District user ต้องใช้ `district_id` ตั้งแต่ `5501` �
 
 ### 12.1 Current Vercel project
 
-GitHub repository ที่ Vercel เชื่อมอยู่มี Dashboard เป็น repository root และ `package.json` ใช้ native Next.js โดยตรง
+Vercel project เดิมยังเชื่อม deployment mirror ที่มี Dashboard เป็น repository
+root ส่วน canonical monorepo นี้เก็บแอปไว้ใน `dashboard/` และต้องตั้ง Root
+Directory ให้ตรงกับ path ดังกล่าวเมื่อย้าย Vercel integration
 
 ค่าปัจจุบัน/ที่แนะนำใน Vercel Project:
 
 | Setting | Value |
 |---|---|
-| Root Directory | repository root (`.`) |
+| Root Directory | `dashboard` สำหรับ monorepo (`.` สำหรับ deployment mirror เดิม) |
 | Framework Preset | Next.js |
 | Install Command | `npm ci` |
 | Build Command | `npm run build` (`next build --webpack`) |
@@ -752,8 +751,8 @@ NEXT_PUBLIC_SITE_URL=https://<production-domain>
 
 ### 12.3 Deploy flow
 
-1. Import Git repository `lanchakon-maikaeo/synapse-mea-dashboard` เข้า Vercel
-2. ใช้ repository root เป็น Root Directory
+1. Import Git repository `lanchakon-maikaeo/synapse-mea-pipeline` เข้า Vercel
+2. ตั้ง Root Directory เป็น `dashboard`
 3. ตั้งค่า build ตามตารางด้านบน
 4. เพิ่ม environment variables แยก Preview/Production
 5. Deploy Preview
@@ -811,13 +810,11 @@ flowchart LR
   Smoke --> Release["ops.release_versions"]
 ```
 
-Dashboard repository มี `.github/workflows/verify.yml` และรัน `npm run verify`
-เมื่อ push ไป `main`/`vercel-staging` หรือเปิด pull request เข้า `main`
-ส่วน pipeline repository มี `.github/workflows/non-ai-ci.yml` สำหรับ Python,
-delivery, Docker build, secret scan และ clean PostgreSQL
-migration/schema/worker contract. การแบ่ง workflow นี้ตรงกับ deployment
-boundary: Vercel ติดตาม dashboard repository ส่วน database/API/worker release
-evidence ติดตาม pipeline repository
+Canonical monorepo ใช้ `.github/workflows/non-ai-ci.yml` ตรวจ Dashboard,
+Python, delivery, Docker build, secret scan และ clean PostgreSQL
+migration/schema/worker contract ใน commit เดียวกัน ส่วน
+`dashboard/.github/workflows/verify.yml` คงไว้สำหรับ deployment mirror เดิม
+ระหว่างการย้าย Vercel integration
 
 ลำดับ release ที่ปลอดภัย:
 

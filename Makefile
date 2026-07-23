@@ -6,8 +6,7 @@ test: api-test pipeline-test intelligence-test openapi-check delivery-check
 
 ci: test database-contract-local
 
-# Runs both independently versioned repositories when the sibling/nested
-# dashboard checkout is available in the local workspace.
+# Backward-compatible alias for the full monorepo verification.
 workspace-ci: ci dashboard-test
 
 api-test:
@@ -20,7 +19,7 @@ intelligence-test:
 	.venv/bin/python -m unittest discover -s intelligence/tests -v
 
 dashboard-test:
-	@test -f dashboard/package.json || { echo "dashboard/ checkout is required for dashboard-test"; exit 1; }
+	@test -f dashboard/package.json || { echo "tracked dashboard/package.json is missing"; exit 1; }
 	cd dashboard && npm run verify
 
 openapi:
