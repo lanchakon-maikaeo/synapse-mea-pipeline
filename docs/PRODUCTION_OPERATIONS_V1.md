@@ -1,6 +1,7 @@
 # SYNAPSE Production Operations v1
 
-- Status: implementation baseline
+- Status: deployed baseline; managed migration `202607230014` applied and
+  verified 23 July 2026
 - Business rules: frozen 22 July 2026
 Release scope: stock, replenishment, warehouse issue and traceability
 
@@ -71,6 +72,16 @@ It is additive, preserves historical data and registers version
 `202607230014`. The files under `dashboard/db/migrations` are a Drizzle design
 contract for the standalone dashboard schema. Do not apply both migration
 families to the same database.
+
+Managed project `mklnbumfwojxhqscthjd` now reports `202607230014` as the latest
+registered migration. The recovery and verification evidence for the previous
+web/database contract mismatch is recorded in
+[`docs/incidents/2026-07-23-supabase-contract-sync.md`](./incidents/2026-07-23-supabase-contract-sync.md).
+
+The current project is on the Supabase Free plan and has no scheduled backups.
+A protected same-database pre-migration snapshot exists at
+`synapse_backup_20260723_pre014`, but it does not replace an encrypted
+off-project dump or managed PITR.
 
 Pre-release:
 

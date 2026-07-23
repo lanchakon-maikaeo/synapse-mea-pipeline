@@ -88,12 +88,13 @@ assert.equal(openapi.openapi, "3.1.0");
 assert.deepEqual(Object.keys(openapi.paths).sort(), expectedPaths.sort());
 
 let authenticatedRole = null;
+let authenticatedChecks = 0;
 if (accessToken) {
   const identity = (await request("/api/v1/me", 200, accessToken)).json();
   assert.match(identity.role, /^(admin|planner|academic|picker|viewer|district)$/);
   authenticatedRole = identity.role;
 
-  for (const path of [
+  const authenticatedPaths = [
     "/api/v1/reference/materials?limit=1",
     "/api/v1/reference/districts",
     "/api/v1/data-inputs/vmi?limit=1",
@@ -101,11 +102,27 @@ if (accessToken) {
     "/api/v1/replenishment/queue",
     "/api/v1/replenishment/recommendations",
     "/api/v1/replenishment/change-requests",
+    "/api/v1/replenishment/approvals",
+    "/api/v1/ad-hoc/issues",
     "/api/v1/traceability",
-  ]) {
+  ];
+
+  if (authenticatedRole !== "district") {
+    authenticatedPaths.push(
+      "/api/v1/inventory/fifo",
+      "/api/v1/inventory/handling-units",
+    );
+  }
+
+  if (authenticatedRole === "admin" || authenticatedRole === "picker") {
+    authenticatedPaths.push("/api/v1/inventory/receipt-options?limit=1");
+  }
+
+  for (const path of authenticatedPaths) {
     const result = (await request(path, 200, accessToken)).json();
     assert.ok(Array.isArray(result), `${path}: expected an array`);
   }
+  authenticatedChecks = 1 + authenticatedPaths.length;
 }
 
 console.log(
@@ -113,7 +130,7 @@ console.log(
     base_url: baseUrl,
     public_checks: 5,
     openapi_paths: expectedPaths.length,
-    authenticated_checks: accessToken ? 9 : 0,
+    authenticated_checks: authenticatedChecks,
     authenticated_role: authenticatedRole,
     status: "passed",
   }),

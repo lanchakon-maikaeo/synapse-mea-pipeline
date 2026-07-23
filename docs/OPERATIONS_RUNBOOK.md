@@ -35,10 +35,13 @@ release evidence. Forecasting, routing and RAG are excluded.
 
 1. Correlate the dashboard `request_id` with Vercel and Supabase logs.
 2. Separate Auth/RBAC/RLS denial from database readiness or application error.
-3. Do not retry approval, issue or return writes blindly; inspect immutable
+3. If several new `/v1/*` paths return `404` while older paths return `200`,
+   compare `max(ops.schema_migrations.version)` with the migration required by
+   the deployed Git commit before changing application routing.
+4. Do not retry approval, issue or return writes blindly; inspect immutable
    approval/movement/audit evidence first.
-4. Preserve the relevant log window and record an incident before changing data.
-5. A request for forecast, route, job, Wave 3 or RAG paths should return `410
+5. Preserve the relevant log window and record an incident before changing data.
+6. A request for forecast, route, job, Wave 3 or RAG paths should return `410
    scope_excluded`; do not enable a worker to make it pass.
 
 ## Import or data-quality failure
@@ -82,6 +85,11 @@ scripts/backup_database.sh
 
 The script creates a custom-format dump, SHA-256 sidecar and backup evidence.
 Encrypt the volume, restrict operator access and follow MEA retention policy.
+
+Supabase Free projects do not provide scheduled backups. A same-database
+snapshot can reduce migration data risk but cannot recover a lost project and
+must not be represented as an off-project backup. Use an encrypted `pg_dump`
+whenever database credentials and PostgreSQL client tools are available.
 
 ## Restore drill
 

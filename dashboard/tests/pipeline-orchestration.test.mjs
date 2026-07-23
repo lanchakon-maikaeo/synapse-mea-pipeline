@@ -128,3 +128,21 @@ test("deployment smoke covers public health, auth denial and full OpenAPI", () =
   assert.match(smoke, /expectedPaths\.sort\(\)/);
   assert.match(smoke, /SYNAPSE_ACCESS_TOKEN/);
 });
+
+test("authenticated deployment smoke detects production-operations contract skew", () => {
+  for (const path of [
+    "/api/v1/traceability",
+    "/api/v1/ad-hoc/issues",
+    "/api/v1/inventory/fifo",
+    "/api/v1/inventory/handling-units",
+    "/api/v1/inventory/receipt-options",
+    "/api/v1/replenishment/change-requests",
+    "/api/v1/replenishment/recommendations",
+    "/api/v1/replenishment/approvals",
+  ]) {
+    assert.ok(smoke.includes(path), path);
+  }
+  assert.match(smoke, /authenticatedRole !== "district"/);
+  assert.match(smoke, /authenticatedRole === "admin" \|\| authenticatedRole === "picker"/);
+  assert.match(smoke, /authenticatedChecks = 1 \+ authenticatedPaths\.length/);
+});

@@ -1,6 +1,7 @@
 # MEA Synapse — Production Pipeline Integration
 
-Status: code-ready; deployment evidence must be captured per release
+Status: deployed; managed Supabase migration `202607230014` verified
+23 July 2026
 
 - Canonical repository: `lanchakon-maikaeo/synapse-mea-pipeline`
 - Release branch: `main`
@@ -8,6 +9,11 @@ Status: code-ready; deployment evidence must be captured per release
 - Vercel Root Directory: `dashboard`
 - Web target: <https://mea-synapse-staging.vercel.app>
 Supabase project: `mklnbumfwojxhqscthjd`
+
+The managed database and web API are aligned at Production Operations v1.
+Eight authenticated paths that previously returned `404` were verified as
+`200` after migration 014. Incident evidence is in
+[`docs/incidents/2026-07-23-supabase-contract-sync.md`](../../docs/incidents/2026-07-23-supabase-contract-sync.md).
 
 ## Runtime topology
 
@@ -89,13 +95,20 @@ npm run smoke:deployment
 ```
 
 The smoke suite checks the public shell, health/readiness, unauthenticated
-denial, all 36 OpenAPI paths and nine authenticated read-only checks. Revoke a
-temporary access token after evidence is captured.
+denial, all 36 OpenAPI paths and 11–14 role-aware authenticated read-only
+checks. The role-aware set includes every path involved in the 2026-07-23
+contract-skew incident. Revoke a temporary access token after evidence is
+captured.
 
 The managed database must be migrated first with the guarded root deployment
 script. It creates a backup and records release evidence before the web version
 is promoted. See
 [`docs/PRODUCTION_OPERATIONS_V1.md`](../../docs/PRODUCTION_OPERATIONS_V1.md).
+
+Public smoke checks alone cannot detect a stale dispatcher because protected
+paths return `401` before database dispatch. Every database-contract release
+therefore requires an authenticated read-only smoke run or an equivalent
+authenticated dispatcher verification.
 
 The separate URL
 `https://synapse-mea-dashboard.lanchakon0.chatgpt.site` is a ChatGPT

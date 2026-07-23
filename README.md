@@ -32,6 +32,9 @@ historical implementation records and do not expand the active release scope.
   `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase project
   `mklnbumfwojxhqscthjd`.
+- Managed database status: migration `202607230014` applied and verified on
+  23 July 2026; see the
+  [contract-sync incident record](docs/incidents/2026-07-23-supabase-contract-sync.md).
 - The browser uses only the Supabase publishable key. Database credentials and
   `service_role` must remain in the deployment secret store.
 
