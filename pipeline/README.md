@@ -61,7 +61,7 @@ direct source observations.
 
 ```bash
 SUPABASE_URL="https://fvdfduuanfrncrwuareb.supabase.co" \
-SUPABASE_SERVICE_ROLE_KEY="<server-side-service-role-key>" \
+SUPABASE_SECRET_KEY="<server-side-sb_secret-key>" \
 synapse-pipeline import-actual-workbooks \
   --data-dir data \
   --attested-by "synapse.mea project owner" \
@@ -72,8 +72,9 @@ synapse-pipeline import-actual-workbooks \
 ```
 
 Run migrations through `202607240022` and the local PostgreSQL contract before
-this command. Never place the Service Role key in browser code, logs or the
-repository.
+this command. `SUPABASE_SERVICE_ROLE_KEY` remains supported for a legacy JWT,
+but `SUPABASE_SECRET_KEY=sb_secret_...` is preferred. Never place either
+backend key in browser code, logs or the repository.
 
 ## Import the governed UAT fixture
 

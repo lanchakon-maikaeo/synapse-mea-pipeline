@@ -174,20 +174,23 @@ def main(argv: list[str] | None = None) -> int:
                 "--confirm-actual-data is required because this command "
                 "promotes checksummed source evidence"
             )
-        required = {
-            "SUPABASE_URL": os.environ.get("SUPABASE_URL"),
-            "SUPABASE_SERVICE_ROLE_KEY": os.environ.get(
-                "SUPABASE_SERVICE_ROLE_KEY"
-            ),
-        }
-        missing = [key for key, value in required.items() if not value]
-        if missing:
-            raise SystemExit(f"Missing environment variables: {', '.join(missing)}")
+        supabase_url = os.environ.get("SUPABASE_URL")
+        backend_key = (
+            os.environ.get("SUPABASE_SECRET_KEY")
+            or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        )
+        if not supabase_url:
+            raise SystemExit("Missing environment variable: SUPABASE_URL")
+        if not backend_key:
+            raise SystemExit(
+                "Missing backend credential: set SUPABASE_SECRET_KEY "
+                "(preferred) or SUPABASE_SERVICE_ROLE_KEY"
+            )
         sources = parse_actual_data_directory(args.data_dir)
         result = import_actual_data_directory(
             sources,
-            supabase_url=required["SUPABASE_URL"],
-            service_role_key=required["SUPABASE_SERVICE_ROLE_KEY"],
+            supabase_url=supabase_url,
+            service_role_key=backend_key,
             attested_by=args.attested_by,
             attestation_text=args.attestation_text,
             change_ticket=args.change_ticket,

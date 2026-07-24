@@ -15,8 +15,9 @@ $repositoryRoot = Split-Path -Parent (Split-Path -Parent $packageRoot)
 if (-not $env:SUPABASE_URL) {
   throw 'SUPABASE_URL is not set.'
 }
-if (-not $env:SUPABASE_SERVICE_ROLE_KEY) {
-  throw 'SUPABASE_SERVICE_ROLE_KEY is not set.'
+if (-not $env:SUPABASE_SECRET_KEY -and
+    -not $env:SUPABASE_SERVICE_ROLE_KEY) {
+  throw 'Set SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY.'
 }
 if ($env:SUPABASE_URL -ne 'https://fvdfduuanfrncrwuareb.supabase.co') {
   throw 'SUPABASE_URL does not match the approved Production project.'

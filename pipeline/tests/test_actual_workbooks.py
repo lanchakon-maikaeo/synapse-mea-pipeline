@@ -15,6 +15,7 @@ from synapse_pipeline.actual_workbooks import (  # noqa: E402
     STOCK_WORKBOOK,
     USAGE_WORKBOOK,
     WAREHOUSE_WORKBOOK,
+    _rpc,
     import_actual_data_directory,
     parse_actual_data_directory,
     parse_actual_stock_workbook,
@@ -93,6 +94,63 @@ class ActualWorkbookParserTests(unittest.TestCase):
                 change_ticket="test",
                 confirm_production_attestation=True,
             )
+
+    def test_secret_key_is_sent_only_as_apikey(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return b"{}"
+
+        with patch(
+            "synapse_pipeline.actual_workbooks.urlopen",
+            return_value=FakeResponse(),
+        ) as mocked_urlopen:
+            _rpc(
+                supabase_url="https://example.supabase.co",
+                service_role_key="sb_secret_example",
+                function_name="test_rpc",
+                body={},
+            )
+
+        request = mocked_urlopen.call_args.args[0]
+        self.assertEqual(
+            request.get_header("Apikey"),
+            "sb_secret_example",
+        )
+        self.assertIsNone(request.get_header("Authorization"))
+
+    def test_legacy_service_role_keeps_bearer_header(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return b"{}"
+
+        with patch(
+            "synapse_pipeline.actual_workbooks.urlopen",
+            return_value=FakeResponse(),
+        ) as mocked_urlopen:
+            _rpc(
+                supabase_url="https://example.supabase.co",
+                service_role_key="legacy-service-role-jwt",
+                function_name="test_rpc",
+                body={},
+            )
+
+        request = mocked_urlopen.call_args.args[0]
+        self.assertEqual(
+            request.get_header("Authorization"),
+            "Bearer legacy-service-role-jwt",
+        )
 
     def test_stock_parser_preserves_lineage_and_normalizes_identifiers(self):
         with tempfile.TemporaryDirectory() as temp_dir:

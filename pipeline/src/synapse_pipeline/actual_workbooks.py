@@ -879,15 +879,17 @@ def _rpc(
         + "/rest/v1/rpc/"
         + function_name
     )
+    headers = {
+        "apikey": service_role_key,
+        "Content-Type": "application/json",
+    }
+    if not service_role_key.startswith("sb_secret_"):
+        headers["Authorization"] = f"Bearer {service_role_key}"
     request = Request(
         endpoint,
         data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
         method="POST",
-        headers={
-            "apikey": service_role_key,
-            "Authorization": f"Bearer {service_role_key}",
-            "Content-Type": "application/json",
-        },
+        headers=headers,
     )
     try:
         with urlopen(request, timeout=180) as response:
