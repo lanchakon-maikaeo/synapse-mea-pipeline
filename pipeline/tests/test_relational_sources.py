@@ -19,7 +19,7 @@ class RelationalSourceTests(unittest.TestCase):
         required = (
             ROOT / "MEA_VMI_Dummy_Klongtoey.xlsx",
             data_dir / "รวมสัญญา.xlsx",
-            data_dir / "MEA_Synapse_Supabase_Complete_Staging_20260724",
+            data_dir / "MEA_Synapse_Supabase_Production_20260724",
         )
         missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
         if missing:
@@ -37,7 +37,7 @@ class RelationalSourceTests(unittest.TestCase):
             data_dir / "รวมสัญญา.xlsx"
         )
         cls.package = build_package_manifest(
-            data_dir / "MEA_Synapse_Supabase_Complete_Staging_20260724"
+            data_dir / "MEA_Synapse_Supabase_Production_20260724"
         )
 
     def test_all_dummy_sheets_are_preserved_as_reference_fixture(self):
@@ -92,8 +92,8 @@ class RelationalSourceTests(unittest.TestCase):
         self.assertEqual(len(padded["material_id"]), 12)
         self.assertTrue(padded["material_id"].startswith("0"))
 
-    def test_staging_package_is_manifested_not_executed(self):
-        self.assertEqual(len(self.package), 36)
+    def test_production_package_is_manifested_not_executed(self):
+        self.assertEqual(len(self.package), 20)
         self.assertTrue(all(
             source.data_class == "design_reference"
             and not source.metadata["executed_as_migration"]

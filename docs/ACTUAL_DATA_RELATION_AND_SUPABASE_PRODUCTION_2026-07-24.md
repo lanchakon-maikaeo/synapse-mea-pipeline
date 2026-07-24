@@ -1,4 +1,4 @@
-# SYNAPSE Actual Data Relation และ Supabase Staging
+# SYNAPSE Actual Data Relation และ Supabase Production
 
 > ตรวจใหม่จากไฟล์บนดิสก์: 2026-07-24
 > ขอบเขต: `data/`, `SYNAPSE_Open_Source_Pipeline_Improvement.md` และ canonical migration chain ใน `supabase/migrations/`
@@ -6,20 +6,20 @@
 ## 1. ข้อสรุปการเลือกแหล่งข้อมูล
 
 ใช้ไฟล์ใน
-`data/MEA_Synapse_Supabase_Complete_Staging_20260724/source_files/`
+`data/MEA_Synapse_Supabase_Production_20260724/source_files/`
 เป็น source-of-truth ล่าสุด เพราะผ่าน checksum ตาม `PACKAGE_MANIFEST.json`
 และไฟล์ `คลังคลองเตย (1).xlsx` ใหม่กว่า loose file
 `data/คลังคลองเตย.xlsx`
 
-แพ็กเกจนี้ระบุ `STAGING_ONLY` และ
-`production_use_prohibited=true` จึงมีข้อกำหนดดังนี้:
+แพ็กเกจนี้ระบุ `PRODUCTION_APPROVED`,
+`production_use_prohibited=false` และ target project
+`fvdfduuanfrncrwuareb` จึงมีข้อกำหนดดังนี้:
 
 1. ใช้ source workbooks และ manifest เป็นหลักฐานนำเข้า
-2. ไม่รัน migration/seed 9 ไฟล์ภายในแพ็กเกจร่วมกับ canonical migration
-   chain เพราะเป็น alternate schema และ usage seed ไม่ผ่าน constraint
-   เมื่อทดสอบบน PostgreSQL 17
-3. ห้าม import หรือ promote แพ็กเกจนี้ลง Production
-4. ต้องให้ CLI และ Database ตรวจ environment ก่อนเขียนข้อมูล
+2. ใช้ canonical migration chain ใน `supabase/migrations/` เท่านั้น
+3. ใช้ owner-attested exhaustive-source policy เฉพาะ active VMI ×
+   district/warehouse ที่ประกาศ
+4. ต้องให้ CLI และ Database ตรวจ Production environment ก่อนเขียนข้อมูล
 
 ## 2. Source inventory ที่ตรวจยืนยัน
 
@@ -94,7 +94,7 @@ erDiagram
 | Warehouse History/Route | Reference rows/edges | ไม่มี operational promotion | reference-only จนกว่าจะอนุมัติ contract |
 | Contract `รวมสัญญา` | Raw/reference + contract staging | Contract headers/items/versions | เก็บ 6,305 source rows; material ID 11 หลัก pad เป็น 12 และเก็บค่าเดิม |
 
-## 5. Coverage และ readiness จากไฟล์ล่าสุด
+## 5. Production coverage และ owner-attested completion
 
 VMI scope ปัจจุบันคือ 223 วัสดุ × 18 เขต = 4,014 คู่
 
@@ -104,9 +104,10 @@ VMI scope ปัจจุบันคือ 223 วัสดุ × 18 เขต 
 | District Usage/CMP | 1,202 | 2,812 | 29.95% |
 | Warehouse Stock | 222 | 1 | 99.55% |
 
-ผลคือ `actual_data_ready=false` จนกว่าจะมี source observation ครบตาม
-policy ที่อนุมัติ แถวที่ระบบสร้างเป็น `source_missing_assumed_zero` หรือ
-ค่าจาก VMI derived matrix ห้ามนับเป็นหลักฐานที่ทำให้ readiness ผ่าน
+Direct source observations ยังคงนับแยกตามตารางข้างต้น ส่วนคู่ที่ไม่ปรากฏใน
+source ถูกนับเป็นศูนย์ได้เมื่อ M22 บันทึก `owner_attested_zero` evidence
+เชื่อมกับ Actual import, source checksum, attestor และ change ticket แล้ว
+เท่านั้น ระบบไม่เปลี่ยนค่าดังกล่าวเป็น `source_observed`
 
 Coverage view ต้องนับเฉพาะ evidence ของ `latest successful Actual import`
 เพื่อป้องกันการรวมข้อมูลหลาย batch แล้วเกิด false pass
@@ -126,28 +127,29 @@ Coverage view ต้องนับเฉพาะ evidence ของ `latest su
 - Contract มีรหัสวัสดุ 11 หลัก 38 แถว/32 รหัส; pad เป็น 12 หลักเพื่อ
   เชื่อม `core.materials` โดยเก็บ `source_material_code` เดิมไว้
 
-## 7. Supabase Staging deployment gate
+## 7. Supabase Production deployment gate
 
 ก่อนเชื่อม managed Supabase ต้องครบทุกข้อ:
 
-1. มี Staging/Test project ที่ไม่ใช่ Production และระบุ project ref ชัดเจน
+1. target ต้องเป็น Production project `fvdfduuanfrncrwuareb`
 2. ตั้ง `DATABASE_URL`, `SUPABASE_URL` และ
    `SUPABASE_SERVICE_ROLE_KEY` นอก repository
 3. รัน clean PostgreSQL migration/schema contract ผ่าน
-4. deploy canonical migrations ถึง M21 พร้อมตรวจ registered project ref
-5. import ด้วย `--confirm-actual-data --confirm-staging-package`
+4. deploy canonical migrations ถึง M22 พร้อมตรวจ registered project ref
+5. import ด้วย `--confirm-actual-data --confirm-production-attestation`
 6. ตรวจ import journal, checksum, row counts, DQ issues, evidence coverage
-   และยืนยันว่า `actual_data_ready=false` ตามข้อมูลจริง
+   และตรวจ direct/owner-attested coverage แยกกัน
 
-คำสั่ง import อยู่ใน `pipeline/README.md` การนำเข้าจริงยังไม่ควรเริ่มจนกว่า
-ผู้ดูแลจะให้ Staging project ref/credentials และ change ticket ที่อนุมัติ
+คำสั่ง import อยู่ใน `pipeline/README.md` และผูกกับ Production project ref
+รวมทั้ง change ticket `SYNAPSE-PROD-20260724`
 
 ## 8. Verification status
 
 - Python parser/importer tests: 25/25 ผ่าน
-- Canonical migrations: 24/24 apply ผ่านบน PostgreSQL 17
+- Canonical migrations: 25/25 apply ผ่านบน PostgreSQL 17
 - Main workflow contract: 20/20 ผ่าน
 - M21 lineage/readiness/environment/CMP contract: 16/16 ผ่าน
+- M22 Production completion contract: 7/7 ผ่าน
 - RLS/schema/deployment/project-ref guard: ผ่าน
-- Managed Supabase import: ยังไม่ทำ เพราะเครื่องไม่มี Staging
-  `DATABASE_URL`, Service Role key หรือ linked project
+- Vercel Production: `https://synapse-mea.vercel.app`
+- Managed Supabase target: `fvdfduuanfrncrwuareb`

@@ -47,31 +47,32 @@ synapse-pipeline import-legacy-actual --work-dir .synapse-cache/legacy-actual
 
 Retries are idempotent. Negative SAP return/adjustment observations remain in Raw lineage and are excluded from non-negative forecast features. Dummy workbooks are never imported through the Actual importer.
 
-## Import the four governed Actual workbooks to Staging
+## Import the four governed Actual workbooks to Production
 
 The directory importer verifies the package manifest/checksums, preserves every
 source row and loads Stock, Usage, Contract and Khlong Toei workbook relations.
-When a `MEA_Synapse_Supabase_Complete_Staging_*` package is present, its
+When a `MEA_Synapse_Supabase_Production_*` package is present, its checksummed
 `source_files/` directory takes precedence over older loose copies.
 
-The current package is explicitly `STAGING_ONLY`. Both the CLI and database RPC
-enforce that boundary; it cannot be promoted into a registered Production
-environment.
+The current package is `PRODUCTION_APPROVED` for project
+`fvdfduuanfrncrwuareb`. The owner-attested exhaustive-source policy records
+omitted active VMI district/warehouse pairs as `owner_attested_zero`, never as
+direct source observations.
 
 ```bash
-SUPABASE_URL="https://<staging-project>.supabase.co" \
+SUPABASE_URL="https://fvdfduuanfrncrwuareb.supabase.co" \
 SUPABASE_SERVICE_ROLE_KEY="<server-side-service-role-key>" \
 synapse-pipeline import-actual-workbooks \
   --data-dir data \
-  --attested-by "<owner>" \
-  --attestation-text "<approved-source-statement>" \
-  --change-ticket "<ticket>" \
+  --attested-by "synapse.mea project owner" \
+  --attestation-text "Owner confirms the four checksummed workbooks are complete for the declared Production scope; exhaustive source omission means zero." \
+  --change-ticket "SYNAPSE-PROD-20260724" \
   --confirm-actual-data \
-  --confirm-staging-package
+  --confirm-production-attestation
 ```
 
-Run migration `202607240021` and the local PostgreSQL contract before this
-command. Never place the Service Role key in browser code, logs or the
+Run migrations through `202607240022` and the local PostgreSQL contract before
+this command. Never place the Service Role key in browser code, logs or the
 repository.
 
 ## Import the governed UAT fixture

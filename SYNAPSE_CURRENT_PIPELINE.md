@@ -23,28 +23,28 @@ Environment ที่ deploy อยู่: **Production (write-locked pending Au
 |---|---|
 | Canonical repository | `lanchakon-maikaeo/synapse-mea-pipeline` |
 | Branch | `main` |
-| Verified repository revision | `20398d5` + deployment documentation |
-| Web application | <https://mea-synapse-production.vercel.app> |
-| Vercel project | `synapse-mea-production` |
+| Verified repository revision | `18e4b1f` |
+| Web application | <https://synapse-mea.vercel.app> |
+| Vercel project | `spaiss-6/synapse-mea` |
 | Vercel Root Directory | `dashboard` |
 | Database/Auth | Supabase project `fvdfduuanfrncrwuareb` |
 | Supabase project name | `synapse-01` |
 | Supabase region | `ap-southeast-1` |
-| Latest managed migration | `202607240021` |
+| Latest release migration | `202607240022` |
 | API contract | SYNAPSE API `1.1.0`, 37 paths |
 | Business rules | v1, frozen 22 กรกฎาคม 2026 |
 | Active application roles | `admin`, `planner`, `academic`, `picker`, `district`, `viewer` |
 | Release scope | Stock, CMP, Weekly Replenishment, Approval, Handling Unit, FIFO, Issue, Return, Ad-hoc และ Traceability |
 | Explicit exclusions | Forecasting, Routing/Transport optimization และ RAG/AI |
 
-Production target ใหม่มี active VMI scope 203 วัสดุ × 18 เขต แต่ยังไม่มี
-Actual stock/usage observations ที่ได้รับอนุมัติสำหรับ Production ชุดข้อมูล
-ล่าสุดใน `data/` มีสถานะ `STAGING_ONLY` จึงไม่ถูก promote และ operational
-writes ยังคงล็อกตาม fail-closed cutover contract
+ชุดข้อมูลใน `data/MEA_Synapse_Supabase_Production_20260724` เป็น
+`PRODUCTION_APPROVED` สำหรับ project `fvdfduuanfrncrwuareb` โดยเจ้าของยืนยัน
+ว่า source ทั้งสี่ไฟล์ครบในขอบเขตที่ประกาศแล้ว คู่ active VMI × district หรือ
+warehouse ที่ไม่ปรากฏใน exhaustive source จึงมีค่าเป็นศูนย์และต้องติด lineage
+`owner_attested_zero` แยกจาก `source_observed`
 
-ChatGPT Sites URL
-`https://synapse-mea-dashboard.lanchakon0.chatgpt.site` เป็น snapshot แยกบน
-Cloudflare ไม่ใช่ release target ของ Git/Vercel pipeline นี้
+ChatGPT Sites metadata เดิมไม่ active แล้ว; Vercel เป็น web release target
+เพียงระบบเดียว
 
 Repository เดิม `lanchakon-maikaeo/synapse-mea-dashboard` เป็น archived migration
 record และไม่ได้เชื่อมกับ Vercel แล้ว
@@ -103,9 +103,9 @@ history แต่ active OpenAPI, Dashboard, CI schedule และ deployment pr
 - ใช้เฉพาะ Stock ประเภท Unrestricted
 - ไม่รวม Stock in Transfer
 - District stock รวม Unrestricted จากทุก Storage Location ภายใต้ Plant ของเขต
-- หาก Material + Plant ไม่มี source stock ให้ใช้ค่าเชิงคำนวณเป็น `0` พร้อม
-  สถานะ `Source Missing / Assumed 0`
-- ห้ามสร้าง source row ปลอมเพื่อทำให้ readiness เป็นสีเขียว
+- หาก Material + Plant ไม่มีแถวใน exhaustive source ให้ใช้ `0` พร้อม
+  `owner_attested_zero`
+- ห้ามแสดง owner-attested zero ว่าเป็นแถว SAP ที่สังเกตโดยตรง
 
 ### 3.2 CMP และ quantity rules
 

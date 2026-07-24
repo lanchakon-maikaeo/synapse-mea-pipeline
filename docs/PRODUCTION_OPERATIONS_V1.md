@@ -1,6 +1,6 @@
 # SYNAPSE Production Operations v1
 
-- Status: rebuilt baseline through migration `202607240021`; Production starts
+- Status: release chain through migration `202607240022`; Production starts
   fail-closed until Actual-data, identity and recovery gates pass
 - Business rules: frozen 22 July 2026
 Release scope: stock, replenishment, warehouse issue and traceability
@@ -22,13 +22,11 @@ User browser
   -> append-only movement, approval and audit evidence
 ```
 
-The existing web target `synapse-mea/mea-synapse-staging` remains the rollback
-baseline until the new Production web project is accepted. The Production
-database/Auth target is Supabase project `fvdfduuanfrncrwuareb`
+The Production web target is Vercel project `spaiss-6/synapse-mea`.
+The Production database/Auth target is Supabase project `fvdfduuanfrncrwuareb`
 (`synapse-01`, `ap-southeast-1`); Test/UAT
 remains `mklnbumfwojxhqscthjd`.
-The Production web target is
-`https://mea-synapse-production.vercel.app`.
+The Production web target is `https://synapse-mea.vercel.app`.
 Vercel deploys branch `main` from the canonical
 `lanchakon-maikaeo/synapse-mea-pipeline` repository with Root Directory
 `dashboard`.
@@ -76,6 +74,12 @@ The canonical Production rebuild migrations are:
 `supabase/migrations/202607240018_relational_source_import.sql`
 
 `supabase/migrations/202607240019_relation_coverage_fix.sql`
+
+`supabase/migrations/202607240020_owner_attested_actual_promotion.sql`
+
+`supabase/migrations/202607240021_actual_workbook_observation_lineage.sql`
+
+`supabase/migrations/202607240022_production_completion_attestation.sql`
 
 They are additive, preserve historical data and register their own ordered
 versions. The files under `dashboard/db/migrations` are a Drizzle design
@@ -131,7 +135,7 @@ Deploy a GitHub-verified commit from `main`, wait for Vercel `READY`, then run:
 
 ```bash
 cd dashboard
-SMOKE_BASE_URL='https://mea-synapse-staging.vercel.app' \
+SMOKE_BASE_URL='https://synapse-mea.vercel.app' \
 SYNAPSE_ACCESS_TOKEN='<temporary-masked-token>' \
 npm run smoke:deployment
 ```
@@ -143,7 +147,7 @@ is captured.
 ## Release acceptance
 
 - Dashboard lint, type-check, production build and tests pass.
-- Clean PostgreSQL applies 20 ordered migrations.
+- Clean PostgreSQL applies 25 ordered migrations.
 - All schema/RLS/privilege checks pass.
 - All 20 authenticated operational workflow checks pass.
 - Pre-cutover readiness returns `503 not_ready`; after authorized cutover it

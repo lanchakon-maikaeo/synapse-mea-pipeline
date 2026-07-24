@@ -28,28 +28,25 @@ release scope.
 
 - Canonical source: `lanchakon-maikaeo/synapse-mea-pipeline`, branch `main`.
 - Web release target: Vercel Production URL
-  <https://mea-synapse-production.vercel.app>.
+  <https://synapse-mea.vercel.app>.
 - Vercel Git source: the canonical repository above, with Root Directory
   `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase Production project
   `fvdfduuanfrncrwuareb` (`synapse-01`, `ap-southeast-1`).
-- Managed database status: all 24 canonical migrations through
-  `202607240021` were applied and verified on 24 July 2026. Operational writes
-  remain fail-closed. The latest local workbook package is `STAGING_ONLY`, so
-  Production Actual stock/usage remains unpromoted until an approved
-  Production source package, named identities and an isolated restore drill
-  are verified.
+- Release code contains 25 canonical migrations through `202607240022`.
+  Production currently remains write-locked while M22, the approved
+  `PRODUCTION_APPROVED` workbook import, named identities and the isolated
+  restore drill are applied and verified.
 - The browser uses only the Supabase publishable key. Database credentials and
   `service_role` must remain in the deployment secret store.
 
-`https://synapse-mea-dashboard.lanchakon0.chatgpt.site` is a separate
-ChatGPT Sites-hosted snapshot, served through Cloudflare rather than the Vercel
-project.
+The prior ChatGPT Sites metadata is inactive; Vercel is the only active web
+release target.
 The former `lanchakon-maikaeo/synapse-mea-dashboard` deployment mirror is
 retained only as an archived migration record and is not connected to Vercel.
 
 Run `make workspace-ci` before release. The production database contract starts
-a clean PostgreSQL 17 instance, applies the ordered migrations and verifies 50
+a clean PostgreSQL 17 instance, applies the ordered migrations and verifies 65
 schema/RLS/privilege controls plus 20 authenticated workflow checks. The
 dashboard gate runs lint, TypeScript, a production Next.js build, rendered
 screen/API tests and the Drizzle database contract.

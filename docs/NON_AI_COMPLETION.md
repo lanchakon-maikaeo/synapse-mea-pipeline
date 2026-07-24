@@ -4,7 +4,10 @@ Release: `1.0.0-non-ai`
 Scope: all planned modules except Wave 4 / M11 AI  
 Environment: Supabase project `test-synapse-mea` plus reproducible self-host runtime
 
-Public dashboard shell and authenticated same-origin M09/M10 API: <https://mea-synapse-staging.vercel.app> (canonical source `dashboard/` in `lanchakon-maikaeo/synapse-mea-pipeline`; Vercel Root Directory `dashboard`; Production branch `main`; Vercel project `synapse-mea/mea-synapse-staging`)
+Public dashboard shell and authenticated same-origin M09/M10 API:
+<https://synapse-mea.vercel.app> (canonical source `dashboard/` in
+`lanchakon-maikaeo/synapse-mea-pipeline`; Vercel Root Directory `dashboard`;
+Production branch `main`; Vercel project `spaiss-6/synapse-mea`)
 
 ## Delivered modules
 
