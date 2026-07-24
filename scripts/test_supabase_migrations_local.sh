@@ -102,13 +102,17 @@ docker exec "$container" psql -U postgres -d synapse \
   --set=ON_ERROR_STOP=1 \
   --file=/work/supabase/tests/m21_actual_workbook_observation_verify.sql
 
+docker exec "$container" psql -U postgres -d synapse \
+  --set=ON_ERROR_STOP=1 \
+  --file=/work/supabase/tests/m22_production_completion_verify.sql
+
 contract_database_url="postgresql://postgres:synapse-test@${container}:5432/synapse"
 echo "forecasting and routing worker execution intentionally excluded"
 
 echo "validating pending migration batch"
 docker exec "$container" psql -U postgres -d synapse \
   --set=ON_ERROR_STOP=1 \
-  --command="delete from ops.schema_migrations where version='202607240021'" >/dev/null
+  --command="delete from ops.schema_migrations where version='202607240022'" >/dev/null
 docker run --rm --network "$network" \
   -v "$root:/work:ro" \
   -w /work \
@@ -122,10 +126,10 @@ docker run --rm --network "$network" \
 pending_batch_registered="$(
   docker exec "$container" psql -U postgres -d synapse \
     --tuples-only --no-align \
-    --command="select count(*) from ops.schema_migrations where version='202607240021'"
+    --command="select count(*) from ops.schema_migrations where version='202607240022'"
 )"
 [[ "$pending_batch_registered" == "1" ]] || {
-  echo "pending migration batch did not restore M21 registration" >&2
+  echo "pending migration batch did not restore M22 registration" >&2
   exit 5
 }
 

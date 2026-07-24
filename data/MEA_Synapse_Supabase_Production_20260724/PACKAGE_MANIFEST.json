@@ -1,0 +1,54 @@
+{
+  "package_name": "MEA_Synapse_Supabase_Production_20260724",
+  "generated_at": "2026-07-24T14:30:00+07:00",
+  "environment": "PRODUCTION_APPROVED",
+  "target_project_ref": "fvdfduuanfrncrwuareb",
+  "target_region": "ap-southeast-1",
+  "contains_operational_data": true,
+  "production_use_prohibited": false,
+  "owner_attested_complete": true,
+  "attested_by": "synapse.mea project owner",
+  "change_ticket": "SYNAPSE-PROD-20260724",
+  "zero_completion_policy": "exhaustive_source_omission_means_zero",
+  "governance": {
+    "source_files_are_exhaustive_for_declared_scope": true,
+    "missing_active_vmi_district_pair_means_zero": true,
+    "missing_active_vmi_warehouse_pair_means_zero": true,
+    "lineage_required_for_derived_zero": true,
+    "unknown_materials_or_districts_must_not_be_created": true
+  },
+  "counts": {
+    "districts": 18,
+    "locations": 314,
+    "materials": 4358,
+    "stock_snapshots": 14641,
+    "stock_khlong_toei_2401_0001": 222,
+    "usage_metrics": 5926,
+    "usage_observations": 71112,
+    "contract_rows": 4175,
+    "contract_rows_with_fifo_date": 3795,
+    "cmp_source_vs_rule_mismatches": 51
+  },
+  "files": [
+    {
+      "path": "source_files/Stock.xlsx",
+      "bytes": 1159121,
+      "sha256": "3475f8b31f71e79932b9dc1f13e3ebdf68bed28abae3245e0eca93420cfda38c"
+    },
+    {
+      "path": "source_files/คลังคลองเตย (1).xlsx",
+      "bytes": 5600565,
+      "sha256": "d6e2bb1d9fcd659a45a80a334102fcb4fe9920e1a16c97ea96b442e9c792084a"
+    },
+    {
+      "path": "source_files/รวมสัญญา.xlsx",
+      "bytes": 750651,
+      "sha256": "8ea7b0e712726e6cc1990f33b0031be231a91cc01fb4f8d96e6146d83e3cf9dd"
+    },
+    {
+      "path": "source_files/อัตราการใช้งาน.xlsx",
+      "bytes": 3194347,
+      "sha256": "7c81fcfd2b17ebb113c9e96d793e00636bedbdf701309bdacfad28c8c88a3ba0"
+    }
+  ]
+}

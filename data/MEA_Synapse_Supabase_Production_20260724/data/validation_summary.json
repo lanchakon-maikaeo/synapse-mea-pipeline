@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-07-24T06:41:13.665Z",
+  "environment": "PRODUCTION_APPROVED",
+  "target_project_ref": "fvdfduuanfrncrwuareb",
+  "owner_attested_complete": true,
+  "zero_completion_policy": "exhaustive_source_omission_means_zero",
+  "source_files": {
+    "stock": {
+      "path": "C:/Users/NOTEBOOK/Synapse/Stock.xlsx",
+      "sha256": "3475f8b31f71e79932b9dc1f13e3ebdf68bed28abae3245e0eca93420cfda38c",
+      "sheet": "update-stock"
+    },
+    "usage": {
+      "path": "C:/Users/NOTEBOOK/Synapse/อัตราการใช้งาน.xlsx",
+      "sha256": "7c81fcfd2b17ebb113c9e96d793e00636bedbdf701309bdacfad28c8c88a3ba0",
+      "sheet": "Check CMP"
+    },
+    "contract": {
+      "path": "C:/Users/NOTEBOOK/Downloads/รวมสัญญา.xlsx",
+      "sha256": "8ea7b0e712726e6cc1990f33b0031be231a91cc01fb4f8d96e6146d83e3cf9dd",
+      "sheet": "รวมสัญญา"
+    }
+  },
+  "counts": {
+    "districts": 18,
+    "locations": 314,
+    "materials": 4358,
+    "stock_snapshots": 14641,
+    "stock_khlong_toei_2401_0001": 222,
+    "usage_metrics": 5926,
+    "usage_observations": 71112,
+    "contract_rows": 4175,
+    "contract_rows_with_fifo_date": 3795,
+    "cmp_source_vs_rule_mismatches": 51
+  },
+  "rules": {
+    "stock_quantity": "Unrestricted only; transfer/shipping excluded",
+    "usage_dash": "Imported as 0 with source_was_dash=true",
+    "cmp": "ROUND(AVERAGE(LY,12M,6M,4M),0)",
+    "vendor": "SUP-UNKNOWN / Supplier (Dummy)",
+    "fifo_date": "วันผ่านตรวจรับ",
+    "pallet": "Not seeded because no verified Pallet ID/remain opening balance exists"
+  }
+}

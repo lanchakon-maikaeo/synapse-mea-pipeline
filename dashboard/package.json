@@ -1,5 +1,5 @@
 {
-  "name": "mea-synapse-staging",
+  "name": "mea-synapse-production",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -15,7 +15,6 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:check": "tsc --noEmit",
     "db:validate": "drizzle-kit check --config=drizzle.config.ts && node --test tests/database-contract.test.mjs",
-    "db:migrate:staging": "drizzle-kit migrate --config=drizzle.staging.config.ts",
     "smoke:deployment": "node scripts/smoke-deployment.mjs"
   },
   "dependencies": {

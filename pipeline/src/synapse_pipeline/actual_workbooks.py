@@ -22,7 +22,9 @@ STOCK_WORKBOOK = "Stock.xlsx"
 USAGE_WORKBOOK = "อัตราการใช้งาน.xlsx"
 WAREHOUSE_WORKBOOK = "คลังคลองเตย.xlsx"
 CONTRACT_WORKBOOK = "รวมสัญญา.xlsx"
-COMPLETE_STAGING_PACKAGE_GLOB = "MEA_Synapse_Supabase_Complete_Staging_*"
+PRODUCTION_PACKAGE_GLOB = "MEA_Synapse_Supabase_Production_*"
+PRODUCTION_PACKAGE_ENVIRONMENT = "PRODUCTION_APPROVED"
+OWNER_ATTESTED_ZERO_POLICY = "exhaustive_source_omission_means_zero"
 
 DISTRICT_NAMES_BY_PLANT = {
     "5501": "เขตนวลจันทร์",
@@ -762,7 +764,7 @@ def _verify_package_source_files(
         if checksum != entry.get("sha256") or len(content) != entry.get("bytes"):
             raise ValueError(
                 f"Checksum or size mismatch for {relative_path}; "
-                "the staging package may have changed after generation"
+                "the Production package may have changed after generation"
             )
 
 
@@ -772,7 +774,7 @@ def parse_actual_data_directory(path: str | Path) -> list[RelationalSource]:
         (
             package
             for package in sorted(
-                data_dir.glob(COMPLETE_STAGING_PACKAGE_GLOB),
+                data_dir.glob(PRODUCTION_PACKAGE_GLOB),
                 reverse=True,
             )
             if package.is_dir()
@@ -810,6 +812,15 @@ def parse_actual_data_directory(path: str | Path) -> list[RelationalSource]:
             ).hexdigest(),
             "source_package_production_use_prohibited": bool(
                 manifest.get("production_use_prohibited")
+            ),
+            "source_package_owner_attested_complete": bool(
+                manifest.get("owner_attested_complete")
+            ),
+            "source_package_zero_completion_policy": manifest.get(
+                "zero_completion_policy"
+            ),
+            "source_package_target_project_ref": manifest.get(
+                "target_project_ref"
             ),
         }
     else:
@@ -893,6 +904,7 @@ def _rpc(
 class ActualWorkbookImportResult:
     artifacts: list[dict[str, Any]]
     promotion: dict[str, Any]
+    production_completion: dict[str, Any]
 
 
 def import_actual_data_directory(
@@ -904,7 +916,7 @@ def import_actual_data_directory(
     attestation_text: str,
     change_ticket: str,
     chunk_size: int = 200,
-    allow_staging_only_package: bool = False,
+    confirm_production_attestation: bool = False,
 ) -> ActualWorkbookImportResult:
     source_list = list(sources)
     by_workbook = {
@@ -929,13 +941,32 @@ def import_actual_data_directory(
         source.metadata.get("source_package_production_use_prohibited") is True
         for source in source_list
     )
+    package_owner_attested_complete = all(
+        source.metadata.get("source_package_owner_attested_complete") is True
+        for source in source_list
+    )
+    package_zero_policies = {
+        source.metadata.get("source_package_zero_completion_policy")
+        for source in source_list
+    }
     if len(package_environments) > 1:
         raise ValueError("Actual sources contain conflicting package environments")
     package_environment = next(iter(package_environments), None)
-    if package_production_prohibited and not allow_staging_only_package:
+    if package_production_prohibited:
         raise ValueError(
-            "The selected source package is STAGING_ONLY; pass the explicit "
-            "staging acknowledgement only when the target is a Staging project"
+            "The selected source package prohibits Production use"
+        )
+    if (
+        package_environment != PRODUCTION_PACKAGE_ENVIRONMENT
+        or not package_owner_attested_complete
+        or package_zero_policies != {OWNER_ATTESTED_ZERO_POLICY}
+    ):
+        raise ValueError(
+            "The selected source package is not a governed Production package"
+        )
+    if not confirm_production_attestation:
+        raise ValueError(
+            "Explicit Production attestation confirmation is required"
         )
 
     _rpc(
@@ -1013,4 +1044,31 @@ def import_actual_data_directory(
         raise RuntimeError(
             f"Actual workbook import {import_id} failed: {error_message}"
         )
-    return ActualWorkbookImportResult(artifact_results, promotion)
+    completion = _rpc(
+        supabase_url=supabase_url,
+        service_role_key=service_role_key,
+        function_name="m22_attest_production_completion",
+        body={
+            "p_actual_workbook_import_id": promotion[
+                "actual_workbook_import_id"
+            ],
+            "p_attested_by": attested_by,
+            "p_attestation_text": attestation_text,
+            "p_change_ticket": change_ticket,
+            "p_zero_completion_policy": OWNER_ATTESTED_ZERO_POLICY,
+        },
+    )
+    if completion.get("status") != "succeeded":
+        error_message = completion.get(
+            "error_message",
+            "database Production attestation did not report success",
+        )
+        raise RuntimeError(
+            "Production completion attestation failed: "
+            f"{error_message}"
+        )
+    return ActualWorkbookImportResult(
+        artifact_results,
+        promotion,
+        completion,
+    )

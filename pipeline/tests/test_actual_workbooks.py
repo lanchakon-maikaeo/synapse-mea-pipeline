@@ -25,7 +25,7 @@ from synapse_pipeline.relational_sources import RelationalSource  # noqa: E402
 
 class ActualWorkbookParserTests(unittest.TestCase):
     @staticmethod
-    def _staging_only_sources():
+    def _production_sources():
         return [
             RelationalSource(
                 source_path=source_path,
@@ -35,8 +35,11 @@ class ActualWorkbookParserTests(unittest.TestCase):
                 data_class="actual",
                 rows=[],
                 metadata={
-                    "source_package_environment": "STAGING_ONLY",
-                    "source_package_production_use_prohibited": True,
+                    "source_package_environment": "PRODUCTION_APPROVED",
+                    "source_package_production_use_prohibited": False,
+                    "source_package_owner_attested_complete": True,
+                    "source_package_zero_completion_policy":
+                        "exhaustive_source_omission_means_zero",
                 },
             )
             for index, source_path in enumerate(
@@ -50,9 +53,9 @@ class ActualWorkbookParserTests(unittest.TestCase):
             )
         ]
 
-    def test_staging_only_package_requires_explicit_acknowledgement(self):
-        sources = self._staging_only_sources()
-        with self.assertRaisesRegex(ValueError, "STAGING_ONLY"):
+    def test_production_package_requires_explicit_attestation(self):
+        sources = self._production_sources()
+        with self.assertRaisesRegex(ValueError, "Production attestation"):
             import_actual_data_directory(
                 sources,
                 supabase_url="https://example.supabase.co",
@@ -70,6 +73,8 @@ class ActualWorkbookParserTests(unittest.TestCase):
                     "status": "failed",
                     "error_message": "synthetic failure",
                 }
+            if kwargs["function_name"] == "m22_attest_production_completion":
+                return {"status": "succeeded"}
             return {}
 
         with (
@@ -80,13 +85,13 @@ class ActualWorkbookParserTests(unittest.TestCase):
             self.assertRaisesRegex(RuntimeError, "synthetic failure"),
         ):
             import_actual_data_directory(
-                self._staging_only_sources(),
+                self._production_sources(),
                 supabase_url="https://example.supabase.co",
                 service_role_key="not-used",
                 attested_by="test",
                 attestation_text="test",
                 change_ticket="test",
-                allow_staging_only_package=True,
+                confirm_production_attestation=True,
             )
 
     def test_stock_parser_preserves_lineage_and_normalizes_identifiers(self):
@@ -232,10 +237,17 @@ class ActualWorkbookIntegrationTests(unittest.TestCase):
         self.assertEqual(vmi.metadata["source_date"], "2026-07-20T00:00:00")
         self.assertEqual(
             vmi.metadata["source_package_environment"],
-            "STAGING_ONLY",
+            "PRODUCTION_APPROVED",
+        )
+        self.assertFalse(
+            vmi.metadata["source_package_production_use_prohibited"]
         )
         self.assertTrue(
-            vmi.metadata["source_package_production_use_prohibited"]
+            vmi.metadata["source_package_owner_attested_complete"]
+        )
+        self.assertEqual(
+            vmi.metadata["source_package_zero_completion_policy"],
+            "exhaustive_source_omission_means_zero",
         )
 
     def test_vmi_matrix_has_complete_derived_grid_but_not_complete_observations(self):

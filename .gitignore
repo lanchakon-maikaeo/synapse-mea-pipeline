@@ -27,3 +27,4 @@ outputs/
 *.docx
 *.pdf
 *.xlsx
+data/**/data/*.csv

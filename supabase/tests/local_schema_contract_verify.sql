@@ -10,7 +10,7 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 24 from ops.schema_migrations)),
+    (select count(*) = 25 from ops.schema_migrations)),
   ('greenfield_bootstrap_registered',
     exists (
       select 1 from ops.schema_migrations
@@ -278,6 +278,42 @@ values
     and not has_function_privilege(
       'anon',
       'public.m21_assert_actual_import_environment(text,boolean)',
+      'execute'
+    )),
+  ('production_completion_attestation_migration',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202607240022'
+    )
+    and to_regclass(
+      'ops.production_completion_attestations'
+    ) is not null
+    and exists (
+      select 1 from information_schema.columns
+      where table_schema = 'reference_data'
+        and table_name = 'stock_observation_evidence'
+        and column_name = 'evidence_basis'
+    )
+    and exists (
+      select 1 from information_schema.columns
+      where table_schema = 'reference_data'
+        and table_name = 'usage_observation_evidence'
+        and column_name = 'evidence_basis'
+    )),
+  ('production_completion_attestation_is_service_only',
+    has_function_privilege(
+      'service_role',
+      'public.m22_attest_production_completion(uuid,text,text,text,text)',
+      'execute'
+    )
+    and not has_function_privilege(
+      'authenticated',
+      'public.m22_attest_production_completion(uuid,text,text,text,text)',
+      'execute'
+    )
+    and not has_function_privilege(
+      'anon',
+      'public.m22_attest_production_completion(uuid,text,text,text,text)',
       'execute'
     )),
   ('owner_attested_actual_promotion_is_service_only',

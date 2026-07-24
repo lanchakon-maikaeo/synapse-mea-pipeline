@@ -83,11 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     actual.add_argument(
-        "--confirm-staging-package",
+        "--confirm-production-attestation",
         action="store_true",
         help=(
-            "Required when the selected package is marked STAGING_ONLY; "
-            "the database independently rejects it in Production"
+            "Required acknowledgement of the owner-approved exhaustive "
+            "source omission = zero Production policy"
         ),
     )
     return parser
@@ -192,7 +192,9 @@ def main(argv: list[str] | None = None) -> int:
             attestation_text=args.attestation_text,
             change_ticket=args.change_ticket,
             chunk_size=args.chunk_size,
-            allow_staging_only_package=args.confirm_staging_package,
+            confirm_production_attestation=(
+                args.confirm_production_attestation
+            ),
         )
         print(json.dumps({
             "data_class": "actual",
@@ -207,6 +209,7 @@ def main(argv: list[str] | None = None) -> int:
             ],
             "artifact_rpc_calls": len(result.artifacts),
             "promotion": result.promotion,
+            "production_completion": result.production_completion,
         }, ensure_ascii=False, indent=2))
         return 0
 

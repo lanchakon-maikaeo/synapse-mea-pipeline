@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const baseUrl = (process.env.SMOKE_BASE_URL ?? "https://mea-synapse-staging.vercel.app").replace(
+const baseUrl = (process.env.SMOKE_BASE_URL ?? "https://synapse-mea.vercel.app").replace(
   /\/+$/,
   "",
 );
