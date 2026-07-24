@@ -652,6 +652,13 @@ function DashboardView({
   const pendingAdHoc = data.adHocIssues.filter(
     (row) => !["issued", "rejected", "cancelled"].includes(text(row.status)),
   ).length;
+  const materialsCount = data.materials.length;
+  const districtsCount = data.districts.length;
+  const warehouseCount = data.warehouseStock.length;
+  const stockHealthCount = data.stock.length;
+  const contractsCount = data.contracts.length;
+  const hasReferenceData =
+    materialsCount + warehouseCount + stockHealthCount + contractsCount > 0;
   const nextView: ViewKey =
     role === "picker"
       ? "fifo"
@@ -709,6 +716,84 @@ function DashboardView({
           <small>แยกจาก Weekly Plan</small>
         </article>
       </section>
+      <section className="kpis">
+        <article>
+          <div>
+            <span>Materials (master)</span>
+            <i className="dot purple" />
+          </div>
+          <strong>{formatNumber(materialsCount)}</strong>
+          <small>Live Supabase backend</small>
+        </article>
+        <article>
+          <div>
+            <span>Districts</span>
+            <i className="dot blue" />
+          </div>
+          <strong>{formatNumber(districtsCount)}</strong>
+          <small>System District master</small>
+        </article>
+        <article>
+          <div>
+            <span>Warehouse Snapshots</span>
+            <i className="dot green" />
+          </div>
+          <strong>{formatNumber(warehouseCount)}</strong>
+          <small>Khlong Toei actual stock</small>
+        </article>
+        <article>
+          <div>
+            <span>Stock-Health Rows</span>
+            <i className="dot orange" />
+          </div>
+          <strong>{formatNumber(stockHealthCount)}</strong>
+          <small>Analytical coverage</small>
+        </article>
+      </section>
+      {hasReferenceData && (
+        <section className="dashboard-main">
+          <article className="panel">
+            <div className="panel-title">
+              <div>
+                <span>WAREHOUSE STOCK · LIVE</span>
+                <h3>Khlong Toei actual snapshots</h3>
+              </div>
+              <b>{formatNumber(warehouseCount)}</b>
+            </div>
+            <LiveTable
+              rows={data.warehouseStock.slice(0, 6)}
+              empty="ยังไม่มี Warehouse snapshot"
+              columns={[
+                ["Material", (row) => row.material_id],
+                ["Description", (row) => row.material_name],
+                ["Quantity", (row) => formatNumber(row.quantity_on_hand, 2)],
+                ["Unit", (row) => row.unit],
+                ["Snapshot", (row) => formatDateTime(row.snapshot_at)],
+              ]}
+            />
+          </article>
+          <article className="panel">
+            <div className="panel-title">
+              <div>
+                <span>DISTRICT STOCK HEALTH · LIVE</span>
+                <h3>Latest stock and CMP</h3>
+              </div>
+              <b>{formatNumber(stockHealthCount)}</b>
+            </div>
+            <LiveTable
+              rows={data.stock.slice(0, 6)}
+              empty="ยังไม่มี District Stock"
+              columns={[
+                ["Material", (row) => row.material_id],
+                ["District", (row) => row.district_id],
+                ["Stock", (row) => formatNumber(row.current_stock_qty, 2)],
+                ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
+                ["Health", (row) => <Badge>{text(row.health_band)}</Badge>],
+              ]}
+            />
+          </article>
+        </section>
+      )}
       <section className="workflow">
         {[
           ["1", "District", "confirm / reject / change"],
