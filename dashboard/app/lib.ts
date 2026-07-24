@@ -29,7 +29,7 @@ export function isAuthConfigured() {
 }
 
 const signInAliases: Record<string, string> = {
-  admin: "admin@synapse.mea",
+  admin: "admin@example.com",
 };
 
 export function resolveSignInIdentifier(value: string) {

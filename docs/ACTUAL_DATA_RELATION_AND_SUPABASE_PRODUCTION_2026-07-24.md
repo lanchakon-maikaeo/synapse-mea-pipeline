@@ -135,7 +135,7 @@ Coverage view ต้องนับเฉพาะ evidence ของ `latest su
 2. ตั้ง `DATABASE_URL`, `SUPABASE_URL` และ
    `SUPABASE_SERVICE_ROLE_KEY` นอก repository
 3. รัน clean PostgreSQL migration/schema contract ผ่าน
-4. deploy canonical migrations ถึง M23 พร้อมตรวจ registered project ref
+4. deploy canonical migrations ถึง M24 พร้อมตรวจ registered project ref
 5. import ด้วย `--confirm-actual-data --confirm-production-attestation`
 6. ตรวจ import journal, checksum, row counts, DQ issues, evidence coverage
    และตรวจ direct/owner-attested coverage แยกกัน
@@ -146,12 +146,13 @@ Coverage view ต้องนับเฉพาะ evidence ของ `latest su
 ## 8. Verification status
 
 - Python parser/importer tests: 27/27 ผ่าน
-- Canonical migrations: 26/26 apply ผ่านบน PostgreSQL 17
+- Canonical migrations: 27/27 apply ผ่านบน PostgreSQL 17
 - Main workflow contract: 20/20 ผ่าน
 - M21 lineage/readiness/environment/CMP contract: 16/16 ผ่าน
 - M22 Production completion contract: 7/7 ผ่าน
 - M23 active-scope readiness contract: 4/4 ผ่าน
-- Schema/RLS/privilege contract: 67/67 ผ่าน
+- M24 single-admin identity contract: 4/4 ผ่าน
+- Schema/RLS/privilege contract: 69/69 ผ่าน
 - RLS/schema/deployment/project-ref guard: ผ่าน
 - Vercel Production: `https://synapse-mea.vercel.app`
 - Managed Supabase target: `fvdfduuanfrncrwuareb`

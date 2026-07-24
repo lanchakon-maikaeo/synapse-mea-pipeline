@@ -10,7 +10,7 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 26 from ops.schema_migrations)),
+    (select count(*) = 27 from ops.schema_migrations)),
   ('greenfield_bootstrap_registered',
     exists (
       select 1 from ops.schema_migrations
@@ -329,6 +329,20 @@ values
         and table_name = 'v_production_readiness'
         and column_name = 'material_master_ready'
         and data_type = 'boolean'
+    )),
+  ('single_admin_identity_policy_migration',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202607240024'
+    )),
+  ('single_admin_identity_policy_contract',
+    exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'analytics'
+        and table_name = 'v_production_readiness'
+        and column_name = 'identity_policy'
+        and data_type = 'text'
     )),
   ('owner_attested_actual_promotion_is_service_only',
     not has_function_privilege(

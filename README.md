@@ -33,11 +33,11 @@ release scope.
   `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase Production project
   `fvdfduuanfrncrwuareb` (`synapse-01`, `ap-southeast-1`).
-- Release code contains 26 canonical migrations through `202607240023`.
+- Release code contains 27 canonical migrations through `202607240024`.
   M22, the approved `PRODUCTION_APPROVED` workbook import and the isolated
-  restore drill are verified in Production. Operational writes remain locked
-  until the owner-approved central and 18-district identities are assigned
-  and authenticated acceptance is complete.
+  restore drill are verified in Production. The owner-directed identity policy
+  uses one active administrator account; no synthetic district users are
+  created.
 - The browser uses only the Supabase publishable key. Database credentials and
   `service_role` must remain in the deployment secret store.
 
@@ -47,7 +47,7 @@ The former `lanchakon-maikaeo/synapse-mea-dashboard` deployment mirror is
 retained only as an archived migration record and is not connected to Vercel.
 
 Run `make workspace-ci` before release. The production database contract starts
-a clean PostgreSQL 17 instance, applies the ordered migrations and verifies 67
+a clean PostgreSQL 17 instance, applies the ordered migrations and verifies 69
 schema/RLS/privilege controls plus 20 authenticated workflow checks. The
 dashboard gate runs lint, TypeScript, a production Next.js build, rendered
 screen/API tests and the Drizzle database contract.
