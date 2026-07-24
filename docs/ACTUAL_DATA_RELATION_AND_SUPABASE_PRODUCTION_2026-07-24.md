@@ -156,3 +156,8 @@ Coverage view ต้องนับเฉพาะ evidence ของ `latest su
 - RLS/schema/deployment/project-ref guard: ผ่าน
 - Vercel Production: `https://synapse-mea.vercel.app`
 - Managed Supabase target: `fvdfduuanfrncrwuareb`
+- M00–M24 deployed ใน Production; latest migration `202607240024`
+- Guarded cutover `SYNAPSE-PROD-20260724`: ผ่าน
+- Production readiness: `cutover_ready=true`, `readiness_status=operational`
+- Release evidence: `production-single-admin-m24`
+- Live admin password grant, authenticated identity และ governed reads: ผ่าน

@@ -132,19 +132,20 @@ bash scripts/deploy_database_migrations.sh
 Never place the database password, service-role key or generated Auth
 credentials in Git or a `NEXT_PUBLIC_*` variable.
 
-## Remaining cutover work
+## Cutover completion
 
-The Actual data gate is complete. Do not weaken or bypass the remaining gates:
+The owner selected the explicit `single_admin` identity policy. Production has
+one active administrator and no synthetic planner, district or warehouse
+identities. Additional identities must only be added from a future
+owner-approved roster.
 
-1. provision named Planner, Academic and Picker identities;
-2. provision one named District identity for each district `5501` through
-   `5518`;
-3. take an encrypted off-project database backup and verify its checksum;
-4. restore that artifact into an isolated database and run the acceptance
-   checks;
-5. record the verified evidence in `ops.backup_runs`, then use
-   `ops.set_operational_writes_enabled(...)` with an approved change ticket.
+The off-project logical backup, checksum verification and isolated PostgreSQL
+17 restore drill passed and their evidence is recorded in `ops.backup_runs`.
+M24 was deployed and verified, then
+`ops.set_operational_writes_enabled(...)` completed with change ticket
+`SYNAPSE-PROD-20260724`. The resulting readiness state is `operational`.
 
-The Supabase Free plan does not include managed backups. Upgrade the Production
-project or run the repository `pg_dump`/restore workflow against an approved
-isolated target. A same-project snapshot is not acceptable recovery evidence.
+The Supabase Free plan does not include managed backups. Continue the
+repository `pg_dump`/restore workflow against an approved isolated target until
+the Production plan provides an equivalent managed recovery control. A
+same-project snapshot is not acceptable recovery evidence.

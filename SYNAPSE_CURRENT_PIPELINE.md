@@ -6,7 +6,7 @@
 
 Release: **Production Operations v1**
 
-Environment ที่ deploy อยู่: **Production (write-locked pending Auth and recovery gates)**
+Environment ที่ deploy อยู่: **Production (operational)**
 
 > เอกสารนี้เป็นจุดอ้างอิงหลักสำหรับ pipeline ปัจจุบันของ MEA SYNAPSE ตั้งแต่
 > source data, ingestion, Supabase, business workflow, API, Dashboard, CI/CD,
@@ -23,14 +23,14 @@ Environment ที่ deploy อยู่: **Production (write-locked pending Au
 |---|---|
 | Canonical repository | `lanchakon-maikaeo/synapse-mea-pipeline` |
 | Branch | `main` |
-| Verified repository revision | `18e4b1f` |
+| Database release revision | `f238e9e` |
 | Web application | <https://synapse-mea.vercel.app> |
 | Vercel project | `spaiss-6/synapse-mea` |
 | Vercel Root Directory | `dashboard` |
 | Database/Auth | Supabase project `fvdfduuanfrncrwuareb` |
 | Supabase project name | `synapse-01` |
 | Supabase region | `ap-southeast-1` |
-| Latest release migration | `202607240022` |
+| Latest release migration | `202607240024` |
 | API contract | SYNAPSE API `1.1.0`, 37 paths |
 | Business rules | v1, frozen 22 กรกฎาคม 2026 |
 | Active application roles | `admin`, `planner`, `academic`, `picker`, `district`, `viewer` |
@@ -442,20 +442,15 @@ source ของ application role
 
 ### 7.1 Production identity requirement
 
-Production ต้องมี approved active identity สำหรับ central workflow อย่างน้อย:
-
-- Admin
-- Planner
-- Academic
-- Picker
-
-และ District identity ที่ผูก System District ID `5501–5518` ครบทั้ง 18 เขต
-ก่อนเปิด operational writes โดยต้องมาจาก owner-approved roster เท่านั้น
+Owner กำหนด launch policy เป็น `single_admin`: Production ต้องมี approved,
+active `admin` อย่างน้อยหนึ่งบัญชี ส่วน Planner, Academic, Picker และ District
+identity `5501–5518` จะเพิ่มได้ภายหลังเมื่อมี owner-approved roster เท่านั้น
 ห้ามสร้าง email, user หรือ role assignment สมมติขึ้นเพื่อให้ readiness ผ่าน
 
-การทดสอบต้องครอบคลุม sign-in, role-specific navigation, district isolation,
-governed write และ sign-out โดย Password/Secret ต้องไม่อยู่ใน repository
-หรือเอกสารนี้
+Launch acceptance ต้องครอบคลุม admin sign-in, authenticated navigation,
+governed API boundary และ sign-out ส่วน role-specific navigation และ district
+isolation ต้องทดสอบเพิ่มพร้อม roster ก่อนเปิดใช้ role นั้นจริง Password/Secret
+ต้องไม่อยู่ใน repository หรือเอกสารนี้
 
 ---
 
@@ -754,8 +749,8 @@ HTTP boundary:
 - ค่า zero ที่เกิดจาก exhaustive source omission ต้องเก็บเป็น owner-attested evidence
   แยกจากค่าศูนย์ที่พบตรงใน source
 - ห้ามสร้าง pallet, lot, identity หรือ movement history ย้อนหลังขึ้นเอง
-- ก่อนเปิด operational writes ต้องนำเข้า package, ตรวจ identity roster,
-  ผ่าน restore drill และผ่าน Production readiness ทุก gate
+- ก่อนเปิด operational writes ต้องนำเข้า package, ตรวจ identity ตาม active
+  policy, ผ่าน restore drill และผ่าน Production readiness ทุก gate
 
 ### 11.1 Current readiness gates
 
@@ -765,12 +760,13 @@ HTTP boundary:
 | Local database contract | ผ่าน 27 migrations, 69 schema checks, 20 workflow checks |
 | Vercel Production | Deploy แล้วที่ `https://synapse-mea.vercel.app` |
 | Supabase Production identity | Project `fvdfduuanfrncrwuareb`, environment `production` |
-| Supabase migration | M00–M23 deploy แล้ว; M24 single-admin policy พร้อม deploy |
+| Supabase migration | M00–M24 deploy และตรวจ contract แล้ว |
 | Production data import | ผ่าน governed import + M22 completion attestation |
 | Off-project backup | มี post-import logical backup พร้อม SHA-256 |
 | Isolated restore drill | ผ่าน PostgreSQL 17; evidence บันทึกใน Production |
-| Production identity | สร้างและทดสอบ `admin` แล้ว; policy เป็น `single_admin` ตามคำสั่งเจ้าของระบบ |
-| Operational writes | Locked จนกว่า M24 และ authorized cutover ผ่าน |
+| Production identity | มีเฉพาะ `admin` หนึ่งบัญชีและทดสอบ password grant แล้ว; policy เป็น `single_admin` |
+| Operational writes | เปิดผ่าน guarded cutover `SYNAPSE-PROD-20260724`; readiness เป็น `operational` |
+| Live acceptance | readiness 200, authenticated admin 200, governed reads 200 และ mutation validation guard ผ่าน |
 
 ---
 
@@ -1043,20 +1039,20 @@ scripts/restore_drill.sh
 
 ---
 
-## 17. Go-live blockers และ completion plan
+## 17. Go-live completion และ stabilization plan
 
-### Priority 0 — ต้องเสร็จก่อน Production cutover
+### Production cutover evidence — เสร็จแล้ว
 
-1. ได้รับและ validate District stock actual source ทั้ง 18 เขต
-2. ทำ encrypted off-project backup
-3. ผ่าน restore drill บน isolated target
-4. Register/reconcile Opening Handling Units
-5. ทำ Weekly Plan UAT ที่มี actual item อย่างน้อยหนึ่งรอบครบ workflow
-6. ทดสอบ Receipt → FIFO Reserve → Issue → Return/Quarantine
-7. ทดสอบ Ad-hoc request → approve → issue → traceback
-8. สร้าง approved user roster และ District users ครบ scope
-9. กำหนด Production Supabase project/plan, owner และ credential custody
-10. อนุมัติ Cutover, rollback authority และ support window
+1. Governed Production import และ owner-attested coverage ผ่าน
+2. Off-project logical backup และ isolated PostgreSQL 17 restore drill ผ่าน
+3. Local workflow acceptance ผ่าน 20 scenarios
+4. Owner กำหนด identity policy เป็น `single_admin`; มีผู้ใช้จริงเฉพาะ
+   `admin` และไม่มี synthetic district users
+5. M00–M24 และ 69 schema/RLS/privilege checks ผ่าน
+6. Guarded cutover `SYNAPSE-PROD-20260724` เปิด operational writes แล้ว
+7. Live readiness, password grant, authenticated identity, governed reads และ
+   mutation validation boundary ผ่านบน Vercel Production
+8. Release evidence `production-single-admin-m24` บันทึกใน Supabase แล้ว
 
 ### Priority 1 — Operational stabilization
 
@@ -1116,11 +1112,12 @@ Historical Forecast/Route source ไม่ขยาย active release scope
 
 ระบบถือว่า production-ready ได้เมื่อครบทุกข้อ:
 
-- Source จริงและ master data ที่ workflow ต้องใช้พร้อม
-- District stock ไม่ใช่ assumed-zero ทั้งระบบ
-- Opening stock ถูก reconcile เป็น Handling Units
-- UAT ครบทั้งหก roles และ district isolation
-- Immutable movement/traceback ผ่าน scenario จริง
+- Source จริงและ master data ที่ active workflow ต้องใช้พร้อม
+- District stock มี direct หรือ owner-attested evidence ครบ scope
+- ไม่มีการสร้าง Opening Handling Unit, identity หรือ movement ย้อนหลังเทียม;
+  Handling Unit ใหม่ต้องเข้าผ่าน governed receipt workflow
+- Identity และ acceptance ตรงกับ owner-approved active policy
+- Local workflow contract ครอบคลุม movement/traceback และ live API boundary ผ่าน
 - Database/Web contract ตรงกัน
 - CI และ acceptance ผ่านจาก release commit เดียวกัน
 - Off-project backup และ restore drill ผ่าน
@@ -1128,8 +1125,8 @@ Historical Forecast/Route source ไม่ขยาย active release scope
 - Production environment แยกจาก Test
 - Cutover, rollback และ security approval ได้รับอนุมัติ
 
-สถานะปัจจุบันคือ **Production code/web/data/recovery deployed และ database
-write-locked**: Vercel, Supabase Production, governed data import, backup,
-isolated restore drill และการ login ด้วยบัญชี `admin` ผ่านแล้ว เหลือ deploy
-M24, เปิด operational writes และรัน authenticated acceptance/cutover จาก
-release evidence ชุดเดียวกัน
+สถานะปัจจุบันคือ **Production operational**: Vercel, Supabase Production,
+governed data import, backup, isolated restore drill, M24 single-admin policy,
+guarded cutover และ authenticated live acceptance ผ่านแล้ว ฐานข้อมูลรายงาน
+`cutover_ready=true` และ `readiness_status=operational` โดยไม่สร้างผู้ใช้หรือ
+ธุรกรรมธุรกิจสังเคราะห์เพิ่ม

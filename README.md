@@ -38,6 +38,8 @@ release scope.
   restore drill are verified in Production. The owner-directed identity policy
   uses one active administrator account; no synthetic district users are
   created.
+- Guarded cutover `SYNAPSE-PROD-20260724` is complete. Production reports
+  `cutover_ready=true` and `readiness_status=operational`.
 - The browser uses only the Supabase publishable key. Database credentials and
   `service_role` must remain in the deployment secret store.
 
