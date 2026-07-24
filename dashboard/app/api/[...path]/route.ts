@@ -110,7 +110,14 @@ async function handle(request: Request) {
     if (!ready.ok) {
       return error(503, "service_unavailable", "Database is not ready", id);
     }
-    return json(await ready.json(), 200, id);
+    const readiness = (await ready.json()) as {
+      operational_ready?: boolean;
+    };
+    return json(
+      readiness,
+      readiness.operational_ready === false ? 503 : 200,
+      id,
+    );
   }
 
   if (!path.startsWith("/v1/")) {

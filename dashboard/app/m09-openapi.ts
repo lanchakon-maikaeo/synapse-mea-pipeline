@@ -6,6 +6,7 @@ const jsonResponse = {
 const errorResponses = {
   "401": { description: "Unauthorized" },
   "403": { description: "Forbidden" },
+  "423": { description: "Production operational writes are locked" },
   "422": { description: "Validation error" },
   "429": { description: "Rate limited" },
 };
@@ -126,6 +127,9 @@ export const m09OpenApi = {
       "Forward and reverse issue traceback from district to vendor",
     ),
     "/v1/operations/health": get("Operations health"),
+    "/v1/operations/readiness": get(
+      "Production data, identity, recovery and cutover gates",
+    ),
     "/v1/operations/alerts": get("Operations alerts"),
   },
 };

@@ -5,6 +5,8 @@ append-only operational evidence and guarded backup-before-migrate deployment.
 
 ## Active production migration chain
 
+- `202607140000_m00_greenfield_bootstrap.sql` — empty-project migration
+  registry and legacy contract landing table
 - `202607140001_m01_foundation.sql` — schemas, roles, RLS and audit
 - `202607140002_m01_environment_label.sql` — environment registration
 - `202607150001_m03_raw_ingestion.sql` — immutable batches/source rows
@@ -20,6 +22,14 @@ append-only operational evidence and guarded backup-before-migrate deployment.
 - `202607230014_production_operations_v1.sql` — complete weekly planning,
   District/Planner/Academic workflow, quantity evidence, abnormal review,
   Handling Unit/FIFO, receipt/issue/return, ad-hoc issue and traceback
+- `202607240016_test_fixture_governance.sql` — reversible, Test-only Dummy
+  workbook provenance
+- `202607240017_production_rebuild_contract.sql` — greenfield environment,
+  source-quality/version lineage, Production readiness and fail-closed cutover
+- `202607240018_relational_source_import.sql` — Actual contract promotion,
+  complete Dummy workbook reference relations and Staging-package lineage
+- `202607240019_relation_coverage_fix.sql` — distinct source-row coverage
+  across one-to-many relation edges
 
 Migrations `202607150005`–`202607150007` remain in filename order because they
 may already exist in deployed databases. Their forecast, route and Wave 3
@@ -30,7 +40,7 @@ capabilities.
 
 ## Production verification
 
-- `tests/local_schema_contract_verify.sql` — 43 migration, schema, function,
+- `tests/local_schema_contract_verify.sql` — migration, schema, function,
   RLS and privilege checks
 - `tests/local_pipeline_workflow_verify.sql` — 20 authenticated business-flow
   checks from governed VMI input through weekly/ad-hoc issue and traceback
@@ -66,9 +76,16 @@ acceptance gate.
 ```bash
 export DATABASE_URL='postgresql://...'
 export BACKUP_DIR='/approved/off-repository/location'
-export RELEASE_VERSION='production-operations-v1'
+export RELEASE_VERSION='production-rebuild-2026-07-24'
 export RELEASE_GIT_SHA='<40-character-commit>'
+export DEPLOYMENT_PROFILE='production'
+export TARGET_PROJECT_REF='<production-project-ref>'
+export TARGET_REGION='<production-region>'
+export CHANGE_TICKET='<approved-change-ticket>'
 export DEPLOY_CONFIRM='APPLY_PENDING_MIGRATIONS'
+export PRODUCTION_DEPLOY_CONFIRM='DEPLOY_GREENFIELD_PRODUCTION'
+# Empty database only:
+export GREENFIELD_BOOTSTRAP_CONFIRM='INITIALIZE_EMPTY_DATABASE'
 bash scripts/deploy_database_migrations.sh
 ```
 

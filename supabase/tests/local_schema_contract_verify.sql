@@ -10,11 +10,20 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 18 from ops.schema_migrations)),
+    (select count(*) = 22 from ops.schema_migrations)),
+  ('greenfield_bootstrap_registered',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202607140000'
+    )),
   ('migration_versions_unique',
     (select count(*) = count(distinct version) from ops.schema_migrations)),
-  ('environment_is_test',
-    exists(select 1 from ops.environment_registry where environment_name = 'test')),
+  ('environment_is_singleton',
+    (select count(*) = 1 from ops.environment_registry)
+    and exists (
+      select 1 from ops.environment_registry
+      where environment_name in ('test', 'production')
+    )),
   ('auth_profile_trigger',
     exists(
       select 1
@@ -215,6 +224,67 @@ values
       where table_schema = 'analytics'
         and table_name = 'v_stock_health'
         and column_name = 'input_data_class'
+    )),
+  ('production_rebuild_migration',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202607240017'
+    )),
+  ('relational_source_migration',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202607240018'
+    )
+    and to_regclass('reference_data.source_artifacts') is not null
+    and to_regclass('reference_data.source_rows') is not null
+    and to_regclass('reference_data.relation_edges') is not null),
+  ('relation_coverage_fix_migration',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202607240019'
+    )),
+  ('relational_source_import_is_service_only',
+    not has_function_privilege(
+      'authenticated',
+      'public.m18_import_source_rows(text,text,text,bigint,text,jsonb,jsonb)',
+      'execute'
+    )
+    and has_function_privilege(
+      'service_role',
+      'public.m18_import_source_rows(text,text,text,bigint,text,jsonb,jsonb)',
+      'execute'
+    )),
+  ('production_readiness_contract',
+    to_regclass('analytics.v_production_readiness') is not null
+    and to_regclass('ops.environment_controls') is not null
+    and to_regclass('ops.environment_cutovers') is not null),
+  ('production_configuration_is_service_only',
+    not has_function_privilege(
+      'authenticated',
+      'ops.configure_environment(text,text,text,text)',
+      'execute'
+    )
+    and has_function_privilege(
+      'service_role',
+      'ops.configure_environment(text,text,text,text)',
+      'execute'
+    )),
+  ('production_dispatch_guard',
+    to_regprocedure(
+      'public.m09_dispatch_pre_m17(text,text,jsonb,jsonb,text)'
+    ) is not null
+    and not has_function_privilege(
+      'authenticated',
+      'public.m09_dispatch_pre_m17(text,text,jsonb,jsonb,text)',
+      'execute'
+    )),
+  ('contract_item_version_lineage',
+    to_regclass('core.contract_item_versions') is not null
+    and exists (
+      select 1 from pg_trigger
+      where tgname = 'capture_contract_item_version'
+        and tgrelid = 'core.contract_items'::regclass
+        and not tgisinternal
     ));
 
 table local_schema_checks;

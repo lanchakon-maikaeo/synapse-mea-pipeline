@@ -2434,6 +2434,7 @@ function GovernedInputView({
 
 function OperationsView({ data }: { data: DashboardData }) {
   const health = data.operations ?? {};
+  const readiness = data.readiness ?? {};
   const sourceStatus = record(data.legacyStatus);
   const sourceTotals = record(sourceStatus.totals);
   const sourceRows = rows(sourceStatus.sources);
@@ -2462,6 +2463,29 @@ function OperationsView({ data }: { data: DashboardData }) {
               <small>live database health</small>
             </article>
           ))}
+      </section>
+      <section className="panel">
+        <div className="panel-title">
+          <div>
+            <span>PRODUCTION CUTOVER</span>
+            <h3>Fail-closed readiness gates</h3>
+          </div>
+          <Badge>{text(readiness.readiness_status)}</Badge>
+        </div>
+        <section className="user-status">
+          {[
+            ["Actual data", readiness.data_contract_ready],
+            ["Auth roles", readiness.identity_ready],
+            ["Backup + restore", readiness.recovery_ready],
+            ["Operational writes", readiness.operational_writes_enabled],
+          ].map(([label, value]) => (
+            <article key={text(label)}>
+              <span>{text(label)}</span>
+              <strong>{bool(value) ? "PASS" : "BLOCKED"}</strong>
+              <small>production gate</small>
+            </article>
+          ))}
+        </section>
       </section>
       <section className="user-status">
         {[
@@ -2564,14 +2588,14 @@ function ReleaseView() {
         <div>
           <span>PRODUCTION OPERATIONS V1</span>
           <h3>Requirement-aligned operational release</h3>
-          <p>Business Rules v1 · Supabase migration 202607230015</p>
+          <p>Business Rules v1 · Supabase migration 202607240019</p>
         </div>
         <Badge>TESTED</Badge>
       </section>
       <section className="acceptance-grid">
         {[
-          ["17 ordered Supabase migrations", "Schema"],
-          ["36 same-origin API paths", "API"],
+          ["20 ordered Supabase migrations", "Schema"],
+          ["37 same-origin API paths", "API"],
           ["District → Planner → Academic → Lock", "Approval"],
           ["Opened HU → accepted date → PO → item → row", "FIFO"],
           ["Weekly + Ad-hoc actual movement", "Issue"],
@@ -2782,6 +2806,20 @@ export default function Home() {
               </button>
             </aside>
           )}
+          {backend.data.readiness &&
+            !bool(backend.data.readiness.operational_writes_enabled) && (
+              <aside className="runtime-message warning" role="status">
+                <i>!</i>
+                <div>
+                  <strong>Production cutover is locked</strong>
+                  <p>
+                    เปิดให้อ่านและตรวจข้อมูลได้ แต่คำสั่ง Replenishment,
+                    Inventory และ Ad-hoc จะถูกปฏิเสธจนกว่า Actual data, Auth,
+                    backup และ restore drill จะผ่านครบ
+                  </p>
+                </div>
+              </aside>
+            )}
           <PageContent
             view={activeView}
             role={role}

@@ -72,6 +72,7 @@ export type DashboardData = {
   adHocIssues: RecordRow[];
   traceability: RecordRow[];
   operations: RecordRow | null;
+  readiness: RecordRow | null;
   alerts: RecordRow[];
   materials: RecordRow[];
   districts: RecordRow[];
@@ -94,6 +95,7 @@ export const emptyData: DashboardData = {
   adHocIssues: [],
   traceability: [],
   operations: null,
+  readiness: null,
   alerts: [],
   materials: [],
   districts: [],
@@ -167,6 +169,7 @@ export function useSynapseBackend() {
         adHocIssues,
         traceability,
         operations,
+        readiness,
         alerts,
         materials,
         districts,
@@ -255,6 +258,11 @@ export function useSynapseBackend() {
           null,
         ),
         read(
+          "production readiness",
+          apiRequest<RecordRow>("/v1/operations/readiness", token),
+          null,
+        ),
+        read(
           "operations alerts",
           alertReader
             ? apiRequest<RecordRow[]>("/v1/operations/alerts", token)
@@ -302,6 +310,7 @@ export function useSynapseBackend() {
         adHocIssues,
         traceability,
         operations,
+        readiness,
         alerts,
         materials,
         districts,
@@ -311,7 +320,7 @@ export function useSynapseBackend() {
       });
       if (failures.length) {
         setError(
-          `โหลดสำเร็จบางส่วน (${19 - failures.length}/19): ${failures.join(
+          `โหลดสำเร็จบางส่วน (${20 - failures.length}/20): ${failures.join(
             " | ",
           )}`,
         );
@@ -409,6 +418,19 @@ export function useSynapseBackend() {
       successMessage: string,
     ): Promise<T | null> => {
       if (!session) return null;
+      const operationalMutation =
+        path.startsWith("/v1/replenishment/") ||
+        path.startsWith("/v1/inventory/") ||
+        path.startsWith("/v1/ad-hoc/");
+      if (
+        operationalMutation &&
+        data.readiness?.operational_writes_enabled !== true
+      ) {
+        setError(
+          "Production ยังล็อกการทำรายการ: ต้องผ่าน Actual data, Auth, backup และ restore-drill gates ก่อน cutover",
+        );
+        return null;
+      }
       setActionBusy(true);
       setError("");
       try {
@@ -431,7 +453,7 @@ export function useSynapseBackend() {
         setActionBusy(false);
       }
     },
-    [load, session],
+    [data.readiness, load, session],
   );
 
   const loadVmiContext = useCallback(

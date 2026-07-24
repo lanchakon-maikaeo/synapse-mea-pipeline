@@ -5,6 +5,8 @@ const baseUrl = (process.env.SMOKE_BASE_URL ?? "https://mea-synapse-staging.verc
   "",
 );
 const accessToken = process.env.SYNAPSE_ACCESS_TOKEN?.trim() ?? "";
+const expectOperationalReady =
+  process.env.SMOKE_EXPECT_OPERATIONAL_READY !== "false";
 
 if (!/^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(baseUrl)) {
   throw new Error("SMOKE_BASE_URL must be an HTTPS origin without a path");
@@ -46,6 +48,7 @@ const expectedPaths = [
   "/v1/ad-hoc/issues/{ad_hoc_issue_id}/issue",
   "/v1/traceability",
   "/v1/operations/health",
+  "/v1/operations/readiness",
   "/v1/operations/alerts",
 ];
 
@@ -75,9 +78,15 @@ const health = (await request("/api/health", 200)).json();
 assert.equal(health.status, "ok");
 assert.equal(health.service, "synapse-api");
 
-const readiness = (await request("/api/health/ready", 200)).json();
-assert.equal(readiness.status, "ok");
+const readiness = (
+  await request("/api/health/ready", expectOperationalReady ? 200 : 503)
+).json();
+assert.equal(
+  readiness.status,
+  expectOperationalReady ? "ok" : "not_ready",
+);
 assert.equal(readiness.database, "ready");
+assert.equal(readiness.operational_ready, expectOperationalReady);
 
 const unauthorized = (await request("/api/v1/me", 401)).json();
 assert.equal(unauthorized.error?.code, "unauthorized");
@@ -105,6 +114,7 @@ if (accessToken) {
     "/api/v1/replenishment/approvals",
     "/api/v1/ad-hoc/issues",
     "/api/v1/traceability",
+    "/api/v1/operations/readiness",
   ];
 
   if (authenticatedRole !== "district") {

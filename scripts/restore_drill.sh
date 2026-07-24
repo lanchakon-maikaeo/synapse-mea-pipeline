@@ -5,7 +5,8 @@ umask 077
 : "${SOURCE_DATABASE_URL:?SOURCE_DATABASE_URL is required}"
 : "${DRILL_DATABASE_URL:?DRILL_DATABASE_URL is required}"
 
-if [[ "$DRILL_DATABASE_URL" == *"mklnbumfwojxhqscthjd"* ]]; then
+if [[ "$DRILL_DATABASE_URL" == *"mklnbumfwojxhqscthjd"* ||
+      "$DRILL_DATABASE_URL" == *"jbwbmrizawxcrtliozqt"* ]]; then
   echo "Restore drills must target an isolated database" >&2
   exit 2
 fi

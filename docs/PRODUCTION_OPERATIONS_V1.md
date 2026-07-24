@@ -1,7 +1,7 @@
 # SYNAPSE Production Operations v1
 
-- Status: deployed baseline through migration `202607230015`; the latest
-  migration adds bounded dashboard reads and partial-load resilience
+- Status: rebuilt baseline through migration `202607240019`; Production starts
+  fail-closed until Actual-data, identity and recovery gates pass
 - Business rules: frozen 22 July 2026
 Release scope: stock, replenishment, warehouse issue and traceability
 
@@ -22,8 +22,10 @@ User browser
   -> append-only movement, approval and audit evidence
 ```
 
-The production web target is `synapse-mea/mea-synapse-staging` on Vercel. The
-managed database/Auth target is Supabase project `mklnbumfwojxhqscthjd`.
+The existing web target `synapse-mea/mea-synapse-staging` remains the rollback
+baseline until the new Production web project is accepted. The Production
+database/Auth target is Supabase project `jbwbmrizawxcrtliozqt`; Test/UAT
+remains `mklnbumfwojxhqscthjd`.
 Vercel deploys branch `main` from the canonical
 `lanchakon-maikaeo/synapse-mea-pipeline` repository with Root Directory
 `dashboard`.
@@ -64,24 +66,22 @@ Frontend navigation is convenience only and is not a security boundary.
 
 ## Database release
 
-The canonical managed-database migration is:
+The canonical Production rebuild migrations are:
 
-`supabase/migrations/202607230014_production_operations_v1.sql`
+`supabase/migrations/202607240017_production_rebuild_contract.sql`
 
-It is additive, preserves historical data and registers version
-`202607230014`. The files under `dashboard/db/migrations` are a Drizzle design
+`supabase/migrations/202607240018_relational_source_import.sql`
+
+`supabase/migrations/202607240019_relation_coverage_fix.sql`
+
+They are additive, preserve historical data and register their own ordered
+versions. The files under `dashboard/db/migrations` are a Drizzle design
 contract for the standalone dashboard schema. Do not apply both migration
 families to the same database.
 
-Managed project `mklnbumfwojxhqscthjd` reports `202607230015` as the latest
-registered migration. The recovery and verification evidence for the previous
-web/database contract mismatch is recorded in
-[`docs/incidents/2026-07-23-supabase-contract-sync.md`](./incidents/2026-07-23-supabase-contract-sync.md).
-
-The current project is on the Supabase Free plan and has no scheduled backups.
-A protected same-database pre-migration snapshot exists at
-`synapse_backup_20260723_pre014`, but it does not replace an encrypted
-off-project dump or managed PITR.
+Production is a separate greenfield project and is not cut over until
+`analytics.v_production_readiness.cutover_ready` is true. Test remains the
+rollback baseline.
 
 Pre-release:
 
@@ -97,7 +97,13 @@ export DATABASE_URL='postgresql://...'
 export BACKUP_DIR='/approved/off-repository/location'
 export RELEASE_VERSION='production-operations-v1'
 export RELEASE_GIT_SHA='<40-character-commit>'
+export DEPLOYMENT_PROFILE='production'
+export TARGET_PROJECT_REF='jbwbmrizawxcrtliozqt'
+export TARGET_REGION='ap-southeast-2'
+export CHANGE_TICKET='<approved-change-ticket>'
 export DEPLOY_CONFIRM='APPLY_PENDING_MIGRATIONS'
+export PRODUCTION_DEPLOY_CONFIRM='DEPLOY_GREENFIELD_PRODUCTION'
+export GREENFIELD_BOOTSTRAP_CONFIRM='INITIALIZE_EMPTY_DATABASE'
 bash scripts/deploy_database_migrations.sh
 ```
 
@@ -134,12 +140,13 @@ is captured.
 ## Release acceptance
 
 - Dashboard lint, type-check, production build and tests pass.
-- Clean PostgreSQL applies 17 ordered migrations.
-- All 44 schema/RLS/privilege checks pass.
+- Clean PostgreSQL applies 20 ordered migrations.
+- All schema/RLS/privilege checks pass.
 - All 20 authenticated operational workflow checks pass.
-- Health and readiness endpoints return `200`.
+- Pre-cutover readiness returns `503 not_ready`; after authorized cutover it
+  returns `200 ok`.
 - Unauthenticated `/api/v1/me` returns `401`.
-- All 36 documented same-origin OpenAPI paths respond through the release.
+- All 37 documented same-origin OpenAPI paths respond through the release.
 - Legacy forecast, route, job, Wave 3 and RAG requests return `410
   scope_excluded`.
 - Backup and deployed release rows are present in operational evidence.

@@ -44,11 +44,12 @@ const paths = [
   "/v1/ad-hoc/issues/{ad_hoc_issue_id}/issue",
   "/v1/traceability",
   "/v1/operations/health",
+  "/v1/operations/readiness",
   "/v1/operations/alerts",
 ];
 
-test("same-origin OpenAPI exposes the 36-path production operations contract", () => {
-  assert.equal(paths.length, 36);
+test("same-origin OpenAPI exposes the 37-path production operations contract", () => {
+  assert.equal(paths.length, 37);
   for (const path of paths) {
     assert.match(
       openapi,
@@ -102,7 +103,9 @@ test("frontend orchestrates the frozen production workflow", () => {
     "APPEND-ONLY RETURN",
     "OPENING_UNKNOWN",
     "Publish governed input",
-    "36 same-origin API paths",
+    "37 same-origin API paths",
+    "20 ordered Supabase migrations",
+    "Production cutover is locked",
   ];
   for (const signal of requiredUiSignals) assert.ok(page.includes(signal), signal);
 });
@@ -124,6 +127,7 @@ test("excluded modules have no browser orchestration path", () => {
 test("deployment smoke covers public health, auth denial and full OpenAPI", () => {
   assert.match(smoke, /health\/ready/);
   assert.match(smoke, /database, "ready"/);
+  assert.match(smoke, /SMOKE_EXPECT_OPERATIONAL_READY/);
   assert.match(smoke, /api\/v1\/me", 401/);
   assert.match(smoke, /expectedPaths\.sort\(\)/);
   assert.match(smoke, /SYNAPSE_ACCESS_TOKEN/);

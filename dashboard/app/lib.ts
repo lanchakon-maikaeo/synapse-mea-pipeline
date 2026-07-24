@@ -18,14 +18,9 @@ export type ApiError = {
 
 // These are Supabase browser credentials, not secrets. A service-role key must
 // never be added here or to any NEXT_PUBLIC_* variable.
-const defaultSupabaseUrl = "https://mklnbumfwojxhqscthjd.supabase.co";
-const defaultSupabasePublishableKey =
-  "sb_publishable_6n9OOf4d7RvnlpD2Vqbb3A_RIHWiruh";
-
 export const publicConfig = {
-  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? defaultSupabaseUrl,
-  supabaseAnonKey:
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? defaultSupabasePublishableKey,
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
   apiBaseUrl: (process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api").replace(/\/$/, ""),
 };
 
