@@ -765,7 +765,7 @@ HTTP boundary:
 | Local database contract | ผ่าน 26 migrations, 67 schema checks, 20 workflow checks |
 | Vercel Production | Deploy แล้วที่ `https://synapse-mea.vercel.app` |
 | Supabase Production identity | Project `fvdfduuanfrncrwuareb`, environment `production` |
-| Supabase migration | M00–M22 deploy แล้ว; M23 active-scope readiness พร้อม deploy |
+| Supabase migration | M00–M23 deploy แล้ว; release evidence ผูก Git SHA `606f40b` |
 | Production data import | ผ่าน governed import + M22 completion attestation |
 | Off-project backup | มี post-import logical backup พร้อม SHA-256 |
 | Isolated restore drill | ผ่าน PostgreSQL 17; evidence บันทึกใน Production |
