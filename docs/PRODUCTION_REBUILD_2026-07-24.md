@@ -51,6 +51,12 @@ Forecasting, routing and RAG remain excluded.
 
 Production was provisioned separately. Test is never relabeled or overwritten.
 
+The aligned Production web project is
+`https://mea-synapse-production.vercel.app`, built from GitHub `main` with
+Root Directory `dashboard` and the Production Supabase public connection
+variables. Public health returns `200`; readiness intentionally returns `503`
+with `operational_ready=false` until the cutover gates pass.
+
 ## Production import evidence
 
 Verified on Supabase project `jbwbmrizawxcrtliozqt` on 24 July 2026:

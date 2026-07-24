@@ -26,6 +26,8 @@ The existing web target `synapse-mea/mea-synapse-staging` remains the rollback
 baseline until the new Production web project is accepted. The Production
 database/Auth target is Supabase project `jbwbmrizawxcrtliozqt`; Test/UAT
 remains `mklnbumfwojxhqscthjd`.
+The Production web target is
+`https://mea-synapse-production.vercel.app`.
 Vercel deploys branch `main` from the canonical
 `lanchakon-maikaeo/synapse-mea-pipeline` repository with Root Directory
 `dashboard`.
