@@ -440,22 +440,22 @@ source ของ application role
 - Frontend navigation เป็น UX convenience ไม่ใช่ security boundary
 - API rate limit คือ 120 requests ต่อ user ต่อนาที
 
-### 7.1 Verified application roster
+### 7.1 Production identity requirement
 
-Staging/Test มี verified active/confirmed workflow identities:
+Production ต้องมี approved active identity สำหรับ central workflow อย่างน้อย:
 
 - Admin
 - Planner
 - Academic
 - Picker
-- Viewer
-- District `5509` — คลองเตย
 
-มีการทดสอบ sign-in, role-specific navigation และ sign-out ครบทั้งห้า non-admin
-workflow roles แล้ว Password ไม่อยู่ใน repository หรือเอกสารนี้
+และ District identity ที่ผูก System District ID `5501–5518` ครบทั้ง 18 เขต
+ก่อนเปิด operational writes โดยต้องมาจาก owner-approved roster เท่านั้น
+ห้ามสร้าง email, user หรือ role assignment สมมติขึ้นเพื่อให้ readiness ผ่าน
 
-Requirement สำหรับ UAT เต็ม 18 เขตยังต้องสร้าง/มอบหมาย District user ให้ครบตาม
-approved user roster
+การทดสอบต้องครอบคลุม sign-in, role-specific navigation, district isolation,
+governed write และ sign-out โดย Password/Secret ต้องไม่อยู่ใน repository
+หรือเอกสารนี้
 
 ---
 
@@ -736,49 +736,41 @@ HTTP boundary:
 
 | Data/Object | Verified evidence |
 |---|---:|
-| Core Materials | 1,043 |
-| Warehouse Stock Snapshots | 462 |
-| Usage/CMP Actual rows | 5,926 |
-| Usage/CMP TEST_FIXTURE rows | 4,050 |
-| Stock-health analytical rows | 16,758; fixture-backed 4,050 |
-| Core Contract Headers | 2,857 |
-| Contract Items/source rows | 6,305 |
-| District master | 18 |
-| Warehouse master | 1 |
-| Locations | 19 |
-| District Stock Actual | 0; ยังไม่พร้อม |
-| District Stock TEST_FIXTURE | 4,050 |
-| Packaging Profile Actual | 0 |
-| Packaging Profile TEST_FIXTURE | 225 |
-| Material fields หลัง UAT gap-fill | missing weight 818; missing lot/MOQ อย่างละ 792 |
-| Replenishment items ใน incident baseline | 0 |
-| Handling Units | 0 |
-| FIFO allocations | 0 |
-| Inventory movements | 0 |
+| Source material rows | 4,358 |
+| VMI material scope | 223 |
+| District master | 18 (`5501–5518`) |
+| Stock source rows | 14,661; natural-key rows 14,641 |
+| Usage/CMP actual rows | 5,926 |
+| Normalized monthly observations | 71,112 |
+| Contract source rows | 6,305; validated CSV rows 4,175 |
+| Warehouse source rows | 222 |
+| Production import package | `data/MEA_Synapse_Supabase_Production_20260724` |
+| Production package state | Owner-approved; source checksums recorded |
+| District stock omission policy | Owner-attested omission means zero; ไม่อ้างว่าเป็น source-observed zero |
 
 ความหมาย:
 
-- หน้า Warehouse ต้องแสดง 462 actual warehouse snapshots
-- Stock-health 4,050 rows ที่ใช้ Dummy ต้องแสดง `TEST FIXTURE — Not Actual SAP Stock`
-- Actual District stock ยังไม่มี และ readiness gate ต้องคง Blocked
-- ไม่มี HU/movement หมายถึงยังไม่มี physical receipt/issue workflow จริง
-- ห้ามสร้าง pallet, lot หรือ movement history ย้อนหลังขึ้นเอง
-- ก่อนใช้จ่ายจริงต้อง register/reconcile Opening Handling Units
+- Import ต้องอ้าง source checksum, source row number และ batch lineage
+- ค่า zero ที่เกิดจาก exhaustive source omission ต้องเก็บเป็น owner-attested evidence
+  แยกจากค่าศูนย์ที่พบตรงใน source
+- ห้ามสร้าง pallet, lot, identity หรือ movement history ย้อนหลังขึ้นเอง
+- ก่อนเปิด operational writes ต้องนำเข้า package, ตรวจ identity roster,
+  ผ่าน restore drill และผ่าน Production readiness ทุก gate
 
 ### 11.1 Current readiness gates
 
 | Gate | สถานะ |
 |---|---|
-| Application/Auth/RBAC | ผ่าน Staging workflow test |
-| Web/API/database contract | Supabase sync ถึง migration 016; Dashboard code ผ่าน local verify |
-| Warehouse source data | พร้อมบางส่วน |
-| District stock actual source | Blocked |
-| Weekly plan operational data | พร้อมสร้าง TEST_FIXTURE UAT run; ยังไม่ใช่ actual |
-| Handling Unit opening balance | Blocked |
-| Off-project backup | ต้องดำเนินการ |
-| Restore drill | ต้องดำเนินการ |
-| 18-district user roster | ยังไม่ครบ |
-| MEA Production cutover approval | ยังไม่มี |
+| Production data package | ผ่าน owner approval และ checksum verification |
+| Local database contract | ผ่าน 25 migrations, 65 schema checks, 20 workflow checks |
+| Vercel Production | Deploy แล้วที่ `https://synapse-mea.vercel.app` |
+| Supabase Production identity | Project `fvdfduuanfrncrwuareb`, environment `production` |
+| Supabase migration | M00–M21 deploy แล้ว; M22 รอ operator credential |
+| Production data import | รอ M22 และ operator credential |
+| Off-project backup | มี pre-import logical backup พร้อม SHA-256 |
+| Isolated restore drill | ต้องทำหลัง Production import |
+| Central + 18-district identity roster | ต้องตรวจจาก owner-approved roster |
+| Operational writes | Locked จนกว่า readiness ทุก gate ผ่าน |
 
 ---
 
@@ -786,24 +778,31 @@ HTTP boundary:
 
 Apply ตาม filename order เท่านั้น:
 
-1. `202607140001_m01_foundation.sql`
-2. `202607140002_m01_environment_label.sql`
-3. `202607150001_m03_raw_ingestion.sql`
-4. `202607150002_m04_staging_quality.sql`
-5. `202607150003_m05_core_model.sql`
-6. `202607150004_m06_replenishment.sql`
-7. `202607150005_m07_forecasting.sql` — historical/dormant
-8. `202607150006_m08_routes.sql` — historical/dormant
-9. `202607150007_wave3_readiness.sql` — historical/dormant
-10. `202607150008_m12_operations.sql`
-11. `202607150009_m09_serverless_api.sql`
-12. `202607160010_m10_web_input_pipeline.sql`
-13. `202607160011_legacy_actual_sources.sql`
-14. `202607160012_legacy_usage_quality.sql`
-15. `202607160013_m09_district_scope_status.sql`
-16. `202607230014_production_operations_v1.sql`
-17. `202607230015_dashboard_read_resilience.sql`
-18. `202607240016_test_fixture_governance.sql`
+1. `202607140000_m00_greenfield_bootstrap.sql`
+2. `202607140001_m01_foundation.sql`
+3. `202607140002_m01_environment_label.sql`
+4. `202607150001_m03_raw_ingestion.sql`
+5. `202607150002_m04_staging_quality.sql`
+6. `202607150003_m05_core_model.sql`
+7. `202607150004_m06_replenishment.sql`
+8. `202607150005_m07_forecasting.sql` — historical/dormant
+9. `202607150006_m08_routes.sql` — historical/dormant
+10. `202607150007_wave3_readiness.sql` — historical/dormant
+11. `202607150008_m12_operations.sql`
+12. `202607150009_m09_serverless_api.sql`
+13. `202607160010_m10_web_input_pipeline.sql`
+14. `202607160011_legacy_actual_sources.sql`
+15. `202607160012_legacy_usage_quality.sql`
+16. `202607160013_m09_district_scope_status.sql`
+17. `202607230014_production_operations_v1.sql`
+18. `202607230015_dashboard_read_resilience.sql`
+19. `202607240016_test_fixture_governance.sql`
+20. `202607240017_production_rebuild_contract.sql`
+21. `202607240018_relational_source_import.sql`
+22. `202607240019_relation_coverage_fix.sql`
+23. `202607240020_owner_attested_actual_promotion.sql`
+24. `202607240021_actual_workbook_observation_lineage.sql`
+25. `202607240022_production_completion_attestation.sql`
 
 กฎ migration:
 
@@ -847,9 +846,11 @@ bash scripts/scan_secrets.sh
 
 Current production contract:
 
-- Clean PostgreSQL applies 18 ordered migrations
-- 50 schema/RLS/privilege checks
+- Clean PostgreSQL applies 25 ordered migrations
+- 65 schema/RLS/privilege checks
 - 20 authenticated operational workflow checks
+- M21 actual-source lineage checks 16 ข้อ
+- M22 production completion checks 7 ข้อ
 - Dashboard lint, TypeScript, Next.js production build และ UI/API tests
 - OpenAPI freshness check
 - Secret scan
@@ -1123,6 +1124,8 @@ Historical Forecast/Route source ไม่ขยาย active release scope
 - Production environment แยกจาก Test
 - Cutover, rollback และ security approval ได้รับอนุมัติ
 
-สถานะปัจจุบันคือ **implementation-ready และ staging-operational** แต่ยังไม่ใช่
-MEA Production Go-Live เนื่องจาก actual District stock, Opening Handling Units,
-off-project backup/restore drill, full UAT และ formal cutover ยังไม่ครบ
+สถานะปัจจุบันคือ **Production code/web deployed และ database write-locked**:
+Vercel และ Supabase Production พร้อมใช้งานด้าน read path แต่ยังไม่ประกาศ
+MEA Production Go-Live จนกว่า M22, Production data import, approved identity
+roster, isolated restore drill, authenticated acceptance และ formal cutover
+จะผ่านครบจาก release evidence ชุดเดียวกัน
