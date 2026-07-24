@@ -33,6 +33,34 @@ if [[ -f "$checksum_file" ]]; then
   [[ "$actual" == "$expected" ]] || { echo "Backup checksum mismatch" >&2; exit 3; }
 fi
 
-pg_restore --dbname="$RESTORE_DATABASE_URL" --clean --if-exists --no-owner --no-acl --exit-on-error "$BACKUP_FILE"
+# pg_dump emits temporary analytics view stubs before its SCHEMA entries when
+# resolving circular view dependencies. Bootstrap that schema for an empty
+# recovery target; --clean will replace it from the archive immediately after.
+# Supabase RLS policies also reference the authenticated role, which does not
+# exist in a vanilla PostgreSQL recovery container.
+psql "$RESTORE_DATABASE_URL" --set=ON_ERROR_STOP=1 <<'SQL'
+select 'create role authenticated nologin'
+where not exists (
+  select 1 from pg_roles where rolname = 'authenticated'
+)
+\gexec
+create schema if not exists analytics;
+SQL
+
+restore_list="$(mktemp)"
+trap 'rm -f "$restore_list"' EXIT
+pg_restore --list "$BACKUP_FILE" \
+  | awk '
+      !/supabase_vault/ &&
+      !/(^|[[:space:]])vault([[:space:]]|$)/
+    ' >"$restore_list"
+
+# supabase_vault is installed and managed by Supabase but is not distributed
+# with vanilla PostgreSQL. Its extension-owned objects and vault.secrets data
+# are not application data, so exclude the managed vault schema from the
+# portable drill while preserving it in the original backup artifact.
+pg_restore --dbname="$RESTORE_DATABASE_URL" --clean --if-exists \
+  --no-owner --no-acl --exit-on-error \
+  --use-list="$restore_list" "$BACKUP_FILE"
 psql "$RESTORE_DATABASE_URL" --set=ON_ERROR_STOP=1 --tuples-only --command="select count(*) from information_schema.tables where table_schema not in ('pg_catalog','information_schema');" >/dev/null
 echo "restore validation: ok"

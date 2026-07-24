@@ -762,13 +762,13 @@ HTTP boundary:
 | Gate | สถานะ |
 |---|---|
 | Production data package | ผ่าน owner approval และ checksum verification |
-| Local database contract | ผ่าน 25 migrations, 65 schema checks, 20 workflow checks |
+| Local database contract | ผ่าน 26 migrations, 67 schema checks, 20 workflow checks |
 | Vercel Production | Deploy แล้วที่ `https://synapse-mea.vercel.app` |
 | Supabase Production identity | Project `fvdfduuanfrncrwuareb`, environment `production` |
-| Supabase migration | M00–M21 deploy แล้ว; M22 รอ operator credential |
-| Production data import | รอ M22 และ operator credential |
-| Off-project backup | มี pre-import logical backup พร้อม SHA-256 |
-| Isolated restore drill | ต้องทำหลัง Production import |
+| Supabase migration | M00–M22 deploy แล้ว; M23 active-scope readiness พร้อม deploy |
+| Production data import | ผ่าน governed import + M22 completion attestation |
+| Off-project backup | มี post-import logical backup พร้อม SHA-256 |
+| Isolated restore drill | ผ่าน PostgreSQL 17; evidence บันทึกใน Production |
 | Central + 18-district identity roster | ต้องตรวจจาก owner-approved roster |
 | Operational writes | Locked จนกว่า readiness ทุก gate ผ่าน |
 
@@ -803,6 +803,7 @@ Apply ตาม filename order เท่านั้น:
 23. `202607240020_owner_attested_actual_promotion.sql`
 24. `202607240021_actual_workbook_observation_lineage.sql`
 25. `202607240022_production_completion_attestation.sql`
+26. `202607240023_active_scope_readiness.sql`
 
 กฎ migration:
 
@@ -846,11 +847,12 @@ bash scripts/scan_secrets.sh
 
 Current production contract:
 
-- Clean PostgreSQL applies 25 ordered migrations
-- 65 schema/RLS/privilege checks
+- Clean PostgreSQL applies 26 ordered migrations
+- 67 schema/RLS/privilege checks
 - 20 authenticated operational workflow checks
 - M21 actual-source lineage checks 16 ข้อ
 - M22 production completion checks 7 ข้อ
+- M23 active-scope readiness checks 4 ข้อ
 - Dashboard lint, TypeScript, Next.js production build และ UI/API tests
 - OpenAPI freshness check
 - Secret scan
@@ -1124,8 +1126,8 @@ Historical Forecast/Route source ไม่ขยาย active release scope
 - Production environment แยกจาก Test
 - Cutover, rollback และ security approval ได้รับอนุมัติ
 
-สถานะปัจจุบันคือ **Production code/web deployed และ database write-locked**:
-Vercel และ Supabase Production พร้อมใช้งานด้าน read path แต่ยังไม่ประกาศ
-MEA Production Go-Live จนกว่า M22, Production data import, approved identity
-roster, isolated restore drill, authenticated acceptance และ formal cutover
-จะผ่านครบจาก release evidence ชุดเดียวกัน
+สถานะปัจจุบันคือ **Production code/web/data/recovery deployed และ database
+write-locked**: Vercel, Supabase Production, governed data import, backup และ
+isolated restore drill ผ่านแล้ว แต่ยังไม่ประกาศ MEA Production Go-Live จนกว่า
+approved central + 18-district identity roster, authenticated acceptance และ
+formal cutover จะผ่านจาก release evidence ชุดเดียวกัน

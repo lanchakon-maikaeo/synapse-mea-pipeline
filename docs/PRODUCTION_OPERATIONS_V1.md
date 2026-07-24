@@ -147,7 +147,7 @@ is captured.
 ## Release acceptance
 
 - Dashboard lint, type-check, production build and tests pass.
-- Clean PostgreSQL applies 25 ordered migrations.
+- Clean PostgreSQL applies 26 ordered migrations.
 - All schema/RLS/privilege checks pass.
 - All 20 authenticated operational workflow checks pass.
 - Pre-cutover readiness returns `503 not_ready`; after authorized cutover it
