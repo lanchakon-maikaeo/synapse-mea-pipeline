@@ -2123,8 +2123,28 @@ function TraceView({
 }
 
 function StockView({ data }: { data: DashboardData }) {
+  const hasTestFixture = data.stock.some(
+    (row) =>
+      row.fixture_backed === true ||
+      row.fixture_backed === "true" ||
+      row.input_data_class === "test_fixture" ||
+      row.input_data_class === "mixed",
+  );
   return (
     <div className="stack">
+      {hasTestFixture && (
+        <section className="plain-notice warning">
+          <i>!</i>
+          <div>
+            <strong>UAT data is active — TEST FIXTURE</strong>
+            <p>
+              District stock or CMP on this screen includes governed Dummy
+              workbook values. It is not Actual SAP evidence and must not be
+              used for production readiness or operational dispatch.
+            </p>
+          </div>
+        </section>
+      )}
       <section className="plain-notice info">
         <i>i</i>
         <div>

@@ -8,6 +8,7 @@ from pathlib import Path
 from .connectors import CsvConnector, DocumentConnector, ExcelConnector, GoogleSheetsCsvConnector
 from .ingestion import IngestionRunner, PostgresWriter
 from .legacy_actual import download_sources, import_sources
+from .test_fixture import import_test_fixture, parse_test_fixture_workbook
 
 
 def _local_connector(path: str, sheet: str | None):
@@ -44,6 +45,18 @@ def build_parser() -> argparse.ArgumentParser:
     legacy = subparsers.add_parser("import-legacy-actual", help="Import verified real sources documented by the legacy SYNAPSE project")
     legacy.add_argument("--work-dir", default=".synapse-cache/legacy-actual")
     legacy.add_argument("--chunk-size", type=int, default=200)
+
+    fixture = subparsers.add_parser(
+        "import-test-fixture",
+        help="Import the governed Dummy workbook into the registered Test environment",
+    )
+    fixture.add_argument("--source", default="MEA_VMI_Dummy_Klongtoey.xlsx")
+    fixture.add_argument("--chunk-size", type=int, default=200)
+    fixture.add_argument(
+        "--confirm-test-environment",
+        action="store_true",
+        help="Required safety acknowledgement; the database RPC also enforces Test-only use",
+    )
     return parser
 
 
@@ -88,6 +101,37 @@ def main(argv: list[str] | None = None) -> int:
                 for source in sources
             ],
             "final_results": results[-3:] if results else [],
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "import-test-fixture":
+        if not args.confirm_test_environment:
+            raise SystemExit(
+                "--confirm-test-environment is required because this command writes TEST_FIXTURE data"
+            )
+        required = {
+            "SUPABASE_URL": os.environ.get("SUPABASE_URL"),
+            "SUPABASE_ANON_KEY": os.environ.get("SUPABASE_ANON_KEY"),
+            "SUPABASE_ACCESS_TOKEN": os.environ.get("SUPABASE_ACCESS_TOKEN"),
+        }
+        missing = [key for key, value in required.items() if not value]
+        if missing:
+            raise SystemExit(f"Missing environment variables: {', '.join(missing)}")
+        sources = parse_test_fixture_workbook(args.source)
+        results = import_test_fixture(
+            sources,
+            supabase_url=required["SUPABASE_URL"],
+            publishable_key=required["SUPABASE_ANON_KEY"],
+            access_token=required["SUPABASE_ACCESS_TOKEN"],
+            chunk_size=args.chunk_size,
+        )
+        print(json.dumps({
+            "data_class": "TEST_FIXTURE",
+            "sources": [
+                {"source_key": source.source_key, "rows": len(source.rows), "checksum": source.checksum}
+                for source in sources
+            ],
+            "final_results": results[-4:] if results else [],
         }, ensure_ascii=False, indent=2))
         return 0
 

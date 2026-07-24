@@ -17,10 +17,12 @@ excluded.
 - `intelligence/` — retained historical experimental source; not built,
   scheduled or deployed by the active release
 
-Start with the [production operations contract](docs/PRODUCTION_OPERATIONS_V1.md),
-[Business Rules v1](dashboard/docs/BUSINESS_RULES_V1.md) and the
-[operations runbook](docs/OPERATIONS_RUNBOOK.md). Older Wave documents are
-historical implementation records and do not expand the active release scope.
+Start with the
+[current end-to-end pipeline](SYNAPSE_CURRENT_PIPELINE.md). It consolidates the
+active scope, Business Rules v1, architecture, data flow, API, deployment,
+operations, backup, rollback and current readiness in one document. Older Wave
+documents are historical implementation records and do not expand the active
+release scope.
 
 ## Deployment topology
 
@@ -32,8 +34,9 @@ historical implementation records and do not expand the active release scope.
   `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase project
   `mklnbumfwojxhqscthjd`.
-- Managed database status: migration `202607230015` applied and verified on
-  23 July 2026. See the
+- Managed database status: migration `202607240016` applied and verified on
+  24 July 2026. Migration 016 adds governed, reversible `TEST_FIXTURE`
+  provenance for UAT and does not change the Actual readiness gate. See the
   [contract-sync incident record](docs/incidents/2026-07-23-supabase-contract-sync.md).
 - The browser uses only the Supabase publishable key. Database credentials and
   `service_role` must remain in the deployment secret store.
@@ -45,7 +48,7 @@ The former `lanchakon-maikaeo/synapse-mea-dashboard` deployment mirror is
 retained only as an archived migration record and is not connected to Vercel.
 
 Run `make workspace-ci` before release. The production database contract starts
-a clean PostgreSQL 17 instance, applies all 17 migrations and verifies 44
+a clean PostgreSQL 17 instance, applies all 18 migrations and verifies 50
 schema/RLS/privilege controls plus 20 authenticated workflow checks. The
 dashboard gate runs lint, TypeScript, a production Next.js build, rendered
 screen/API tests and the Drizzle database contract.

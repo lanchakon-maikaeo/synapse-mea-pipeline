@@ -10,7 +10,7 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 17 from ops.schema_migrations)),
+    (select count(*) = 18 from ops.schema_migrations)),
   ('migration_versions_unique',
     (select count(*) = count(distinct version) from ops.schema_migrations)),
   ('environment_is_test',
@@ -161,6 +161,60 @@ values
       from ops.data_quality_rules
       where rule_code = 'LEGACY_NEGATIVE_DEMAND_ADJUSTMENT'
         and is_active
+    )),
+  ('test_fixture_migration',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202607240016'
+    )),
+  ('test_fixture_import_rpc',
+    to_regprocedure('public.m16_import_test_fixture(text,text,jsonb,jsonb)') is not null),
+  ('test_fixture_rollback_rpc',
+    to_regprocedure('public.m16_rollback_test_fixture(text)') is not null),
+  ('test_fixture_provenance_columns',
+    exists (
+      select 1 from information_schema.columns
+      where table_schema = 'core'
+        and table_name = 'stock_snapshots'
+        and column_name = 'data_class'
+    )
+    and exists (
+      select 1 from information_schema.columns
+      where table_schema = 'core'
+        and table_name = 'usage_rates'
+        and column_name = 'data_class'
+    )
+    and exists (
+      select 1 from information_schema.columns
+      where table_schema = 'core'
+        and table_name = 'packaging_profiles'
+        and column_name = 'data_class'
+    )),
+  ('test_fixture_replenishment_guard',
+    exists (
+      select 1 from pg_trigger
+      where tgname = 'classify_replenishment_item_input'
+        and tgrelid = 'core.replenishment_items'::regclass
+        and not tgisinternal
+    )
+    and exists (
+      select 1 from pg_trigger
+      where tgname = 'classify_quantity_recommendation_source'
+        and tgrelid = 'ops.quantity_recommendations'::regclass
+        and not tgisinternal
+    )),
+  ('test_fixture_stock_health_labels',
+    exists (
+      select 1 from information_schema.columns
+      where table_schema = 'analytics'
+        and table_name = 'v_stock_health'
+        and column_name = 'fixture_backed'
+    )
+    and exists (
+      select 1 from information_schema.columns
+      where table_schema = 'analytics'
+        and table_name = 'v_stock_health'
+        and column_name = 'input_data_class'
     ));
 
 table local_schema_checks;
