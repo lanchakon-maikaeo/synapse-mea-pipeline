@@ -3,6 +3,11 @@
 > วันที่จัดทำ: 2026-07-14  
 > เป้าหมาย: ปรับปรุง SYNAPSE จาก Google Sheets/Apps Script และงาน Manual ให้เป็น Data Pipeline ที่ตรวจสอบได้ ทำซ้ำได้ ปลอดภัย และไม่เสียค่าไลเซนส์ซอฟต์แวร์
 
+> **Actual relation update 2026-07-24:** ตรวจไฟล์ใน `data/` ใหม่แล้ว
+> ได้ VMI scope 223 วัสดุ × 18 เขต, เพิ่ม row-level Stock/Usage lineage,
+> normalized monthly observations และ Staging-only safety gate ดู
+> [`docs/ACTUAL_DATA_RELATION_AND_SUPABASE_STAGING_2026-07-24.md`](docs/ACTUAL_DATA_RELATION_AND_SUPABASE_STAGING_2026-07-24.md)
+
 ## 1. ข้อเสนอหลัก
 
 ให้ใช้ **Supabase/PostgreSQL เป็นศูนย์กลางข้อมูลต่อไป** แต่เพิ่มโครงสร้าง `raw -> staging -> core -> analytics` และย้ายงาน Forecasting, Route Optimization, Document Processing และ Embeddings ออกจาก HTTP request ปกติไปเป็นงานเบื้องหลังแบบ scheduled job

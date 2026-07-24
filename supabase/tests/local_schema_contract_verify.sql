@@ -10,7 +10,7 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 23 from ops.schema_migrations)),
+    (select count(*) = 24 from ops.schema_migrations)),
   ('greenfield_bootstrap_registered',
     exists (
       select 1 from ops.schema_migrations
@@ -250,6 +250,36 @@ values
     )
     and to_regclass('ops.source_attestations') is not null
     and to_regclass('ops.source_promotions') is not null),
+  ('actual_workbook_observation_migration',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202607240021'
+    )
+    and to_regclass('staging.actual_stock_rows') is not null
+    and to_regclass('staging.actual_usage_rows') is not null
+    and to_regclass('core.monthly_usage_observations') is not null
+    and to_regclass(
+      'reference_data.stock_observation_evidence'
+    ) is not null
+    and to_regclass(
+      'reference_data.usage_observation_evidence'
+    ) is not null),
+  ('actual_workbook_environment_guard_is_service_only',
+    has_function_privilege(
+      'service_role',
+      'public.m21_assert_actual_import_environment(text,boolean)',
+      'execute'
+    )
+    and not has_function_privilege(
+      'authenticated',
+      'public.m21_assert_actual_import_environment(text,boolean)',
+      'execute'
+    )
+    and not has_function_privilege(
+      'anon',
+      'public.m21_assert_actual_import_environment(text,boolean)',
+      'execute'
+    )),
   ('owner_attested_actual_promotion_is_service_only',
     not has_function_privilege(
       'authenticated',

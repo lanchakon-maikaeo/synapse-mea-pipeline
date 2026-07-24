@@ -14,7 +14,10 @@ fi
 [[ "$RESTORE_CONFIRM" == "YES" ]] || { echo "RESTORE_CONFIRM must equal YES" >&2; exit 2; }
 [[ -f "$BACKUP_FILE" ]] || { echo "Backup file not found: $BACKUP_FILE" >&2; exit 2; }
 
-if [[ "$RESTORE_DATABASE_URL" == *"jbwbmrizawxcrtliozqt"* && "${ALLOW_PRODUCTION_RESTORE:-false}" != "true" ]]; then
+if [[ (
+        "$RESTORE_DATABASE_URL" == *"fvdfduuanfrncrwuareb"* ||
+        "$RESTORE_DATABASE_URL" == *"jbwbmrizawxcrtliozqt"*
+      ) && "${ALLOW_PRODUCTION_RESTORE:-false}" != "true" ]]; then
   echo "Refusing to restore into the managed project without ALLOW_PRODUCTION_RESTORE=true" >&2
   exit 2
 fi

@@ -68,6 +68,7 @@ schema_initialized="$(
 )"
 
 actual_database_environment="uninitialized"
+actual_database_project_ref=""
 if [[ "$schema_initialized" == "t" ]]; then
   actual_database_environment="$(
     psql "$DATABASE_URL" --tuples-only --no-align --set=ON_ERROR_STOP=1 \
@@ -78,6 +79,15 @@ if [[ "$schema_initialized" == "t" ]]; then
     echo "Refusing migration: expected environment '$expected_database_environment', found '$actual_database_environment'" >&2
     exit 3
   }
+
+  actual_database_project_ref="$(
+    psql "$DATABASE_URL" --tuples-only --no-align --set=ON_ERROR_STOP=1 \
+      --command="select project_ref from ops.environment_registry order by updated_at desc limit 1"
+  )"
+  if [[ -n "$target_project_ref" && "$actual_database_project_ref" != "$target_project_ref" ]]; then
+    echo "Refusing migration: TARGET_PROJECT_REF '$target_project_ref' does not match registered project '$actual_database_project_ref'" >&2
+    exit 3
+  fi
 
   echo "creating pre-migration backup for $actual_database_environment"
   DATABASE_URL="$DATABASE_URL" BACKUP_DIR="$BACKUP_DIR" \

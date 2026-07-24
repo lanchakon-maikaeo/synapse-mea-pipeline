@@ -89,6 +89,17 @@ def _clean_key(value: Any) -> str | None:
     return cleaned or None
 
 
+def _clean_material_key(value: Any) -> str | None:
+    cleaned = _clean_key(value)
+    if cleaned is None:
+        return None
+    if cleaned.endswith(".0") and cleaned[:-2].isdigit():
+        cleaned = cleaned[:-2]
+    if cleaned.isdigit() and len(cleaned) <= 12:
+        return cleaned.zfill(12)
+    return cleaned
+
+
 def _sheet_dict_rows(worksheet: Any) -> list[tuple[int, dict[str, Any]]]:
     iterator = worksheet.iter_rows(values_only=True)
     raw_headers = next(iterator)
@@ -177,11 +188,21 @@ def parse_actual_contract_source(path: str | Path) -> RelationalSource:
         worksheet = workbook["รวมสัญญา"]
         source_rows = _sheet_dict_rows(worksheet)
         rows: list[dict[str, Any]] = []
+        padded_material_rows = 0
         for row_number, raw_payload in source_rows:
             payload = {
                 canonical: _json_value(raw_payload.get(header))
                 for header, canonical in CONTRACT_HEADERS.items()
             }
+            source_material_code = payload.get("material_code")
+            material_id = _clean_material_key(source_material_code)
+            if (
+                material_id is not None
+                and material_id != _clean_key(source_material_code)
+            ):
+                padded_material_rows += 1
+            payload["source_material_code"] = source_material_code
+            payload["material_code"] = material_id
             rows.append({
                 "row_number": row_number,
                 "natural_key": "|".join(
@@ -191,7 +212,7 @@ def parse_actual_contract_source(path: str | Path) -> RelationalSource:
                     ))
                 ) or str(row_number),
                 "payload": payload,
-                "material_id": _clean_key(payload.get("material_code")),
+                "material_id": material_id,
                 "contract_ref": (
                     _clean_key(payload.get("contract_number"))
                     or _clean_key(payload.get("purchase_order"))
@@ -212,6 +233,7 @@ def parse_actual_contract_source(path: str | Path) -> RelationalSource:
             "header_rows": 1,
             "total_rows": len(rows),
             "data_class": "actual",
+            "material_codes_padded_to_12_digits": padded_material_rows,
             "operational_promotion": True,
         },
     )
@@ -220,7 +242,12 @@ def parse_actual_contract_source(path: str | Path) -> RelationalSource:
 def build_package_manifest(path: str | Path) -> list[RelationalSource]:
     package_path = Path(path)
     sources: list[RelationalSource] = []
-    for file_path in sorted(item for item in package_path.rglob("*") if item.is_file()):
+    for file_path in sorted(
+        item
+        for item in package_path.rglob("*")
+        if item.is_file()
+        and not any(part.startswith(".") for part in item.relative_to(package_path).parts)
+    ):
         content = file_path.read_bytes()
         relative_path = file_path.relative_to(package_path).as_posix()
         sources.append(RelationalSource(

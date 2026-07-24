@@ -5,6 +5,10 @@ import json
 import os
 from pathlib import Path
 
+from .actual_workbooks import (
+    import_actual_data_directory,
+    parse_actual_data_directory,
+)
 from .connectors import CsvConnector, DocumentConnector, ExcelConnector, GoogleSheetsCsvConnector
 from .ingestion import IngestionRunner, PostgresWriter
 from .legacy_actual import download_sources, import_sources
@@ -56,6 +60,35 @@ def build_parser() -> argparse.ArgumentParser:
         "--confirm-test-environment",
         action="store_true",
         help="Required safety acknowledgement; the database RPC also enforces Test-only use",
+    )
+
+    actual = subparsers.add_parser(
+        "import-actual-workbooks",
+        help=(
+            "Import the governed data/ workbook set into Supabase "
+            "Raw, Staging, Core and relational lineage"
+        ),
+    )
+    actual.add_argument("--data-dir", default="data")
+    actual.add_argument("--chunk-size", type=int, default=200)
+    actual.add_argument("--attested-by", required=True)
+    actual.add_argument("--attestation-text", required=True)
+    actual.add_argument("--change-ticket", required=True)
+    actual.add_argument(
+        "--confirm-actual-data",
+        action="store_true",
+        help=(
+            "Required acknowledgement that the four checksummed workbooks "
+            "are approved Actual source evidence"
+        ),
+    )
+    actual.add_argument(
+        "--confirm-staging-package",
+        action="store_true",
+        help=(
+            "Required when the selected package is marked STAGING_ONLY; "
+            "the database independently rejects it in Production"
+        ),
     )
     return parser
 
@@ -132,6 +165,48 @@ def main(argv: list[str] | None = None) -> int:
                 for source in sources
             ],
             "final_results": results[-4:] if results else [],
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "import-actual-workbooks":
+        if not args.confirm_actual_data:
+            raise SystemExit(
+                "--confirm-actual-data is required because this command "
+                "promotes checksummed source evidence"
+            )
+        required = {
+            "SUPABASE_URL": os.environ.get("SUPABASE_URL"),
+            "SUPABASE_SERVICE_ROLE_KEY": os.environ.get(
+                "SUPABASE_SERVICE_ROLE_KEY"
+            ),
+        }
+        missing = [key for key, value in required.items() if not value]
+        if missing:
+            raise SystemExit(f"Missing environment variables: {', '.join(missing)}")
+        sources = parse_actual_data_directory(args.data_dir)
+        result = import_actual_data_directory(
+            sources,
+            supabase_url=required["SUPABASE_URL"],
+            service_role_key=required["SUPABASE_SERVICE_ROLE_KEY"],
+            attested_by=args.attested_by,
+            attestation_text=args.attestation_text,
+            change_ticket=args.change_ticket,
+            chunk_size=args.chunk_size,
+            allow_staging_only_package=args.confirm_staging_package,
+        )
+        print(json.dumps({
+            "data_class": "actual",
+            "sources": [
+                {
+                    "source_path": source.source_path,
+                    "source_sheet": source.source_sheet,
+                    "rows": len(source.rows),
+                    "checksum": source.checksum,
+                }
+                for source in sources
+            ],
+            "artifact_rpc_calls": len(result.artifacts),
+            "promotion": result.promotion,
         }, ensure_ascii=False, indent=2))
         return 0
 

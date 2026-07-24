@@ -98,8 +98,35 @@ docker exec "$container" psql -U postgres -d synapse \
   --set=ON_ERROR_STOP=1 \
   --file=/work/supabase/tests/m18_relational_source_verify.sql
 
+docker exec "$container" psql -U postgres -d synapse \
+  --set=ON_ERROR_STOP=1 \
+  --file=/work/supabase/tests/m21_actual_workbook_observation_verify.sql
+
 contract_database_url="postgresql://postgres:synapse-test@${container}:5432/synapse"
 echo "forecasting and routing worker execution intentionally excluded"
+
+echo "validating project-ref mismatch guard"
+project_ref_guard_output=""
+if project_ref_guard_output="$(
+  docker run --rm --network "$network" \
+    -v "$root:/work:ro" \
+    -w /work \
+    -e DATABASE_URL="$contract_database_url" \
+    -e BACKUP_DIR=/tmp/synapse-contract-backups \
+    -e RELEASE_VERSION=project-ref-guard \
+    -e RELEASE_GIT_SHA=1111111111111111111111111111111111111111 \
+    -e DEPLOY_CONFIRM=APPLY_PENDING_MIGRATIONS \
+    -e TARGET_PROJECT_REF=bbbbbbbbbbbbbbbbbbbb \
+    postgres:17-bookworm \
+    bash scripts/deploy_database_migrations.sh 2>&1
+)"; then
+  echo "project-ref mismatch unexpectedly passed" >&2
+  exit 5
+fi
+[[ "$project_ref_guard_output" == *"does not match registered project"* ]] || {
+  echo "project-ref mismatch failed for an unexpected reason" >&2
+  exit 5
+}
 
 deployment_evidence_before="$(
   docker exec "$container" psql -U postgres -d synapse \
@@ -108,7 +135,7 @@ deployment_evidence_before="$(
 )"
 [[ "$deployment_evidence_before" == "1" ]] || {
   echo "dashboard read-resilience migration registration mismatch" >&2
-  exit 5
+  exit 6
 }
 
 echo "validating guarded database deployment command"
@@ -132,7 +159,7 @@ deployment_evidence="$(
 )"
 [[ "$deployment_evidence" == "1:1" ]] || {
   echo "guarded deployment evidence mismatch: $deployment_evidence" >&2
-  exit 6
+  exit 7
 }
 
 echo "local Supabase migration/schema/workflow contract: passed"

@@ -30,6 +30,11 @@ append-only operational evidence and guarded backup-before-migrate deployment.
   complete Dummy workbook reference relations and Staging-package lineage
 - `202607240019_relation_coverage_fix.sql` — distinct source-row coverage
   across one-to-many relation edges
+- `202607240020_owner_attested_actual_promotion.sql` — owner attestation,
+  promotion journal and source checksum contract
+- `202607240021_actual_workbook_observation_lineage.sql` — four-workbook
+  Stock/Usage/Contract relations, monthly observations, row-level evidence,
+  latest-import readiness and Staging-only environment guard
 
 Migrations `202607150005`–`202607150007` remain in filename order because they
 may already exist in deployed databases. Their forecast, route and Wave 3
@@ -44,6 +49,8 @@ capabilities.
   RLS and privilege checks
 - `tests/local_pipeline_workflow_verify.sql` — 20 authenticated business-flow
   checks from governed VMI input through weekly/ad-hoc issue and traceback
+- `tests/m21_actual_workbook_observation_verify.sql` — M21 evidence,
+  normalized usage, readiness and environment-guard contract
 - `scripts/test_supabase_migrations_local.sh` — clean PostgreSQL 17 apply,
   both SQL contracts and guarded deployment/backup evidence
 

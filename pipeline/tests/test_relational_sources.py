@@ -5,7 +5,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "pipeline" / "src"))
 
-from synapse_pipeline.relational_sources import (
+from synapse_pipeline.relational_sources import (  # noqa: E402
     build_package_manifest,
     parse_actual_contract_source,
     parse_dummy_relational_sources,
@@ -15,12 +15,13 @@ from synapse_pipeline.relational_sources import (
 class RelationalSourceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        data_dir = ROOT / "data"
         required = (
             ROOT / "MEA_VMI_Dummy_Klongtoey.xlsx",
-            ROOT / "รวมสัญญา.xlsx",
-            ROOT / "MEA_Synapse_Supabase_Staging_20260724_090946",
+            data_dir / "รวมสัญญา.xlsx",
+            data_dir / "MEA_Synapse_Supabase_Complete_Staging_20260724",
         )
-        missing = [path.name for path in required if not path.exists()]
+        missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
         if missing:
             raise unittest.SkipTest(
                 "requires non-versioned governed source artifacts: "
@@ -32,9 +33,11 @@ class RelationalSourceTests(unittest.TestCase):
                 ROOT / "MEA_VMI_Dummy_Klongtoey.xlsx"
             )
         }
-        cls.contracts = parse_actual_contract_source(ROOT / "รวมสัญญา.xlsx")
+        cls.contracts = parse_actual_contract_source(
+            data_dir / "รวมสัญญา.xlsx"
+        )
         cls.package = build_package_manifest(
-            ROOT / "MEA_Synapse_Supabase_Staging_20260724_090946"
+            data_dir / "MEA_Synapse_Supabase_Complete_Staging_20260724"
         )
 
     def test_all_dummy_sheets_are_preserved_as_reference_fixture(self):
@@ -71,11 +74,26 @@ class RelationalSourceTests(unittest.TestCase):
             "8ea7b0e712726e6cc1990f33b0031be231a91cc01fb4f8d96e6146d83e3cf9dd",
         )
         first = self.contracts.rows[0]
-        self.assertEqual(first["payload"]["material_code"], 612062400410)
+        self.assertEqual(first["payload"]["material_code"], "612062400410")
+        self.assertEqual(
+            first["payload"]["source_material_code"],
+            612062400410,
+        )
         self.assertEqual(first["payload"]["purchase_order"], 130322071)
+        self.assertEqual(
+            self.contracts.metadata["material_codes_padded_to_12_digits"],
+            38,
+        )
+        padded = next(
+            row
+            for row in self.contracts.rows
+            if len(str(row["payload"]["source_material_code"])) == 11
+        )
+        self.assertEqual(len(padded["material_id"]), 12)
+        self.assertTrue(padded["material_id"].startswith("0"))
 
     def test_staging_package_is_manifested_not_executed(self):
-        self.assertEqual(len(self.package), 8)
+        self.assertEqual(len(self.package), 36)
         self.assertTrue(all(
             source.data_class == "design_reference"
             and not source.metadata["executed_as_migration"]
