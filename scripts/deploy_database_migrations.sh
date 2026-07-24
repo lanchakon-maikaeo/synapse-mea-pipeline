@@ -132,8 +132,8 @@ if ((${#pending_migrations[@]} > 0)); then
     printf '%s\n' '\set ON_ERROR_STOP on'
     printf '%s\n' "select pg_advisory_lock(hashtextextended('synapse-database-migrations', 0));"
     for migration_file in "${pending_migrations[@]}"; do
-      printf "\\echo applying %s\n" "$(basename "$migration_file")"
-      printf "\\i '%s'\n" "$migration_file"
+      printf '%s\n' "\\echo applying $(basename "$migration_file")"
+      printf '%s\n' "\\i '$migration_file'"
     done
     printf '%s\n' "select pg_advisory_unlock(hashtextextended('synapse-database-migrations', 0));"
   } >"$migration_batch"
