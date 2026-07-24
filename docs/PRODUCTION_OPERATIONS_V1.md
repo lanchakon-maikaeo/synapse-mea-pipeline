@@ -1,6 +1,6 @@
 # SYNAPSE Production Operations v1
 
-- Status: rebuilt baseline through migration `202607240019`; Production starts
+- Status: rebuilt baseline through migration `202607240021`; Production starts
   fail-closed until Actual-data, identity and recovery gates pass
 - Business rules: frozen 22 July 2026
 Release scope: stock, replenishment, warehouse issue and traceability
@@ -24,7 +24,8 @@ User browser
 
 The existing web target `synapse-mea/mea-synapse-staging` remains the rollback
 baseline until the new Production web project is accepted. The Production
-database/Auth target is Supabase project `jbwbmrizawxcrtliozqt`; Test/UAT
+database/Auth target is Supabase project `fvdfduuanfrncrwuareb`
+(`synapse-01`, `ap-southeast-1`); Test/UAT
 remains `mklnbumfwojxhqscthjd`.
 The Production web target is
 `https://mea-synapse-production.vercel.app`.
@@ -100,8 +101,8 @@ export BACKUP_DIR='/approved/off-repository/location'
 export RELEASE_VERSION='production-operations-v1'
 export RELEASE_GIT_SHA='<40-character-commit>'
 export DEPLOYMENT_PROFILE='production'
-export TARGET_PROJECT_REF='jbwbmrizawxcrtliozqt'
-export TARGET_REGION='ap-southeast-2'
+export TARGET_PROJECT_REF='fvdfduuanfrncrwuareb'
+export TARGET_REGION='ap-southeast-1'
 export CHANGE_TICKET='<approved-change-ticket>'
 export DEPLOY_CONFIRM='APPLY_PENDING_MIGRATIONS'
 export PRODUCTION_DEPLOY_CONFIRM='DEPLOY_GREENFIELD_PRODUCTION'

@@ -105,6 +105,30 @@ docker exec "$container" psql -U postgres -d synapse \
 contract_database_url="postgresql://postgres:synapse-test@${container}:5432/synapse"
 echo "forecasting and routing worker execution intentionally excluded"
 
+echo "validating pending migration batch"
+docker exec "$container" psql -U postgres -d synapse \
+  --set=ON_ERROR_STOP=1 \
+  --command="delete from ops.schema_migrations where version='202607240021'" >/dev/null
+docker run --rm --network "$network" \
+  -v "$root:/work:ro" \
+  -w /work \
+  -e DATABASE_URL="$contract_database_url" \
+  -e BACKUP_DIR=/tmp/synapse-contract-backups \
+  -e RELEASE_VERSION=pending-migration-batch \
+  -e RELEASE_GIT_SHA=1111111111111111111111111111111111111111 \
+  -e DEPLOY_CONFIRM=APPLY_PENDING_MIGRATIONS \
+  postgres:17-bookworm \
+  bash scripts/deploy_database_migrations.sh >/dev/null
+pending_batch_registered="$(
+  docker exec "$container" psql -U postgres -d synapse \
+    --tuples-only --no-align \
+    --command="select count(*) from ops.schema_migrations where version='202607240021'"
+)"
+[[ "$pending_batch_registered" == "1" ]] || {
+  echo "pending migration batch did not restore M21 registration" >&2
+  exit 5
+}
+
 echo "validating project-ref mismatch guard"
 project_ref_guard_output=""
 if project_ref_guard_output="$(
@@ -157,7 +181,7 @@ deployment_evidence="$(
       (select count(*) from ops.backup_runs where status='succeeded') || ':' ||
       (select count(*) from ops.release_versions where release_version='local-contract' and status='deployed')"
 )"
-[[ "$deployment_evidence" == "1:1" ]] || {
+[[ "$deployment_evidence" == "2:1" ]] || {
   echo "guarded deployment evidence mismatch: $deployment_evidence" >&2
   exit 7
 }

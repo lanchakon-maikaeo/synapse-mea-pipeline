@@ -23,23 +23,24 @@ Environment ที่ deploy อยู่: **Production (write-locked pending Au
 |---|---|
 | Canonical repository | `lanchakon-maikaeo/synapse-mea-pipeline` |
 | Branch | `main` |
-| Verified repository revision | `d630f29` + Production M20 worktree |
+| Verified repository revision | `20398d5` + deployment documentation |
 | Web application | <https://mea-synapse-production.vercel.app> |
 | Vercel project | `synapse-mea-production` |
 | Vercel Root Directory | `dashboard` |
-| Database/Auth | Supabase project `jbwbmrizawxcrtliozqt` |
-| Supabase project name | `synapse-mea-production` |
-| Supabase region | `ap-southeast-2` |
-| Latest managed migration | `202607240020` |
+| Database/Auth | Supabase project `fvdfduuanfrncrwuareb` |
+| Supabase project name | `synapse-01` |
+| Supabase region | `ap-southeast-1` |
+| Latest managed migration | `202607240021` |
 | API contract | SYNAPSE API `1.1.0`, 37 paths |
 | Business rules | v1, frozen 22 กรกฎาคม 2026 |
 | Active application roles | `admin`, `planner`, `academic`, `picker`, `district`, `viewer` |
 | Release scope | Stock, CMP, Weekly Replenishment, Approval, Handling Unit, FIFO, Issue, Return, Ad-hoc และ Traceability |
 | Explicit exclusions | Forecasting, Routing/Transport optimization และ RAG/AI |
 
-Production ใช้ Actual data ที่เจ้าของโครงการรับรองแล้วครบ 225 วัสดุ × 18 เขต
-แต่ operational writes ยังล็อกอยู่ตาม fail-closed cutover contract จนกว่า
-named Auth roles, off-project backup และ isolated restore drill จะผ่านครบ
+Production target ใหม่มี active VMI scope 203 วัสดุ × 18 เขต แต่ยังไม่มี
+Actual stock/usage observations ที่ได้รับอนุมัติสำหรับ Production ชุดข้อมูล
+ล่าสุดใน `data/` มีสถานะ `STAGING_ONLY` จึงไม่ถูก promote และ operational
+writes ยังคงล็อกตาม fail-closed cutover contract
 
 ChatGPT Sites URL
 `https://synapse-mea-dashboard.lanchakon0.chatgpt.site` เป็น snapshot แยกบน

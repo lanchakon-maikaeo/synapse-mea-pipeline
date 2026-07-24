@@ -32,12 +32,13 @@ release scope.
 - Vercel Git source: the canonical repository above, with Root Directory
   `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase Production project
-  `jbwbmrizawxcrtliozqt`.
-- Managed database status: migration `202607240020` applied and verified on
-  24 July 2026. The owner-attested workbook supplies complete Actual
-  material, packaging, stock and usage coverage, so the data gate passes.
-  Operational writes remain fail-closed until named role identities, an
-  off-project backup and an isolated restore drill are verified.
+  `fvdfduuanfrncrwuareb` (`synapse-01`, `ap-southeast-1`).
+- Managed database status: all 24 canonical migrations through
+  `202607240021` were applied and verified on 24 July 2026. Operational writes
+  remain fail-closed. The latest local workbook package is `STAGING_ONLY`, so
+  Production Actual stock/usage remains unpromoted until an approved
+  Production source package, named identities and an isolated restore drill
+  are verified.
 - The browser uses only the Supabase publishable key. Database credentials and
   `service_role` must remain in the deployment secret store.
 

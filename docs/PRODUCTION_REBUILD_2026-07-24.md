@@ -50,9 +50,13 @@ Forecasting, routing and RAG remain excluded.
 | Environment | Supabase project | Purpose |
 |---|---|---|
 | Test/UAT | `mklnbumfwojxhqscthjd` | governed TEST_FIXTURE and rollback baseline |
-| Production | `jbwbmrizawxcrtliozqt` | Actual-only greenfield operational target |
+| Production | `fvdfduuanfrncrwuareb` | Current fail-closed operational target |
 
 Production was provisioned separately. Test is never relabeled or overwritten.
+
+The previous Production project `jbwbmrizawxcrtliozqt` is retained as legacy
+deployment evidence only. Its owner-attested import results below do not prove
+data readiness on the current `synapse-01` target.
 
 The aligned Production web project is
 `https://mea-synapse-production.vercel.app`, built from GitHub `main` with
@@ -62,7 +66,8 @@ with `operational_ready=false` until the cutover gates pass.
 
 ## Production import evidence
 
-Verified on Supabase project `jbwbmrizawxcrtliozqt` on 24 July 2026:
+Legacy verification on Supabase project `jbwbmrizawxcrtliozqt` on 24 July
+2026:
 
 | Evidence | Verified result |
 |---|---:|
@@ -115,8 +120,8 @@ export BACKUP_DIR='/approved/off-repository/location'
 export RELEASE_VERSION='production-rebuild-2026-07-24'
 export RELEASE_GIT_SHA='<verified-git-sha>'
 export DEPLOYMENT_PROFILE='production'
-export TARGET_PROJECT_REF='jbwbmrizawxcrtliozqt'
-export TARGET_REGION='ap-southeast-2'
+export TARGET_PROJECT_REF='fvdfduuanfrncrwuareb'
+export TARGET_REGION='ap-southeast-1'
 export CHANGE_TICKET='SYNAPSE-PROD-CUTOVER'
 export DEPLOY_CONFIRM='APPLY_PENDING_MIGRATIONS'
 export PRODUCTION_DEPLOY_CONFIRM='DEPLOY_GREENFIELD_PRODUCTION'
