@@ -15,6 +15,17 @@ from synapse_pipeline.relational_sources import (
 class RelationalSourceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        required = (
+            ROOT / "MEA_VMI_Dummy_Klongtoey.xlsx",
+            ROOT / "รวมสัญญา.xlsx",
+            ROOT / "MEA_Synapse_Supabase_Staging_20260724_090946",
+        )
+        missing = [path.name for path in required if not path.exists()]
+        if missing:
+            raise unittest.SkipTest(
+                "requires non-versioned governed source artifacts: "
+                + ", ".join(missing)
+            )
         cls.dummy_sources = {
             source.source_sheet: source
             for source in parse_dummy_relational_sources(

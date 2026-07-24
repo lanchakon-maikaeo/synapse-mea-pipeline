@@ -10,7 +10,7 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 22 from ops.schema_migrations)),
+    (select count(*) = 23 from ops.schema_migrations)),
   ('greenfield_bootstrap_registered',
     exists (
       select 1 from ops.schema_migrations
@@ -242,6 +242,24 @@ values
     exists (
       select 1 from ops.schema_migrations
       where version = '202607240019'
+    )),
+  ('owner_attested_actual_promotion_migration',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202607240020'
+    )
+    and to_regclass('ops.source_attestations') is not null
+    and to_regclass('ops.source_promotions') is not null),
+  ('owner_attested_actual_promotion_is_service_only',
+    not has_function_privilege(
+      'authenticated',
+      'ops.promote_owner_attested_workbook(text,text,text,text)',
+      'execute'
+    )
+    and has_function_privilege(
+      'service_role',
+      'ops.promote_owner_attested_workbook(text,text,text,text)',
+      'execute'
     )),
   ('relational_source_import_is_service_only',
     not has_function_privilege(

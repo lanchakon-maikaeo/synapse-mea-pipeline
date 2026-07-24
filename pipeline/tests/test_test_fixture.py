@@ -17,6 +17,10 @@ WORKBOOK = ROOT / "MEA_VMI_Dummy_Klongtoey.xlsx"
 class TestFixtureWorkbookTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        if not WORKBOOK.exists():
+            raise unittest.SkipTest(
+                "requires the non-versioned governed VMI source workbook"
+            )
         cls.sources = {
             source.source_key: source
             for source in parse_test_fixture_workbook(WORKBOOK)
@@ -66,6 +70,8 @@ class TestFixtureWorkbookTests(unittest.TestCase):
         self.assertGreater(first["inner_pack_qty"], 0)
         self.assertGreaterEqual(first["full_pallet_qty"], first["inner_pack_qty"])
 
+
+class ChunkGuardTests(unittest.TestCase):
     def test_chunk_guard(self):
         self.assertEqual([len(part) for part in chunked(list(range(501)), 500)], [500, 1])
         with self.assertRaises(ValueError):
