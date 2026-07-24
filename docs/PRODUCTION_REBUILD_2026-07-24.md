@@ -20,7 +20,7 @@ UUID schema has no application-role policies or grants. Applying those files
 would collide with the operational schema and break the current API contract.
 
 Concepts merged into the canonical model by migrations `202607240017` through
-`202607240019`:
+`202607240020`:
 
 - contract-item version evidence;
 - verified, source-derived, estimated, opening-unknown and test-fixture source
@@ -29,15 +29,18 @@ Concepts merged into the canonical model by migrations `202607240017` through
 - data, identity and recovery readiness gates;
 - fail-closed operational writes.
 - Actual `รวมสัญญา.xlsx` import and quality-controlled Core promotion;
-- complete Dummy-workbook source evidence and typed cross-sheet relations;
+- complete VMI-workbook source evidence and typed cross-sheet relations;
 - checksum manifest for every file in the Staging design package.
+- owner attestation, checksum-preserving Actual promotion and auditable DQ
+  remediation.
 
-The three data classes are enforced separately:
+Data class is determined by governed evidence and an explicit owner
+attestation, not by the source filename:
 
 | Source | Data class | Operational promotion |
 |---|---|---|
 | `รวมสัญญา.xlsx` | `actual` | Yes, after completeness and DQ checks |
-| `MEA_VMI_Dummy_Klongtoey.xlsx` | `reference_fixture` | No |
+| `MEA_VMI_Dummy_Klongtoey.xlsx` | `actual` | Yes, owner-attested on 24 July 2026 |
 | Staging package files | `design_reference` | No |
 
 Forecasting, routing and RAG remain excluded.
@@ -63,19 +66,25 @@ Verified on Supabase project `jbwbmrizawxcrtliozqt` on 24 July 2026:
 
 | Evidence | Verified result |
 |---|---:|
-| Ordered migrations | 22 |
+| Ordered migrations | 23 |
 | Actual contract landing/raw rows | 6,305 / 6,305 |
 | Contract staging DQ | 4,128 valid; 2,177 warning; 0 rejected |
 | Current Core contracts/items | 2,857 / 6,305 |
-| Core materials | 776 total; 203 active VMI |
-| Dummy reference rows | 9,160 across 12 artifacts |
+| Active VMI materials | 225 |
+| Owner-attested Actual workbook rows | 9,160 across 12 artifacts |
+| Actual district stock coverage | 4,050 / 4,050 |
+| Actual usage/CMP coverage | 4,050 / 4,050 |
+| Verified packaging / positive unit weight | 225 / 225 |
+| Usage DQ remediation | 4 negative aggregates normalized to 0 from zero monthly history |
 | Staging design-package files | 8 checksum artifacts |
 | Typed relation edges | 22,519 |
 | Linked source rows | 9,670 |
 
-Both the Actual and Dummy artifact inventories report complete row counts.
-Production remains locked because the readiness result is `blocked`, not
-because this import is incomplete.
+All Actual artifact inventories report complete row counts. The data gate is
+`data_contract_ready=true`. Production remains locked only because the identity
+and recovery gates have not passed: one central role is provisioned, no
+district identities are provisioned, and the Supabase Free plan supplies no
+managed backup or verified restore drill.
 
 ## Cutover contract
 
@@ -118,11 +127,19 @@ bash scripts/deploy_database_migrations.sh
 Never place the database password, service-role key or generated Auth
 credentials in Git or a `NEXT_PUBLIC_*` variable.
 
-## Remaining real-data work
+## Remaining cutover work
 
-The migrations make the software deployable and the controls production-safe;
-they do not invent missing operational facts. The Actual contract workbook is
-eligible for Core promotion, while Dummy and design-reference records remain
-queryable only as lineage/reference evidence. Cutover remains blocked until
-Actual stock/CMP, verified packaging/weight, Auth bootstrap, backup and
-restore-drill evidence pass the database gates.
+The Actual data gate is complete. Do not weaken or bypass the remaining gates:
+
+1. provision named Planner, Academic and Picker identities;
+2. provision one named District identity for each district `5501` through
+   `5518`;
+3. take an encrypted off-project database backup and verify its checksum;
+4. restore that artifact into an isolated database and run the acceptance
+   checks;
+5. record the verified evidence in `ops.backup_runs`, then use
+   `ops.set_operational_writes_enabled(...)` with an approved change ticket.
+
+The Supabase Free plan does not include managed backups. Upgrade the Production
+project or run the repository `pg_dump`/restore workflow against an approved
+isolated target. A same-project snapshot is not acceptable recovery evidence.

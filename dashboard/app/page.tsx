@@ -264,7 +264,9 @@ function latestSnapshot(data: DashboardData) {
   const timestamps = [...data.warehouseStock, ...data.stock]
     .map((row) => new Date(String(row.snapshot_at ?? "")).getTime())
     .filter(Number.isFinite);
-  return timestamps.length ? formatDateTime(Math.max(...timestamps)) : "รอข้อมูลจริง";
+  return timestamps.length
+    ? formatDateTime(new Date(Math.max(...timestamps)).toISOString())
+    : "รอข้อมูลจริง";
 }
 
 function statusClass(value: unknown) {

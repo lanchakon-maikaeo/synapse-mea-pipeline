@@ -6,7 +6,7 @@
 
 Release: **Production Operations v1**
 
-Environment ที่ deploy อยู่: **Staging/Test เท่านั้น**
+Environment ที่ deploy อยู่: **Production (write-locked pending Auth and recovery gates)**
 
 > เอกสารนี้เป็นจุดอ้างอิงหลักสำหรับ pipeline ปัจจุบันของ MEA SYNAPSE ตั้งแต่
 > source data, ingestion, Supabase, business workflow, API, Dashboard, CI/CD,
@@ -23,23 +23,23 @@ Environment ที่ deploy อยู่: **Staging/Test เท่านั้�
 |---|---|
 | Canonical repository | `lanchakon-maikaeo/synapse-mea-pipeline` |
 | Branch | `main` |
-| Verified repository revision | `30eb30c` |
-| Web application | <https://mea-synapse-staging.vercel.app> |
-| Vercel project | `synapse-mea/mea-synapse-staging` |
+| Verified repository revision | `d630f29` + Production M20 worktree |
+| Web application | <https://mea-synapse-production.vercel.app> |
+| Vercel project | `synapse-mea-production` |
 | Vercel Root Directory | `dashboard` |
-| Database/Auth | Supabase project `mklnbumfwojxhqscthjd` |
-| Supabase project name | `test-synapse-mea` |
-| Supabase region | `ap-northeast-1` |
-| Latest managed migration | `202607240016` |
-| API contract | SYNAPSE API `1.1.0`, 36 paths |
+| Database/Auth | Supabase project `jbwbmrizawxcrtliozqt` |
+| Supabase project name | `synapse-mea-production` |
+| Supabase region | `ap-southeast-2` |
+| Latest managed migration | `202607240020` |
+| API contract | SYNAPSE API `1.1.0`, 37 paths |
 | Business rules | v1, frozen 22 กรกฎาคม 2026 |
 | Active application roles | `admin`, `planner`, `academic`, `picker`, `district`, `viewer` |
 | Release scope | Stock, CMP, Weekly Replenishment, Approval, Handling Unit, FIFO, Issue, Return, Ad-hoc และ Traceability |
 | Explicit exclusions | Forecasting, Routing/Transport optimization และ RAG/AI |
 
-คำว่า Production Operations v1 หมายถึง implementation profile และ operational
-contract ไม่ได้หมายความว่า environment นี้เป็นฐานข้อมูล Production ของ MEA
-ปัจจุบัน Web URL ยังใช้ชื่อ staging และ Supabase เป็น Test project
+Production ใช้ Actual data ที่เจ้าของโครงการรับรองแล้วครบ 225 วัสดุ × 18 เขต
+แต่ operational writes ยังล็อกอยู่ตาม fail-closed cutover contract จนกว่า
+named Auth roles, off-project backup และ isolated restore drill จะผ่านครบ
 
 ChatGPT Sites URL
 `https://synapse-mea-dashboard.lanchakon0.chatgpt.site` เป็น snapshot แยกบน
