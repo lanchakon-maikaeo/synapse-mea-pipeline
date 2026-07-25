@@ -95,3 +95,29 @@ Planner saves POST to `/v1/transport/trips` and reload. Reached via the
 2. Push `main`; Vercel builds `dashboard` and deploys.
 3. Smoke: authenticated `GET /api/v1/transport/vehicles` returns the fleet; the
    Transport banner switches to “เชื่อมต่อ Supabase แล้ว”.
+
+## M13b — Replenishment link + free route optimizer
+
+`supabase/migrations/202607250002_m13b_transport_replenishment_link.sql` (version
+`202607250002`, module `M13b`) connects transport to real distribution demand and
+adds the free optimizer inputs — no external routing engine, no self-host.
+
+- **District mapping:** `core.transport_district_geo.district_id` maps each route
+  node to a real `core.districts` id (5501–5518), backfilled by order and guarded
+  so the clean-CI database (no seeded districts) does not fail the FK.
+- **Dispatch queue:** `analytics.v_transport_dispatch_queue` aggregates **locked**
+  replenishment-plan demand per district, joined to the nearest serving warehouse
+  (min route-leg distance). Exposed at `GET /v1/transport/dispatch-queue`.
+- **Plan linkage:** `ops.transport_trips.replenishment_plan_id` records the plan a
+  trip fulfils; `POST /v1/transport/trips` accepts `replenishment_plan_id`.
+
+**Free optimizer (Deployment Profile A, no self-host):** the planner builds a
+distance matrix from the seeded **lat/lon via haversine** and runs
+**nearest-neighbour + 2-opt** for a true depot→stops→depot tour, then **splits into
+multiple vehicle trips** by a configurable max-stops constraint. Tolls/time come
+from the route-leg matrix; the server recomputes authoritative totals on save. This
+is the free-tier equivalent of the M08 Valhalla + OR-Tools VRP (the self-host
+upgrade path), running entirely in the browser with no worker or external API.
+
+CI: `m13_transport_verify.sql` adds checks for the M13b migration, mapping column,
+plan-reference column and dispatch-queue view; the migration count contract is 29.

@@ -50,7 +50,27 @@ values
     (select count(*) = 54 from core.transport_route_legs)),
   ('transport_route_leg_totals_positive',
     (select bool_and(distance_km > 0 and travel_minutes > 0)
-       from core.transport_route_legs));
+       from core.transport_route_legs)),
+  ('transport_replenishment_link_migration',
+    exists (
+      select 1 from ops.schema_migrations where version = '202607250002'
+    )),
+  ('transport_geo_district_mapping_column',
+    exists (
+      select 1 from information_schema.columns
+      where table_schema = 'core'
+        and table_name = 'transport_district_geo'
+        and column_name = 'district_id'
+    )),
+  ('transport_trip_plan_reference_column',
+    exists (
+      select 1 from information_schema.columns
+      where table_schema = 'ops'
+        and table_name = 'transport_trips'
+        and column_name = 'replenishment_plan_id'
+    )),
+  ('transport_dispatch_queue_view_exists',
+    to_regclass('analytics.v_transport_dispatch_queue') is not null));
 
 table m13_transport_checks;
 

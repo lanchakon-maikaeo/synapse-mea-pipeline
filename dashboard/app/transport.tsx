@@ -22,22 +22,25 @@ export const transportNav: Array<[TransportView, string, string]> = [
 ];
 
 const transportTitles: Record<TransportView, [string, string, string]> = {
-  dashboard: ["TRANSPORT", "ภาพรวมการขนส่ง", "สรุปรถ คนขับ และแผนการเดินรถของ Batch ปัจจุบัน"],
+  dashboard: ["TRANSPORT", "ภาพรวมการขนส่ง", "สรุปรถ คนขับ และงานที่รอจัดส่งจากแผนจริง"],
   planner: [
-    "ROUTE PLANNER",
-    "วางแผนจัดรถและเส้นทาง",
-    "เลือกคลังต้นทางและเขตปลายทาง จัดลำดับแบบ nearest-neighbour คำนวณระยะทาง ค่าทางด่วน และค่าน้ำมัน แล้วบันทึกลง Supabase",
+    "ROUTE OPTIMIZER",
+    "วางแผนจัดรถและปรับเส้นทาง",
+    "ดึงงานจากแผน replenishment ที่ locked แล้ว จัดเส้นทางแบบ nearest-neighbour + 2-opt (ฟรี ไม่ต้องมี engine ภายนอก) แบ่งรถตามจำนวนจุด แล้วบันทึกลง Supabase",
   ],
   map: ["ROUTE MAP", "แผนที่เส้นทางการจ่าย", "ตำแหน่งคลังและเขตปลายทางบนผังภายใน"],
   history: ["TRIP HISTORY", "ประวัติการเดินรถ", "เที่ยวรถที่บันทึกในระบบ พร้อมค่าน้ำมันจริงเทียบประมาณการ"],
 };
 
-// ---- Normalised transport data (source-agnostic) ----
+// ---- Normalised transport data ----
 type TGeo = {
   ref: string;
   name: string;
   x: number;
   y: number;
+  lat: number;
+  lon: number;
+  districtId: string | null;
   isWarehouse: boolean;
 };
 type TLeg = { dist: number; toll: number; time: number };
@@ -68,6 +71,17 @@ type TTrip = {
   status: string;
   notes: string;
 };
+type QueueRow = {
+  districtRef: string;
+  districtId: string;
+  districtName: string;
+  totalQty: number;
+  lineCount: number;
+  suggestedWarehouse: string;
+  suggestedDistanceKm: number;
+  planId: string | null;
+  planNumber: string;
+};
 
 type TransportData = {
   geo: Record<string, TGeo>;
@@ -75,12 +89,26 @@ type TransportData = {
   vehicles: TVehicle[];
   trips: TTrip[];
   warehouses: string[];
+  queue: QueueRow[];
 };
+
+type Row = Record<string, unknown>;
+const num = (v: unknown) => Number(v ?? 0);
+const str = (v: unknown) => (v == null ? "" : String(v));
 
 function localData(): TransportData {
   const geo: Record<string, TGeo> = {};
   Object.entries(DIST_GEO).forEach(([ref, g]) => {
-    geo[ref] = { ref, name: g.name, x: g.x, y: g.y, isWarehouse: ref === "WH" };
+    geo[ref] = {
+      ref,
+      name: g.name,
+      x: g.x,
+      y: g.y,
+      lat: g.lat,
+      lon: g.lon,
+      districtId: null,
+      isWarehouse: ref === "WH",
+    };
   });
   const routes: Record<string, Record<string, TLeg>> = {};
   (Object.keys(ROUTES) as Array<keyof typeof ROUTES>).forEach((wh) => {
@@ -116,12 +144,14 @@ function localData(): TransportData {
     status: t.status,
     notes: t.notes,
   }));
-  return { geo, routes, vehicles, trips, warehouses: [...WAREHOUSES] };
+  return { geo, routes, vehicles, trips, warehouses: [...WAREHOUSES], queue: [] };
 }
 
-type Row = Record<string, unknown>;
-const num = (v: unknown) => Number(v ?? 0);
-const str = (v: unknown) => (v == null ? "" : String(v));
+function mapStatus(s: string) {
+  return (
+    { planned: "วางแผน", dispatched: "ออกรถแล้ว", completed: "ส่งครบ", cancelled: "ยกเลิก" }[s] ?? s
+  );
+}
 
 async function loadRemote(token: string): Promise<TransportData> {
   const [geoRows, vehRows, matrixRows, tripRows] = await Promise.all([
@@ -130,6 +160,13 @@ async function loadRemote(token: string): Promise<TransportData> {
     apiRequest<Row[]>("/v1/transport/route-matrix", token),
     apiRequest<Row[]>("/v1/transport/trips?limit=200", token),
   ]);
+  // Dispatch queue is best-effort (empty until locked plans exist).
+  let queueRows: Row[] = [];
+  try {
+    queueRows = await apiRequest<Row[]>("/v1/transport/dispatch-queue", token);
+  } catch {
+    queueRows = [];
+  }
   const geo: Record<string, TGeo> = {};
   geoRows.forEach((g) => {
     geo[str(g.district_ref)] = {
@@ -137,6 +174,9 @@ async function loadRemote(token: string): Promise<TransportData> {
       name: str(g.name_th),
       x: num(g.map_x),
       y: num(g.map_y),
+      lat: num(g.latitude),
+      lon: num(g.longitude),
+      districtId: g.district_id ? str(g.district_id) : null,
       isWarehouse: g.is_warehouse === true,
     };
   });
@@ -179,16 +219,19 @@ async function loadRemote(token: string): Promise<TransportData> {
     status: mapStatus(str(t.status)),
     notes: str(t.notes),
   }));
-  const warehouses = Object.keys(routes).length
-    ? Object.keys(routes)
-    : [...WAREHOUSES];
-  return { geo, routes, vehicles, trips, warehouses };
-}
-
-function mapStatus(s: string) {
-  return (
-    { planned: "วางแผน", dispatched: "ออกรถแล้ว", completed: "ส่งครบ", cancelled: "ยกเลิก" }[s] ?? s
-  );
+  const queue: QueueRow[] = queueRows.map((q) => ({
+    districtRef: str(q.district_ref),
+    districtId: str(q.district_id),
+    districtName: str(q.district_name_th),
+    totalQty: num(q.total_qty),
+    lineCount: num(q.line_count),
+    suggestedWarehouse: str(q.suggested_warehouse),
+    suggestedDistanceKm: num(q.suggested_distance_km),
+    planId: q.replenishment_plan_id ? str(q.replenishment_plan_id) : null,
+    planNumber: str(q.plan_number),
+  }));
+  const warehouses = Object.keys(routes).length ? Object.keys(routes) : [...WAREHOUSES];
+  return { geo, routes, vehicles, trips, warehouses, queue };
 }
 
 function useTransportData(token: string | null) {
@@ -213,7 +256,6 @@ function useTransportData(token: string | null) {
         setSource("local");
       }
     } catch {
-      // Endpoint not deployed yet, or offline — keep the ported masters working.
       setData(localData());
       setSource("local");
     } finally {
@@ -222,32 +264,35 @@ function useTransportData(token: string | null) {
   }, [token]);
 
   useEffect(() => {
-    // Mount/token-change fetch — the documented data-loading effect exception.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload();
   }, [reload]);
 
   const saveTrip = useCallback(
-    async (warehouse: string, stops: string[], notes: string) => {
+    async (warehouse: string, stops: string[], notes: string, planId: string | null) => {
       if (source === "supabase" && token) {
         await apiRequest<Row>("/v1/transport/trips", token, {
           method: "POST",
-          body: JSON.stringify({ warehouse_code: warehouse, stops, notes }),
+          body: JSON.stringify({
+            warehouse_code: warehouse,
+            stops,
+            notes,
+            replenishment_plan_id: planId,
+          }),
         });
         await reload();
         return "supabase" as const;
       }
-      // Local fallback — compute and prepend an in-memory trip.
-      const plan = planRoute(data, warehouse, stops);
+      const plan = optimizePlan(data, warehouse, stops);
       const local: TTrip = {
-        id: `LOCAL-${Date.now()}`,
+        id: `LOCAL-${Date.now()}-${Math.floor(Math.random() * 999)}`,
         code: `TRP-LOCAL-${Math.floor(Math.random() * 9000 + 1000)}`,
         batch: null,
         vehicle: plan.vehicle?.id ?? "-",
         driver: plan.vehicle?.driver ?? "-",
         warehouse,
         route: plan.order,
-        dist: plan.totalDist,
+        dist: plan.matrixDist,
         toll: plan.totalToll,
         fuel: plan.fuelCost,
         fuelActual: null,
@@ -264,61 +309,123 @@ function useTransportData(token: string | null) {
   return { data, source, loading, reload, saveTrip };
 }
 
-type PlannedRoute = {
+// ---- Free route optimizer (haversine tour + nearest-neighbour + 2-opt) ----
+function haversineKm(a: TGeo, b: TGeo) {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function tourKm(geo: Record<string, TGeo>, wh: TGeo | null, order: string[]) {
+  if (!wh || !order.length) return 0;
+  let d = 0;
+  let prev = wh;
+  for (const id of order) {
+    const g = geo[id];
+    if (g) {
+      d += haversineKm(prev, g);
+      prev = g;
+    }
+  }
+  d += haversineKm(prev, wh); // return to depot
+  return Math.round(d * 10) / 10;
+}
+
+function nearestNeighbour(geo: Record<string, TGeo>, wh: TGeo | null, stops: string[]) {
+  const remaining = stops.filter((id) => geo[id]);
+  const order: string[] = [];
+  let cur = wh;
+  while (remaining.length && cur) {
+    let bi = 0;
+    let best = Infinity;
+    remaining.forEach((id, idx) => {
+      const d = haversineKm(cur as TGeo, geo[id]);
+      if (d < best) {
+        best = d;
+        bi = idx;
+      }
+    });
+    const next = remaining.splice(bi, 1)[0];
+    order.push(next);
+    cur = geo[next];
+  }
+  return order;
+}
+
+function twoOpt(geo: Record<string, TGeo>, wh: TGeo | null, initial: string[]) {
+  let order = [...initial];
+  if (order.length < 4 || !wh) return order;
+  let improved = true;
+  let guard = 0;
+  while (improved && guard < 60) {
+    improved = false;
+    guard += 1;
+    for (let i = 0; i < order.length - 1; i += 1) {
+      for (let k = i + 1; k < order.length; k += 1) {
+        const candidate = [
+          ...order.slice(0, i),
+          ...order.slice(i, k + 1).reverse(),
+          ...order.slice(k + 1),
+        ];
+        if (tourKm(geo, wh, candidate) + 1e-6 < tourKm(geo, wh, order)) {
+          order = candidate;
+          improved = true;
+        }
+      }
+    }
+  }
+  return order;
+}
+
+type OptimizedPlan = {
   order: string[];
-  totalDist: number;
+  tourDist: number;
+  matrixDist: number;
   totalToll: number;
   totalTime: number;
   fuelCost: number;
   vehicle: TVehicle | null;
 };
 
-function planRoute(
+function optimizePlan(
   data: TransportData,
   warehouse: string,
-  districtRefs: string[],
-): PlannedRoute {
-  const legs = data.routes[warehouse] ?? {};
+  stops: string[],
+): OptimizedPlan {
   const wh = Object.values(data.geo).find((g) => g.isWarehouse) ?? null;
-  const remaining = districtRefs.filter((id) => legs[id]);
-  const order: string[] = [];
-  let cx = wh?.x ?? 0;
-  let cy = wh?.y ?? 0;
-  while (remaining.length) {
-    let bestIdx = 0;
-    let best = Infinity;
-    remaining.forEach((id, idx) => {
-      const g = data.geo[id];
-      const d = g ? (g.x - cx) ** 2 + (g.y - cy) ** 2 : Infinity;
-      if (d < best) {
-        best = d;
-        bestIdx = idx;
-      }
-    });
-    const next = remaining.splice(bestIdx, 1)[0];
-    order.push(next);
-    const g = data.geo[next];
-    if (g) {
-      cx = g.x;
-      cy = g.y;
-    }
-  }
-  const totalDist = order.reduce((s, id) => s + (legs[id]?.dist ?? 0), 0);
+  const nn = nearestNeighbour(data.geo, wh, stops);
+  const order = twoOpt(data.geo, wh, nn);
+  const legs = data.routes[warehouse] ?? {};
+  const matrixDist = order.reduce((s, id) => s + (legs[id]?.dist ?? 0), 0);
   const totalToll = order.reduce((s, id) => s + (legs[id]?.toll ?? 0), 0);
   const totalTime = order.reduce((s, id) => s + (legs[id]?.time ?? 0), 0);
   const vehicle =
     data.vehicles.find((v) => v.currentWarehouse === warehouse && v.active) ?? null;
+  const dist = tourKm(data.geo, wh, order);
   const fuelCost = vehicle
-    ? Math.round((totalDist / vehicle.fuelRate) * vehicle.fuelPrice * 100) / 100
+    ? Math.round((dist / vehicle.fuelRate) * vehicle.fuelPrice * 100) / 100
     : 0;
   return {
     order,
-    totalDist: Math.round(totalDist * 10) / 10,
+    tourDist: dist,
+    matrixDist: Math.round(matrixDist * 10) / 10,
     totalToll,
     totalTime,
     fuelCost,
     vehicle,
   };
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  if (size <= 0) return [arr];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
 }
 
 function statusTone(status: string) {
@@ -429,12 +536,12 @@ function SourceTag({ source, loading }: { source: "supabase" | "local"; loading:
             ? "กำลังโหลดข้อมูลขนส่ง…"
             : source === "supabase"
               ? "เชื่อมต่อ Supabase แล้ว — ข้อมูลจริงจาก /v1/transport"
-              : "โหมดข้อมูลต้นแบบ (ยังไม่ได้ deploy migration M13)"}
+              : "โหมดข้อมูลต้นแบบ (ยังไม่ได้ deploy migration M13/M13b)"}
         </strong>
         <p>
           {source === "supabase"
-            ? "รถ เส้นทาง และเที่ยวรถอ่าน/บันทึกผ่าน m13_transport_dispatch → ตาราง core/ops บน Supabase"
-            : "กำลังใช้ชุดข้อมูล DB_Route ที่พอร์ตจากแอปเก่า เมื่อ deploy migration 202607250001 แล้วจะสลับเป็นข้อมูลจริงอัตโนมัติ"}
+            ? "รถ เส้นทาง งานรอจัดส่ง และเที่ยวรถ อ่าน/บันทึกผ่าน m13_transport_dispatch → ตาราง core/ops บน Supabase"
+            : "ใช้ชุดข้อมูล DB_Route ที่พอร์ตจากแอปเก่า เมื่อ deploy migration 202607250001/250002 จะสลับเป็นข้อมูลจริงและงานจากแผน replenishment อัตโนมัติ"}
         </p>
       </div>
     </aside>
@@ -445,6 +552,7 @@ function TransportDashboard({ data }: { data: TransportData }) {
   const planned = data.trips.filter((t) => t.status.includes("วางแผน"));
   const done = data.trips.filter((t) => t.status.includes("ส่งครบ"));
   const activeVeh = data.vehicles.filter((v) => v.active).length;
+  const pending = data.queue.length || REPLENISHMENT_PLAN.length;
   return (
     <div className="stack">
       <section className="kpis">
@@ -466,11 +574,11 @@ function TransportDashboard({ data }: { data: TransportData }) {
         </article>
         <article>
           <div>
-            <span>รายการรอจัดส่ง</span>
+            <span>เขตรอจัดส่ง</span>
             <i className="dot purple" />
           </div>
-          <strong>{formatNumber(REPLENISHMENT_PLAN.length)}</strong>
-          <small>Trans_Replenishment_Plan</small>
+          <strong>{formatNumber(pending)}</strong>
+          <small>{data.queue.length ? "จากแผน locked" : "ต้นแบบ"}</small>
         </article>
         <article>
           <div>
@@ -531,10 +639,17 @@ function TransportPlanner({
   onSave,
 }: {
   data: TransportData;
-  onSave: (warehouse: string, stops: string[], notes: string) => Promise<"supabase" | "local">;
+  onSave: (
+    warehouse: string,
+    stops: string[],
+    notes: string,
+    planId: string | null,
+  ) => Promise<"supabase" | "local">;
 }) {
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [planId, setPlanId] = useState<string | null>(null);
+  const [maxStops, setMaxStops] = useState(6);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -548,16 +663,31 @@ function TransportPlanner({
   );
   const toggle = (id: string) =>
     setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-  const plan = useMemo(() => planRoute(data, warehouse, selected), [data, warehouse, selected]);
+  const addFromQueue = (q: QueueRow) => {
+    if (data.warehouses.includes(q.suggestedWarehouse)) setSelectedWarehouse(q.suggestedWarehouse);
+    setPlanId(q.planId);
+    setSelected((cur) => (cur.includes(q.districtRef) ? cur : [...cur, q.districtRef]));
+  };
+  const plan = useMemo(() => optimizePlan(data, warehouse, selected), [data, warehouse, selected]);
+  const trips = useMemo(
+    () => (maxStops > 0 ? chunk(plan.order, maxStops) : [plan.order]),
+    [plan.order, maxStops],
+  );
   const save = async () => {
     if (!plan.order.length) return;
     setBusy(true);
     setMsg("");
     try {
-      const where = await onSave(warehouse, plan.order, notes.trim());
+      let where: "supabase" | "local" = "local";
+      for (const c of trips) {
+        if (c.length) where = await onSave(warehouse, c, notes.trim(), planId);
+      }
       setSelected([]);
       setNotes("");
-      setMsg(where === "supabase" ? "บันทึกเที่ยวรถลง Supabase แล้ว" : "บันทึกเที่ยวรถ (โหมดต้นแบบ) แล้ว");
+      setPlanId(null);
+      setMsg(
+        `${where === "supabase" ? "บันทึกลง Supabase" : "บันทึก (ต้นแบบ)"} ${trips.length} เที่ยวแล้ว`,
+      );
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
     } finally {
@@ -566,6 +696,60 @@ function TransportPlanner({
   };
   return (
     <div className="stack">
+      {data.queue.length > 0 && (
+        <section className="panel">
+          <div className="panel-title">
+            <div>
+              <span>งานรอจัดส่ง · จากแผน replenishment ที่ locked</span>
+              <h3>เลือกเขตเข้าทริป</h3>
+            </div>
+            <b>{data.queue.length} เขต</b>
+          </div>
+          <div className="live-table-wrap">
+            <table className="live-table">
+              <thead>
+                <tr>
+                  <th>เขต</th>
+                  <th>Plan</th>
+                  <th>รายการ</th>
+                  <th>ปริมาณรวม</th>
+                  <th>คลังใกล้สุด</th>
+                  <th>ระยะทาง</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.queue.map((q) => (
+                  <tr key={q.districtRef}>
+                    <td>
+                      <span>
+                        <strong>{q.districtName}</strong>
+                        <small>{q.districtId}</small>
+                      </span>
+                    </td>
+                    <td>{q.planNumber || "—"}</td>
+                    <td>{formatNumber(q.lineCount)}</td>
+                    <td>{formatNumber(q.totalQty, 2)}</td>
+                    <td>{q.suggestedWarehouse}</td>
+                    <td>{formatNumber(q.suggestedDistanceKm, 1)} กม.</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="table-action"
+                        disabled={selected.includes(q.districtRef)}
+                        onClick={() => addFromQueue(q)}
+                      >
+                        {selected.includes(q.districtRef) ? "เพิ่มแล้ว" : "เพิ่มเข้าทริป"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <section className="filter-bar">
         <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
           คลังต้นทาง
@@ -574,6 +758,7 @@ function TransportPlanner({
             onChange={(e) => {
               setSelectedWarehouse(e.target.value);
               setSelected([]);
+              setPlanId(null);
             }}
           >
             {data.warehouses.map((w) => (
@@ -583,8 +768,19 @@ function TransportPlanner({
             ))}
           </select>
         </label>
+        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          จุดต่อรถ
+          <input
+            type="number"
+            min={1}
+            max={18}
+            value={maxStops}
+            onChange={(e) => setMaxStops(Math.max(1, Number(e.target.value) || 1))}
+            style={{ width: 64, padding: "4px 6px", borderRadius: 6, border: "1px solid #e2e8f0" }}
+          />
+        </label>
         <button className="btn primary" disabled={busy || !plan.order.length} onClick={save}>
-          ＋ บันทึกเที่ยวรถ
+          ＋ บันทึก {trips.length > 1 ? `${trips.length} เที่ยว` : "เที่ยวรถ"}
         </button>
         {msg && <span style={{ fontSize: 13, color: "#0f766e" }}>{msg}</span>}
       </section>
@@ -630,14 +826,14 @@ function TransportPlanner({
         <article className="panel">
           <div className="panel-title">
             <div>
-              <span>ผลการจัดเส้นทาง</span>
-              <h3>Nearest-neighbour</h3>
+              <span>ผลการปรับเส้นทาง</span>
+              <h3>Nearest-neighbour + 2-opt</h3>
             </div>
           </div>
           <div className="inventory-summary" style={{ padding: 12 }}>
             <article>
-              <span>ระยะทางรวม</span>
-              <strong>{formatNumber(plan.totalDist, 1)}</strong>
+              <span>ระยะทางทัวร์ (2-opt)</span>
+              <strong>{formatNumber(plan.tourDist, 1)}</strong>
               <small>กม.</small>
             </article>
             <article>
@@ -664,9 +860,19 @@ function TransportPlanner({
               </strong>
             </p>
             <p style={{ fontSize: 13, color: "#334155", margin: "4px 0" }}>
-              ลำดับการจ่าย:{" "}
-              <strong>{plan.order.length ? `คลัง → ${plan.order.join(" → ")}` : "ยังไม่เลือกเขต"}</strong>
+              ลำดับที่ปรับแล้ว:{" "}
+              <strong>{plan.order.length ? `คลัง → ${plan.order.join(" → ")} → คลัง` : "ยังไม่เลือกเขต"}</strong>
             </p>
+            {trips.length > 1 && (
+              <p style={{ fontSize: 13, color: "#b45309", margin: "4px 0" }}>
+                เกิน {maxStops} จุด — จะถูกแบ่งเป็น {trips.length} เที่ยว/รถ
+              </p>
+            )}
+            {planId && (
+              <p style={{ fontSize: 12, color: "#0f766e", margin: "4px 0" }}>
+                ผูกกับแผน replenishment • plan {planId.slice(0, 8)}
+              </p>
+            )}
             <label style={{ display: "block", marginTop: 8, fontSize: 13 }}>
               หมายเหตุ
               <input
@@ -684,7 +890,7 @@ function TransportPlanner({
         <div className="panel-title">
           <div>
             <span>แผนที่เส้นทาง</span>
-            <h3>เส้นทางที่วางแผน</h3>
+            <h3>เส้นทางที่ปรับแล้ว</h3>
           </div>
         </div>
         <div style={{ padding: 12 }}>
