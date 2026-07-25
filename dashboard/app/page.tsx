@@ -25,6 +25,11 @@ import {
   type VmiContext,
   type VmiInputPayload,
 } from "./use-synapse-backend";
+import {
+  TransportModule,
+  transportNav,
+  type TransportView,
+} from "./transport";
 
 type ViewKey =
   | "dashboard"
@@ -50,113 +55,113 @@ type NavGroup = {
 const navByRole: Record<Role, NavGroup[]> = {
   admin: [
     {
-      label: "Operations",
+      label: "เมนูหลัก",
       items: [
-        ["dashboard", "Dashboard", "⌂"],
-        ["weekly", "Weekly Plan", "▤"],
-        ["changes", "Abnormal Review", "!"],
-        ["approvals", "Approval Timeline", "✓"],
+        ["dashboard", "แดชบอร์ด", "⌂"],
+        ["weekly", "คำนวณการจ่าย", "▤"],
+        ["approvals", "ประวัติแผนการจ่าย", "✓"],
+        ["changes", "ตรวจคำขอผิดปกติ", "!"],
       ],
     },
     {
-      label: "Warehouse",
+      label: "คลังสินค้า",
       items: [
-        ["fifo", "FIFO & Pallets", "▦"],
-        ["receiving", "Receive Stock", "＋"],
-        ["adhoc", "Ad-hoc Issue", "↗"],
-        ["trace", "Issue Traceback", "⌕"],
+        ["fifo", "FIFO & พาเลท", "▦"],
+        ["receiving", "รับพัสดุเข้าคลัง", "＋"],
+        ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
+        ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
     {
-      label: "Data & Control",
+      label: "ข้อมูล & ควบคุม",
       items: [
-        ["recommendations", "Quantity Evidence", "✦"],
-        ["stock", "Stock Health", "◫"],
-        ["input", "Governed Input", "↻"],
-        ["data", "Source & Quality", "▥"],
-        ["operations", "Operations Center", "⚙"],
-        ["release", "Release Control", "◉"],
+        ["recommendations", "หลักฐานปริมาณ", "✦"],
+        ["stock", "ข้อมูล Stock", "◫"],
+        ["input", "อัปเดต Stock", "↻"],
+        ["data", "ข้อมูล SAP / คุณภาพ", "▥"],
+        ["operations", "ศูนย์ควบคุม", "⚙"],
+        ["release", "ขอบเขตรุ่น", "◉"],
       ],
     },
   ],
   planner: [
     {
-      label: "Planning",
+      label: "วางแผน",
       items: [
-        ["dashboard", "Dashboard", "⌂"],
-        ["weekly", "Weekly Plan", "▤"],
-        ["changes", "Abnormal Review", "!"],
-        ["approvals", "Approval Timeline", "✓"],
-        ["recommendations", "Quantity Evidence", "✦"],
+        ["dashboard", "แดชบอร์ด", "⌂"],
+        ["weekly", "คำนวณการจ่าย", "▤"],
+        ["approvals", "ประวัติแผนการจ่าย", "✓"],
+        ["changes", "ตรวจคำขอผิดปกติ", "!"],
+        ["recommendations", "หลักฐานปริมาณ", "✦"],
       ],
     },
     {
-      label: "Operations",
+      label: "คลังสินค้า",
       items: [
-        ["fifo", "FIFO & Pallets", "▦"],
-        ["adhoc", "Ad-hoc Issue", "↗"],
-        ["trace", "Issue Traceback", "⌕"],
-        ["stock", "Stock Health", "◫"],
-        ["input", "Governed Input", "↻"],
+        ["fifo", "FIFO & พาเลท", "▦"],
+        ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
+        ["trace", "สอบกลับการจ่าย", "⌕"],
+        ["stock", "ข้อมูล Stock", "◫"],
+        ["input", "อัปเดต Stock", "↻"],
       ],
     },
   ],
   academic: [
     {
-      label: "Academic Review",
+      label: "ตรวจวิชาการ",
       items: [
-        ["dashboard", "Dashboard", "⌂"],
-        ["weekly", "Academic Approval", "✓"],
-        ["changes", "Abnormal Evidence", "!"],
-        ["recommendations", "Quantity Evidence", "✦"],
-        ["approvals", "Approval Timeline", "◷"],
-        ["trace", "Issue Traceback", "⌕"],
+        ["dashboard", "แดชบอร์ด", "⌂"],
+        ["weekly", "อนุมัติวิชาการ", "✓"],
+        ["changes", "หลักฐานคำขอผิดปกติ", "!"],
+        ["recommendations", "หลักฐานปริมาณ", "✦"],
+        ["approvals", "ประวัติการอนุมัติ", "◷"],
+        ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
     {
-      label: "Stock Evidence",
+      label: "หลักฐานสต็อก",
       items: [
-        ["fifo", "FIFO & Pallets", "▦"],
-        ["stock", "Stock Health", "◫"],
+        ["fifo", "FIFO & พาเลท", "▦"],
+        ["stock", "ข้อมูล Stock", "◫"],
       ],
     },
   ],
   picker: [
     {
-      label: "Warehouse Execution",
+      label: "งานคลัง",
       items: [
-        ["dashboard", "Dashboard", "⌂"],
-        ["weekly", "Locked Plans", "▤"],
-        ["fifo", "FIFO & Pallets", "▦"],
-        ["receiving", "Receive Stock", "＋"],
-        ["adhoc", "Ad-hoc Issue", "↗"],
-        ["trace", "Issue Traceback", "⌕"],
+        ["dashboard", "แดชบอร์ด", "⌂"],
+        ["weekly", "แผนที่ล็อกแล้ว", "▤"],
+        ["fifo", "FIFO & พาเลท", "▦"],
+        ["receiving", "รับพัสดุเข้าคลัง", "＋"],
+        ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
+        ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
   ],
   district: [
     {
-      label: "District",
+      label: "เขต",
       items: [
-        ["dashboard", "Dashboard", "⌂"],
-        ["weekly", "Confirm Materials", "✓"],
-        ["changes", "My Change Requests", "!"],
-        ["adhoc", "Ad-hoc Request", "↗"],
-        ["stock", "District Stock", "◫"],
-        ["trace", "Issue Traceback", "⌕"],
+        ["dashboard", "แดชบอร์ด", "⌂"],
+        ["weekly", "ยืนยันรายการพัสดุ", "✓"],
+        ["changes", "คำขอเปลี่ยนของฉัน", "!"],
+        ["adhoc", "ขอจ่ายกรณีพิเศษ", "↗"],
+        ["stock", "Stock เขต", "◫"],
+        ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
   ],
   viewer: [
     {
-      label: "Read-only",
+      label: "อ่านอย่างเดียว",
       items: [
-        ["dashboard", "Dashboard", "⌂"],
-        ["weekly", "Weekly Plans", "▤"],
-        ["recommendations", "Quantity Evidence", "✦"],
-        ["fifo", "FIFO & Pallets", "▦"],
-        ["stock", "Stock Health", "◫"],
-        ["trace", "Issue Traceback", "⌕"],
+        ["dashboard", "แดชบอร์ด", "⌂"],
+        ["weekly", "แผนการจ่าย", "▤"],
+        ["recommendations", "หลักฐานปริมาณ", "✦"],
+        ["fifo", "FIFO & พาเลท", "▦"],
+        ["stock", "ข้อมูล Stock", "◫"],
+        ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
   ],
@@ -474,6 +479,10 @@ function Sidebar({
   navigate,
   close,
   snapshot,
+  moduleKey,
+  setModule,
+  transportView,
+  setTransportView,
 }: {
   active: ViewKey;
   role: Role;
@@ -481,6 +490,10 @@ function Sidebar({
   navigate: (view: ViewKey) => void;
   close: () => void;
   snapshot: string;
+  moduleKey: "warehouse" | "transport";
+  setModule: (value: "warehouse" | "transport") => void;
+  transportView: TransportView;
+  setTransportView: (value: TransportView) => void;
 }) {
   const roleName: Record<Role, string> = {
     admin: "Administrator",
@@ -490,6 +503,26 @@ function Sidebar({
     district: "District User",
     viewer: "Viewer",
   };
+  const switchBtn = (key: "warehouse" | "transport", label: string) => (
+    <button
+      type="button"
+      onClick={() => setModule(key)}
+      style={{
+        flex: 1,
+        padding: "8px 6px",
+        fontSize: 12,
+        fontWeight: 600,
+        borderRadius: 8,
+        border: "1px solid rgba(255,255,255,.15)",
+        background:
+          moduleKey === key ? "#E3670A" : "rgba(255,255,255,.06)",
+        color: moduleKey === key ? "#fff" : "rgba(255,255,255,.7)",
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
+  );
   return (
     <>
       <button
@@ -512,27 +545,52 @@ function Sidebar({
             <strong>{roleName[role]}</strong>
           </div>
         </div>
+        <div style={{ display: "flex", gap: 6, padding: "0 12px 6px" }}>
+          {switchBtn("warehouse", "คลังพัสดุ")}
+          {switchBtn("transport", "ระบบขนส่ง")}
+        </div>
         <nav>
-          {navByRole[role].map((group) => (
-            <section key={group.label}>
-              <p>{group.label}</p>
-              {group.items.map(([key, label, icon]) => (
-                <button
-                  type="button"
-                  key={key}
-                  className={active === key ? "active" : ""}
-                  aria-current={active === key ? "page" : undefined}
-                  onClick={() => {
-                    navigate(key);
-                    close();
-                  }}
-                >
-                  <i>{icon}</i>
-                  <span>{label}</span>
-                </button>
-              ))}
-            </section>
-          ))}
+          {moduleKey === "warehouse"
+            ? navByRole[role].map((group) => (
+                <section key={group.label}>
+                  <p>{group.label}</p>
+                  {group.items.map(([key, label, icon]) => (
+                    <button
+                      type="button"
+                      key={key}
+                      className={active === key ? "active" : ""}
+                      aria-current={active === key ? "page" : undefined}
+                      onClick={() => {
+                        navigate(key);
+                        close();
+                      }}
+                    >
+                      <i>{icon}</i>
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </section>
+              ))
+            : (
+                <section>
+                  <p>ระบบขนส่ง</p>
+                  {transportNav.map(([key, label, icon]) => (
+                    <button
+                      type="button"
+                      key={key}
+                      className={transportView === key ? "active" : ""}
+                      aria-current={transportView === key ? "page" : undefined}
+                      onClick={() => {
+                        setTransportView(key);
+                        close();
+                      }}
+                    >
+                      <i>{icon}</i>
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </section>
+              )}
         </nav>
         <div className="release-badge">
           <small>Latest verified snapshot</small>
@@ -2827,6 +2885,10 @@ export default function Home() {
   const backend = useSynapseBackend();
   const [view, setView] = useState<ViewKey>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moduleKey, setModule] = useState<"warehouse" | "transport">(
+    "warehouse",
+  );
+  const [transportView, setTransportView] = useState<TransportView>("dashboard");
 
   if (!backend.session || !backend.identity) {
     return (
@@ -2858,10 +2920,14 @@ export default function Home() {
         navigate={setView}
         close={() => setMenuOpen(false)}
         snapshot={snapshot}
+        moduleKey={moduleKey}
+        setModule={setModule}
+        transportView={transportView}
+        setTransportView={setTransportView}
       />
       <div className="shell">
         <Header
-          title={title}
+          title={moduleKey === "transport" ? "ระบบขนส่ง" : title}
           loading={backend.loading}
           openMenu={() => setMenuOpen(true)}
           logout={() => void backend.signOut()}
@@ -2870,49 +2936,55 @@ export default function Home() {
           snapshot={snapshot}
         />
         <main id="content" className="content">
-          <header className="page-head user-page-head">
-            <div>
-              <span>{eyebrow}</span>
-              <h1>{title}</h1>
-              <p>{description}</p>
-            </div>
-          </header>
-          {backend.error && (
-            <aside className="runtime-message error" role="alert">
-              <i>!</i>
-              <div>
-                <strong>ไม่สามารถซิงก์ข้อมูลบางส่วน</strong>
-                <p>{backend.error}</p>
-              </div>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => void backend.refresh()}
-              >
-                ลองอีกครั้ง
-              </button>
-            </aside>
-          )}
-          {backend.data.readiness &&
-            !bool(backend.data.readiness.operational_writes_enabled) && (
-              <aside className="runtime-message warning" role="status">
-                <i>!</i>
+          {moduleKey === "transport" ? (
+            <TransportModule view={transportView} />
+          ) : (
+            <>
+              <header className="page-head user-page-head">
                 <div>
-                  <strong>Production cutover is locked</strong>
-                  <p>
-                    เปิดให้อ่านและตรวจข้อมูลได้ แต่คำสั่ง Replenishment,
-                    Inventory และ Ad-hoc จะถูกปฏิเสธจนกว่า Actual data, Auth,
-                    backup และ restore drill จะผ่านครบ
-                  </p>
+                  <span>{eyebrow}</span>
+                  <h1>{title}</h1>
+                  <p>{description}</p>
                 </div>
-              </aside>
-            )}
-          <PageContent
-            view={activeView}
-            role={role}
-            backend={backend}
-            navigate={setView}
-          />
+              </header>
+              {backend.error && (
+                <aside className="runtime-message error" role="alert">
+                  <i>!</i>
+                  <div>
+                    <strong>ไม่สามารถซิงก์ข้อมูลบางส่วน</strong>
+                    <p>{backend.error}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => void backend.refresh()}
+                  >
+                    ลองอีกครั้ง
+                  </button>
+                </aside>
+              )}
+              {backend.data.readiness &&
+                !bool(backend.data.readiness.operational_writes_enabled) && (
+                  <aside className="runtime-message warning" role="status">
+                    <i>!</i>
+                    <div>
+                      <strong>Production cutover is locked</strong>
+                      <p>
+                        เปิดให้อ่านและตรวจข้อมูลได้ แต่คำสั่ง Replenishment,
+                        Inventory และ Ad-hoc จะถูกปฏิเสธจนกว่า Actual data, Auth,
+                        backup และ restore drill จะผ่านครบ
+                      </p>
+                    </div>
+                  </aside>
+                )}
+              <PageContent
+                view={activeView}
+                role={role}
+                backend={backend}
+                navigate={setView}
+              />
+            </>
+          )}
         </main>
       </div>
       {backend.notice && (
