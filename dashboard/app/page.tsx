@@ -2937,7 +2937,10 @@ export default function Home() {
         />
         <main id="content" className="content">
           {moduleKey === "transport" ? (
-            <TransportModule view={transportView} />
+            <TransportModule
+              view={transportView}
+              token={backend.session?.access_token ?? null}
+            />
           ) : (
             <>
               <header className="page-head user-page-head">

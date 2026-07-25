@@ -143,11 +143,14 @@ async function handle(request: Request) {
     path === "/v1/reference/districts" ||
     path === "/v1/data-inputs/vmi" ||
     path === "/v1/data-inputs/vmi/context";
-  const dispatcher = legacySourcePath
-    ? "m11_legacy_dispatch"
-    : inputPipelinePath
-      ? "m10_input_dispatch"
-      : "m09_dispatch";
+  const transportPath = path.startsWith("/v1/transport/");
+  const dispatcher = transportPath
+    ? "m13_transport_dispatch"
+    : legacySourcePath
+      ? "m11_legacy_dispatch"
+      : inputPipelinePath
+        ? "m10_input_dispatch"
+        : "m09_dispatch";
   const upstream = await fetch(
     `${publicConfig.supabaseUrl}/rest/v1/rpc/${dispatcher}`,
     {
