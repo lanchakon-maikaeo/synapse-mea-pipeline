@@ -70,7 +70,7 @@ values
         and column_name = 'replenishment_plan_id'
     )),
   ('transport_dispatch_queue_view_exists',
-    to_regclass('analytics.v_transport_dispatch_queue') is not null));
+    to_regclass('analytics.v_transport_dispatch_queue') is not null);
 
 table m13_transport_checks;
 

@@ -29,7 +29,7 @@ create index if not exists transport_district_geo_district_idx
 -- 2. Let a trip reference the plan it fulfils.
 alter table ops.transport_trips
   add column if not exists replenishment_plan_id uuid
-    references ops.replenishment_plans (replenishment_plan_id) on delete set null;
+    references core.replenishment_plans (replenishment_plan_id) on delete set null;
 
 -- 3. Dispatch queue: locked plan demand per district, joined to route geo and the
 --    nearest serving warehouse (minimum route-leg distance).
