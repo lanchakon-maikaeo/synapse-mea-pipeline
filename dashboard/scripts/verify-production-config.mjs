@@ -2,6 +2,7 @@
 
 const CANONICAL_PRODUCTION_SUPABASE_REF = "fvdfduuanfrncrwuareb";
 const CANONICAL_PRODUCTION_SUPABASE_ORIGIN = `https://${CANONICAL_PRODUCTION_SUPABASE_REF}.supabase.co`;
+const PRODUCTION_VERCEL_HOST = "mea-synapse-production.vercel.app";
 
 function isSupabasePublishableKey(value) {
   return (
@@ -10,8 +11,16 @@ function isSupabasePublishableKey(value) {
   );
 }
 
+function isProductionTarget(env) {
+  return (
+    env.SYNAPSE_ENFORCE_PRODUCTION_SUPABASE_TARGET === "true" ||
+    (env.VERCEL_ENV === "production" &&
+      env.VERCEL_PROJECT_PRODUCTION_URL === PRODUCTION_VERCEL_HOST)
+  );
+}
+
 export function validateProductionSupabaseConfiguration(env = process.env) {
-  if (env.VERCEL_ENV !== "production") {
+  if (!isProductionTarget(env)) {
     return { ok: true, skipped: true };
   }
 
