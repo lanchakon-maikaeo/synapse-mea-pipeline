@@ -15,6 +15,8 @@ type DispatchResponse = {
   body?: unknown;
 };
 
+class WorkerDispatchError extends Error {}
+
 function isLoopbackHost(hostname: string) {
   const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   return (
@@ -81,6 +83,78 @@ function controlledSupabaseOrigin() {
   }
 
   return url.origin;
+}
+
+function optimizationWorkerConfig() {
+  const rawUrl = process.env.OPTIMIZATION_WORKER_URL?.trim() || "";
+  const token = process.env.OPTIMIZATION_WORKER_AUTH_TOKEN?.trim() || "";
+  if (!rawUrl && !token) return null;
+  if (!rawUrl || !token || token.length > 4096 || /[\r\n]/.test(token)) {
+    throw new WorkerDispatchError("Optimization worker configuration is invalid");
+  }
+
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(rawUrl);
+  } catch {
+    throw new WorkerDispatchError("Optimization worker URL is invalid");
+  }
+  if (
+    baseUrl.username ||
+    baseUrl.password ||
+    baseUrl.search ||
+    baseUrl.hash ||
+    (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:")
+  ) {
+    throw new WorkerDispatchError("Optimization worker URL is invalid");
+  }
+  if (
+    process.env.NODE_ENV === "production" &&
+    (baseUrl.protocol !== "https:" || isLoopbackHost(baseUrl.hostname))
+  ) {
+    throw new WorkerDispatchError(
+      "Production optimization worker must use controlled HTTPS",
+    );
+  }
+  if (baseUrl.protocol === "http:" && !isLoopbackHost(baseUrl.hostname)) {
+    throw new WorkerDispatchError(
+      "Optimization worker must use HTTPS except on loopback",
+    );
+  }
+  return { baseUrl, token };
+}
+
+async function triggerOptimizationWorker(
+  action: "heartbeat" | "run-once",
+  requestIdValue: string,
+) {
+  const configured = optimizationWorkerConfig();
+  if (!configured) {
+    throw new WorkerDispatchError("Optimization worker is not configured");
+  }
+  const endpoint = new URL(configured.baseUrl);
+  endpoint.pathname = `${endpoint.pathname.replace(/\/$/, "")}/v1/${action}`;
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${configured.token}`,
+        "Content-Type": "application/json",
+        "X-Request-ID": requestIdValue,
+      },
+      body: "{}",
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(action === "heartbeat" ? 25_000 : 120_000),
+    });
+  } catch {
+    throw new WorkerDispatchError("Optimization worker is unavailable");
+  }
+  await response.body?.cancel().catch(() => undefined);
+  if (!response.ok) {
+    throw new WorkerDispatchError("Optimization worker rejected the request");
+  }
 }
 
 function requestId(request: Request) {
@@ -358,6 +432,31 @@ async function handle(request: Request) {
     request.method === "POST" ? await bodyFrom(request, id) : { body: {} };
   if ("response" in parsed && parsed.response) return parsed.response;
 
+  if (
+    request.method === "GET" &&
+    path === "/v1/transport/readiness"
+  ) {
+    // Readiness stays useful when the worker is temporarily unavailable; the
+    // database contract will report the heartbeat gate as blocked.
+    await triggerOptimizationWorker("heartbeat", id).catch(() => undefined);
+  }
+
+  if (
+    request.method === "POST" &&
+    path === "/v1/transport/optimization-jobs"
+  ) {
+    try {
+      await triggerOptimizationWorker("heartbeat", id);
+    } catch {
+      return error(
+        503,
+        "optimization_worker_unavailable",
+        "Optimization worker readiness could not be established",
+        id,
+      );
+    }
+  }
+
   if (request.method === "POST" && path === "/v1/transport/optimize") {
     try {
       const gate = await dispatchRpc({
@@ -453,6 +552,23 @@ async function handle(request: Request) {
   });
   if (dispatched instanceof Response) return dispatched;
   const status = Number(dispatched.status ?? 500);
+  if (
+    request.method === "POST" &&
+    path === "/v1/transport/optimization-jobs" &&
+    status >= 200 &&
+    status < 300
+  ) {
+    try {
+      await triggerOptimizationWorker("run-once", id);
+    } catch {
+      return error(
+        503,
+        "optimization_worker_dispatch_failed",
+        "The idempotent optimization job was accepted but worker execution could not be started; retry with the same X-Request-ID",
+        id,
+      );
+    }
+  }
   return json(dispatched.body ?? null, status, id);
 }
 

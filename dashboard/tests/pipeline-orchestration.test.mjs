@@ -130,7 +130,7 @@ test("same-origin proxy pins a controlled Supabase origin and blocks redirects",
   assert.match(apiRoute, /\[a-z0-9\]\{20\}\\\.supabase\\\.co/);
   assert.match(apiRoute, /hasValidSuppliedRequestId\(request\)/);
   assert.match(apiRoute, /A valid X-Request-ID header is required/);
-  assert.equal(apiRoute.match(/redirect: "error"/g)?.length, 2);
+  assert.equal(apiRoute.match(/redirect: "error"/g)?.length, 3);
   assert.doesNotMatch(
     apiRoute,
     /`\$\{publicConfig\.supabaseUrl\}\/rest\/v1\/rpc/,

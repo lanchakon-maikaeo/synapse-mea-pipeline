@@ -6,6 +6,11 @@ baseline. The M13 smart-logistics code, map/road preview, OR-Tools worker and
 private Valhalla profile are local release candidates; none is claimed as
 migrated, promoted or active on the live target. RAG remains excluded.
 
+The isolated Vercel container layout for the new governed OSRM, Valhalla and
+on-demand OR-Tools runtimes is documented in `deploy/vercel/README.md`. Those
+projects belong to the `synapse-mea` team and are intentionally independent of
+the unrelated `mea-vrp-solver` project.
+
 ## Production
 
 Use the exact approved release commit. The guarded script applies every pending

@@ -1,0 +1,28 @@
+FROM stefda/osmium-tool:latest@sha256:d2321d0e926f77ead7547b4b35f5cf98d9fd74043673cecc4fc2bb7cce06ff63 AS extract
+
+RUN mkdir -p /graph \
+    && wget --quiet --https-only -O /tmp/thailand.osm.pbf \
+      https://download.geofabrik.de/asia/thailand-260725.osm.pbf \
+    && echo "66b25effcc214685227aea02c94374806637eee1aa0b30c89575409c2d302723  /tmp/thailand.osm.pbf" | sha256sum -c - \
+    && osmium extract --bbox 100.2,13.4,101.0,14.1 --set-bounds --overwrite \
+      -o /graph/bmr.osm.pbf /tmp/thailand.osm.pbf \
+    && echo "fc817b0f2c3ada5e8c2d7b99b6276818bf00c7af9d10ee1fcdddf54cac6f3eea  /graph/bmr.osm.pbf" | sha256sum -c -
+
+FROM golang:1.24.6-alpine3.22@sha256:c8c5f95d64aa79b6547f3b626eb84b16a7ce18a139e3e9ca19a8c078b85ba80d AS proxy-build
+WORKDIR /src
+COPY proxy.go .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /routing-proxy ./proxy.go
+
+FROM ghcr.io/project-osrm/osrm-backend:v6.0.0@sha256:729461bcc9ae9e6aafa92c0f93db9b060a32e85d5e72092c01ae4a4a9f1eb564 AS graph
+COPY --from=extract /graph/bmr.osm.pbf /data/thailand.osm.pbf
+RUN osrm-extract -p /opt/car.lua /data/thailand.osm.pbf \
+    && osrm-partition /data/thailand.osrm \
+    && osrm-customize /data/thailand.osrm \
+    && rm /data/thailand.osm.pbf
+
+FROM ghcr.io/project-osrm/osrm-backend:v6.0.0@sha256:729461bcc9ae9e6aafa92c0f93db9b060a32e85d5e72092c01ae4a4a9f1eb564 AS runtime
+COPY --from=graph /data /data
+COPY --from=proxy-build /routing-proxy /usr/local/bin/routing-proxy
+ENV UPSTREAM_URL=http://127.0.0.1:5000 \
+    ENGINE_HEALTH_PATH=/nearest/v1/driving/100.5018,13.7563
+CMD ["sh", "-ec", "osrm-routed --algorithm mld --ip 127.0.0.1 --port 5000 --max-table-size 8000 /data/thailand.osrm & exec /usr/local/bin/routing-proxy"]

@@ -1,0 +1,45 @@
+FROM stefda/osmium-tool:latest@sha256:d2321d0e926f77ead7547b4b35f5cf98d9fd74043673cecc4fc2bb7cce06ff63 AS extract
+
+RUN mkdir -p /graph \
+    && wget --quiet --https-only -O /tmp/thailand.osm.pbf \
+      https://download.geofabrik.de/asia/thailand-260725.osm.pbf \
+    && echo "66b25effcc214685227aea02c94374806637eee1aa0b30c89575409c2d302723  /tmp/thailand.osm.pbf" | sha256sum -c - \
+    && osmium extract --bbox 100.2,13.4,101.0,14.1 --set-bounds --overwrite \
+      -o /graph/bmr.osm.pbf /tmp/thailand.osm.pbf \
+    && echo "fc817b0f2c3ada5e8c2d7b99b6276818bf00c7af9d10ee1fcdddf54cac6f3eea  /graph/bmr.osm.pbf" | sha256sum -c -
+
+FROM golang:1.24.6-alpine3.22@sha256:c8c5f95d64aa79b6547f3b626eb84b16a7ce18a139e3e9ca19a8c078b85ba80d AS proxy-build
+WORKDIR /src
+COPY proxy.go .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /routing-proxy ./proxy.go
+
+FROM ghcr.io/gis-ops/docker-valhalla/valhalla:latest@sha256:060da5b92e6024a67f65135c236d918b021d63e73d1808a0d55b7e7cbd17240c AS tiles
+USER root
+RUN chown 59999:59999 /custom_files
+COPY --from=extract --chown=59999:59999 /graph/bmr.osm.pbf /custom_files/bmr.osm.pbf
+USER 59999:59999
+ENV serve_tiles=False \
+    build_tar=True \
+    use_tiles_ignore_pbf=False \
+    build_elevation=False \
+    build_admins=False \
+    build_time_zones=False \
+    server_threads=4
+RUN /valhalla/scripts/run.sh build_tiles
+
+FROM ghcr.io/gis-ops/docker-valhalla/valhalla:latest@sha256:060da5b92e6024a67f65135c236d918b021d63e73d1808a0d55b7e7cbd17240c AS runtime
+USER root
+RUN chown 59999:59999 /custom_files
+COPY --from=tiles --chown=59999:59999 /custom_files/valhalla.json /custom_files/valhalla.json
+COPY --from=tiles --chown=59999:59999 /custom_files/valhalla_tiles.tar /custom_files/valhalla_tiles.tar
+COPY --from=proxy-build /routing-proxy /usr/local/bin/routing-proxy
+USER 59999:59999
+ENV UPSTREAM_URL=http://127.0.0.1:8002 \
+    ENGINE_HEALTH_PATH=/status \
+    INJECT_OSM_CHANGESET=0 \
+    use_tiles_ignore_pbf=True \
+    build_tar=True \
+    serve_tiles=True \
+    server_threads=2
+ENTRYPOINT []
+CMD ["sh", "-ec", "/valhalla/scripts/run.sh build_tiles & exec /usr/local/bin/routing-proxy"]
