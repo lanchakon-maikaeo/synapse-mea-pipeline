@@ -168,12 +168,13 @@ submitted figures (5000 kg / 24.2 m³ / 12 pallets), replacing the earlier
 ~~1. Canonical warehouse for WH-MMBP~~ — **cleared**, see the evidence import
 above. `route_readiness_status` is now `ready`.
 
-1. **Routing services — the current wall.** No `ROUTING_ENGINE_URL`
-   (OSRM-compatible) and no private Valhalla truck profile are deployed, and the
-   OR-Tools worker is not running. Until these exist, no road route can be
-   computed at all, whatever the data says. Haversine is never an allowed
-   fallback.
-2. **Locked replenishment plan.** `core.replenishment_plans` and
+~~1. Routing services~~ — **cleared.** `synapse-routing-osrm`,
+`synapse-routing-valhalla` and `synapse-optimization-worker` are deployed in the
+`synapse-mea` Vercel team. The main application uses their canonical Production
+aliases and independent bearer tokens. Authenticated road-engine canaries and a
+database-writing worker heartbeat pass; Haversine remains prohibited.
+
+1. **Locked replenishment plan.** `core.replenishment_plans` and
    `ops.replenishment_runs` are both empty, so `optimization_eligible_plan_ids`
    is `[]` and `optimization_worker_status` reports
    `blocked_no_exact_locked_plan_with_verified_depot_and_fleet`. The inputs are
@@ -181,14 +182,14 @@ above. `route_readiness_status` is now `ready`.
    contract items; latest stock 2026-07-21), so a run can be created via
    `POST /v1/replenishment/runs` — but that issues a real weekly plan to
    districts and is a business decision, not a technical one.
-3. **Packaging/UOM.** `core.material_packaging` is empty, so OR-Tools cannot
+2. **Packaging/UOM.** `core.material_packaging` is empty, so OR-Tools cannot
    verify weight/volume/pallet feasibility per line.
-4. **Remaining fleet.** `V701`, `V702`, `V703`, `V706` are still unmapped;
+3. **Remaining fleet.** `V701`, `V702`, `V703`, `V706` are still unmapped;
    `V702`/`V703`/`V706` sit at เมืองใหม่ and `V701` at บางพลี, both of which now
    have canonical warehouses, so they only need evidence rows.
-5. **Toll tariffs.** Schema exists; 0 verified EXAT/BEM/DOH/M-Flow tariffs, so no
+4. **Toll tariffs.** Schema exists; 0 verified EXAT/BEM/DOH/M-Flow tariffs, so no
    baht figure can be shown.
-6. **route-plan → transport-trip activation** contract is still unimplemented;
+5. **route-plan → transport-trip activation** contract is still unimplemented;
    `POST /v1/transport/trips` answers 410 by design and
    `trip_persistence_status` stays
    `blocked_route_plan_to_trip_activation_not_configured`.
@@ -202,10 +203,34 @@ unapplied local candidates were corrected across the root and operational
 documentation. The deployment smoke script default was corrected to probe the
 same canonical host.
 
+## Routing runtime deployment
+
+Commit `e876efb` created three new Git-backed services in the `synapse-mea`
+Vercel team; the unrelated `mea-vrp-solver` project was neither used nor
+modified. The application and worker use canonical Production aliases rather
+than protected per-deployment aliases.
+
+- OSRM: unauthenticated operations return 401; authenticated Table and Route
+  return road distance, duration and GeoJSON geometry for the reviewed BMR
+  extract.
+- Valhalla 3.5.1: unauthenticated operations return 401; authenticated truck
+  matrix and route canaries return 6.113 km / 478 seconds with route shape,
+  tileset timestamp and injected source changeset `0`.
+- OR-Tools worker: public health returns 200; unauthenticated heartbeat returns
+  401; authenticated heartbeat returns 200 and writes the compatible Valhalla
+  attestation to Supabase Production.
+- Main application: `/api/health` and `/api/health/ready` return 200, with
+  `operational_ready=true` for project `fvdfduuanfrncrwuareb`.
+
+No replenishment run or locked plan was created to force an optimization
+canary. The remaining business gates above continue to fail closed.
+
 ## Not done
 
-No controlled release workflow was run: no staging artifact promotion, no
-pre-migration database backup, no OIDC deployment, no authenticated canary.
-Migrations were applied directly to Production via the Supabase management API
-under explicit owner approval. `scripts/deploy_database_migrations.sh` remains
-the governed path and has still never been executed against a live target.
+No staging artifact promotion, pre-migration database backup or OIDC deployment
+was run. The routing deployment used the signed-in Vercel project workflow and
+service bearer-token canaries; an authenticated end-user application canary was
+not run because no application login session was available. Migrations were
+applied directly to Production via the Supabase management API under explicit
+owner approval. `scripts/deploy_database_migrations.sh` remains the governed
+path and has still never been executed against a live target.

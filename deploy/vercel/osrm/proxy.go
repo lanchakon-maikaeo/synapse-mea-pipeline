@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -112,22 +114,49 @@ func main() {
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
+	var engineReady atomic.Bool
+	probeEngine := func(ctx context.Context) bool {
+		check, checkErr := http.NewRequestWithContext(
+			ctx, http.MethodGet, upstream.ResolveReference(&url.URL{Path: healthPath}).String(), nil,
+		)
+		if checkErr != nil {
+			return false
+		}
+		response, checkErr := client.Do(check)
+		if checkErr != nil {
+			return false
+		}
+		_ = response.Body.Close()
+		ready := response.StatusCode >= 200 && response.StatusCode < 300
+		if ready {
+			engineReady.Store(true)
+		}
+		return ready
+	}
+	waitForEngine := func(ctx context.Context) bool {
+		if engineReady.Load() {
+			return true
+		}
+		deadline := time.NewTimer(25 * time.Second)
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer deadline.Stop()
+		defer ticker.Stop()
+		for {
+			if probeEngine(ctx) {
+				return true
+			}
+			select {
+			case <-ctx.Done():
+				return false
+			case <-deadline.C:
+				return false
+			case <-ticker.C:
+			}
+		}
+	}
 	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path == "/health" {
-			check, checkErr := http.NewRequestWithContext(
-				request.Context(), http.MethodGet, upstream.ResolveReference(&url.URL{Path: healthPath}).String(), nil,
-			)
-			if checkErr != nil {
-				jsonResponse(writer, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
-				return
-			}
-			response, checkErr := client.Do(check)
-			if checkErr != nil {
-				jsonResponse(writer, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
-				return
-			}
-			_ = response.Body.Close()
-			if response.StatusCode < 200 || response.StatusCode >= 300 {
+			if !probeEngine(request.Context()) {
 				jsonResponse(writer, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
 				return
 			}
@@ -144,6 +173,13 @@ func main() {
 			writer.Header().Set("Allow", "GET, POST")
 			jsonResponse(writer, http.StatusMethodNotAllowed, map[string]any{
 				"error": map[string]string{"code": "method_not_allowed"},
+			})
+			return
+		}
+		if !waitForEngine(request.Context()) {
+			writer.Header().Set("Retry-After", "1")
+			jsonResponse(writer, http.StatusServiceUnavailable, map[string]any{
+				"error": map[string]string{"code": "routing_engine_unavailable"},
 			})
 			return
 		}

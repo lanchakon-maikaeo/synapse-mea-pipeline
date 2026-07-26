@@ -6,13 +6,14 @@
 > and API contract (SYNAPSE API `1.3.0`, 48 paths) are live at
 > `https://mea-synapse-production.vercel.app`.
 >
-> The Valhalla + OR-Tools worker is **not** deployed. `GET /v1/transport/readiness`
-> now reports `route_ready=true` and `route_readiness_status=ready` after the
-> owner-attested depot and partial fleet evidence import. Real optimization is
-> still unavailable: there is no controlled routing engine or active worker, no
-> eligible locked replenishment plan, no packaging evidence and no route-plan to
-> trip activation contract. Route execution therefore remains fail-closed by
-> design. The remaining activation gates below still apply.
+> Controlled OSRM, Valhalla and OR-Tools worker runtimes are deployed in the
+> `synapse-mea` Vercel team. Authenticated OSRM Table/Route, Valhalla truck
+> matrix/route and worker-heartbeat canaries pass against their Production
+> aliases. `GET /v1/transport/readiness` reports `route_ready=true` after the
+> owner-attested depot and partial fleet evidence import. Business optimization
+> remains fail-closed until an existing approved locked replenishment plan and
+> packaging evidence satisfy the database gates; no plan was fabricated for the
+> deployment canary. Route-plan to trip activation also remains unimplemented.
 
 Connects the Transport module to Supabase as a first-class, governed pipeline,
 following the same conventions as m09/m10/m11 and the target architecture in

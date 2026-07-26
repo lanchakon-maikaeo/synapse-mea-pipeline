@@ -7,19 +7,18 @@ optimizer. The implementation must fail visibly when geographic or routing data
 is not trustworthy; it must never substitute demo data in an authenticated
 production session.
 
-> **Current status (26 July 2026): deployed but fail-closed.** M13–M13e are
+> **Current status (26 July 2026): runtimes deployed, business flow
+> fail-closed.** M13–M13e are
 > applied to Supabase Production `fvdfduuanfrncrwuareb` (live head M13e), and
 > the dashboard road preview and API contract are live at
-> `https://mea-synapse-production.vercel.app`. No worker rollout,
-> Valhalla/OSRM activation or controlled Production CI/CD release run is
-> claimed. A digest-pinned self-hosted OSRM Compose service and reproducible
-> graph-preparation script are now tracked, but they have not been promoted to a
-> controlled production host. After the owner-attested depot and partial fleet import,
-> `GET /v1/transport/readiness` returns `route_ready=true` and
-> `route_readiness_status=ready`, while `optimization_worker_ready=false` and
-> `trip_persistence_ready=false`. The system therefore reports that source
-> readiness has cleared without claiming that route optimization or trip
-> activation is operational. The open blockers below still apply.
+> `https://mea-synapse-production.vercel.app`. Digest-pinned OSRM and Valhalla
+> images plus the OR-Tools worker are live as separate token-authenticated
+> Vercel services in the same `synapse-mea` team. Production engine canaries and
+> a database-writing worker heartbeat pass. After the owner-attested depot and
+> partial fleet import, `GET /v1/transport/readiness` returns `route_ready=true`
+> and `route_readiness_status=ready`. Optimization remains gated by a real
+> eligible locked plan and packaging evidence, and `trip_persistence_ready`
+> remains false until the reviewed route-plan activation contract exists.
 
 ## Research basis and design choice
 

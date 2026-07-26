@@ -85,3 +85,8 @@ Table + Route, Valhalla `/status`, `/sources_to_targets` and `/route`, then call
 the worker heartbeat endpoint before the authenticated dashboard canary. Do not
 create or lock a fictional replenishment plan merely to make the canary pass;
 use an existing business-approved eligible plan or record the gate as blocked.
+
+On a new container, authenticated routing requests wait up to 25 seconds for
+the colocated engine to become ready. Public `/health` remains non-blocking and
+returns 503 until the engine is ready, so platform health probes can observe the
+cold-start state without exposing engine operations.
