@@ -14,7 +14,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -114,7 +113,6 @@ func main() {
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	var engineReady atomic.Bool
 	probeEngine := func(ctx context.Context) bool {
 		check, checkErr := http.NewRequestWithContext(
 			ctx, http.MethodGet, upstream.ResolveReference(&url.URL{Path: healthPath}).String(), nil,
@@ -127,16 +125,9 @@ func main() {
 			return false
 		}
 		_ = response.Body.Close()
-		ready := response.StatusCode >= 200 && response.StatusCode < 300
-		if ready {
-			engineReady.Store(true)
-		}
-		return ready
+		return response.StatusCode >= 200 && response.StatusCode < 300
 	}
 	waitForEngine := func(ctx context.Context) bool {
-		if engineReady.Load() {
-			return true
-		}
 		deadline := time.NewTimer(25 * time.Second)
 		ticker := time.NewTicker(250 * time.Millisecond)
 		defer deadline.Stop()
