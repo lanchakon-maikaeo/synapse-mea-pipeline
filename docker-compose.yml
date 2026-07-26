@@ -106,6 +106,44 @@ services:
       - "${VALHALLA_BIND_ADDRESS:-127.0.0.1}:${VALHALLA_PORT:-8002}:8002"
     networks: [backend]
 
+  # OSRM-compatible road-preview engine for the dashboard `/v1/transport/optimize`
+  # Table + Route services. It serves the multi-level Dijkstra (MLD) graph that
+  # `scripts/prepare_osrm_graph.sh` builds from a pinned OSM extract into the
+  # `osrm-data` volume. This is the controlled self-hosted replacement for the
+  # development-only public community OSRM host; production must additionally
+  # front it with a controlled HTTPS origin and bind the graph digest into
+  # `ROUTING_ENGINE_DATA_VERSION`. The image is pinned to its immutable
+  # multi-architecture index digest; update the tag and digest together.
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0@sha256:729461bcc9ae9e6aafa92c0f93db9b060a32e85d5e72092c01ae4a4a9f1eb564
+    profiles: [routing]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      mea.synapse.osm-graph-version: ${ROUTING_ENGINE_DATA_VERSION:-unconfigured}
+    command:
+      - osrm-routed
+      - --algorithm
+      - mld
+      - --ip
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --max-table-size
+      - "8000"
+      - /data/${OSRM_GRAPH_NAME:-thailand}.osrm
+    volumes:
+      - osrm-data:/data:ro
+    ports:
+      - "${OSRM_BIND_ADDRESS:-127.0.0.1}:${OSRM_PORT:-5000}:5000"
+    networks: [backend]
+
 networks:
   backend:
   monitoring:
@@ -113,3 +151,7 @@ networks:
 volumes:
   prometheus-data:
   valhalla-data:
+  # Prepared by scripts/prepare_osrm_graph.sh before the routing service starts.
+  osrm-data:
+    name: ${OSRM_VOLUME:-synapse_osrm-data}
+    external: true

@@ -1,10 +1,18 @@
 # M13 — Transport / Route Dispatch Pipeline
 
-> **Release status (26 July 2026): local candidate only.** The tracked M13–M13e
-> migrations, dashboard changes and worker have not been applied or deployed to
-> the live Supabase/Vercel Production environment. The last verified live
-> database baseline remains M24 (`202607240024`). Passing local tests is release
-> evidence for a candidate, not proof of live activation.
+> **Release status (26 July 2026): migrations applied live.** M13–M13e
+> (`202607250001`–`202607250005`) are applied to Supabase Production
+> `fvdfduuanfrncrwuareb`; the verified live database head is M13e. The dashboard
+> and API contract (SYNAPSE API `1.3.0`, 48 paths) are live at
+> `https://mea-synapse-production.vercel.app`.
+>
+> The Valhalla + OR-Tools worker is **not** deployed. `GET /v1/transport/readiness`
+> now reports `route_ready=true` and `route_readiness_status=ready` after the
+> owner-attested depot and partial fleet evidence import. Real optimization is
+> still unavailable: there is no controlled routing engine or active worker, no
+> eligible locked replenishment plan, no packaging evidence and no route-plan to
+> trip activation contract. Route execution therefore remains fail-closed by
+> design. The remaining activation gates below still apply.
 
 Connects the Transport module to Supabase as a first-class, governed pipeline,
 following the same conventions as m09/m10/m11 and the target architecture in
@@ -41,8 +49,9 @@ The additive candidate chain, in order, is:
 5. `202607250005_m13e_route_evidence.sql` — explicit fleet provenance,
    immutable Valhalla road evidence and fail-closed route review.
 
-These are tracked migrations 28–32 in a clean workspace build. None is claimed
-as applied to the live M24 Production database in this document.
+These are tracked migrations 28–32 in a clean workspace build and are applied
+to the live Production database. Exact timestamps and verification evidence are
+recorded in `docs/M13_PRODUCTION_ACTIVATION_20260726.md`.
 
 Masters (schema `core`, RLS-locked, served only via the dispatcher):
 
@@ -233,34 +242,35 @@ paths, queries, fragments, loopback origins and client-visible pins are rejected
   all migrations in filename order and runs every contract verify) and
   `cd dashboard && npm run verify` (lint + build + rendered/DB contract).
 
-These commands are release prerequisites. They do not imply that the migrations,
-worker, routing services or web candidate have been deployed.
+These commands are release prerequisites, not deployment evidence. The live
+migration/web state is recorded separately in
+`docs/M13_PRODUCTION_ACTIVATION_20260726.md`; worker and routing services remain
+inactive.
 
 ## Activation blockers and release order
 
-Do not apply or deploy M13 merely because local tests pass. Production remains
-blocked until owners provide and approve:
+M13e schema/API deployment is complete. Real route optimization and activation
+remain blocked until owners/operators provide and approve:
 
-- a canonical warehouse/location mapping for the verified `WH-MMBP` coordinate
-  (or another verified physical loading-gate origin); Khlong Toei stays
-  quarantined and no mapping is inferred;
-- canonical vehicle identity, measured weight/pallet capacity, driver/shift and
-  current availability evidence;
+- remaining canonical vehicle identity, capacity, driver/shift and current
+  availability evidence beyond the owner-attested V707/V708 records;
 - physical packaging/UOM evidence for routed materials;
+- an eligible locked replenishment plan;
 - controlled Production tile, OSRM-compatible preview and private Valhalla truck
   endpoints bound to IDs matching
   `<lowercase-label>-sha256-<64 lowercase hex>`, plus the expected nonnegative
   secondary Valhalla operator dataset ID (`VALHALLA_OSM_CHANGESET`);
 - governed EXAT/BEM/DOH/M-Flow tariff and road/plaza mapping if a monetary toll
   is to be displayed; and
+- a reviewed route-plan→transport-trip activation contract; and
 - protected GitHub environments/reviewers, release runner, OIDC receivers,
   artifact promotion and authenticated canary configuration.
 
-After those gates and change approval: build immutable artifacts once, back up
-and migrate staging, run the locked-plan→matrix→solve→geometry→review
-smoke, promote the same digests, apply additive Production migrations before
-web/worker cutover, then run authenticated transport/inventory canaries. No step
-in that sequence has been executed against a live target by this workspace task.
+After those remaining gates and change approval: build immutable runtime
+artifacts once, run the locked-plan→matrix→solve→geometry→review smoke in
+staging, promote the same digests, then run authenticated transport/inventory
+canaries. No OSRM/Valhalla/worker rollout has been executed against a live target
+by this workspace task.
 
 ## M13b — Historical replenishment link
 

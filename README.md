@@ -10,8 +10,8 @@ coordinates are promoted through the production release gates.
 ## Modules
 
 - `pipeline/` — source connectors, ingestion, checksum and idempotency
-- `dashboard/` — Next.js Web App and Supabase Auth; the verified live M24
-  contract has 37 paths, while the working-tree M13 candidate has 48
+- `dashboard/` — Next.js Web App and Supabase Auth; the verified live contract
+  is SYNAPSE API `1.3.0` with 48 paths, matching the working tree
 - `supabase/` — ordered database migrations, RLS, audit, backup evidence and
   acceptance SQL
 - `api/` — optional self-host compatibility adapter; not the Vercel runtime
@@ -30,14 +30,18 @@ release scope.
 
 - Canonical source: `lanchakon-maikaeo/synapse-mea-pipeline`, branch `main`.
 - Web release target: Vercel Production URL
-  <https://synapse-mea.vercel.app>.
+  <https://mea-synapse-production.vercel.app>.
 - Vercel Git source: the canonical repository above, with Root Directory
   `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase Production project
   `fvdfduuanfrncrwuareb` (`synapse-01`, `ap-southeast-1`).
 - Release code contains 32 ordered additive migrations. The verified live head
-  is M24 (`202607240024`); M13–M13e (`202607250001`–`202607250005`) are local
-  candidates and have not been applied live. The approved
+  is M13e (`202607250005`), applied 26 July 2026; M13–M13e
+  (`202607250001`–`202607250005`) are live. Transport schema and API are
+  deployed. Owner-attested depot and partial fleet evidence makes the transport
+  input readiness gate report `ready`, but real route planning remains blocked
+  until controlled routing services, a locked replenishment plan, packaging
+  evidence and route-plan activation are available. The approved
   `PRODUCTION_APPROVED` import, isolated restore drill and owner-directed
   single-admin policy are verified in Production; no synthetic district users
   are created.
@@ -51,7 +55,7 @@ release target.
 The former `lanchakon-maikaeo/synapse-mea-dashboard` deployment mirror is
 retained only as an archived migration record and is not connected to Vercel.
 
-Run `make workspace-ci` before release. The candidate database contract starts a
+Run `make workspace-ci` before release. The current database contract starts a
 clean PostgreSQL 17 instance and applies all 32 working-tree migrations; the 69
 schema/RLS/privilege controls plus 20 authenticated workflows are the verified
 M24 baseline, with additional M13/M13e contracts required for transport. The

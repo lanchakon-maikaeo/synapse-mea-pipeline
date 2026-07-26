@@ -3,10 +3,10 @@
 This runbook covers source ingestion, stock/CMP, weekly replenishment,
 District/Planner/Academic approval, receiving, FIFO/Handling Units, issue,
 return/quarantine, ad-hoc issue, traceability, API, dashboard, backup and
-release evidence for the verified live M24 baseline. Governed transport,
-OSM-derived mapping and the OR-Tools/Valhalla worker are a separate local M13
-candidate and have not been deployed. Forecasting, legacy route-job namespaces
-and RAG remain excluded.
+release evidence for the verified live M13e baseline. Governed transport,
+OSM-derived mapping and M13e API are now deployed; the OSRM/Valhalla/OR-Tools
+routing runtime remains inactive and fail-closed. Forecasting, legacy route-job
+namespaces and RAG remain excluded.
 
 ## Ownership and service levels
 
@@ -52,13 +52,13 @@ and RAG remain excluded.
 6. Preserve the relevant log window and record an incident before changing data.
 7. Legacy `/v1/forecasts*`, `/v1/routes*`, `/v1/jobs*`, Wave 3 and RAG paths
    should return `410 scope_excluded`; do not enable a worker to make them pass.
-   The candidate `/v1/transport/*` namespace is distinct and must not be routed
+   The deployed `/v1/transport/*` namespace is distinct and must not be routed
    to the legacy exclusion handler.
 
 ## Transport incident and activation guard
 
-This section applies only after a separately approved M13 release. Until then,
-the expected live behavior is the deployed M24 transport exclusion.
+M13e schema/API is live, while route optimization and trip activation remain
+fail-closed. Apply this section to every transport incident or activation step.
 
 1. Check `/api/v1/transport/readiness` and preserve its request ID. A blocked
    canonical origin, geocode, fleet, packaging, road-engine, tariff or
@@ -70,7 +70,7 @@ the expected live behavior is the deployed M24 transport exclusion.
    canonical warehouse location. Never infer `WH-MMBP`, Khlong Toei or Bang
    Phli mappings from geographic proximity.
 3. Confirm every stop carries the approved coordinate-source checksum and row;
-   the candidate source checksum is
+   the original district-coordinate source checksum is
    `fe97ecb44299dbd8b1fa8778b11483e343a31e8bd1d12ca7b11cba324e5fc62a`.
 4. For an operational solve, verify canonical vehicle mapping, measured
    weight/pallet capacity, non-expired availability, physical packaging/UOM,
@@ -175,11 +175,10 @@ Accept the drill only after checksum verification, `pg_restore
 
 ## Release
 
-The commands below describe the M24 baseline release pattern. Reproducing M24
-requires the exact verified M24 release commit. Do **not** run the guarded
-migration script from the current M13 working tree against live Production: it
-applies pending migrations from the checked-out commit. These instructions do
-not authorize or prove an M13 deployment.
+The commands below describe the governed release pattern. Run them only from an
+exact approved commit and inspect the pending migration set before touching live
+Production. Production is currently at M13e; these instructions do not authorize
+or prove any later deployment.
 
 1. At the exact approved release commit, run `make workspace-ci` and secret scan.
 2. Verify approved change, Git commit and Vercel/Supabase targets.

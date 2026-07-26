@@ -4,11 +4,11 @@
 
 อัปเดตล่าสุด: **26 กรกฎาคม 2026**
 
-Deployed release: **Production Operations v1 / M24**
+Deployed release: **Production Operations v1 / M13e**
 
-Workspace candidate: **M13e Smart Logistics (not deployed)**
+Workspace candidate: **Self-hosted OSRM + Valhalla/OR-Tools runtime (not deployed)**
 
-Environment ที่ deploy อยู่: **Production operational เฉพาะ M24 baseline**
+Environment ที่ deploy อยู่: **Production operational ผ่าน M13e; route execution ยัง fail closed**
 
 > เอกสารนี้เป็นจุดอ้างอิงหลักสำหรับ pipeline ปัจจุบันของ MEA SYNAPSE ตั้งแต่
 > source data, ingestion, Supabase, business workflow, API, Dashboard, CI/CD,
@@ -17,11 +17,11 @@ Environment ที่ deploy อยู่: **Production operational เฉพา
 > Migration SQL และ executable source code ยังเป็น technical source of truth
 > สูงสุด หาก implementation เปลี่ยน ต้องแก้เอกสารนี้ใน change เดียวกัน
 
-> **ขอบเขตสถานะ:** ข้อความที่ระบุว่า “deploy แล้ว” หรือ
-> “Production operational” หมายถึง verified M24 baseline เท่านั้น
-> M13–M13e, Transport UI, road preview, worker และ production workflow
-> ยังเป็น local working-tree candidate; ยังไม่มี live migration/deployment
-> หรือ production CI/CD run จากงานนี้
+> **ขอบเขตสถานะ:** M13–M13e schema, transport API และ Dashboard deploy แล้ว
+> ส่วน owner-attested depot/partial fleet evidence ทำให้ source readiness เป็น
+> `ready` แต่ controlled OSRM/Valhalla, OR-Tools worker, locked plan, packaging
+> evidence และ route-plan→trip activation ยังไม่พร้อม จึงยังไม่มีการคำนวณหรือ
+> activate เส้นทางจริงใน Production และยังไม่มี controlled Production CI/CD run
 
 ---
 
@@ -32,21 +32,22 @@ Environment ที่ deploy อยู่: **Production operational เฉพา
 | Canonical repository | `lanchakon-maikaeo/synapse-mea-pipeline` |
 | Branch | `main` |
 | Database release revision | `f238e9e` |
-| Web application | <https://synapse-mea.vercel.app> |
+| Web application | <https://mea-synapse-production.vercel.app> |
 | Vercel project | `spaiss-6/synapse-mea` |
 | Vercel Root Directory | `dashboard` |
 | Database/Auth | Supabase project `fvdfduuanfrncrwuareb` |
 | Supabase project name | `synapse-01` |
 | Supabase region | `ap-southeast-1` |
-| Latest verified live migration | `202607240024` (M24) |
-| Deployed API contract | SYNAPSE API `1.1.0`, 37 paths |
-| Local candidate migration head | `202607250005` (M13e; not applied live) |
-| Local candidate API contract | SYNAPSE API `1.3.0`, 48 paths; not deployed |
+| Latest verified live migration | `202607250005` (M13e, applied 26 กรกฎาคม 2026) |
+| Deployed API contract | SYNAPSE API `1.3.0`, 48 paths |
+| Local candidate migration head | `202607250005` (M13e; matches live) |
+| Local candidate API contract | SYNAPSE API `1.3.0`, 48 paths; matches live |
 | Business rules | v1, frozen 22 กรกฎาคม 2026 |
 | Active application roles | `admin`, `planner`, `academic`, `picker`, `district`, `viewer` |
 | Deployed release scope | Stock, CMP, Weekly Replenishment, Approval, Handling Unit, FIFO, Issue, Return, Ad-hoc และ Traceability |
-| Deployed exclusions | Forecasting, Routing/Transport optimization และ RAG/AI |
-| Candidate scope | Governed transport reads/preflight, OSM-derived map, OSRM-compatible road preview, Valhalla truck + OR-Tools worker, immutable route evidence |
+| Deployed exclusions | Forecasting และ RAG/AI |
+| Transport (M13–M13e) | Schema + API deployed live; owner-attested depot และ partial fleet evidence ทำให้ source readiness เป็น `ready` แล้ว แต่การจัดเส้นทางจริงยัง fail closed เพราะยังไม่มี controlled routing service, locked plan, packaging evidence และ route-plan activation contract |
+| Remaining candidate scope | Production-hosted OSRM/Valhalla, OR-Tools worker, locked-plan optimization and immutable route evidence activation |
 
 ชุดข้อมูลใน `data/MEA_Synapse_Supabase_Production_20260724` เป็น
 `PRODUCTION_APPROVED` สำหรับ project `fvdfduuanfrncrwuareb` โดยเจ้าของยืนยัน
@@ -88,31 +89,31 @@ record และไม่ได้เชื่อมกับ Vercel แล้�
 - Vercel Next.js Dashboard และ same-origin API
 - Audit, release evidence, backup evidence และ incident trace
 
-### 2.2 Explicitly excluded from the deployed M24 release
+### 2.2 Explicitly excluded or inactive in the deployed M13e release
 
 - Demand forecasting
 - Forecast workers และ forecast schedulers
-- Route optimization
-- Valhalla/OR-Tools runtime
+- Live route optimization and route-plan→trip activation
+- Production OSRM, Valhalla and OR-Tools runtime
 - Vehicle/driver scheduling
 - Wave 3 intelligence jobs
 - RAG, MCP และ document indexing
 
-Historical migration/source สำหรับ Forecast/Route อาจยังอยู่เพื่อรักษา migration
-history แต่ active OpenAPI, Dashboard, CI schedule และ deployment profile จะไม่
-เรียกใช้งาน namespace เหล่านี้ การเรียก legacy paths ต้องได้
-`410 scope_excluded`
+Forecast และ legacy route-job migration/source ยังคงอยู่เพื่อรักษา migration
+history ส่วน active OpenAPI เปิดเฉพาะ governed `/v1/transport/*` contract ของ
+M13e; legacy `/v1/routes*` และ `/v1/jobs*` ต้องได้ `410 scope_excluded`
 
-### 2.3 Local M13 smart-logistics candidate
+### 2.3 Deployed M13 smart-logistics contract and inactive runtime
 
-ขอบเขตนี้มีใน working tree แต่ยังไม่ใช่ active Production:
+ขอบเขต schema/API/UI ต่อไปนี้ deploy แล้ว แต่ runtime optimization ยังไม่ active:
 
 - 18 พิกัดเขตและพิกัดฝ่ายจัดหาเมืองใหม่บางพลี จาก
   `data/MEA_Synapse_Supabase_Production_20260724/data/districts.csv`
   ด้วย SHA-256
   `fe97ecb44299dbd8b1fa8778b11483e343a31e8bd1d12ca7b11cba324e5fc62a`
-- `WH-MMBP` มีพิกัด `13.55760333, 100.77072260` แต่ยังไม่มี
-  owner-approved canonical warehouse/location mapping จึงยัง route-ineligible
+- Owner-attested evidence เชื่อม depot เมืองใหม่ (`WH-MN`), บางพลี (`WH-BP`)
+  และคลองเตย (`WH-KT`) กับ canonical warehouse/location และ verified geocode
+  ครบแล้ว; V707/V708 mapped และ capacity-verified ส่วนรถอีก 4 คันยัง unmapped
 - Dashboard ใช้ Leaflet และวาดเฉพาะ road GeoJSON จริง; ไม่มี demo
   fallback หรือเส้นตรงปลอมเป็นเส้นทาง
 - Synchronous preview ใช้ controlled OSRM-compatible Table/Route และ
@@ -232,7 +233,7 @@ FIFO ordering:
 
 ---
 
-## 4. Runtime architecture (verified deployed M24 baseline)
+## 4. Runtime architecture (verified deployed M13e baseline)
 
 ```mermaid
 flowchart LR
@@ -326,7 +327,7 @@ request ใช้ caller JWT ผ่าน security-definer gateway ที่บ�
 |---|---|
 | `dashboard/` | Next.js UI, Supabase Auth, role navigation, same-origin API |
 | `dashboard/app/api/[...path]/route.ts` | HTTP gateway, headers, request ID, body limit |
-| `dashboard/app/m09-openapi.ts` | Working-tree OpenAPI contract; compare release SHA before treating it as live |
+| `dashboard/app/m09-openapi.ts` | Deployed SYNAPSE API `1.3.0` contract; compare release SHA during promotion |
 | `dashboard/app/use-synapse-backend.ts` | Authenticated UI data/action orchestration |
 | `pipeline/` | Source connectors, checksum, Raw ingestion, legacy actual importer |
 | `supabase/migrations/` | Canonical managed-database migration chain |
@@ -693,10 +694,10 @@ actual zero โดยไม่มี marker
 
 ---
 
-## 10. API catalog: deployed baseline and local candidate
+## 10. API catalog: deployed M13e contract
 
-หัวข้อ 10.1–10.4 คือ verified deployed M24 contract. หัวข้อ 10.5 คือ
-working-tree M13 candidate และยังไม่ควรใช้ทดสอบ live Production
+หัวข้อ 10.1–10.5 คือ verified deployed SYNAPSE API `1.3.0` contract; transport
+mutation/optimization endpoints ยังบังคับ readiness gates และ fail closed
 
 ### 10.1 Public/readiness
 
@@ -755,9 +756,9 @@ working-tree M13 candidate และยังไม่ควรใช้ทด�
 | GET | `/api/v1/operations/health` | Operational roles |
 | GET | `/api/v1/operations/alerts` | Admin/Planner |
 
-### 10.5 Governed transport (local M13 candidate only)
+### 10.5 Governed transport (deployed M13e contract)
 
-| Method | Path | Candidate behavior |
+| Method | Path | Deployed behavior |
 |---|---|---|
 | GET | `/api/v1/transport/warehouses` | Active transport references and canonical mapping state |
 | GET | `/api/v1/transport/readiness` | Geocode, exact origin, fleet, tariff, compatible-worker and activation gates; role-scoped eligible plan IDs |
@@ -827,9 +828,9 @@ HTTP boundary:
 |---|---|
 | Production data package | ผ่าน owner approval และ checksum verification |
 | M24 local acceptance evidence | ผ่าน 27 migrations, 69 schema checks, 20 workflow checks |
-| Vercel Production | Deploy แล้วที่ `https://synapse-mea.vercel.app` |
+| Vercel Production | Deploy แล้วที่ `https://mea-synapse-production.vercel.app` |
 | Supabase Production identity | Project `fvdfduuanfrncrwuareb`, environment `production` |
-| Supabase migration | M00–M24 deploy และตรวจ contract แล้ว |
+| Supabase migration | ทั้ง 32 migration ถึง M13e deploy และตรวจ contract แล้ว |
 | Production data import | ผ่าน governed import + M22 completion attestation |
 | Off-project backup | มี post-import logical backup พร้อม SHA-256 |
 | Isolated restore drill | ผ่าน PostgreSQL 17; evidence บันทึกใน Production |
@@ -841,9 +842,8 @@ HTTP boundary:
 
 ## 12. Managed database migration chain
 
-Apply ตาม filename order เท่านั้น รายการ 1–27 คือ verified live
-M24 baseline; รายการ 28–32 คือ local additive candidate ที่ยังไม่ได้
-apply บน live Production:
+Apply ตาม filename order เท่านั้น รายการ 1–27 คือ M24 baseline และรายการ
+28–32 คือ M13–M13e; ทั้ง 32 migration deploy บน live Production แล้ว:
 
 1. `202607140000_m00_greenfield_bootstrap.sql`
 2. `202607140001_m01_foundation.sql`
@@ -872,11 +872,11 @@ apply บน live Production:
 25. `202607240022_production_completion_attestation.sql`
 26. `202607240023_active_scope_readiness.sql`
 27. `202607240024_single_admin_identity_policy.sql`
-28. `202607250001_m13_transport_pipeline.sql` — local candidate, not deployed
-29. `202607250002_m13b_transport_replenishment_link.sql` — local candidate, not deployed
-30. `202607250003_m13_transport_hardening.sql` — local candidate, not deployed
-31. `202607250004_m13d_operational_integrity.sql` — local candidate, not deployed
-32. `202607250005_m13e_route_evidence.sql` — local candidate, not deployed
+28. `202607250001_m13_transport_pipeline.sql` — deployed 25 กรกฎาคม 2026
+29. `202607250002_m13b_transport_replenishment_link.sql` — deployed 25 กรกฎาคม 2026
+30. `202607250003_m13_transport_hardening.sql` — deployed 26 กรกฎาคม 2026
+31. `202607250004_m13d_operational_integrity.sql` — deployed 26 กรกฎาคม 2026
+32. `202607250005_m13e_route_evidence.sql` — deployed 26 กรกฎาคม 2026
 
 กฎ migration:
 
@@ -920,7 +920,7 @@ make workspace-ci
 bash scripts/scan_secrets.sh
 ```
 
-Verified deployed M24 baseline evidence:
+Historical M24 baseline evidence (retained for audit):
 
 - Clean PostgreSQL applies 27 ordered migrations
 - 69 schema/RLS/privilege checks
@@ -933,9 +933,10 @@ Verified deployed M24 baseline evidence:
 - OpenAPI freshness check
 - Secret scan
 
-Forecast/Route/RAG ไม่ใช่ active acceptance paths ของ deployed M24 baseline
+Forecast/Route/RAG ไม่ใช่ active acceptance paths ของ historical M24 baseline
 
-Local M13 candidate เพิ่ม release prerequisites ต่อไปนี้:
+M13 เพิ่ม release prerequisites ต่อไปนี้; database/API/UI gates ผ่านแล้ว ส่วน
+routing-runtime gates ยังต้องผ่านก่อน activation:
 
 - Clean PostgreSQL 17 apply managed migration ครบ 32 ไฟล์ตามลำดับ
 - M13–M13d contract และ M13e route-evidence contract ผ่าน
@@ -951,15 +952,17 @@ Local M13 candidate เพิ่ม release prerequisites ต่อไปนี�
 - Protected staging สร้าง locked-plan→Valhalla matrix→OR-Tools solve→
   road geometry→review evidence ได้จริง
 
-รายการเหล่านี้เป็นเงื่อนไขก่อน release ไม่ใช่ข้อยืนยันว่า
-M13 ถูก deploy หรือ activate แล้ว
+ผลทดสอบเหล่านี้ไม่ใช่ deployment evidence โดยตัวเอง สถานะ database/web ที่
+deploy แล้วบันทึกใน `docs/M13_PRODUCTION_ACTIVATION_20260726.md`; OSRM,
+Valhalla/OR-Tools และ route execution ยังไม่ activate ใน Production
 
 ### 13.2 Database deployment
 
-คำสั่งนี้เป็น M24 baseline pattern และต้องรันจาก exact approved
+คำสั่งนี้เป็น governed database deployment pattern และต้องรันจาก exact approved
 release commit เท่านั้น ห้ามรัน guarded migration จาก working tree
-ปัจจุบันกับ live Production เพราะจะรวม pending M13–M13e ด้วย
-และงานนี้ไม่ได้รันคำสั่งนี้เพื่อ M13
+ที่ยังไม่ผ่าน approval กับ live Production ปัจจุบันไม่มี pending migration
+หลัง M13e; งาน M13 ใช้ direct management API ภายใต้ owner approval และไม่ได้
+รัน guarded script นี้ จึงต้องกลับมาใช้เส้นทางด้านล่างใน release ถัดไป
 
 ```bash
 export DATABASE_URL='postgresql://...'
@@ -982,7 +985,7 @@ Guarded script ต้อง:
 
 ### 13.3 Vercel deployment
 
-สถานะด้านล่างคือ verified M24 deployment. M13 web/worker candidate
+สถานะด้านล่างคือ verified M13e web deployment. Worker/routing runtime
 ยังไม่ได้ promote หรือ smoke บน live target
 
 | Setting | Required value |
@@ -1012,7 +1015,7 @@ Release order:
 12. Record deployed Git SHA and operator evidence
 13. Revoke temporary token
 
-### 13.4 M13 protected artifact promotion (local candidate)
+### 13.4 Protected artifact promotion (implemented, not executed live)
 
 `.github/workflows/production-release.yml` เป็น manual candidate workflow
 และยังไม่เคยรันกับ live target ในงานนี้ สัญญาที่ต้องผ่านคือ:
@@ -1243,14 +1246,14 @@ scripts/restore_drill.sh
 ### Deferred
 
 - Forecasting
-- Routing/vehicle optimization
+- Routing/vehicle optimization runtime
 - Transport cost dashboard
 - RAG/AI
 
-รายการนี้ยัง deferred จาก deployed M24 baseline. Routing/vehicle
-optimization มี local M13 candidate แล้ว แต่ยังไม่ผ่าน owner-data,
-infrastructure, protected-release และ route-plan→trip activation gates
-จึงยังไม่เปิดใช้ใน Production
+รายการ runtime นี้ยัง deferred จาก deployed M13e baseline. Transport schema,
+API, depot mappings และ partial fleet evidence deploy แล้ว แต่ optimization ยัง
+ไม่ผ่าน routing infrastructure, locked-plan, packaging, remaining-fleet,
+protected-release และ route-plan→trip activation gates จึงยังไม่เปิดใช้จริง
 
 Deferred scope ต้องเปิดด้วย requirement version และ release approval ใหม่
 
@@ -1307,16 +1310,15 @@ Local/Historical Forecast/Route source ไม่ขยาย active deployed rel
 - Production environment แยกจาก Test
 - Cutover, rollback และ security approval ได้รับอนุมัติ
 
-สถานะปัจจุบันของ **deployed M24 baseline** คือ **Production operational**:
+สถานะปัจจุบันของ **deployed M13e baseline** คือ **Production operational**:
 Vercel, Supabase Production,
 governed data import, backup, isolated restore drill, M24 single-admin policy,
 guarded cutover และ authenticated live acceptance ผ่านแล้ว ฐานข้อมูลรายงาน
 `cutover_ready=true` และ `readiness_status=operational` โดยไม่สร้างผู้ใช้หรือ
 ธุรกรรมธุรกิจสังเคราะห์เพิ่ม
 
-**M13 smart-logistics candidate ยังไม่ production-ready และยังไม่ได้
-deploy**: ยังขาด canonical depot/fleet/capacity/availability/packaging
-evidence, controlled map/routing infrastructure ที่ผูก canonical digest IDs
-และ compatible worker heartbeat, governed Thai toll tariff,
-external protected-release configuration และ reviewed route-plan→trip activation
-contract
+**M13 route execution ยังไม่ production-ready** แม้ schema/API/UI และ source
+readiness deploy แล้ว: ยังขาด remaining fleet/availability/packaging evidence,
+eligible locked plan, controlled routing infrastructure ที่ผูก canonical digest
+IDs และ compatible worker heartbeat, governed Thai toll tariff, external
+protected-release configuration และ reviewed route-plan→trip activation contract

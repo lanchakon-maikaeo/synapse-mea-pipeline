@@ -1,17 +1,19 @@
 # SYNAPSE Production Operations v1
 
-- Status: verified live baseline through migration `202607240024` (M24)
-- Candidate status: M13–M13e smart logistics exists only in the working tree;
-  it has not been migrated or deployed to the live target
+- Status: verified live baseline through migration `202607250005` (M13e),
+  applied 26 July 2026
+- Smart logistics status: M13–M13e schema and API are live; the Valhalla +
+  OR-Tools worker is not deployed. Depot mappings and V707/V708 evidence are
+  verified; route execution still fails closed pending the remaining fleet,
+  routing services, locked plan, packaging and activation contract
 - Business rules: frozen 22 July 2026
 - Release scope: stock, replenishment, warehouse issue and traceability
 
 This document describes the last verified live Production Operations v1
-contract. Forecasting, transport/routing and RAG are not part of that deployed
-release. The working-tree dashboard/OpenAPI, additive M13–M13e migrations and
-OR-Tools/Valhalla worker are a separate fail-closed candidate described in
-`docs/M13_TRANSPORT_PIPELINE.md`; their presence in the repository is not live
-deployment evidence.
+contract. Forecasting, route execution and RAG are not active. The M13–M13e
+transport schema/API/UI are deployed, while the OSRM/Valhalla/OR-Tools runtime
+remains a separate fail-closed candidate described in
+`docs/M13_TRANSPORT_PIPELINE.md`.
 
 ## Runtime topology
 
@@ -29,7 +31,7 @@ The Production web target is Vercel project `spaiss-6/synapse-mea`.
 The Production database/Auth target is Supabase project `fvdfduuanfrncrwuareb`
 (`synapse-01`, `ap-southeast-1`); Test/UAT
 remains `mklnbumfwojxhqscthjd`.
-The Production web target is `https://synapse-mea.vercel.app`.
+The Production web target is `https://mea-synapse-production.vercel.app`.
 Vercel deploys branch `main` from the canonical
 `lanchakon-maikaeo/synapse-mea-pipeline` repository with Root Directory
 `dashboard`.
@@ -88,6 +90,18 @@ The canonical Production rebuild migrations are:
 
 `supabase/migrations/202607240024_single_admin_identity_policy.sql`
 
+The live transport extension then adds:
+
+`supabase/migrations/202607250001_m13_transport_pipeline.sql`
+
+`supabase/migrations/202607250002_m13b_transport_replenishment_link.sql`
+
+`supabase/migrations/202607250003_m13_transport_hardening.sql`
+
+`supabase/migrations/202607250004_m13d_operational_integrity.sql`
+
+`supabase/migrations/202607250005_m13e_route_evidence.sql`
+
 They are additive, preserve historical data and register their own ordered
 versions. The files under `dashboard/db/migrations` are a Drizzle design
 contract for the standalone dashboard schema. Do not apply both migration
@@ -106,9 +120,9 @@ bash scripts/scan_secrets.sh
 
 Apply the managed Supabase migrations only through the guarded script:
 
-> Run this only from the exact approved release commit. The current working tree
-> contains pending M13–M13e candidates; running its migration chain against live
-> Production without the separate M13 approval would expand the deployed scope.
+> Run this only from the exact approved release commit. Production is already at
+> M13e; inspect the pending set with the guarded check before every future
+> deployment and never apply an unapproved additive migration.
 
 ```bash
 export DATABASE_URL='postgresql://...'
@@ -147,7 +161,7 @@ Deploy a GitHub-verified commit from `main`, wait for Vercel `READY`, then run:
 
 ```bash
 cd dashboard
-SMOKE_BASE_URL='https://synapse-mea.vercel.app' \
+SMOKE_BASE_URL='https://mea-synapse-production.vercel.app' \
 SYNAPSE_ACCESS_TOKEN='<temporary-masked-token>' \
 npm run smoke:deployment
 ```
@@ -159,16 +173,16 @@ is captured.
 ## Release acceptance
 
 - Dashboard lint, type-check, production build and tests pass.
-- Clean PostgreSQL applies the 27 migrations in the deployed M24 baseline.
+- Clean PostgreSQL applies all 32 migrations through M13e.
 - All schema/RLS/privilege checks pass.
 - All 20 authenticated operational workflow checks pass.
 - Pre-cutover readiness returns `503 not_ready`; after authorized cutover it
   returns `200 ok`.
 - Unauthenticated `/api/v1/me` returns `401`.
-- All 37 documented baseline same-origin OpenAPI paths respond through the
+- All 48 documented same-origin OpenAPI paths respond through the
   deployed release.
-- Legacy forecast, route/route-job, Wave 3 and RAG requests return `410
-  scope_excluded`.
+- Governed `/v1/transport/*` paths enforce their readiness gates; legacy
+  forecast, route/route-job, Wave 3 and RAG requests return `410 scope_excluded`.
 - Backup and deployed release rows are present in operational evidence.
 
 ## Rollback and containment
@@ -184,17 +198,18 @@ is captured.
    approvals must be preserved.
 5. Record the failed/rolled-back release and operator reason.
 
-## Explicit exclusions
+## Explicit exclusions and inactive runtime
 
-The verified M24 deployment excludes forecasting, all transport/routing,
-background intelligence jobs, Wave 3 and RAG. Its database dispatcher returns
-`410 scope_excluded` for those legacy namespaces. No worker, Valhalla service,
-forecast scheduler or document/RAG indexer is included in the deployed Vercel
-command.
+The verified M13e deployment excludes forecasting, live route optimization,
+route-plan→trip activation, background intelligence jobs, Wave 3 and RAG. The
+governed `/v1/transport/*` read/preflight/job contract is deployed, while legacy
+route/job namespaces return `410 scope_excluded`. No OSRM/Valhalla service,
+OR-Tools worker, forecast scheduler or document/RAG indexer is included in the
+deployed Vercel command.
 
-## Local M13 candidate (not deployed)
+## Deployed M13 contract and inactive routing runtime
 
-The working-tree API contract is version `1.3.0` with 48 paths and adds governed
+The deployed API contract is version `1.3.0` with 48 paths and adds governed
 `/v1/transport/*` reads, exact-plan preflight and a bounded real-road preview.
 Its published OpenAPI also includes the M13e Valhalla-only exact locked-plan
 optimization-job queue and owner/admin status read.

@@ -154,9 +154,11 @@ Coverage view ต้องนับเฉพาะ evidence ของ `latest su
 - M24 single-admin identity contract: 4/4 ผ่าน
 - Schema/RLS/privilege contract: 69/69 ผ่าน
 - RLS/schema/deployment/project-ref guard: ผ่าน
-- Vercel Production: `https://synapse-mea.vercel.app`
+- Vercel Production: `https://mea-synapse-production.vercel.app`
 - Managed Supabase target: `fvdfduuanfrncrwuareb`
 - M00–M24 deployed ใน Production; latest migration `202607240024`
+  (บันทึก ณ 24 ก.ค. 2026 — ปัจจุบัน live head คือ `202607250005` M13e
+  ดู `docs/M13_TRANSPORT_PIPELINE.md`)
 - Guarded cutover `SYNAPSE-PROD-20260724`: ผ่าน
 - Production readiness: `cutover_ready=true`, `readiness_status=operational`
 - Release evidence: `production-single-admin-m24`

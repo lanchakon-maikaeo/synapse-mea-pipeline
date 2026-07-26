@@ -29,7 +29,7 @@ openapi-check:
 	.venv/bin/python api/scripts/export_openapi.py --check
 
 shell-check:
-	bash -n scripts/backup_database.sh scripts/deploy_database_migrations.sh scripts/restore_database.sh scripts/restore_drill.sh scripts/scan_secrets.sh scripts/test_restore_drill_local.sh scripts/test_supabase_migrations_local.sh
+	bash -n scripts/backup_database.sh scripts/deploy_database_migrations.sh scripts/prepare_osrm_graph.sh scripts/restore_database.sh scripts/restore_drill.sh scripts/scan_secrets.sh scripts/test_restore_drill_local.sh scripts/test_supabase_migrations_local.sh
 
 secrets-check:
 	bash scripts/scan_secrets.sh

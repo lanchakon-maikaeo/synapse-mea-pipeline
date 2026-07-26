@@ -7,11 +7,19 @@ optimizer. The implementation must fail visibly when geographic or routing data
 is not trustworthy; it must never substitute demo data in an authenticated
 production session.
 
-> **Current status (26 July 2026): fail-closed local candidate.** M13–M13e,
-> the dashboard road preview, worker and release workflow are present in the
-> working tree, but no live Supabase migration, web deployment, worker rollout,
-> Valhalla/OSRM activation or Production CI/CD run is claimed. The verified live
-> baseline remains M24 and excludes transport.
+> **Current status (26 July 2026): deployed but fail-closed.** M13–M13e are
+> applied to Supabase Production `fvdfduuanfrncrwuareb` (live head M13e), and
+> the dashboard road preview and API contract are live at
+> `https://mea-synapse-production.vercel.app`. No worker rollout,
+> Valhalla/OSRM activation or controlled Production CI/CD release run is
+> claimed. A digest-pinned self-hosted OSRM Compose service and reproducible
+> graph-preparation script are now tracked, but they have not been promoted to a
+> controlled production host. After the owner-attested depot and partial fleet import,
+> `GET /v1/transport/readiness` returns `route_ready=true` and
+> `route_readiness_status=ready`, while `optimization_worker_ready=false` and
+> `trip_persistence_ready=false`. The system therefore reports that source
+> readiness has cleared without claiming that route optimization or trip
+> activation is operational. The open blockers below still apply.
 
 ## Research basis and design choice
 
@@ -67,7 +75,13 @@ flowchart LR
 
 The synchronous preview is implemented with an OSRM-compatible Table and Route
 API. Production must configure a controlled HTTPS endpoint; the public demo
-server is development-only. The asynchronous solver continues to use Valhalla
+server is development-only. The repository provides this engine as a
+digest-pinned `osrm` Compose service (profile `routing`) whose road graph is
+built reproducibly by `scripts/prepare_osrm_graph.sh` from a checksummed OSM
+extract. Local development binds the engine over loopback
+(`ROUTING_ENGINE_URL=http://localhost:5000`); production fronts the same engine
+with a controlled HTTPS origin and the reviewed extract digest. The
+asynchronous solver continues to use Valhalla
 because its per-request truck costing fits vehicle restrictions better. The
 official interfaces are:
 
@@ -103,11 +117,12 @@ M13c preserves all source row numbers and eight-decimal precision, promotes the
 records the blank-code “MEA Procurement Department, Mueang Mai Bang Phli” row
 as depot `WH-MMBP` for transport warehouse `เมืองใหม่`.
 
-The CSV does not provide a canonical inventory warehouse/location identifier
-for that depot. It is therefore coordinate-verified but not dispatch-eligible:
-the system refuses to associate it with a replenishment plan until the
-authoritative warehouse master supplies that relationship. Khlong Toei and Bang
-Phli are not inferred as depots from district-office rows. Run
+The original CSV did not provide a canonical inventory warehouse/location
+identifier for that depot, so M13e initially kept it coordinate-verified but
+not dispatch-eligible. The later owner-attested fleet/depot evidence import
+created the required canonical warehouse/location relationships for all three
+depots; this later evidence, not inference from district-office rows, cleared
+the source-readiness gate. Run
 `python3 scripts/verify_transport_geocodes.py` to verify the source shape and
 checksum before release.
 
@@ -122,10 +137,10 @@ A location becomes `verified` only after this workflow:
    truck-inaccessible edge.
 6. Persist `source_reference`, `verified_at`, `verified_by` and evidence.
 
-The owner-designated CSV satisfies source/provenance promotion in the local
-candidate. It does not prove that the coordinates are truck-accessible loading
-gates, and it does not supply the missing canonical warehouse relationship;
-both remain separate operational readiness gates.
+The owner-designated CSV supplies the original coordinate provenance. The later
+owner-attested workbook supplies the depot mappings and partial fleet evidence,
+with the caveats recorded in `docs/M13_PRODUCTION_ACTIVATION_20260726.md`.
+Truck-profile road accessibility remains a separate routing-engine gate.
 
 The public Nominatim service is not a batch production dependency. Its policy
 requires identification, caching and low request volume and prohibits several
@@ -264,7 +279,11 @@ and [artifact attestations](https://docs.github.com/en/actions/concepts/security
 - Routed materials need verified physical packaging/UOM evidence.
 - Production needs controlled, authenticated tile, OSRM-compatible preview and
   private Valhalla truck services bound to immutable OSM graph/extract versions
-  and an expected nonnegative `VALHALLA_OSM_CHANGESET`/dataset ID.
+  and an expected nonnegative `VALHALLA_OSM_CHANGESET`/dataset ID. The
+  self-hosted `osrm` service and its reproducible `scripts/prepare_osrm_graph.sh`
+  build now supply the OSRM-compatible preview and print its extract digest; a
+  controlled HTTPS origin and the reviewed `ROUTING_ENGINE_DATA_VERSION` pin
+  remain required before production activation.
 - Monetary toll needs an approved effective-dated EXAT/BEM/DOH/M-Flow tariff
   plus road/plaza/entry-exit matching; `has_toll` alone is insufficient.
 - Protected GitHub environments/reviewers, the release runner, OIDC receivers,

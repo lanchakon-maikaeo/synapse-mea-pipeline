@@ -7,7 +7,7 @@ Status: deployed; managed Supabase migration `202607230015` verified
 - Release branch: `main`
 - Vercel workspace/project: `spaiss-6/synapse-mea`
 - Vercel Root Directory: `dashboard`
-- Web target: <https://synapse-mea.vercel.app>
+- Web target: <https://mea-synapse-production.vercel.app>
 Supabase project: `fvdfduuanfrncrwuareb`
 
 The managed database and web API are aligned at Production Operations v1.
@@ -94,7 +94,7 @@ npm audit --omit=dev
 After Vercel reaches `READY`:
 
 ```bash
-SMOKE_BASE_URL='https://synapse-mea.vercel.app' \
+SMOKE_BASE_URL='https://mea-synapse-production.vercel.app' \
 SYNAPSE_ACCESS_TOKEN='<temporary-masked-token>' \
 npm run smoke:deployment
 ```
