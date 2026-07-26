@@ -158,13 +158,13 @@ jobs:
             echo "NEXT_PUBLIC_API_BASE_URL must be empty for same-origin routing or an HTTPS origin" >&2
             exit 2
           fi
-          [[ "$NEXT_PUBLIC_MAP_TILE_URL" == https://* ]] \
-            && [[ "$NEXT_PUBLIC_MAP_TILE_URL" == *"{z}"* ]] \
-            && [[ "$NEXT_PUBLIC_MAP_TILE_URL" == *"{x}"* ]] \
-            && [[ "$NEXT_PUBLIC_MAP_TILE_URL" == *"{y}"* ]] || {
+          if ! [[ "$NEXT_PUBLIC_MAP_TILE_URL" == https://* &&
+            "$NEXT_PUBLIC_MAP_TILE_URL" == *"{z}"* &&
+            "$NEXT_PUBLIC_MAP_TILE_URL" == *"{x}"* &&
+            "$NEXT_PUBLIC_MAP_TILE_URL" == *"{y}"* ]]; then
             echo "NEXT_PUBLIC_MAP_TILE_URL must be an HTTPS z/x/y tile template" >&2
             exit 2
-          }
+          fi
           tile_authority="${NEXT_PUBLIC_MAP_TILE_URL#https://}"
           tile_authority="${tile_authority%%/*}"
           [[ "$tile_authority" =~ ^[A-Za-z0-9.{}-]+(:[0-9]{1,5})?$ ]] || {
@@ -635,9 +635,11 @@ jobs:
             echo "source artifact digest is missing or malformed" >&2
             exit 2
           }
-          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
-          echo "artifact_digest=$artifact_digest" >> "$GITHUB_OUTPUT"
-          echo "source_artifact_digest=$source_artifact_digest" >> "$GITHUB_OUTPUT"
+          {
+            echo "artifact_name=$artifact_name"
+            echo "artifact_digest=$artifact_digest"
+            echo "source_artifact_digest=$source_artifact_digest"
+          } >> "$GITHUB_OUTPUT"
 
   database:
     name: Guarded migration or schema compatibility gate
