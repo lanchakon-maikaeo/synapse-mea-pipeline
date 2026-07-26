@@ -1,0 +1,1089 @@
+name: production-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Build a release candidate, or invoke the protected release hooks
+        required: true
+        default: build-only
+        type: choice
+        options:
+          - build-only
+          - release
+      target_environment:
+        description: Protected GitHub environment containing target-specific values
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      release_version:
+        description: Immutable operator-facing release identifier
+        required: true
+        type: string
+      change_ticket:
+        description: Approved change or incident ticket
+        required: true
+        type: string
+      confirmation:
+        description: Enter RELEASE_STAGING or RELEASE_PRODUCTION for the selected target
+        required: true
+        type: string
+      apply_database:
+        description: Apply guarded migrations on the dedicated release runner
+        required: true
+        default: false
+        type: boolean
+      release_worker:
+        description: Ask the release orchestrator to promote the worker artifact too
+        required: true
+        default: false
+        type: boolean
+      source_run_id:
+        description: Staging workflow run ID to promote (required for production)
+        required: false
+        type: string
+      source_artifact_name:
+        description: Exact staging artifact name to promote (required for production)
+        required: false
+        type: string
+      source_artifact_digest:
+        description: Exact sha256 GitHub artifact digest from staging (required for production)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release-${{ inputs.target_environment }}
+  cancel-in-progress: false
+
+jobs:
+  build_release:
+    name: Build exact release artifacts
+    if: ${{ inputs.target_environment != 'production' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    environment:
+      name: ${{ inputs.target_environment }}
+    outputs:
+      artifact_name: ${{ steps.release_metadata.outputs.artifact_name }}
+      artifact_digest: ${{ steps.upload.outputs['artifact-digest'] }}
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
+      RELEASE_VERSION: ${{ inputs.release_version }}
+      CHANGE_TICKET: ${{ inputs.change_ticket }}
+      RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+      RELEASE_WORKER: ${{ inputs.release_worker }}
+      RELEASE_PROTECTION_CONFIRMED: ${{ vars.RELEASE_PROTECTION_CONFIRMED }}
+      ROUTING_ENGINE_DATA_VERSION: ${{ vars.ROUTING_ENGINE_DATA_VERSION }}
+      VALHALLA_TILESET_VERSION: ${{ vars.VALHALLA_TILESET_VERSION }}
+      VALHALLA_OSM_CHANGESET: ${{ vars.VALHALLA_OSM_CHANGESET }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+      NEXT_PUBLIC_MAP_TILE_URL: ${{ vars.NEXT_PUBLIC_MAP_TILE_URL }}
+      NEXT_PUBLIC_MAP_ATTRIBUTION: ${{ vars.NEXT_PUBLIC_MAP_ATTRIBUTION }}
+    steps:
+      - name: Check out the dispatched commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Validate immutable release request
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          expected_confirmation="RELEASE_${TARGET_ENVIRONMENT^^}"
+          [[ "$RELEASE_CONFIRMATION" == "$expected_confirmation" ]] || {
+            echo "confirmation must equal $expected_confirmation" >&2
+            exit 2
+          }
+          [[ "$RELEASE_PROTECTION_CONFIRMED" == "true" ]] || {
+            echo "The selected environment must attest that required reviewers and deployment restrictions are configured" >&2
+            exit 2
+          }
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "The dispatched revision is not a full Git commit SHA" >&2
+            exit 2
+          }
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || {
+            echo "Checked-out commit does not match the dispatched SHA" >&2
+            exit 2
+          }
+          [[ "$RELEASE_VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]] || {
+            echo "release_version contains unsupported characters" >&2
+            exit 2
+          }
+          [[ "$CHANGE_TICKET" =~ [[:alnum:]] ]] || {
+            echo "change_ticket must contain a visible identifier" >&2
+            exit 2
+          }
+          [[ "$ROUTING_ENGINE_DATA_VERSION" =~ ^[a-z0-9][a-z0-9._-]{0,127}-sha256-[0-9a-f]{64}$ ]] || {
+            echo "ROUTING_ENGINE_DATA_VERSION must match <lowercase-label>-sha256-<64 lowercase hex>" >&2
+            exit 2
+          }
+          if [[ "$RELEASE_WORKER" == "true" ]]; then
+            [[ "$VALHALLA_TILESET_VERSION" =~ ^[a-z0-9][a-z0-9._-]{0,127}-sha256-[0-9a-f]{64}$ ]] || {
+              echo "VALHALLA_TILESET_VERSION must match <lowercase-label>-sha256-<64 lowercase hex>" >&2
+              exit 2
+            }
+            [[ "$VALHALLA_OSM_CHANGESET" =~ ^[0-9]{1,18}$ ]] || {
+              echo "VALHALLA_OSM_CHANGESET must be the controlled non-negative OSM dataset id" >&2
+              exit 2
+            }
+          fi
+          if [[ "$TARGET_ENVIRONMENT" == "production" && "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Production releases must be dispatched from main" >&2
+            exit 2
+          fi
+          [[ "$NEXT_PUBLIC_SUPABASE_URL" =~ ^https://[a-z0-9.-]+$ ]] || {
+            echo "NEXT_PUBLIC_SUPABASE_URL must be a configured HTTPS origin" >&2
+            exit 2
+          }
+          [[ -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]] || {
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY is missing from the selected environment" >&2
+            exit 2
+          }
+          if [[ -n "$NEXT_PUBLIC_API_BASE_URL" && ! "$NEXT_PUBLIC_API_BASE_URL" =~ ^https://[a-z0-9.-]+$ ]]; then
+            echo "NEXT_PUBLIC_API_BASE_URL must be empty for same-origin routing or an HTTPS origin" >&2
+            exit 2
+          fi
+          [[ "$NEXT_PUBLIC_MAP_TILE_URL" == https://* ]] \
+            && [[ "$NEXT_PUBLIC_MAP_TILE_URL" == *"{z}"* ]] \
+            && [[ "$NEXT_PUBLIC_MAP_TILE_URL" == *"{x}"* ]] \
+            && [[ "$NEXT_PUBLIC_MAP_TILE_URL" == *"{y}"* ]] || {
+            echo "NEXT_PUBLIC_MAP_TILE_URL must be an HTTPS z/x/y tile template" >&2
+            exit 2
+          }
+          tile_authority="${NEXT_PUBLIC_MAP_TILE_URL#https://}"
+          tile_authority="${tile_authority%%/*}"
+          [[ "$tile_authority" =~ ^[A-Za-z0-9.{}-]+(:[0-9]{1,5})?$ ]] || {
+            echo "NEXT_PUBLIC_MAP_TILE_URL must use a valid controlled host" >&2
+            exit 2
+          }
+          tile_host="${tile_authority%%:*}"
+          tile_host="${tile_host,,}"
+          case "$tile_host" in
+            localhost|127.*|0.0.0.0|tile.openstreetmap.org|*.tile.openstreetmap.org)
+              echo "NEXT_PUBLIC_MAP_TILE_URL must not use a localhost or public OSM community tile service" >&2
+              exit 2
+              ;;
+          esac
+          [[ "$NEXT_PUBLIC_MAP_ATTRIBUTION" == *"OpenStreetMap"* ]] || {
+            echo "NEXT_PUBLIC_MAP_ATTRIBUTION must preserve OpenStreetMap attribution" >&2
+            exit 2
+          }
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Use Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Verify dashboard release source
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install \
+            -e 'api[test]' \
+            -e pipeline \
+            -e intelligence
+          npm --prefix dashboard ci
+          npm --prefix dashboard audit --audit-level=high
+          make workspace-ci
+
+      - name: Build commit-addressed worker image
+        run: |
+          docker build \
+            --file deploy/docker/worker.Dockerfile \
+            --tag "synapse-worker:${GITHUB_SHA}" \
+            .
+
+      - name: Block high and critical worker-image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: synapse-worker:${{ github.sha }}
+          format: json
+          output: worker-trivy.json
+          exit-code: "1"
+          ignore-unfixed: false
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          scanners: vuln
+
+      - name: Package dashboard and worker artifacts
+        id: release_metadata
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          artifact_name="synapse-rc-${GITHUB_SHA}"
+          dashboard_archive="dashboard-${GITHUB_SHA}.tar.gz"
+          worker_archive="worker-${GITHUB_SHA}.docker.tar.gz"
+          dashboard_runtime="$RUNNER_TEMP/dashboard-runtime-${GITHUB_SHA}"
+          mkdir -p release
+          mkdir -p "$dashboard_runtime/.next/static" "$dashboard_runtime/public"
+          mv worker-trivy.json release/worker-trivy.json
+          cp -a dashboard/.next/standalone/. "$dashboard_runtime/"
+          cp -a dashboard/.next/static/. "$dashboard_runtime/.next/static/"
+          cp -a dashboard/public/. "$dashboard_runtime/public/"
+          jq -n \
+            --arg git_sha "$GITHUB_SHA" \
+            '{
+              schema: "mea.synapse.nextjs-standalone/v1",
+              git_sha: $git_sha,
+              entrypoint: ["node", "server.js"],
+              health_path: "/api/health"
+            }' > "$dashboard_runtime/runtime-contract.json"
+          tar -czf "release/${dashboard_archive}" -C "$dashboard_runtime" .
+          tar -tzf "release/${dashboard_archive}" | grep -Fx './server.js' >/dev/null
+          tar -tzf "release/${dashboard_archive}" | grep -Fx './runtime-contract.json' >/dev/null
+          tar -tzf "release/${dashboard_archive}" | grep -E '^\./\.next/static/' >/dev/null
+          docker save "synapse-worker:${GITHUB_SHA}" | gzip -1 > "release/${worker_archive}"
+          (
+            cd dashboard
+            npm sbom --sbom-format cyclonedx
+          ) > release/dashboard.cdx.json
+          docker run --rm --entrypoint python "synapse-worker:${GITHUB_SHA}" \
+            -m pip freeze --all > release/worker-python-lock.txt
+          docker image inspect "synapse-worker:${GITHUB_SHA}" \
+            > release/worker-image-inspect.json
+          dashboard_sha256="$(sha256sum "release/${dashboard_archive}" | cut -d ' ' -f1)"
+          worker_sha256="$(sha256sum "release/${worker_archive}" | cut -d ' ' -f1)"
+          dashboard_sbom_sha256="$(sha256sum release/dashboard.cdx.json | cut -d ' ' -f1)"
+          worker_lock_sha256="$(sha256sum release/worker-python-lock.txt | cut -d ' ' -f1)"
+          worker_inspect_sha256="$(sha256sum release/worker-image-inspect.json | cut -d ' ' -f1)"
+          worker_trivy_sha256="$(sha256sum release/worker-trivy.json | cut -d ' ' -f1)"
+          public_config_sha256="$(
+            printf '%s\0' \
+              "$NEXT_PUBLIC_SUPABASE_URL" \
+              "$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+              "$NEXT_PUBLIC_API_BASE_URL" \
+              "$NEXT_PUBLIC_MAP_TILE_URL" \
+              "$NEXT_PUBLIC_MAP_ATTRIBUTION" \
+              | sha256sum \
+              | cut -d ' ' -f1
+          )"
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg git_sha "$GITHUB_SHA" \
+            --arg release_version "$RELEASE_VERSION" \
+            --arg target_environment "$TARGET_ENVIRONMENT" \
+            --arg public_config_sha256 "$public_config_sha256" \
+            --arg routing_engine_data_version "$ROUTING_ENGINE_DATA_VERSION" \
+            --arg valhalla_tileset_version "$VALHALLA_TILESET_VERSION" \
+            --arg valhalla_osm_changeset "$VALHALLA_OSM_CHANGESET" \
+            --arg dashboard_file "$dashboard_archive" \
+            --arg dashboard_sha256 "$dashboard_sha256" \
+            --arg dashboard_sbom_sha256 "$dashboard_sbom_sha256" \
+            --arg worker_file "$worker_archive" \
+            --arg worker_sha256 "$worker_sha256" \
+            --arg worker_lock_sha256 "$worker_lock_sha256" \
+            --arg worker_inspect_sha256 "$worker_inspect_sha256" \
+            --arg worker_trivy_sha256 "$worker_trivy_sha256" \
+            --argjson release_worker "$RELEASE_WORKER" \
+            '{
+              repository: $repository,
+              run_id: $run_id,
+              git_sha: $git_sha,
+              release_version: $release_version,
+              target_environment: $target_environment,
+              public_config_sha256: $public_config_sha256,
+              routing_engine_data_version: $routing_engine_data_version,
+              release_worker: $release_worker,
+              dashboard: {
+                file: $dashboard_file,
+                sha256: $dashboard_sha256,
+                runtime_format: "nextjs-standalone-v1",
+                entrypoint: ["node", "server.js"],
+                sbom_file: "dashboard.cdx.json",
+                sbom_sha256: $dashboard_sbom_sha256
+              },
+              worker: {
+                file: $worker_file,
+                sha256: $worker_sha256,
+                python_lock_file: "worker-python-lock.txt",
+                python_lock_sha256: $worker_lock_sha256,
+                image_inspect_file: "worker-image-inspect.json",
+                image_inspect_sha256: $worker_inspect_sha256,
+                vulnerability_report_file: "worker-trivy.json",
+                vulnerability_report_sha256: $worker_trivy_sha256,
+                valhalla_tileset_version: (
+                  if $release_worker then $valhalla_tileset_version else null end
+                ),
+                valhalla_osm_changeset: (
+                  if $release_worker then ($valhalla_osm_changeset | tonumber) else null end
+                )
+              }
+            }' > release/manifest.json
+          (
+            cd release
+            sha256sum \
+              "$dashboard_archive" \
+              "$worker_archive" \
+              dashboard.cdx.json \
+              worker-python-lock.txt \
+              worker-image-inspect.json \
+              worker-trivy.json \
+              manifest.json \
+              > SHA256SUMS
+          )
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+
+      - name: Attest release provenance
+        if: ${{ vars.ENABLE_GITHUB_ATTESTATIONS == 'true' }}
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-checksums: release/SHA256SUMS
+
+      - name: Attest dashboard SBOM
+        if: ${{ vars.ENABLE_GITHUB_ATTESTATIONS == 'true' }}
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-path: release/dashboard-${{ github.sha }}.tar.gz
+          sbom-path: release/dashboard.cdx.json
+
+      - name: Upload immutable release bundle
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.release_metadata.outputs.artifact_name }}
+          path: release/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Record build evidence
+        env:
+          ARTIFACT_NAME: ${{ steps.release_metadata.outputs.artifact_name }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs['artifact-digest'] }}
+        run: |
+          {
+            echo "### Release candidate"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Target: \`$TARGET_ENVIRONMENT\`"
+            echo "- Artifact: \`$ARTIFACT_NAME\`"
+            echo "- Artifact digest: \`$ARTIFACT_DIGEST\`"
+            echo "- Operation: \`${{ inputs.operation }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  promote_artifact:
+    name: Verify and carry forward the staging artifact
+    if: >-
+      ${{
+        inputs.operation == 'release'
+        && inputs.target_environment == 'production'
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    environment:
+      name: production
+    outputs:
+      artifact_name: ${{ inputs.source_artifact_name }}
+      artifact_digest: ${{ steps.promoted_upload.outputs['artifact-digest'] }}
+      source_artifact_digest: ${{ inputs.source_artifact_digest }}
+    env:
+      RELEASE_VERSION: ${{ inputs.release_version }}
+      CHANGE_TICKET: ${{ inputs.change_ticket }}
+      RELEASE_CONFIRMATION: ${{ inputs.confirmation }}
+      RELEASE_PROTECTION_CONFIRMED: ${{ vars.RELEASE_PROTECTION_CONFIRMED }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name }}
+      SOURCE_ARTIFACT_DIGEST: ${{ inputs.source_artifact_digest }}
+      RELEASE_WORKER: ${{ inputs.release_worker }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+      NEXT_PUBLIC_MAP_TILE_URL: ${{ vars.NEXT_PUBLIC_MAP_TILE_URL }}
+      NEXT_PUBLIC_MAP_ATTRIBUTION: ${{ vars.NEXT_PUBLIC_MAP_ATTRIBUTION }}
+      ROUTING_ENGINE_DATA_VERSION: ${{ vars.ROUTING_ENGINE_DATA_VERSION }}
+      VALHALLA_TILESET_VERSION: ${{ vars.VALHALLA_TILESET_VERSION }}
+      VALHALLA_OSM_CHANGESET: ${{ vars.VALHALLA_OSM_CHANGESET }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate immutable promotion request
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]] || {
+            echo "Production promotion must be dispatched from main" >&2
+            exit 2
+          }
+          [[ "$RELEASE_CONFIRMATION" == "RELEASE_PRODUCTION" ]] || {
+            echo "confirmation must equal RELEASE_PRODUCTION" >&2
+            exit 2
+          }
+          [[ "$RELEASE_PROTECTION_CONFIRMED" == "true" ]] || {
+            echo "Production environment protection is not attested" >&2
+            exit 2
+          }
+          [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]] || {
+            echo "source_run_id must be a GitHub Actions run ID" >&2
+            exit 2
+          }
+          [[ "$SOURCE_ARTIFACT_NAME" =~ ^synapse-rc-[0-9a-f]{40}$ ]] || {
+            echo "source_artifact_name is not an immutable release candidate" >&2
+            exit 2
+          }
+          [[ "$SOURCE_ARTIFACT_NAME" == "synapse-rc-${GITHUB_SHA}" ]] || {
+            echo "Staging artifact commit must match the production dispatch commit" >&2
+            exit 2
+          }
+          [[ "$SOURCE_ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "source_artifact_digest must be a full sha256 digest" >&2
+            exit 2
+          }
+          gh api \
+            "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" \
+            > "$RUNNER_TEMP/source-run.json"
+          jq -e \
+            --arg sha "$GITHUB_SHA" \
+            '.head_sha == $sha
+             and .event == "workflow_dispatch"
+             and .path == ".github/workflows/production-release.yml"
+             and .status == "completed"
+             and .conclusion == "success"' \
+            "$RUNNER_TEMP/source-run.json" >/dev/null
+          gh api \
+            "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/jobs?per_page=100" \
+            > "$RUNNER_TEMP/source-jobs.json"
+          successful_smoke_jobs="$(
+            jq \
+              '[.jobs[]
+                | select(
+                    .name == "Promote exact artifacts and smoke"
+                    and .conclusion == "success"
+                  )
+              ] | length' \
+              "$RUNNER_TEMP/source-jobs.json"
+          )"
+          [[ "$successful_smoke_jobs" == "1" ]] || {
+            echo "Source run did not complete the protected staging smoke job" >&2
+            exit 2
+          }
+          gh api \
+            "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/artifacts?per_page=100" \
+            > "$RUNNER_TEMP/source-artifacts.json"
+          artifact_count="$(
+            jq \
+              --arg name "$SOURCE_ARTIFACT_NAME" \
+              '[.artifacts[] | select(.name == $name and .expired == false)] | length' \
+              "$RUNNER_TEMP/source-artifacts.json"
+          )"
+          [[ "$artifact_count" == "1" ]] || {
+            echo "Expected exactly one unexpired source artifact" >&2
+            exit 2
+          }
+          recorded_digest="$(
+            jq -r \
+              --arg name "$SOURCE_ARTIFACT_NAME" \
+              '.artifacts[] | select(.name == $name and .expired == false) | .digest' \
+              "$RUNNER_TEMP/source-artifacts.json"
+          )"
+          [[ "$recorded_digest" == "$SOURCE_ARTIFACT_DIGEST" ]] || {
+            echo "Source artifact digest does not match GitHub evidence" >&2
+            exit 2
+          }
+
+      - name: Download the exact staging bundle
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: ${{ inputs.source_artifact_name }}
+          path: release
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify staging evidence and build-time compatibility
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          (
+            cd release
+            sha256sum --check SHA256SUMS
+          )
+          public_config_sha256="$(
+            printf '%s\0' \
+              "$NEXT_PUBLIC_SUPABASE_URL" \
+              "$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+              "$NEXT_PUBLIC_API_BASE_URL" \
+              "$NEXT_PUBLIC_MAP_TILE_URL" \
+              "$NEXT_PUBLIC_MAP_ATTRIBUTION" \
+              | sha256sum \
+              | cut -d ' ' -f1
+          )"
+          [[ "$ROUTING_ENGINE_DATA_VERSION" =~ ^[a-z0-9][a-z0-9._-]{0,127}-sha256-[0-9a-f]{64}$ ]] || {
+            echo "Production ROUTING_ENGINE_DATA_VERSION must match <lowercase-label>-sha256-<64 lowercase hex>" >&2
+            exit 2
+          }
+          if [[ "$RELEASE_WORKER" == "true" ]]; then
+            [[ "$VALHALLA_TILESET_VERSION" =~ ^[a-z0-9][a-z0-9._-]{0,127}-sha256-[0-9a-f]{64}$ ]] || {
+              echo "Production VALHALLA_TILESET_VERSION must match <lowercase-label>-sha256-<64 lowercase hex>" >&2
+              exit 2
+            }
+            [[ "$VALHALLA_OSM_CHANGESET" =~ ^[0-9]{1,18}$ ]] || {
+              echo "Production Valhalla OSM changeset is missing or invalid" >&2
+              exit 2
+            }
+          fi
+          jq -e \
+            --arg sha "$GITHUB_SHA" \
+            --arg version "$RELEASE_VERSION" \
+            --arg config "$public_config_sha256" \
+            --arg routing_data_version "$ROUTING_ENGINE_DATA_VERSION" \
+            --arg valhalla_tileset_version "$VALHALLA_TILESET_VERSION" \
+            --arg valhalla_osm_changeset "$VALHALLA_OSM_CHANGESET" \
+            --argjson release_worker "$RELEASE_WORKER" \
+            '.git_sha == $sha
+             and .release_version == $version
+             and .target_environment == "staging"
+             and .public_config_sha256 == $config
+             and .routing_engine_data_version == $routing_data_version
+             and ((.release_worker | type) == "boolean")
+             and (($release_worker == false) or (
+               .release_worker == true
+               and .worker.valhalla_tileset_version == $valhalla_tileset_version
+               and .worker.valhalla_osm_changeset == ($valhalla_osm_changeset | tonumber)
+             ))' \
+            release/manifest.json >/dev/null
+
+      - name: Upload the unchanged staging bundle into this promotion run
+        id: promoted_upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ inputs.source_artifact_name }}
+          path: release/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Record promotion evidence
+        env:
+          PROMOTED_DIGEST: ${{ steps.promoted_upload.outputs['artifact-digest'] }}
+        run: |
+          {
+            echo "### Staging artifact accepted for production"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Source run: \`$SOURCE_RUN_ID\`"
+            echo "- Source digest: \`$SOURCE_ARTIFACT_DIGEST\`"
+            echo "- Promotion-run digest: \`$PROMOTED_DIGEST\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  artifact:
+    name: Resolve one immutable release bundle
+    if: ${{ always() }}
+    needs:
+      - build_release
+      - promote_artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      artifact_name: ${{ steps.select.outputs.artifact_name }}
+      artifact_digest: ${{ steps.select.outputs.artifact_digest }}
+      source_artifact_digest: ${{ steps.select.outputs.source_artifact_digest }}
+    steps:
+      - name: Select build or promoted staging evidence
+        id: select
+        shell: bash
+        env:
+          BUILD_RESULT: ${{ needs.build_release.result }}
+          BUILD_NAME: ${{ needs.build_release.outputs.artifact_name }}
+          BUILD_DIGEST: ${{ needs.build_release.outputs.artifact_digest }}
+          PROMOTE_RESULT: ${{ needs.promote_artifact.result }}
+          PROMOTE_NAME: ${{ needs.promote_artifact.outputs.artifact_name }}
+          PROMOTE_DIGEST: ${{ needs.promote_artifact.outputs.artifact_digest }}
+          PROMOTE_SOURCE_DIGEST: ${{ needs.promote_artifact.outputs.source_artifact_digest }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$BUILD_RESULT" == "success" && "$PROMOTE_RESULT" == "skipped" ]]; then
+            artifact_name="$BUILD_NAME"
+            artifact_digest="$BUILD_DIGEST"
+            source_artifact_digest="$BUILD_DIGEST"
+          elif [[ "$PROMOTE_RESULT" == "success" && "$BUILD_RESULT" == "skipped" ]]; then
+            artifact_name="$PROMOTE_NAME"
+            artifact_digest="$PROMOTE_DIGEST"
+            source_artifact_digest="$PROMOTE_SOURCE_DIGEST"
+          else
+            echo "Exactly one immutable artifact source must succeed" >&2
+            exit 2
+          fi
+          : "${artifact_name:?artifact name is empty}"
+          [[ "$artifact_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "artifact digest is missing or malformed" >&2
+            exit 2
+          }
+          [[ "$source_artifact_digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "source artifact digest is missing or malformed" >&2
+            exit 2
+          }
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+          echo "artifact_digest=$artifact_digest" >> "$GITHUB_OUTPUT"
+          echo "source_artifact_digest=$source_artifact_digest" >> "$GITHUB_OUTPUT"
+
+  database:
+    name: Guarded migration or schema compatibility gate
+    if: ${{ inputs.operation == 'release' }}
+    needs: artifact
+    runs-on: [self-hosted, linux, synapse-release]
+    timeout-minutes: 60
+    environment:
+      name: ${{ inputs.target_environment }}
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
+      RELEASE_VERSION: ${{ inputs.release_version }}
+      CHANGE_TICKET: ${{ inputs.change_ticket }}
+      RELEASE_PROTECTION_CONFIRMED: ${{ vars.RELEASE_PROTECTION_CONFIRMED }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKUP_DIR: ${{ vars.DATABASE_BACKUP_DIR }}
+      TARGET_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      TARGET_REGION: ${{ vars.SUPABASE_REGION }}
+      GREENFIELD_BOOTSTRAP_CONFIRM: ${{ vars.GREENFIELD_BOOTSTRAP_CONFIRM }}
+    steps:
+      - name: Check out the exact release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Validate dedicated database release runner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$RELEASE_PROTECTION_CONFIRMED" == "true" ]] || {
+            echo "Protected-environment attestation is missing" >&2
+            exit 2
+          }
+          : "${DATABASE_URL:?DATABASE_URL environment secret is required}"
+          : "${BACKUP_DIR:?DATABASE_BACKUP_DIR environment variable is required}"
+          : "${TARGET_PROJECT_REF:?SUPABASE_PROJECT_REF environment variable is required}"
+          : "${TARGET_REGION:?SUPABASE_REGION environment variable is required}"
+          : "${CHANGE_TICKET:?change_ticket is required}"
+          [[ "$BACKUP_DIR" = /* && "$BACKUP_DIR" != "/" && -d "$BACKUP_DIR" && -w "$BACKUP_DIR" ]] || {
+            echo "DATABASE_BACKUP_DIR must be an existing writable absolute directory on the release runner" >&2
+            exit 2
+          }
+          case "$BACKUP_DIR/" in
+            "$GITHUB_WORKSPACE"/*)
+              echo "DATABASE_BACKUP_DIR must be outside the repository workspace" >&2
+              exit 2
+              ;;
+          esac
+          bash scripts/deploy_database_migrations.sh --check
+
+      - name: Back up, apply ordered migrations, and verify schema
+        if: ${{ inputs.apply_database }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deployment_profile="test"
+          production_confirm=""
+          if [[ "$TARGET_ENVIRONMENT" == "production" ]]; then
+            deployment_profile="production"
+            production_confirm="DEPLOY_GREENFIELD_PRODUCTION"
+          fi
+          DEPLOYMENT_PROFILE="$deployment_profile" \
+          EXPECTED_DATABASE_ENVIRONMENT="$deployment_profile" \
+          RELEASE_GIT_SHA="$GITHUB_SHA" \
+          DEPLOY_CONFIRM="APPLY_PENDING_MIGRATIONS" \
+          PRODUCTION_DEPLOY_CONFIRM="$production_confirm" \
+          RUN_DATA_ACCEPTANCE="true" \
+          RELEASE_NOTES="GitHub release ${GITHUB_RUN_ID}; change ${CHANGE_TICKET}" \
+            bash scripts/deploy_database_migrations.sh
+
+      - name: Prove the existing schema is release-compatible
+        if: ${{ inputs.apply_database == false }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          latest_file="$(
+            find supabase/migrations -maxdepth 1 -type f -name '*.sql' \
+              | sort \
+              | tail -n 1
+          )"
+          latest_name="$(basename "$latest_file")"
+          latest_version="${latest_name%%_*}"
+          registered="$(
+            psql "$DATABASE_URL" \
+              --tuples-only \
+              --no-align \
+              --set=ON_ERROR_STOP=1 \
+              --command="select exists(
+                select 1
+                from ops.schema_migrations
+                where version = '${latest_version}'
+              )"
+          )"
+          [[ "$registered" == "t" ]] || {
+            echo "Database is behind migration ${latest_version}; apply_database must be enabled" >&2
+            exit 2
+          }
+          psql "$DATABASE_URL" \
+            --set=ON_ERROR_STOP=1 \
+            --file=supabase/tests/local_schema_contract_verify.sql
+
+  release:
+    name: Promote exact artifacts and smoke
+    if: >-
+      ${{
+        always()
+        && inputs.operation == 'release'
+        && needs.artifact.result == 'success'
+        && needs.database.result == 'success'
+      }}
+    needs:
+      - artifact
+      - database
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: ${{ inputs.target_environment }}
+      url: ${{ vars.SMOKE_BASE_URL }}
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
+      RELEASE_VERSION: ${{ inputs.release_version }}
+      CHANGE_TICKET: ${{ inputs.change_ticket }}
+      RELEASE_WORKER: ${{ inputs.release_worker }}
+      RELEASE_PROTECTION_CONFIRMED: ${{ vars.RELEASE_PROTECTION_CONFIRMED }}
+      RELEASE_ORCHESTRATOR_URL: ${{ secrets.RELEASE_ORCHESTRATOR_URL }}
+      RELEASE_ORCHESTRATOR_AUDIENCE: ${{ vars.RELEASE_ORCHESTRATOR_AUDIENCE }}
+      ROUTING_SMOKE_HOOK_URL: ${{ secrets.ROUTING_SMOKE_HOOK_URL }}
+      ROUTING_SMOKE_AUDIENCE: ${{ vars.ROUTING_SMOKE_AUDIENCE }}
+      ROUTING_ENGINE_URL: ${{ vars.ROUTING_ENGINE_URL }}
+      ROUTING_ENGINE_PROFILE: ${{ vars.ROUTING_ENGINE_PROFILE }}
+      ROUTING_ENGINE_DATA_VERSION: ${{ vars.ROUTING_ENGINE_DATA_VERSION }}
+      VALHALLA_URL: ${{ vars.VALHALLA_URL }}
+      VALHALLA_TILESET_VERSION: ${{ vars.VALHALLA_TILESET_VERSION }}
+      VALHALLA_OSM_CHANGESET: ${{ vars.VALHALLA_OSM_CHANGESET }}
+      SMOKE_BASE_URL: ${{ vars.SMOKE_BASE_URL }}
+      SMOKE_EXPECT_OPERATIONAL_READY: ${{ vars.SMOKE_EXPECT_OPERATIONAL_READY }}
+      SMOKE_EXPECT_TRANSPORT_ROUTE_READY: ${{ vars.SMOKE_EXPECT_TRANSPORT_ROUTE_READY }}
+      ROUTING_CANARY_PLAN_ID: ${{ vars.ROUTING_CANARY_PLAN_ID }}
+      SYNAPSE_ACCESS_TOKEN: ${{ secrets.SMOKE_ACCESS_TOKEN }}
+      ARTIFACT_NAME: ${{ needs.artifact.outputs.artifact_name }}
+      ARTIFACT_DIGEST: ${{ needs.artifact.outputs.artifact_digest }}
+      SOURCE_ARTIFACT_DIGEST: ${{ needs.artifact.outputs.source_artifact_digest }}
+    steps:
+      - name: Check out the exact smoke contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download exact release bundle
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: ${{ needs.artifact.outputs.artifact_name }}
+          path: release
+
+      - name: Verify artifact and environment evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$RELEASE_PROTECTION_CONFIRMED" == "true" ]] || {
+            echo "Protected-environment attestation is missing" >&2
+            exit 2
+          }
+          : "${ARTIFACT_NAME:?release artifact name is missing}"
+          : "${ARTIFACT_DIGEST:?release artifact digest is missing}"
+          [[ "$SOURCE_ARTIFACT_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "source artifact digest is missing or malformed" >&2
+            exit 2
+          }
+          (
+            cd release
+            sha256sum --check SHA256SUMS
+          )
+          expected_build_environment="$TARGET_ENVIRONMENT"
+          if [[ "$TARGET_ENVIRONMENT" == "production" ]]; then
+            expected_build_environment="staging"
+          fi
+          [[ "$ROUTING_ENGINE_DATA_VERSION" =~ ^[a-z0-9][a-z0-9._-]{0,127}-sha256-[0-9a-f]{64}$ ]] || {
+            echo "ROUTING_ENGINE_DATA_VERSION must match <lowercase-label>-sha256-<64 lowercase hex>" >&2
+            exit 2
+          }
+          if [[ "$RELEASE_WORKER" == "true" ]]; then
+            [[ "$VALHALLA_TILESET_VERSION" =~ ^[a-z0-9][a-z0-9._-]{0,127}-sha256-[0-9a-f]{64}$ ]] || {
+              echo "VALHALLA_TILESET_VERSION must match <lowercase-label>-sha256-<64 lowercase hex>" >&2
+              exit 2
+            }
+            [[ "$VALHALLA_OSM_CHANGESET" =~ ^[0-9]{1,18}$ ]] || {
+              echo "VALHALLA_OSM_CHANGESET must be the controlled non-negative OSM dataset id" >&2
+              exit 2
+            }
+          fi
+          jq -e \
+            --arg sha "$GITHUB_SHA" \
+            --arg version "$RELEASE_VERSION" \
+            --arg build_environment "$expected_build_environment" \
+            --arg routing_data_version "$ROUTING_ENGINE_DATA_VERSION" \
+            --arg valhalla_tileset_version "$VALHALLA_TILESET_VERSION" \
+            --arg valhalla_osm_changeset "$VALHALLA_OSM_CHANGESET" \
+            --argjson release_worker "$RELEASE_WORKER" \
+            '.git_sha == $sha
+             and .release_version == $version
+             and .target_environment == $build_environment
+             and .routing_engine_data_version == $routing_data_version
+             and .dashboard.runtime_format == "nextjs-standalone-v1"
+             and .dashboard.entrypoint == ["node", "server.js"]
+             and (($release_worker == false) or (
+               .release_worker == true
+               and .worker.valhalla_tileset_version == $valhalla_tileset_version
+               and .worker.valhalla_osm_changeset == ($valhalla_osm_changeset | tonumber)
+             ))' \
+            release/manifest.json >/dev/null
+          controlled_https_endpoint() {
+            local label="$1"
+            local endpoint="$2"
+            local authority host
+            [[ "$endpoint" == https://* ]] || {
+              echo "$label must be a controlled HTTPS endpoint" >&2
+              return 2
+            }
+            authority="${endpoint#https://}"
+            authority="${authority%%/*}"
+            [[ "$authority" =~ ^[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || {
+              echo "$label must use a valid controlled host" >&2
+              return 2
+            }
+            host="${authority%%:*}"
+            host="${host,,}"
+            case "$host" in
+              localhost|127.*|0.0.0.0|router.project-osrm.org|tile.openstreetmap.org|*.tile.openstreetmap.org|valhalla1.openstreetmap.de)
+                echo "$label must not use a localhost or public community endpoint" >&2
+                return 2
+                ;;
+            esac
+          }
+          controlled_https_endpoint "ROUTING_ENGINE_URL" "$ROUTING_ENGINE_URL"
+          [[ "$ROUTING_ENGINE_PROFILE" =~ ^[a-z0-9_-]+$ ]] || {
+            echo "ROUTING_ENGINE_PROFILE is missing or invalid" >&2
+            exit 2
+          }
+          if [[ "$RELEASE_WORKER" == "true" ]]; then
+            controlled_https_endpoint "VALHALLA_URL" "$VALHALLA_URL"
+          fi
+
+      - name: Invoke idempotent release orchestrator
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : "${RELEASE_ORCHESTRATOR_URL:?RELEASE_ORCHESTRATOR_URL environment secret is required}"
+          : "${RELEASE_ORCHESTRATOR_AUDIENCE:?RELEASE_ORCHESTRATOR_AUDIENCE environment variable is required}"
+          : "${ACTIONS_ID_TOKEN_REQUEST_URL:?GitHub OIDC request URL is unavailable}"
+          : "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:?GitHub OIDC request token is unavailable}"
+          [[ "$RELEASE_ORCHESTRATOR_URL" =~ ^https:// ]] || {
+            echo "RELEASE_ORCHESTRATOR_URL must use HTTPS" >&2
+            exit 2
+          }
+          encoded_audience="$(
+            jq -rn \
+              --arg value "$RELEASE_ORCHESTRATOR_AUDIENCE" \
+              '$value | @uri'
+          )"
+          release_identity="$(
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --connect-timeout 10 \
+              --max-time 30 \
+              -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${encoded_audience}" \
+              | jq -er '.value'
+          )"
+          [[ "$release_identity" == *.*.* ]] || {
+            echo "GitHub did not issue a valid OIDC identity token" >&2
+            exit 2
+          }
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg git_sha "$GITHUB_SHA" \
+            --arg release_version "$RELEASE_VERSION" \
+            --arg target_environment "$TARGET_ENVIRONMENT" \
+            --arg change_ticket "$CHANGE_TICKET" \
+            --arg artifact_name "$ARTIFACT_NAME" \
+            --arg artifact_digest "$ARTIFACT_DIGEST" \
+            --arg source_artifact_digest "$SOURCE_ARTIFACT_DIGEST" \
+            --arg routing_engine_data_version "$ROUTING_ENGINE_DATA_VERSION" \
+            --arg valhalla_tileset_version "$VALHALLA_TILESET_VERSION" \
+            --arg valhalla_osm_changeset "$VALHALLA_OSM_CHANGESET" \
+            --argjson release_worker "$RELEASE_WORKER" \
+            '{
+              repository: $repository,
+              run_id: $run_id,
+              git_sha: $git_sha,
+              release_version: $release_version,
+              target_environment: $target_environment,
+              change_ticket: $change_ticket,
+              artifact_name: $artifact_name,
+              artifact_digest: $artifact_digest,
+              source_artifact_digest: $source_artifact_digest,
+              routing_engine_data_version: $routing_engine_data_version,
+              valhalla_tileset_version: (
+                if $release_worker then $valhalla_tileset_version else null end
+              ),
+              valhalla_osm_changeset: (
+                if $release_worker then ($valhalla_osm_changeset | tonumber) else null end
+              ),
+              release_dashboard: true,
+              release_worker: $release_worker
+            }' > "$RUNNER_TEMP/release-request.json"
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --connect-timeout 10 \
+            --max-time 900 \
+            -H "Authorization: Bearer ${release_identity}" \
+            -H "Content-Type: application/json" \
+            -H "Idempotency-Key: ${GITHUB_REPOSITORY}:${TARGET_ENVIRONMENT}:${GITHUB_SHA}" \
+            --data-binary "@$RUNNER_TEMP/release-request.json" \
+            "$RELEASE_ORCHESTRATOR_URL" > "$RUNNER_TEMP/release-response.json"
+          jq -e \
+            --arg sha "$GITHUB_SHA" \
+            --arg digest "$ARTIFACT_DIGEST" \
+            --arg source_digest "$SOURCE_ARTIFACT_DIGEST" \
+            --arg routing_data_version "$ROUTING_ENGINE_DATA_VERSION" \
+            '.status == "ready"
+             and .deployed_sha == $sha
+             and .artifact_digest == $digest
+             and .source_artifact_digest == $source_digest
+             and .routing_engine_data_version == $routing_data_version
+             and .components.dashboard == "ready"' \
+            "$RUNNER_TEMP/release-response.json" >/dev/null
+          if [[ "$RELEASE_WORKER" == "true" ]]; then
+            jq -e \
+              --arg tileset_version "$VALHALLA_TILESET_VERSION" \
+              --argjson osm_changeset "$VALHALLA_OSM_CHANGESET" \
+              '.components.worker == "ready"
+               and .valhalla_tileset_version == $tileset_version
+               and .valhalla_osm_changeset == $osm_changeset' \
+              "$RUNNER_TEMP/release-response.json" >/dev/null
+          fi
+
+      - name: Use Node.js 22 for deployment smoke
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+
+      - name: Run authenticated read-only dashboard smoke
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : "${SMOKE_BASE_URL:?SMOKE_BASE_URL environment variable is required}"
+          : "${SYNAPSE_ACCESS_TOKEN:?SMOKE_ACCESS_TOKEN environment secret is required}"
+          node dashboard/scripts/smoke-deployment.mjs
+
+      - name: Run protected routing-worker smoke hook
+        if: ${{ inputs.release_worker }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : "${ROUTING_SMOKE_HOOK_URL:?ROUTING_SMOKE_HOOK_URL environment secret is required}"
+          : "${ROUTING_SMOKE_AUDIENCE:?ROUTING_SMOKE_AUDIENCE environment variable is required}"
+          : "${ACTIONS_ID_TOKEN_REQUEST_URL:?GitHub OIDC request URL is unavailable}"
+          : "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:?GitHub OIDC request token is unavailable}"
+          [[ "$ROUTING_SMOKE_HOOK_URL" =~ ^https:// ]] || {
+            echo "ROUTING_SMOKE_HOOK_URL must use HTTPS" >&2
+            exit 2
+          }
+          encoded_audience="$(
+            jq -rn --arg value "$ROUTING_SMOKE_AUDIENCE" '$value | @uri'
+          )"
+          routing_identity="$(
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --connect-timeout 10 \
+              --max-time 30 \
+              -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${encoded_audience}" \
+              | jq -er '.value'
+          )"
+          [[ "$routing_identity" == *.*.* ]] || {
+            echo "GitHub did not issue a valid routing-smoke OIDC token" >&2
+            exit 2
+          }
+          jq -n \
+            --arg git_sha "$GITHUB_SHA" \
+            --arg release_version "$RELEASE_VERSION" \
+            --arg target_environment "$TARGET_ENVIRONMENT" \
+            --arg routing_engine_data_version "$ROUTING_ENGINE_DATA_VERSION" \
+            --arg valhalla_tileset_version "$VALHALLA_TILESET_VERSION" \
+            --arg valhalla_osm_changeset "$VALHALLA_OSM_CHANGESET" \
+            '{
+              git_sha: $git_sha,
+              release_version: $release_version,
+              target_environment: $target_environment,
+              routing_engine_data_version: $routing_engine_data_version,
+              valhalla_tileset_version: $valhalla_tileset_version,
+              valhalla_osm_changeset: ($valhalla_osm_changeset | tonumber)
+            }' \
+            > "$RUNNER_TEMP/routing-smoke-request.json"
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --connect-timeout 10 \
+            --max-time 300 \
+            -H "Authorization: Bearer ${routing_identity}" \
+            -H "Content-Type: application/json" \
+            --data-binary "@$RUNNER_TEMP/routing-smoke-request.json" \
+            "$ROUTING_SMOKE_HOOK_URL" > "$RUNNER_TEMP/routing-smoke-response.json"
+          jq -e \
+            --arg sha "$GITHUB_SHA" \
+            --arg routing_data_version "$ROUTING_ENGINE_DATA_VERSION" \
+            --arg tileset_version "$VALHALLA_TILESET_VERSION" \
+            --argjson osm_changeset "$VALHALLA_OSM_CHANGESET" \
+            '.status == "ready"
+             and .deployed_sha == $sha
+             and .matrix_source == "valhalla"
+             and .routing_engine_data_version == $routing_data_version
+             and .valhalla_tileset_version == $tileset_version
+             and .valhalla_osm_changeset == $osm_changeset
+             and .solver_status == "succeeded"
+             and .served_stop_count > 0
+             and .unserved_stop_count == 0
+             and .geometry_type == "LineString"
+             and .road_evidence_usable == true' \
+            "$RUNNER_TEMP/routing-smoke-response.json" >/dev/null
+
+      - name: Record release evidence
+        run: |
+          {
+            echo "### Protected release passed"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Version: \`$RELEASE_VERSION\`"
+            echo "- Target: \`$TARGET_ENVIRONMENT\`"
+            echo "- Source artifact digest: \`$SOURCE_ARTIFACT_DIGEST\`"
+            echo "- Promotion-run artifact digest: \`$ARTIFACT_DIGEST\`"
+            echo "- Routing dataset: \`$ROUTING_ENGINE_DATA_VERSION\`"
+            if [[ "$RELEASE_WORKER" == "true" ]]; then
+              echo "- Valhalla tileset: \`$VALHALLA_TILESET_VERSION\`"
+              echo "- Valhalla OSM changeset: \`$VALHALLA_OSM_CHANGESET\`"
+            fi
+            echo "- Database migration requested: \`${{ inputs.apply_database }}\`"
+            echo "- Worker promotion requested: \`${{ inputs.release_worker }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

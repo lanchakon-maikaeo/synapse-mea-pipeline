@@ -5,7 +5,7 @@ from datetime import date
 from uuid import UUID
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -199,7 +199,7 @@ class ForecastRunResponse(BaseModel):
 class RouteJobRequest(BaseModel):
     replenishment_plan_id: UUID
     forecast_run_id: UUID | None = None
-    matrix_source: str = Field(default="valhalla", pattern="^(valhalla|haversine-test)$")
+    matrix_source: Literal["valhalla"] = "valhalla"
 
 
 class RouteJobResponse(BaseModel):

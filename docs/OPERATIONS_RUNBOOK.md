@@ -3,7 +3,10 @@
 This runbook covers source ingestion, stock/CMP, weekly replenishment,
 District/Planner/Academic approval, receiving, FIFO/Handling Units, issue,
 return/quarantine, ad-hoc issue, traceability, API, dashboard, backup and
-release evidence. Forecasting, routing and RAG are excluded.
+release evidence for the verified live M24 baseline. Governed transport,
+OSM-derived mapping and the OR-Tools/Valhalla worker are a separate local M13
+candidate and have not been deployed. Forecasting, legacy route-job namespaces
+and RAG remain excluded.
 
 ## Ownership and service levels
 
@@ -30,6 +33,8 @@ release evidence. Forecasting, routing and RAG are excluded.
    physical reconciliation.
 5. Review pending abnormal requests and Planner/Academic approval queues.
 6. Confirm the newest required `ops.backup_runs` evidence is `succeeded`.
+7. After an approved M13 deployment only, review `/api/v1/transport/readiness`;
+   do not interpret ordinary inventory readiness as transport readiness.
 
 ## Repeated API error
 
@@ -45,8 +50,68 @@ release evidence. Forecasting, routing and RAG are excluded.
 5. Do not retry approval, issue or return writes blindly; inspect immutable
    approval/movement/audit evidence first.
 6. Preserve the relevant log window and record an incident before changing data.
-7. A request for forecast, route, job, Wave 3 or RAG paths should return `410
-   scope_excluded`; do not enable a worker to make it pass.
+7. Legacy `/v1/forecasts*`, `/v1/routes*`, `/v1/jobs*`, Wave 3 and RAG paths
+   should return `410 scope_excluded`; do not enable a worker to make them pass.
+   The candidate `/v1/transport/*` namespace is distinct and must not be routed
+   to the legacy exclusion handler.
+
+## Transport incident and activation guard
+
+This section applies only after a separately approved M13 release. Until then,
+the expected live behavior is the deployed M24 transport exclusion.
+
+1. Check `/api/v1/transport/readiness` and preserve its request ID. A blocked
+   canonical origin, geocode, fleet, packaging, road-engine, tariff or
+   trip-activation gate is an operational stop, not a reason to use demo data.
+   For an `admin`/`planner`, confirm the selected exact locked plan UUID appears
+   in `optimization_eligible_plan_ids`; a missing, malformed or empty list
+   closes the queue for that plan.
+2. Verify the selected origin is the locked latest replenishment plan's exact
+   canonical warehouse location. Never infer `WH-MMBP`, Khlong Toei or Bang
+   Phli mappings from geographic proximity.
+3. Confirm every stop carries the approved coordinate-source checksum and row;
+   the candidate source checksum is
+   `fe97ecb44299dbd8b1fa8778b11483e343a31e8bd1d12ca7b11cba324e5fc62a`.
+4. For an operational solve, verify canonical vehicle mapping, measured
+   weight/pallet capacity, non-expired availability, physical packaging/UOM,
+   Valhalla truck matrix status and immutable OSM graph/extract identity.
+   `ROUTING_ENGINE_DATA_VERSION` and `VALHALLA_TILESET_VERSION` must each match
+   `<lowercase-label>-sha256-<64 lowercase hex>` and contain the reviewed
+   artifact/manifest digest. Reject labels, dates or label-checksums presented as
+   evidence. `VALHALLA_OSM_CHANGESET` is a nonnegative secondary operator
+   `dataset_id`, not cryptographic proof; reject status or route responses whose
+   numeric value differs from the release configuration.
+5. Review persisted `core.route_plan_vehicle_road_evidence`: ordered
+   depot→stops→depot waypoints, valid WGS84 `LineString`, road
+   distance/duration and engine/status/request/response hashes must agree with
+   plan totals. Never substitute a straight line or Haversine distance.
+6. Treat a nullable road-engine toll flag only as route metadata. Display no
+   Thai-baht toll until an approved, effective-dated EXAT/BEM/DOH/M-Flow tariff
+   and route/plaza match exist.
+7. `POST /v1/transport/trips` remains expected to return 410 until the reviewed
+   route-plan→trip activation contract is released. A legacy trip returning
+   `409 road_evidence_not_verified` for dispatch/retry/complete is correct; only
+   cancellation is allowed.
+8. Stop the worker and preserve job/evidence rows when engine or tileset identity
+   changes mid-run, a waypoint is unreachable, or availability expires. Re-run
+   only after correcting the governed source and creating fresh evidence.
+9. Interpret `optimization_worker_status` literally:
+   `blocked_operational_writes_locked`,
+   `blocked_no_exact_locked_plan_with_verified_depot_and_fleet` and
+   `blocked_no_recent_optimization_worker_heartbeat` are stop conditions. Only
+   `ready_valhalla_exact_locked_plan_queue` permits a new governed queue request;
+   it does not override the separate trip-persistence blocker.
+10. Treat a worker heartbeat as compatible only when it is recent and attests
+    the expected worker/attestation version, controlled non-community Valhalla
+    URL, truck profile, exact digest-bound tileset, numeric operator dataset ID,
+    engine/tile timestamp, `/status` response SHA-256 and validation timestamp.
+    Queue creation rechecks this server-side and should return 503 when no such
+    worker exists.
+11. The planner UI may resume a lost submitting response only with the same
+    actor+plan-scoped `X-Request-ID` stored in session state. It then polls the
+    actor-owned job. Failed/cancelled attempts require confirmation and a new
+    request ID; succeeded plans are immutable. Never copy a stored request ID to
+    another actor or plan, and never store JWTs or route payload/evidence there.
 
 ## Import or data-quality failure
 
@@ -110,7 +175,13 @@ Accept the drill only after checksum verification, `pg_restore
 
 ## Release
 
-1. Run `make workspace-ci` and secret scan.
+The commands below describe the M24 baseline release pattern. Reproducing M24
+requires the exact verified M24 release commit. Do **not** run the guarded
+migration script from the current M13 working tree against live Production: it
+applies pending migrations from the checked-out commit. These instructions do
+not authorize or prove an M13 deployment.
+
+1. At the exact approved release commit, run `make workspace-ci` and secret scan.
 2. Verify approved change, Git commit and Vercel/Supabase targets.
 3. Apply the database migration first with the guarded command.
 4. Verify backup/release evidence and all database acceptance checks.
@@ -126,6 +197,18 @@ RELEASE_GIT_SHA='<published-40-character-sha>' \
 DEPLOY_CONFIRM=APPLY_PENDING_MIGRATIONS \
 scripts/deploy_database_migrations.sh
 ```
+
+For an M13 release, first satisfy the owner-data and infrastructure blockers in
+`docs/SMART_LOGISTICS_PRODUCTION.md`, then use the protected artifact-promotion
+workflow with staging evidence. Database migration must precede web/worker
+cutover; the worker is never started by the Vercel deployment. The local
+production workflow has not been run against a live target as part of the M13
+candidate work.
+
+Production using a standard `https://<20-character-ref>.supabase.co` origin
+leaves `SUPABASE_ALLOWED_ORIGIN` empty. A custom Supabase domain must be pinned
+as one exact server-only HTTPS origin; reject userinfo, paths, query/fragment,
+loopback hosts and any `NEXT_PUBLIC_` copy of this value.
 
 ## Rollback
 

@@ -28,3 +28,7 @@ outputs/
 *.pdf
 *.xlsx
 data/**/data/*.csv
+
+# Release-critical, owner-designated transport geocodes must be present in a
+# fresh CI checkout; all other generated production CSV exports stay ignored.
+!data/MEA_Synapse_Supabase_Production_20260724/data/districts.csv

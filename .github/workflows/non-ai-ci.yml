@@ -2,57 +2,84 @@ name: non-ai-ci
 
 on:
   push:
-    branches: [main, "codex/**"]
+    branches: [main, vercel-staging, "codex/**"]
   pull_request:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   dashboard:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: dashboard
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
       - name: Install dashboard dependencies
         run: npm ci
+      - name: Audit dashboard dependencies
+        run: npm audit --audit-level=high
       - name: Verify dashboard and same-origin API
         run: npm run verify
 
   python:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
           cache: pip
       - name: Install production modules
-        run: python -m pip install -e 'api[test]' -e pipeline
+        run: python -m pip install -e 'api[test]' -e pipeline -e intelligence
       - name: Test API
         run: python -m unittest discover -s api/tests -v
       - name: Test pipeline
         run: python -m unittest discover -s pipeline/tests -v
+      - name: Test forecasting and routing worker
+        run: python -m unittest discover -s intelligence/tests -v
       - name: Verify OpenAPI artifact
         run: python api/scripts/export_openapi.py --check
 
   delivery:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+      - name: Validate GitHub Actions workflows
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          archive="actionlint_1.7.12_linux_amd64.tar.gz"
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v1.7.12/$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/$archive" \
+            | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -config-file .github/actionlint.yaml
       - name: Validate shell and Compose
         run: make delivery-check
       - name: Build in-scope runtime images
-        run: docker compose build api pipeline
+        run: docker compose build api pipeline worker
       - name: Verify Supabase migrations and schema contract
         run: make database-contract-local
       - name: Scan source for high-confidence secrets

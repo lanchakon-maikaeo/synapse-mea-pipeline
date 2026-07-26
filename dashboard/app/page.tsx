@@ -27,7 +27,7 @@ import {
 } from "./use-synapse-backend";
 import {
   TransportModule,
-  transportNav,
+  transportNavForRole,
   type TransportView,
 } from "./transport";
 
@@ -236,7 +236,7 @@ const titles: Record<ViewKey, [string, string, string]> = {
   release: [
     "RELEASE CONTROL",
     "Production Scope",
-    "Business Rules v1 and migration 015; forecasting, routing and RAG are excluded.",
+    "Business Rules v1; governed transport preview is gated, while forecasting, legacy route jobs and RAG remain excluded.",
   ],
 };
 
@@ -443,6 +443,8 @@ function Login({
               />
               <button
                 type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
                 onClick={() => setShowPassword((visible) => !visible)}
               >
                 {showPassword ? "Hide" : "Show"}
@@ -506,6 +508,7 @@ function Sidebar({
   const switchBtn = (key: "warehouse" | "transport", label: string) => (
     <button
       type="button"
+      aria-pressed={moduleKey === key}
       onClick={() => setModule(key)}
       style={{
         flex: 1,
@@ -574,7 +577,7 @@ function Sidebar({
             : (
                 <section>
                   <p>ระบบขนส่ง</p>
-                  {transportNav.map(([key, label, icon]) => (
+                  {transportNavForRole(role).map(([key, label, icon]) => (
                     <button
                       type="button"
                       key={key}
@@ -2739,8 +2742,8 @@ function ReleaseView() {
       </section>
       <section className="acceptance-grid">
         {[
-          ["20 ordered Supabase migrations", "Schema"],
-          ["37 same-origin API paths", "API"],
+          ["Ordered Supabase migration chain", "Schema"],
+          ["48 same-origin API paths", "API"],
           ["District → Planner → Academic → Lock", "Approval"],
           ["Opened HU → accepted date → PO → item → row", "FIFO"],
           ["Weekly + Ad-hoc actual movement", "Issue"],
@@ -2758,10 +2761,11 @@ function ReleaseView() {
       <aside className="scope-exclusion">
         <i>—</i>
         <div>
-          <strong>Forecasting, Routing and RAG are excluded</strong>
+          <strong>Forecasting, legacy route jobs and RAG are excluded</strong>
           <p>
-            They are absent from navigation and OpenAPI, and database dispatcher
-            calls fail closed with HTTP 410 <code>scope_excluded</code>.
+            Governed transport and the bounded road preview are documented.
+            Legacy route-job namespaces remain fail-closed with HTTP 410{" "}
+            <code>scope_excluded</code>.
           </p>
         </div>
       </aside>
@@ -2905,6 +2909,12 @@ export default function Home() {
     navByRole[role].flatMap((group) => group.items.map(([key]) => key)),
   );
   const activeView = allowedViews.has(view) ? view : "dashboard";
+  const allowedTransportViews = new Set(
+    transportNavForRole(role).map(([transportKey]) => transportKey),
+  );
+  const activeTransportView = allowedTransportViews.has(transportView)
+    ? transportView
+    : "dashboard";
   const [eyebrow, title, description] = titles[activeView];
   const snapshot = latestSnapshot(backend.data);
 
@@ -2922,7 +2932,7 @@ export default function Home() {
         snapshot={snapshot}
         moduleKey={moduleKey}
         setModule={setModule}
-        transportView={transportView}
+        transportView={activeTransportView}
         setTransportView={setTransportView}
       />
       <div className="shell">
@@ -2938,8 +2948,10 @@ export default function Home() {
         <main id="content" className="content">
           {moduleKey === "transport" ? (
             <TransportModule
-              view={transportView}
+              view={activeTransportView}
               token={backend.session?.access_token ?? null}
+              role={role}
+              actorId={backend.identity.user_id}
             />
           ) : (
             <>

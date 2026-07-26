@@ -6,9 +6,54 @@ const jsonResponse = {
 const errorResponses = {
   "401": { description: "Unauthorized" },
   "403": { description: "Forbidden" },
-  "423": { description: "Production operational writes are locked" },
+  "409": { description: "State or evidence conflict" },
+  "410": { description: "Retired or fail-closed operation" },
+  "413": { description: "Payload too large" },
   "422": { description: "Validation error" },
+  "423": { description: "Production operational writes are locked" },
   "429": { description: "Rate limited" },
+  "500": { description: "Internal error" },
+  "502": { description: "Invalid or unavailable upstream response" },
+  "503": { description: "Dependency or production configuration unavailable" },
+};
+
+const requestIdHeader = {
+  name: "X-Request-ID",
+  in: "header",
+  required: true,
+  description:
+    "Actor-scoped idempotency key. Reuse it only to resume the same plan request; a retry after a terminal failure or cancellation requires a new value.",
+  schema: {
+    type: "string",
+    minLength: 1,
+    maxLength: 64,
+    pattern: "^[A-Za-z0-9_-]+$",
+  },
+};
+
+const responseRequestIdHeader = {
+  description: "Request correlation identifier",
+  schema: { type: "string", minLength: 1, maxLength: 64 },
+};
+
+const routeOptimizationJobResponse = (description: string) => ({
+  description,
+  headers: { "X-Request-ID": responseRequestIdHeader },
+  content: {
+    "application/json": {
+      schema: { $ref: "#/components/schemas/RouteOptimizationJob" },
+    },
+  },
+});
+
+const routeOptimizationNotFound = {
+  description: "Actor-owned route optimization job not found",
+  headers: { "X-Request-ID": responseRequestIdHeader },
+  content: {
+    "application/json": {
+      schema: { $ref: "#/components/schemas/ApiError" },
+    },
+  },
 };
 
 const get = (summary: string, secured = true) => ({
@@ -19,15 +64,32 @@ const get = (summary: string, secured = true) => ({
   },
 });
 
-const post = (summary: string, status = "200") => ({
+const post = (
+  summary: string,
+  status = "200",
+  schema: Record<string, unknown> = {
+    type: "object",
+    additionalProperties: true,
+  },
+) => ({
   post: {
     summary,
     security: [{ bearerAuth: [] }],
     requestBody: {
-      required: false,
-      content: { "application/json": { schema: { type: "object" } } },
+      required: true,
+      content: { "application/json": { schema } },
     },
     responses: { [status]: jsonResponse, ...errorResponses },
+  },
+});
+
+const blockedPost = (summary: string, description: string) => ({
+  post: {
+    ...post(summary).post,
+    responses: {
+      ...errorResponses,
+      "410": { description },
+    },
   },
 });
 
@@ -35,9 +97,9 @@ export const m09OpenApi = {
   openapi: "3.1.0",
   info: {
     title: "SYNAPSE API",
-    version: "1.1.0",
+    version: "1.3.0",
     description:
-      "Production warehouse operations API. Forecasting, routing and RAG are excluded from this release.",
+      "Production warehouse and governed transport API, including the Valhalla + OR-Tools optimization queue. Forecasting, legacy route-job namespaces and RAG remain excluded.",
   },
   servers: [{ url: "/api" }],
   components: {
@@ -46,6 +108,121 @@ export const m09OpenApi = {
         type: "http",
         scheme: "bearer",
         bearerFormat: "Supabase JWT",
+      },
+    },
+    schemas: {
+      ApiError: {
+        type: "object",
+        additionalProperties: false,
+        required: ["error"],
+        properties: {
+          error: {
+            type: "object",
+            additionalProperties: false,
+            required: ["code", "message", "request_id", "details"],
+            properties: {
+              code: { type: "string", minLength: 1 },
+              message: { type: "string", minLength: 1 },
+              request_id: { type: "string", minLength: 1, maxLength: 64 },
+              details: {},
+            },
+          },
+        },
+      },
+      QueueRouteOptimizationRequest: {
+        type: "object",
+        additionalProperties: false,
+        required: ["replenishment_plan_id"],
+        properties: {
+          replenishment_plan_id: { type: "string", format: "uuid" },
+          forecast_run_id: {
+            oneOf: [
+              { type: "string", format: "uuid" },
+              { type: "null" },
+            ],
+          },
+          matrix_source: {
+            type: "string",
+            enum: ["valhalla"],
+            default: "valhalla",
+          },
+        },
+      },
+      RouteOptimizationJobError: {
+        type: "object",
+        additionalProperties: false,
+        required: ["code", "message", "retryable"],
+        properties: {
+          code: { type: "string", minLength: 1 },
+          message: { type: "string", minLength: 1 },
+          retryable: { type: "boolean" },
+        },
+      },
+      RouteOptimizationJob: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "route_job_id",
+          "job_id",
+          "replenishment_plan_id",
+          "algorithm_version",
+          "matrix_source",
+          "status",
+        ],
+        properties: {
+          route_job_id: { type: "string", format: "uuid" },
+          job_id: { type: "string", format: "uuid" },
+          replenishment_plan_id: { type: "string", format: "uuid" },
+          forecast_run_id: {
+            oneOf: [
+              { type: "string", format: "uuid" },
+              { type: "null" },
+            ],
+          },
+          algorithm_version: { type: "string", minLength: 1 },
+          matrix_source: { type: "string", enum: ["valhalla"] },
+          status: {
+            type: "string",
+            enum: ["queued", "running", "succeeded", "failed", "cancelled"],
+          },
+          attempt_count: { type: "integer", minimum: 0 },
+          max_attempts: { type: "integer", minimum: 1 },
+          result: {
+            oneOf: [
+              { type: "object", additionalProperties: true },
+              { type: "null" },
+            ],
+          },
+          error: {
+            oneOf: [
+              { $ref: "#/components/schemas/RouteOptimizationJobError" },
+              { type: "null" },
+            ],
+          },
+          route_plan_id: {
+            oneOf: [
+              { type: "string", format: "uuid" },
+              { type: "null" },
+            ],
+          },
+          route_plan_status: {
+            oneOf: [{ type: "string" }, { type: "null" }],
+          },
+          created_at: { type: "string", format: "date-time" },
+          started_at: {
+            oneOf: [
+              { type: "string", format: "date-time" },
+              { type: "null" },
+            ],
+          },
+          finished_at: {
+            oneOf: [
+              { type: "string", format: "date-time" },
+              { type: "null" },
+            ],
+          },
+          idempotent_replay: { type: "boolean" },
+        },
       },
     },
   },
@@ -131,5 +308,112 @@ export const m09OpenApi = {
       "Production data, identity, recovery and cutover gates",
     ),
     "/v1/operations/alerts": get("Operations alerts"),
+    "/v1/transport/warehouses": get("Active transport depots"),
+    "/v1/transport/readiness": get(
+      "Transport geocode, fleet, tariff and optimizer readiness",
+    ),
+    "/v1/transport/geo": get(
+      "Governed transport locations and coordinate verification state",
+    ),
+    "/v1/transport/vehicles": get("Active governed transport fleet"),
+    "/v1/transport/route-matrix": get(
+      "Legacy radial route references; not road-route evidence",
+    ),
+    "/v1/transport/dispatch-queue": get(
+      "Locked replenishment demand eligible for transport planning",
+    ),
+    "/v1/transport/trips": {
+      get: get("Recent transport trips").get,
+      post: blockedPost(
+        "Trip creation is fail-closed pending reviewed route-plan activation",
+        "Route plans can retain road evidence, but route-plan to trip activation is not configured",
+      ).post,
+    },
+    "/v1/transport/trips/{trip_id}/status": post(
+      "Apply a legal transition only to road-verified trips; legacy trips may only be cancelled",
+    ),
+    "/v1/transport/optimize": post(
+      "Build an authenticated heuristic preview from a real-road matrix",
+      "200",
+      {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "replenishment_plan_id",
+          "depot",
+          "stops",
+          "objective",
+          "avoidTolls",
+        ],
+        properties: {
+          replenishment_plan_id: { type: "string", format: "uuid" },
+          depot: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id"],
+            properties: { id: { type: "string", minLength: 1 } },
+          },
+          stops: {
+            type: "array",
+            minItems: 1,
+            maxItems: 18,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["id"],
+              properties: { id: { type: "string", minLength: 1 } },
+            },
+          },
+          objective: { type: "string", enum: ["duration", "distance"] },
+          avoidTolls: { type: "boolean" },
+        },
+      },
+    ),
+    "/v1/transport/optimization-jobs": {
+      post: {
+        summary:
+          "Queue one exact locked replenishment plan for governed Valhalla + OR-Tools optimization",
+        security: [{ bearerAuth: [] }],
+        parameters: [requestIdHeader],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                $ref: "#/components/schemas/QueueRouteOptimizationRequest",
+              },
+            },
+          },
+        },
+        responses: {
+          ...errorResponses,
+          "202": routeOptimizationJobResponse(
+            "Route optimization job accepted or idempotently resumed",
+          ),
+        },
+      },
+    },
+    "/v1/transport/optimization-jobs/{route_job_id}": {
+      get: {
+        summary:
+          "Read an actor-owned governed route optimization job and its route-plan result",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "route_job_id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          ...errorResponses,
+          "200": routeOptimizationJobResponse(
+            "Current governed route optimization job state",
+          ),
+          "404": routeOptimizationNotFound,
+        },
+      },
+    },
   },
 };

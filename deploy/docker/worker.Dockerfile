@@ -1,19 +1,17 @@
-FROM python:3.13-slim AS runtime
+FROM python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5e925c2d0e1a91 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/opt/synapse/intelligence/src
 
 RUN groupadd --gid 10001 synapse && useradd --uid 10001 --gid 10001 --create-home synapse
 WORKDIR /opt/synapse
-COPY intelligence/pyproject.toml intelligence/README.md ./intelligence/
-RUN python -m pip install --upgrade pip && \
-    python -m pip install \
-      "ortools>=9.10,<10" \
-      "psycopg[binary]>=3.2,<4" \
-      "statsforecast>=2,<3"
-COPY intelligence/src ./intelligence/src
-RUN python -m pip install --no-deps ./intelligence
+COPY intelligence/requirements.lock ./intelligence/requirements.lock
+RUN python -m pip install \
+      --require-hashes \
+      --requirement ./intelligence/requirements.lock
+COPY --chown=10001:10001 intelligence/src ./intelligence/src
 
 USER 10001:10001
-CMD ["sh", "-c", "while true; do synapse-intelligence worker-once --worker-id ${WORKER_ID:-worker-01}; sleep ${WORKER_POLL_SECONDS:-30}; done"]
+CMD ["python", "-m", "synapse_intelligence", "worker"]

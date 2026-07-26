@@ -58,6 +58,8 @@ class FakeCursor:
             }]
         elif "from analytics.v_wave3_readiness" in normalized:
             self.rows = [{"forecast_operational_ready": False, "route_operational_ready": False, "checked_at": datetime.now(timezone.utc)}]
+        elif "core.queue_route_job" in normalized:
+            self.rows = [{"route_job_id": UUID("22222222-2222-4222-8222-222222222222")}]
         else:
             self.rows = []
 
@@ -183,6 +185,45 @@ class ApiContractTests(unittest.TestCase):
         for path in ("/v1/contracts", "/v1/reference/materials", "/v1/warehouse-stock", "/v1/data-sources/legacy/status", "/v1/data-inputs/vmi", "/v1/data-inputs/vmi/context", "/v1/stock-health", "/v1/routes/plans", "/v1/wave3/readiness"):
             response_schema = schema["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
             self.assertTrue(response_schema)
+
+    def test_route_queue_is_valhalla_only_and_uses_database_preflight(self):
+        headers = {
+            "Authorization": f"Bearer {token()}",
+            "X-Request-ID": "route-api-contract-1",
+        }
+        response = client("planner").post(
+            "/v1/routes/jobs",
+            headers=headers,
+            json={
+                "replenishment_plan_id":
+                    "33333333-3333-4333-8333-333333333333",
+                "matrix_source": "valhalla",
+            },
+        )
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(
+            response.json()["route_job_id"],
+            "22222222-2222-4222-8222-222222222222",
+        )
+
+        rejected = client("planner").post(
+            "/v1/routes/jobs",
+            headers=headers,
+            json={
+                "replenishment_plan_id":
+                    "33333333-3333-4333-8333-333333333333",
+                "matrix_source": "haversine-test",
+            },
+        )
+        self.assertEqual(rejected.status_code, 422)
+
+        route_request_schema = client().get("/openapi.json").json()[
+            "components"
+        ]["schemas"]["RouteJobRequest"]
+        self.assertEqual(
+            route_request_schema["properties"]["matrix_source"]["const"],
+            "valhalla",
+        )
 
     def test_viewer_cannot_publish_operational_input(self):
         response = client("viewer").post(

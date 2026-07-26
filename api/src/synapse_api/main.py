@@ -79,6 +79,8 @@ def create_app(
     error_responses = {
         401: {"model": ErrorResponse},
         403: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        423: {"model": ErrorResponse},
         422: {"model": ErrorResponse},
         429: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
@@ -112,7 +114,8 @@ def create_app(
     async def http_exception_handler(request: Request, exc: HTTPException):
         code = {
             400: "bad_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
-            409: "conflict", 413: "payload_too_large", 429: "rate_limited", 503: "service_unavailable",
+            409: "conflict", 413: "payload_too_large", 423: "production_not_ready",
+            429: "rate_limited", 503: "service_unavailable",
         }.get(exc.status_code, "http_error")
         return JSONResponse(error_payload(request, code, str(exc.detail)), status_code=exc.status_code, headers=exc.headers)
 
@@ -521,17 +524,44 @@ def create_app(
         return row
 
     @app.post("/v1/routes/jobs", response_model=RouteJobResponse, status_code=status.HTTP_202_ACCEPTED, tags=["routes"])
-    def queue_route(payload: RouteJobRequest, user: CurrentUser = Depends(require_roles("admin", "planner"))) -> RouteJobResponse:
-        with connect() as connection, connection.cursor() as cursor:
-            cursor.execute("select route_operational_ready from analytics.v_wave3_readiness")
-            if not cursor.fetchone()["route_operational_ready"]:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Route master data is not operationally ready")
-            set_request_user(cursor, user)
-            cursor.execute(
-                "select core.queue_route_job(%s, %s, %s) as route_job_id",
-                (str(payload.replenishment_plan_id), str(payload.forecast_run_id) if payload.forecast_run_id else None, payload.matrix_source),
-            )
-            row = cursor.fetchone()
+    def queue_route(
+        request: Request,
+        payload: RouteJobRequest,
+        user: CurrentUser = Depends(require_roles("admin", "planner")),
+    ) -> RouteJobResponse:
+        try:
+            with connect() as connection, connection.cursor() as cursor:
+                set_request_user(cursor, user)
+                cursor.execute(
+                    "select core.queue_route_job(%s, %s, %s, %s) as route_job_id",
+                    (
+                        str(payload.replenishment_plan_id),
+                        str(payload.forecast_run_id) if payload.forecast_run_id else None,
+                        payload.matrix_source,
+                        request_id(request),
+                    ),
+                )
+                row = cursor.fetchone()
+        except psycopg.errors.CheckViolation as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Route job failed governed locked-plan, geocode or fleet preflight",
+            ) from exc
+        except psycopg.errors.UniqueViolation as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Request ID is already bound to a different route-job request",
+            ) from exc
+        except psycopg.errors.ObjectNotInPrerequisiteState as exc:
+            raise HTTPException(
+                status_code=423,
+                detail="Operational writes are locked until Production cutover gates pass",
+            ) from exc
+        except psycopg.errors.InsufficientPrivilege as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only planner or admin may queue routes",
+            ) from exc
         return RouteJobResponse(route_job_id=row["route_job_id"])
 
     @app.get("/v1/routes/plans", response_model=list[RouteSummaryResponse], tags=["routes"])

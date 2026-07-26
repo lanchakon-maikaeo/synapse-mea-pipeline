@@ -1,0 +1,3 @@
+# Preserve the owner-supplied BOM/CRLF coordinate export byte-for-byte. Its
+# checked checksum is part of the transport-geocode provenance contract.
+data/MEA_Synapse_Supabase_Production_20260724/data/districts.csv -text whitespace=cr-at-eol

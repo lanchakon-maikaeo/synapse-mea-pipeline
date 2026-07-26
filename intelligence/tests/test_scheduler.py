@@ -8,7 +8,18 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from synapse_intelligence.scheduler import previous_month_end
-from synapse_intelligence.worker import _claim, _heartbeat
+from synapse_intelligence.worker import (
+    ROUTING_ATTESTATION_VERSION,
+    SERVICE_VERSION,
+    _claim,
+    _heartbeat,
+)
+
+
+TILESET_VERSION = (
+    "osm-thailand-2026-07-25-sha256-"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+)
 
 
 class FakeCursor:
@@ -50,12 +61,81 @@ class SchedulerTests(unittest.TestCase):
 
     def test_worker_heartbeat_is_persisted_with_structured_details(self):
         connection = FakeConnection()
-        _heartbeat(connection, "worker-test", "healthy", phase="idle")
+        _heartbeat(
+            connection,
+            "worker-test",
+            "healthy",
+            phase="idle",
+            routing_attestation_version=ROUTING_ATTESTATION_VERSION,
+            routing_ready=True,
+            routing_engine="valhalla",
+            routing_profile="truck",
+            routing_url_policy="controlled_non_community_origin",
+            valhalla_url="https://valhalla.internal",
+            tileset_version=TILESET_VERSION,
+            engine_version="3.5.1",
+            tileset_last_modified=1_721_865_600,
+            osm_changeset=123456,
+            engine_status_response_sha256="a" * 64,
+            status_validated_at="2026-07-26T00:00:00+00:00",
+            status_validated_epoch=1_753_488_000,
+        )
         self.assertEqual(connection.commits, 1)
         query, params = connection.cursor_instance.calls[0]
         self.assertIn("record_service_heartbeat", query)
-        self.assertEqual(params[:4], ("synapse-worker:worker-test", "worker-test", "1.0.0", "healthy"))
+        self.assertEqual(
+            params[:4],
+            (
+                "synapse-worker:worker-test",
+                "worker-test",
+                SERVICE_VERSION,
+                "healthy",
+            ),
+        )
         self.assertIn('"phase": "idle"', params[4])
+        self.assertIn('"routing_ready": true', params[4])
+
+    def test_worker_cannot_publish_unattested_healthy_heartbeat(self):
+        connection = FakeConnection()
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires validated Valhalla status attestation",
+        ):
+            _heartbeat(
+                connection,
+                "worker-test",
+                "healthy",
+                phase="idle",
+            )
+        self.assertEqual(connection.commits, 0)
+        self.assertEqual(connection.cursor_instance.calls, [])
+
+    def test_worker_cannot_attest_noncanonical_tileset_identity(self):
+        connection = FakeConnection()
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires validated Valhalla status attestation",
+        ):
+            _heartbeat(
+                connection,
+                "worker-test",
+                "healthy",
+                routing_attestation_version=ROUTING_ATTESTATION_VERSION,
+                routing_ready=True,
+                routing_engine="valhalla",
+                routing_profile="truck",
+                routing_url_policy="controlled_non_community_origin",
+                valhalla_url="https://valhalla.internal",
+                tileset_version="osm-thailand-2026-07-25",
+                engine_version="3.5.1",
+                tileset_last_modified=1_721_865_600,
+                osm_changeset=123456,
+                engine_status_response_sha256="a" * 64,
+                status_validated_at="2026-07-26T00:00:00+00:00",
+                status_validated_epoch=1_753_488_000,
+            )
+        self.assertEqual(connection.commits, 0)
+        self.assertEqual(connection.cursor_instance.calls, [])
 
     def test_worker_claim_materializes_volatile_function_once(self):
         connection = FakeConnection()

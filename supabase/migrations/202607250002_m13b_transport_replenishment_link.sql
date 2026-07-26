@@ -112,6 +112,22 @@ begin
     return public.m09_error(403, 'forbidden', 'No application role is assigned', p_request_id);
   end if;
 
+  -- Keep the independently committed M13b step fail closed if a later
+  -- migration fails. M13c installs canonical plan-origin/geocode gates and
+  -- still refuses trip persistence until real-road evidence is atomic.
+  if v_method = 'POST'
+     and (
+       p_path = '/v1/transport/trips'
+       or p_path ~ '^/v1/transport/trips/[0-9a-fA-F-]{36}/status$'
+     ) then
+    return public.m09_error(
+      410,
+      'road_route_evidence_not_persistable',
+      'Transport writes remain disabled until canonical real-road evidence is installed',
+      p_request_id
+    );
+  end if;
+
   -- ---- Reads (any authenticated role) ----
   if v_method = 'GET' and p_path = '/v1/transport/warehouses' then
     select coalesce(jsonb_agg(to_jsonb(q) order by q.warehouse_code), '[]'::jsonb) into v_payload

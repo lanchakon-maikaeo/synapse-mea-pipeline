@@ -15,6 +15,10 @@ services:
       context: .
       dockerfile: deploy/docker/api.Dockerfile
     image: synapse-api:1.0.0
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop: [ALL]
     ports:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8000}:8000"
     healthcheck:
@@ -32,10 +36,17 @@ services:
       context: .
       dockerfile: deploy/docker/worker.Dockerfile
     image: synapse-worker:1.0.0
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+    cap_drop: [ALL]
     environment:
       WORKER_ID: ${WORKER_ID:-worker-01}
       WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-30}
       VALHALLA_URL: ${VALHALLA_URL:-http://valhalla:8002}
+      VALHALLA_AUTH_TOKEN: ${VALHALLA_AUTH_TOKEN:-}
+      VALHALLA_TILESET_VERSION: ${VALHALLA_TILESET_VERSION:-unconfigured}
+      VALHALLA_OSM_CHANGESET: ${VALHALLA_OSM_CHANGESET:-unconfigured}
       ALLOW_HAVERSINE_FALLBACK: ${ALLOW_HAVERSINE_FALLBACK:-false}
     networks: [backend]
 
@@ -46,17 +57,22 @@ services:
     image: synapse-pipeline:1.0.0
     env_file: ${SYNAPSE_ENV_FILE:-.env}
     profiles: [tools]
+    init: true
     read_only: true
-    tmpfs: [/tmp]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     volumes:
       - "${IMPORT_DIRECTORY:-./imports}:/imports:ro"
     networks: [backend]
 
   prometheus:
-    image: prom/prometheus:v3.5.0
+    image: prom/prometheus:v3.5.0@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996
     profiles: [observability]
     restart: unless-stopped
-    env_file: .env
+    env_file: ${SYNAPSE_ENV_FILE:-.env}
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - >-
@@ -76,12 +92,14 @@ services:
     networks: [monitoring]
 
   valhalla:
-    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest@sha256:060da5b92e6024a67f65135c236d918b021d63e73d1808a0d55b7e7cbd17240c
     profiles: [routing]
     restart: unless-stopped
     environment:
       tile_urls: ${VALHALLA_TILE_URLS:-}
       use_tiles_ignore_pbf: "True"
+    labels:
+      mea.synapse.osm-tileset-version: ${VALHALLA_TILESET_VERSION:-unconfigured}
     volumes:
       - valhalla-data:/custom_files
     ports:

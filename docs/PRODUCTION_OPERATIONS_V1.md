@@ -1,14 +1,17 @@
 # SYNAPSE Production Operations v1
 
-- Status: release chain through migration `202607240022`; Production starts
-  fail-closed until Actual-data, identity and recovery gates pass
+- Status: verified live baseline through migration `202607240024` (M24)
+- Candidate status: M13–M13e smart logistics exists only in the working tree;
+  it has not been migrated or deployed to the live target
 - Business rules: frozen 22 July 2026
-Release scope: stock, replenishment, warehouse issue and traceability
+- Release scope: stock, replenishment, warehouse issue and traceability
 
-This document is the active production contract. Forecasting, routing and RAG
-are not part of this release. Historical source and migrations for those
-experiments may remain for data compatibility, but the production UI, OpenAPI,
-CI schedule and deployment profile do not invoke them.
+This document describes the last verified live Production Operations v1
+contract. Forecasting, transport/routing and RAG are not part of that deployed
+release. The working-tree dashboard/OpenAPI, additive M13–M13e migrations and
+OR-Tools/Valhalla worker are a separate fail-closed candidate described in
+`docs/M13_TRANSPORT_PIPELINE.md`; their presence in the repository is not live
+deployment evidence.
 
 ## Runtime topology
 
@@ -81,6 +84,10 @@ The canonical Production rebuild migrations are:
 
 `supabase/migrations/202607240022_production_completion_attestation.sql`
 
+`supabase/migrations/202607240023_active_scope_readiness.sql`
+
+`supabase/migrations/202607240024_single_admin_identity_policy.sql`
+
 They are additive, preserve historical data and register their own ordered
 versions. The files under `dashboard/db/migrations` are a Drizzle design
 contract for the standalone dashboard schema. Do not apply both migration
@@ -99,6 +106,10 @@ bash scripts/scan_secrets.sh
 
 Apply the managed Supabase migrations only through the guarded script:
 
+> Run this only from the exact approved release commit. The current working tree
+> contains pending M13–M13e candidates; running its migration chain against live
+> Production without the separate M13 approval would expand the deployed scope.
+
 ```bash
 export DATABASE_URL='postgresql://...'
 export BACKUP_DIR='/approved/off-repository/location'
@@ -114,7 +125,8 @@ export GREENFIELD_BOOTSTRAP_CONFIRM='INITIALIZE_EMPTY_DATABASE'
 bash scripts/deploy_database_migrations.sh
 ```
 
-The command creates a logical backup before applying pending migrations and
+The command creates a logical backup before applying pending migrations from
+the checked-out release commit and
 records backup/release evidence. Keep the backup outside the repository and run
 a restore drill against a separate project before the production window.
 
@@ -147,14 +159,15 @@ is captured.
 ## Release acceptance
 
 - Dashboard lint, type-check, production build and tests pass.
-- Clean PostgreSQL applies 27 ordered migrations.
+- Clean PostgreSQL applies the 27 migrations in the deployed M24 baseline.
 - All schema/RLS/privilege checks pass.
 - All 20 authenticated operational workflow checks pass.
 - Pre-cutover readiness returns `503 not_ready`; after authorized cutover it
   returns `200 ok`.
 - Unauthenticated `/api/v1/me` returns `401`.
-- All 37 documented same-origin OpenAPI paths respond through the release.
-- Legacy forecast, route, job, Wave 3 and RAG requests return `410
+- All 37 documented baseline same-origin OpenAPI paths respond through the
+  deployed release.
+- Legacy forecast, route/route-job, Wave 3 and RAG requests return `410
   scope_excluded`.
 - Backup and deployed release rows are present in operational evidence.
 
@@ -173,8 +186,21 @@ is captured.
 
 ## Explicit exclusions
 
-The active dashboard and its published OpenAPI have no forecasting, routing,
-background intelligence job, Wave 3 or RAG paths. The database dispatcher
-returns `410` for direct legacy requests to those namespaces. No worker,
-Valhalla service, forecast scheduler or document/RAG indexer is included in the
-production deployment command.
+The verified M24 deployment excludes forecasting, all transport/routing,
+background intelligence jobs, Wave 3 and RAG. Its database dispatcher returns
+`410 scope_excluded` for those legacy namespaces. No worker, Valhalla service,
+forecast scheduler or document/RAG indexer is included in the deployed Vercel
+command.
+
+## Local M13 candidate (not deployed)
+
+The working-tree API contract is version `1.3.0` with 48 paths and adds governed
+`/v1/transport/*` reads, exact-plan preflight and a bounded real-road preview.
+Its published OpenAPI also includes the M13e Valhalla-only exact locked-plan
+optimization-job queue and owner/admin status read.
+Legacy `/v1/routes*` and `/v1/jobs*` remain excluded. M13e can persist immutable
+per-vehicle Valhalla road evidence for the operational solver, but direct
+`POST /v1/transport/trips` still returns 410 because reviewed
+route-plan→trip activation is not implemented. Legacy trip records may only be
+cancelled. See `docs/SMART_LOGISTICS_PRODUCTION.md` for activation blockers and
+release controls.

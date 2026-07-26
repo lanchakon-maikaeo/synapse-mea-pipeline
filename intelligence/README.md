@@ -35,7 +35,20 @@ The tests use deterministic synthetic demand and coordinates. They do not insert
 DATABASE_URL=... synapse-intelligence worker-once --worker-id worker-01
 ```
 
-The worker claims one queued job with `FOR UPDATE SKIP LOCKED`, writes forecast or route results, records success/failure with bounded retry, and persists a per-instance operational heartbeat. Route jobs require `VALHALLA_URL`. `ALLOW_HAVERSINE_FALLBACK=true` is accepted only for development/test jobs explicitly queued with `haversine-test`.
+For a long-running container, use the direct Python loop (no shell
+interpolation):
+
+```bash
+DATABASE_URL=... WORKER_POLL_SECONDS=30 \
+  synapse-intelligence worker --worker-id worker-01
+```
+
+The poll interval is validated between 1 and 3,600 seconds. The worker claims
+one queued job with `FOR UPDATE SKIP LOCKED`, writes forecast or route results,
+records success/failure with bounded retry, and persists a per-instance
+operational heartbeat. Route jobs require `VALHALLA_URL`.
+`ALLOW_HAVERSINE_FALLBACK=true` is accepted only for development/test jobs
+explicitly queued with `haversine-test`.
 
 Use the free Unix-cron template at `deploy/cron/synapse-intelligence.crontab.example` to run:
 

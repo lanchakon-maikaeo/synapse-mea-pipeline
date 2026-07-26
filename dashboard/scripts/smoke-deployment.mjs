@@ -7,6 +7,34 @@ const baseUrl = (process.env.SMOKE_BASE_URL ?? "https://synapse-mea.vercel.app")
 const accessToken = process.env.SYNAPSE_ACCESS_TOKEN?.trim() ?? "";
 const expectOperationalReady =
   process.env.SMOKE_EXPECT_OPERATIONAL_READY !== "false";
+const expectTransportRouteReady =
+  process.env.SMOKE_EXPECT_TRANSPORT_ROUTE_READY === "true";
+const routingCanaryPlanId =
+  process.env.ROUTING_CANARY_PLAN_ID?.trim() ?? "";
+const expectedRoutingDataVersion =
+  process.env.ROUTING_ENGINE_DATA_VERSION?.trim() ?? "";
+
+if (
+  expectTransportRouteReady &&
+  !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    routingCanaryPlanId,
+  )
+) {
+  throw new Error(
+    "ROUTING_CANARY_PLAN_ID must be a UUID when transport route readiness is required",
+  );
+}
+
+if (
+  expectTransportRouteReady &&
+  !/^[a-z0-9][a-z0-9._-]{0,127}-sha256-[0-9a-f]{64}$/.test(
+    expectedRoutingDataVersion,
+  )
+) {
+  throw new Error(
+    "ROUTING_ENGINE_DATA_VERSION must match <lowercase-label>-sha256-<64 lowercase hex>",
+  );
+}
 
 if (!/^https:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(baseUrl)) {
   throw new Error("SMOKE_BASE_URL must be an HTTPS origin without a path");
@@ -50,11 +78,26 @@ const expectedPaths = [
   "/v1/operations/health",
   "/v1/operations/readiness",
   "/v1/operations/alerts",
+  "/v1/transport/warehouses",
+  "/v1/transport/readiness",
+  "/v1/transport/geo",
+  "/v1/transport/vehicles",
+  "/v1/transport/route-matrix",
+  "/v1/transport/dispatch-queue",
+  "/v1/transport/trips",
+  "/v1/transport/trips/{trip_id}/status",
+  "/v1/transport/optimize",
+  "/v1/transport/optimization-jobs",
+  "/v1/transport/optimization-jobs/{route_job_id}",
 ];
 
-async function request(path, expectedStatus, token = "") {
+async function request(path, expectedStatus, token = "", init = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    ...init,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
     redirect: "error",
     signal: AbortSignal.timeout(15_000),
   });
@@ -115,6 +158,10 @@ if (accessToken) {
     "/api/v1/ad-hoc/issues",
     "/api/v1/traceability",
     "/api/v1/operations/readiness",
+    "/api/v1/transport/warehouses",
+    "/api/v1/transport/geo",
+    "/api/v1/transport/vehicles",
+    "/api/v1/transport/dispatch-queue",
   ];
 
   if (authenticatedRole !== "district") {
@@ -132,7 +179,109 @@ if (accessToken) {
     const result = (await request(path, 200, accessToken)).json();
     assert.ok(Array.isArray(result), `${path}: expected an array`);
   }
-  authenticatedChecks = 1 + authenticatedPaths.length;
+  const transportReadiness = (
+    await request("/api/v1/transport/readiness", 200, accessToken)
+  ).json();
+  assert.equal(typeof transportReadiness.route_ready, "boolean");
+  assert.equal(
+    transportReadiness.monetary_toll_estimate_available,
+    false,
+  );
+  authenticatedChecks = 2 + authenticatedPaths.length;
+
+  if (expectTransportRouteReady) {
+    assert.match(
+      authenticatedRole,
+      /^(admin|planner)$/,
+      "Transport canary requires an admin or planner smoke identity",
+    );
+    assert.equal(
+      transportReadiness.route_ready,
+      true,
+      "Transport readiness must attest a canonical route-ready depot",
+    );
+    const dispatchQueue = (
+      await request(
+        "/api/v1/transport/dispatch-queue",
+        200,
+        accessToken,
+      )
+    ).json();
+    const canaryRows = dispatchQueue
+      .filter(
+        (row) =>
+          row.replenishment_plan_id === routingCanaryPlanId &&
+          row.route_eligible === true,
+      )
+      .slice(0, 18);
+    assert.ok(
+      canaryRows.length > 0,
+      "Routing canary plan has no eligible locked demand",
+    );
+    const originWarehouse = canaryRows[0].suggested_warehouse;
+    assert.ok(originWarehouse, "Routing canary has no canonical origin warehouse");
+    assert.ok(
+      canaryRows.every(
+        (row) => row.suggested_warehouse === originWarehouse,
+      ),
+      "Routing canary demand spans multiple origin warehouses",
+    );
+    const optimized = (
+      await request(
+        "/api/v1/transport/optimize",
+        200,
+        accessToken,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            replenishment_plan_id: routingCanaryPlanId,
+            depot: { id: originWarehouse },
+            stops: canaryRows.map((row) => ({ id: row.district_ref })),
+            objective: "duration",
+            avoidTolls: false,
+          }),
+        },
+      )
+    ).json();
+    assert.equal(optimized.provider, "osrm");
+    assert.equal(optimized.engineMode, "configured");
+    assert.equal(optimized.geometry?.type, "LineString");
+    assert.ok(optimized.geometry.coordinates.length >= 2);
+    assert.ok(
+      optimized.geometry.coordinates.every(
+        (position) =>
+          Array.isArray(position) &&
+          position.length === 2 &&
+          Number.isFinite(position[0]) &&
+          Number.isFinite(position[1]),
+      ),
+      "Routing canary geometry contains an invalid coordinate",
+    );
+    assert.ok(optimized.distanceKm > 0);
+    assert.ok(optimized.durationMinutes > 0);
+    assert.equal(optimized.replenishmentPlanId, routingCanaryPlanId);
+    assert.equal(optimized.order.length, canaryRows.length);
+    assert.deepEqual(
+      new Set(optimized.order),
+      new Set(canaryRows.map((row) => row.district_ref)),
+    );
+    assert.equal(
+      optimized.dataVersion,
+      expectedRoutingDataVersion,
+      "Routing canary does not match the release-bound road dataset",
+    );
+    assert.match(
+      optimized.coordinateProvenance?.depot?.sourceChecksumSha256 ?? "",
+      /^[0-9a-f]{64}$/,
+    );
+    assert.match(
+      optimized.coordinateProvenance?.stops?.[0]?.sourceChecksumSha256 ?? "",
+      /^[0-9a-f]{64}$/,
+    );
+    assert.equal(optimized.monetaryTollEstimateAvailable, false);
+    authenticatedChecks += 2;
+  }
 }
 
 console.log(
@@ -142,6 +291,10 @@ console.log(
     openapi_paths: expectedPaths.length,
     authenticated_checks: authenticatedChecks,
     authenticated_role: authenticatedRole,
+    transport_route_canary: expectTransportRouteReady,
+    routing_data_version: expectTransportRouteReady
+      ? expectedRoutingDataVersion
+      : null,
     status: "passed",
   }),
 );

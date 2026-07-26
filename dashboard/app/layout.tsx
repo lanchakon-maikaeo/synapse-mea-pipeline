@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,15 +9,15 @@ export const metadata: Metadata = {
       : "http://localhost:3000",
   ),
   title: "MEA Synapse — Warehouse Operations",
-  description: "Verified inventory sources, replenishment readiness, demand history and transport preparation for MEA warehouse operations.",
+  description: "Verified inventory, replenishment and road-aware smart logistics for MEA warehouse operations.",
   openGraph: {
     title: "MEA Synapse — Warehouse Operations",
-    description: "A verified-data workspace for inventory, replenishment, demand planning and transport readiness.",
+    description: "A verified-data workspace for inventory, replenishment and road-aware smart logistics.",
     images: [{ url: "/og.png", width: 1662, height: 946, alt: "MEA Synapse Warehouse Operations" }],
   },
   twitter: { card: "summary_large_image", images: ["/og.png"] },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return <html lang="th"><body>{children}</body></html>;
 }

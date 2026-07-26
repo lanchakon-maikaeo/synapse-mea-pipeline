@@ -1,16 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { apiRequest, formatNumber } from "./lib";
+import dynamic from "next/dynamic";
 import {
-  DIST_GEO,
-  REPLENISHMENT_PLAN,
-  ROUTES,
-  SEED_TRIPS,
-  VEHICLES,
-  WAREHOUSES,
-  type Trip,
-} from "./transport-data";
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  apiRequest,
+  formatDateTime,
+  formatNumber,
+  type Role,
+} from "./lib";
+import type { RoadOptimizationResult } from "./route-optimizer";
+import type {
+  RoadGeometry,
+  TransportRoadMapProps,
+} from "./transport-road-map";
+
+const TransportRoadMap = dynamic<TransportRoadMapProps>(
+  () =>
+    import("./transport-road-map").then((module) => module.TransportRoadMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="transport-map-loading" role="status">
+        กำลังโหลดแผนที่…
+      </div>
+    ),
+  },
+);
 
 export type TransportView = "dashboard" | "planner" | "map" | "history";
 
@@ -21,29 +42,71 @@ export const transportNav: Array<[TransportView, string, string]> = [
   ["history", "ประวัติการเดินรถ", "◷"],
 ];
 
+export function canMutateTransport(role: Role) {
+  return role === "admin" || role === "planner";
+}
+
+export function transportNavForRole(role: Role) {
+  return canMutateTransport(role)
+    ? transportNav
+    : transportNav.filter(([view]) => view !== "planner");
+}
+
 const transportTitles: Record<TransportView, [string, string, string]> = {
   dashboard: ["TRANSPORT", "ภาพรวมการขนส่ง", "สรุปรถ คนขับ และงานที่รอจัดส่งจากแผนจริง"],
   planner: [
     "ROUTE OPTIMIZER",
     "วางแผนจัดรถและปรับเส้นทาง",
-    "ดึงงานจากแผน replenishment ที่ locked แล้ว จัดเส้นทางแบบ nearest-neighbour + 2-opt (ฟรี ไม่ต้องมี engine ภายนอก) แบ่งรถตามจำนวนจุด แล้วบันทึกลง Supabase",
+    "ตรวจเส้นทางตัวอย่างบนถนนจริง แล้วส่ง locked plan ทั้งชุดให้ OR-Tools + Valhalla สร้าง route plan ที่มีหลักฐาน โดยยังไม่สร้างเที่ยวรถอัตโนมัติ",
   ],
-  map: ["ROUTE MAP", "แผนที่เส้นทางการจ่าย", "ตำแหน่งคลังและเขตปลายทางบนผังภายใน"],
+  map: ["ROAD MAP", "แผนที่เส้นทางการจ่าย", "แผนที่ OSM-derived พร้อม geometry จาก routing engine และสถานะรับรองพิกัด"],
   history: ["TRIP HISTORY", "ประวัติการเดินรถ", "เที่ยวรถที่บันทึกในระบบ พร้อมค่าน้ำมันจริงเทียบประมาณการ"],
 };
 
 // ---- Normalised transport data ----
+type GeocodeStatus = "candidate" | "verified" | "quarantined";
+type VehicleAvailability = "available" | "unavailable" | "unknown";
+
+type WarehouseRouteReadiness = {
+  warehouseCode: string;
+  geocodeStatus: GeocodeStatus | "missing";
+  canonicalWarehouseId: string | null;
+  canonicalOriginReady: boolean;
+  routeEligible: boolean;
+};
+
+type TransportReadiness = {
+  operationalWritesEnabled: boolean;
+  activeWarehouses: number;
+  activeVehicles: number;
+  verifiedWarehouseGeocodes: number;
+  verifiedDistrictGeocodes: number;
+  quarantinedGeocodes: number;
+  warehousesMissingGeocode: number;
+  verifiedDepotsMissingCanonicalOrigin: number;
+  warehouseRouteReadiness: WarehouseRouteReadiness[];
+  routeReady: boolean;
+  routeReadinessStatus: string;
+  optimizationWorkerReady: boolean;
+  optimizationWorkerStatus: string;
+  optimizationEligiblePlanIds: string[];
+  optimizationEligiblePlanIdsAttested: boolean;
+  tripPersistenceReady: boolean;
+  tripPersistenceStatus: string;
+};
+
 type TGeo = {
   ref: string;
   name: string;
-  x: number;
-  y: number;
   lat: number;
   lon: number;
   districtId: string | null;
   isWarehouse: boolean;
+  warehouseCode: string | null;
+  verificationStatus: GeocodeStatus;
+  routeEligible: boolean;
+  sourceReference: string | null;
 };
-type TLeg = { dist: number; toll: number; time: number };
 type TVehicle = {
   id: string;
   code: string;
@@ -52,8 +115,9 @@ type TVehicle = {
   driver: string;
   maxWt: number;
   fuelRate: number;
-  fuelPrice: number;
   active: boolean;
+  availability: VehicleAvailability;
+  availabilityEvidence: string | null;
 };
 type TTrip = {
   id: string;
@@ -64,87 +128,311 @@ type TTrip = {
   warehouse: string;
   route: string[];
   dist: number;
-  toll: number;
   fuel: number;
   fuelActual: number | null;
   date: string;
   status: string;
   notes: string;
+  evidenceStatus: "legacy_illustrative_unverified";
 };
 type QueueRow = {
   districtRef: string;
   districtId: string;
   districtName: string;
-  totalQty: number;
+  totalQty: number | null;
   lineCount: number;
-  suggestedWarehouse: string;
-  suggestedDistanceKm: number;
+  originLocationId: string | null;
+  originWarehouseId: string | null;
+  originWarehouse: string;
+  originWarehouseGeocodeStatus: GeocodeStatus | "missing";
+  routeEligible: boolean;
   planId: string | null;
   planNumber: string;
+  estimatedWeightKg: number | null;
+  weightComplete: boolean;
 };
+
+type RouteOptimizationJob = {
+  route_job_id: string;
+  job_id: string;
+  replenishment_plan_id: string;
+  forecast_run_id?: string | null;
+  algorithm_version: string;
+  matrix_source: "valhalla";
+  status: "queued" | "running" | "succeeded" | "failed" | "cancelled" | string;
+  attempt_count?: number;
+  max_attempts?: number;
+  route_plan_id?: string | null;
+  route_plan_status?: string | null;
+  created_at?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  idempotent_replay?: boolean;
+  error?: {
+    code?: string;
+    message?: string;
+    retryable?: boolean;
+  } | null;
+};
+
+type OptimizationAttemptStatus =
+  | "submitting"
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+
+type PersistedOptimizationAttempt = {
+  version: 1;
+  planId: string;
+  groupKey: string;
+  requestId: string;
+  routeJobId: string | null;
+  status: OptimizationAttemptStatus;
+  updatedAt: string;
+};
+
+const uuidPattern =
+  /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+const optimizationSessionPrefix = "synapse.transport.optimization.v1";
+const activeOptimizationStatuses: OptimizationAttemptStatus[] = [
+  "submitting",
+  "queued",
+  "running",
+];
+const terminalOptimizationStatuses: OptimizationAttemptStatus[] = [
+  "succeeded",
+  "failed",
+  "cancelled",
+];
+
+function optimizationAttemptStatus(
+  value: unknown,
+): OptimizationAttemptStatus | null {
+  return [
+    ...activeOptimizationStatuses,
+    ...terminalOptimizationStatuses,
+  ].includes(value as OptimizationAttemptStatus)
+    ? (value as OptimizationAttemptStatus)
+    : null;
+}
+
+function optimizationSessionKey(actorId: string, planId: string) {
+  return `${optimizationSessionPrefix}:${actorId}:${planId}`;
+}
+
+function readOptimizationAttempt(actorId: string, planId: string) {
+  if (
+    typeof window === "undefined" ||
+    !uuidPattern.test(actorId) ||
+    !uuidPattern.test(planId)
+  ) {
+    return null;
+  }
+  const key = optimizationSessionKey(actorId, planId);
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedOptimizationAttempt>;
+    const status = optimizationAttemptStatus(parsed.status);
+    const valid =
+      parsed.version === 1 &&
+      parsed.planId === planId &&
+      typeof parsed.groupKey === "string" &&
+      typeof parsed.requestId === "string" &&
+      parsed.requestId.length > 0 &&
+      parsed.requestId.length <= 64 &&
+      /^[A-Za-z0-9_-]+$/.test(parsed.requestId) &&
+      (parsed.routeJobId === null ||
+        (typeof parsed.routeJobId === "string" &&
+          uuidPattern.test(parsed.routeJobId))) &&
+      Boolean(status) &&
+      (status === "submitting" || typeof parsed.routeJobId === "string") &&
+      typeof parsed.updatedAt === "string";
+    if (!valid) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+    return parsed as PersistedOptimizationAttempt;
+  } catch {
+    return null;
+  }
+}
+
+function writeOptimizationAttempt(
+  actorId: string,
+  attempt: PersistedOptimizationAttempt,
+) {
+  if (
+    typeof window === "undefined" ||
+    !uuidPattern.test(actorId) ||
+    !uuidPattern.test(attempt.planId)
+  ) {
+    return;
+  }
+  try {
+    // Deliberately persist only opaque job/idempotency identifiers and state.
+    // Access tokens, user profile data, payloads and route evidence never enter
+    // browser storage.
+    window.sessionStorage.setItem(
+      optimizationSessionKey(actorId, attempt.planId),
+      JSON.stringify(attempt),
+    );
+  } catch {
+    // Private browsing and enterprise policies may disable storage. The API's
+    // actor-scoped idempotency remains the authoritative duplicate guard.
+  }
+}
+
+function assertJobMatchesPlan(
+  job: RouteOptimizationJob,
+  planId: string,
+  expectedRouteJobId?: string,
+) {
+  const status = optimizationAttemptStatus(job.status);
+  if (
+    job.replenishment_plan_id !== planId ||
+    !uuidPattern.test(job.route_job_id) ||
+    (expectedRouteJobId && job.route_job_id !== expectedRouteJobId) ||
+    !status ||
+    job.matrix_source !== "valhalla"
+  ) {
+    throw new Error("สถานะ optimizer ไม่ตรงกับ plan/job ที่ร้องขอ");
+  }
+  return status;
+}
 
 type TransportData = {
   geo: Record<string, TGeo>;
-  routes: Record<string, Record<string, TLeg>>;
   vehicles: TVehicle[];
   trips: TTrip[];
   warehouses: string[];
   queue: QueueRow[];
+  readiness: TransportReadiness | null;
 };
 
 type Row = Record<string, unknown>;
 const num = (v: unknown) => Number(v ?? 0);
+const coordinateNum = (value: unknown) => {
+  if (value == null || (typeof value === "string" && !value.trim())) {
+    return Number.NaN;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+};
 const str = (v: unknown) => (v == null ? "" : String(v));
+type DataSource = "supabase" | "error";
 
-function localData(): TransportData {
-  const geo: Record<string, TGeo> = {};
-  Object.entries(DIST_GEO).forEach(([ref, g]) => {
-    geo[ref] = {
-      ref,
-      name: g.name,
-      x: g.x,
-      y: g.y,
-      lat: g.lat,
-      lon: g.lon,
-      districtId: null,
-      isWarehouse: ref === "WH",
-    };
-  });
-  const routes: Record<string, Record<string, TLeg>> = {};
-  (Object.keys(ROUTES) as Array<keyof typeof ROUTES>).forEach((wh) => {
-    routes[wh] = {};
-    Object.entries(ROUTES[wh]).forEach(([ref, leg]) => {
-      routes[wh][ref] = { dist: leg.dist, toll: leg.toll, time: leg.time };
-    });
-  });
-  const vehicles: TVehicle[] = VEHICLES.map((v) => ({
-    id: v.id,
-    code: v.code,
-    plate: v.plate,
-    currentWarehouse: v.currentWh,
-    driver: v.driver,
-    maxWt: v.maxWt,
-    fuelRate: v.fuelRate,
-    fuelPrice: v.fuelPrice,
-    active: v.active,
-  }));
-  const trips: TTrip[] = SEED_TRIPS.map((t: Trip) => ({
-    id: t.id,
-    code: t.id,
-    batch: t.batch,
-    vehicle: t.veh,
-    driver: t.driver,
-    warehouse: t.wh,
-    route: t.route,
-    dist: t.dist,
-    toll: t.toll,
-    fuel: t.fuel,
-    fuelActual: t.fuelAct,
-    date: t.date,
-    status: t.status,
-    notes: t.notes,
-  }));
-  return { geo, routes, vehicles, trips, warehouses: [...WAREHOUSES], queue: [] };
+function geoStatus(value: unknown): TGeo["verificationStatus"] {
+  return value === "verified" || value === "quarantined"
+    ? value
+    : "candidate";
+}
+
+function vehicleAvailability(row: Row): {
+  status: VehicleAvailability;
+  evidence: string | null;
+} {
+  const rawStatus = str(row.availability_status).trim().toLowerCase();
+  const evidence =
+    str(row.availability_evidence).trim() ||
+    str(row.availability_checked_at).trim() ||
+    null;
+  if (
+    ["unavailable", "busy", "blocked", "maintenance"].includes(rawStatus) ||
+    row.is_available === false
+  ) {
+    return { status: "unavailable", evidence };
+  }
+  if (
+    (rawStatus === "available" || row.is_available === true) &&
+    evidence
+  ) {
+    return { status: "available", evidence };
+  }
+  return { status: "unknown", evidence };
+}
+
+function parseReadiness(row: Row): TransportReadiness {
+  const depots: WarehouseRouteReadiness[] = Array.isArray(
+    row.warehouse_route_readiness,
+  )
+    ? (row.warehouse_route_readiness as Row[]).map(
+        (depot): WarehouseRouteReadiness => ({
+          warehouseCode: str(depot.warehouse_code),
+          geocodeStatus:
+            depot.geocode_status === "verified" ||
+            depot.geocode_status === "quarantined"
+              ? depot.geocode_status
+              : depot.geocode_status === "candidate" ||
+                  depot.geocode_status === "unverified"
+                ? "candidate"
+              : "missing",
+          canonicalWarehouseId: depot.canonical_warehouse_id
+            ? str(depot.canonical_warehouse_id)
+            : null,
+          canonicalOriginReady: depot.canonical_origin_ready === true,
+          routeEligible: depot.route_eligible === true,
+        }),
+      )
+    : [];
+  const rawEligiblePlanIds = row.optimization_eligible_plan_ids;
+  const eligiblePlanIdsAttested =
+    Array.isArray(rawEligiblePlanIds) &&
+    rawEligiblePlanIds.every(
+      (planId) => typeof planId === "string" && uuidPattern.test(planId),
+    );
+  const eligiblePlanIds = eligiblePlanIdsAttested
+    ? [...new Set(rawEligiblePlanIds as string[])]
+    : [];
+  return {
+    operationalWritesEnabled: row.operational_writes_enabled === true,
+    activeWarehouses: num(row.active_warehouses),
+    activeVehicles: num(row.active_vehicles),
+    verifiedWarehouseGeocodes: num(row.verified_warehouse_geocodes),
+    verifiedDistrictGeocodes: num(row.verified_district_geocodes),
+    quarantinedGeocodes: num(row.quarantined_geocodes),
+    warehousesMissingGeocode: num(row.warehouses_missing_geocode),
+    verifiedDepotsMissingCanonicalOrigin: num(
+      row.verified_depots_missing_canonical_origin,
+    ),
+    warehouseRouteReadiness: depots,
+    routeReady: row.route_ready === true,
+    routeReadinessStatus:
+      str(row.route_readiness_status) || "unknown_route_readiness",
+    optimizationWorkerReady: row.optimization_worker_ready === true,
+    optimizationWorkerStatus:
+      str(row.optimization_worker_status) || "unknown_worker_readiness",
+    optimizationEligiblePlanIds: eligiblePlanIds,
+    optimizationEligiblePlanIdsAttested: eligiblePlanIdsAttested,
+    tripPersistenceReady: row.trip_persistence_ready === true,
+    tripPersistenceStatus:
+      str(row.trip_persistence_status) || "unknown_persistence_readiness",
+  };
+}
+
+function hasValidCoordinates(point: TGeo | null | undefined) {
+  return Boolean(
+    point &&
+      Number.isFinite(point.lat) &&
+      Number.isFinite(point.lon) &&
+      point.lat >= -90 &&
+      point.lat <= 90 &&
+      point.lon >= -180 &&
+      point.lon <= 180,
+  );
+}
+
+function emptyData(): TransportData {
+  return {
+    geo: {},
+    vehicles: [],
+    trips: [],
+    warehouses: [],
+    queue: [],
+    readiness: null,
+  };
 }
 
 function mapStatus(s: string) {
@@ -154,53 +442,44 @@ function mapStatus(s: string) {
 }
 
 async function loadRemote(token: string): Promise<TransportData> {
-  const [geoRows, vehRows, matrixRows, tripRows] = await Promise.all([
-    apiRequest<Row[]>("/v1/transport/geo", token),
-    apiRequest<Row[]>("/v1/transport/vehicles", token),
-    apiRequest<Row[]>("/v1/transport/route-matrix", token),
-    apiRequest<Row[]>("/v1/transport/trips?limit=200", token),
-  ]);
-  // Dispatch queue is best-effort (empty until locked plans exist).
-  let queueRows: Row[] = [];
-  try {
-    queueRows = await apiRequest<Row[]>("/v1/transport/dispatch-queue", token);
-  } catch {
-    queueRows = [];
-  }
+  const [readinessRow, geoRows, vehRows, tripRows, queueRows] =
+    await Promise.all([
+      apiRequest<Row>("/v1/transport/readiness", token),
+      apiRequest<Row[]>("/v1/transport/geo", token),
+      apiRequest<Row[]>("/v1/transport/vehicles", token),
+      apiRequest<Row[]>("/v1/transport/trips?limit=200", token),
+      apiRequest<Row[]>("/v1/transport/dispatch-queue", token),
+    ]);
   const geo: Record<string, TGeo> = {};
   geoRows.forEach((g) => {
     geo[str(g.district_ref)] = {
       ref: str(g.district_ref),
       name: str(g.name_th),
-      x: num(g.map_x),
-      y: num(g.map_y),
-      lat: num(g.latitude),
-      lon: num(g.longitude),
+      lat: coordinateNum(g.latitude),
+      lon: coordinateNum(g.longitude),
       districtId: g.district_id ? str(g.district_id) : null,
       isWarehouse: g.is_warehouse === true,
+      warehouseCode: g.warehouse_code ? str(g.warehouse_code) : null,
+      verificationStatus: geoStatus(g.geocode_status),
+      routeEligible: g.route_eligible === true,
+      sourceReference: g.source_reference ? str(g.source_reference) : null,
     };
   });
-  const routes: Record<string, Record<string, TLeg>> = {};
-  matrixRows.forEach((r) => {
-    const wh = str(r.warehouse_code);
-    routes[wh] = routes[wh] ?? {};
-    routes[wh][str(r.district_ref)] = {
-      dist: num(r.distance_km),
-      toll: num(r.toll_thb),
-      time: num(r.travel_minutes),
+  const vehicles: TVehicle[] = vehRows.map((v) => {
+    const availability = vehicleAvailability(v);
+    return {
+      id: str(v.vehicle_id),
+      code: str(v.asset_code),
+      plate: str(v.plate),
+      currentWarehouse: str(v.current_warehouse),
+      driver: str(v.driver_name),
+      maxWt: num(v.max_weight_kg),
+      fuelRate: num(v.fuel_rate_km_per_l),
+      active: v.is_active !== false,
+      availability: availability.status,
+      availabilityEvidence: availability.evidence,
     };
   });
-  const vehicles: TVehicle[] = vehRows.map((v) => ({
-    id: str(v.vehicle_id),
-    code: str(v.asset_code),
-    plate: str(v.plate),
-    currentWarehouse: str(v.current_warehouse),
-    driver: str(v.driver_name),
-    maxWt: num(v.max_weight_kg),
-    fuelRate: num(v.fuel_rate_km_per_l),
-    fuelPrice: num(v.fuel_price_thb_per_l),
-    active: v.is_active !== false,
-  }));
   const trips: TTrip[] = tripRows.map((t) => ({
     id: str(t.trip_id),
     code: str(t.trip_code),
@@ -212,52 +491,88 @@ async function loadRemote(token: string): Promise<TransportData> {
       ? (t.route_district_refs as unknown[]).map(str)
       : [],
     dist: num(t.total_distance_km),
-    toll: num(t.total_toll_thb),
     fuel: num(t.fuel_cost_estimate_thb),
     fuelActual: t.fuel_cost_actual_thb == null ? null : num(t.fuel_cost_actual_thb),
     date: str(t.trip_date),
-    status: mapStatus(str(t.status)),
+    status: str(t.status),
     notes: str(t.notes),
+    // The current trip-summary contract has no persisted authenticated
+    // real-road evidence fields. Treat every returned row as legacy evidence.
+    evidenceStatus: "legacy_illustrative_unverified",
   }));
   const queue: QueueRow[] = queueRows.map((q) => ({
     districtRef: str(q.district_ref),
     districtId: str(q.district_id),
     districtName: str(q.district_name_th),
-    totalQty: num(q.total_qty),
+    totalQty: q.total_qty == null ? null : num(q.total_qty),
     lineCount: num(q.line_count),
-    suggestedWarehouse: str(q.suggested_warehouse),
-    suggestedDistanceKm: num(q.suggested_distance_km),
+    originLocationId: q.origin_location_id
+      ? str(q.origin_location_id)
+      : null,
+    originWarehouseId: q.origin_warehouse_id
+      ? str(q.origin_warehouse_id)
+      : null,
+    originWarehouse: str(q.suggested_warehouse),
+    originWarehouseGeocodeStatus:
+      q.suggested_warehouse_geocode_status === "verified" ||
+      q.suggested_warehouse_geocode_status === "quarantined"
+        ? q.suggested_warehouse_geocode_status
+        : q.suggested_warehouse_geocode_status === "candidate" ||
+            q.suggested_warehouse_geocode_status === "unverified"
+          ? "candidate"
+        : "missing",
+    routeEligible: q.route_eligible === true,
     planId: q.replenishment_plan_id ? str(q.replenishment_plan_id) : null,
     planNumber: str(q.plan_number),
+    estimatedWeightKg:
+      q.estimated_weight_kg == null ? null : num(q.estimated_weight_kg),
+    weightComplete: q.weight_complete === true,
   }));
-  const warehouses = Object.keys(routes).length ? Object.keys(routes) : [...WAREHOUSES];
-  return { geo, routes, vehicles, trips, warehouses, queue };
+  const warehouses = Object.values(geo)
+    .filter(
+      (point) =>
+        point.isWarehouse &&
+        point.verificationStatus === "verified" &&
+        point.routeEligible,
+    )
+    .map((point) => point.warehouseCode || point.ref);
+  return {
+    geo,
+    vehicles,
+    trips,
+    warehouses,
+    queue,
+    readiness: parseReadiness(readinessRow),
+  };
 }
 
-function useTransportData(token: string | null) {
-  const [data, setData] = useState<TransportData>(() => localData());
-  const [source, setSource] = useState<"supabase" | "local">("local");
-  const [loading, setLoading] = useState(false);
+function useTransportData(token: string | null, role: Role) {
+  const [data, setData] = useState<TransportData>(emptyData);
+  const [source, setSource] = useState<DataSource>("error");
+  const [loading, setLoading] = useState(Boolean(token));
+  const [loadError, setLoadError] = useState("");
 
   const reload = useCallback(async () => {
     if (!token) {
-      setData(localData());
-      setSource("local");
+      setData(emptyData());
+      setSource("error");
+      setLoadError("ต้องยืนยันตัวตนก่อนเข้าถึงข้อมูลขนส่งจริง");
       return;
     }
     setLoading(true);
+    setLoadError("");
     try {
       const remote = await loadRemote(token);
-      if (remote.warehouses.length && remote.vehicles.length) {
-        setData(remote);
-        setSource("supabase");
-      } else {
-        setData(localData());
-        setSource("local");
-      }
-    } catch {
-      setData(localData());
-      setSource("local");
+      setData(remote);
+      setSource("supabase");
+    } catch (loadFailure) {
+      setData(emptyData());
+      setSource("error");
+      setLoadError(
+        loadFailure instanceof Error
+          ? loadFailure.message
+          : "โหลดข้อมูลขนส่งไม่สำเร็จ",
+      );
     } finally {
       setLoading(false);
     }
@@ -268,164 +583,123 @@ function useTransportData(token: string | null) {
     void reload();
   }, [reload]);
 
-  const saveTrip = useCallback(
-    async (warehouse: string, stops: string[], notes: string, planId: string | null) => {
-      if (source === "supabase" && token) {
-        await apiRequest<Row>("/v1/transport/trips", token, {
+  const optimizeRoad = useCallback(
+    async (
+      depot: TGeo,
+      stops: TGeo[],
+      planId: string,
+      avoidTolls: boolean,
+    ): Promise<RoadOptimizationResult> => {
+      if (
+        source !== "supabase" ||
+        !token ||
+        !canMutateTransport(role)
+      ) {
+        throw new Error(
+          "Road optimizer ใช้ได้เฉพาะ admin/planner ที่เชื่อมต่อข้อมูลจริง",
+        );
+      }
+      return apiRequest<RoadOptimizationResult>(
+        "/v1/transport/optimize",
+        token,
+        {
           method: "POST",
           body: JSON.stringify({
-            warehouse_code: warehouse,
-            stops,
-            notes,
+            // Coordinates are intentionally omitted: the authorization gate
+            // replaces these IDs with verified canonical geodata.
+            depot: { id: depot.warehouseCode || depot.ref },
+            stops: stops.map((stop) => ({ id: stop.ref })),
             replenishment_plan_id: planId,
+            objective: "duration",
+            avoidTolls,
           }),
-        });
-        await reload();
-        return "supabase" as const;
-      }
-      const plan = optimizePlan(data, warehouse, stops);
-      const local: TTrip = {
-        id: `LOCAL-${Date.now()}-${Math.floor(Math.random() * 999)}`,
-        code: `TRP-LOCAL-${Math.floor(Math.random() * 9000 + 1000)}`,
-        batch: null,
-        vehicle: plan.vehicle?.id ?? "-",
-        driver: plan.vehicle?.driver ?? "-",
-        warehouse,
-        route: plan.order,
-        dist: plan.matrixDist,
-        toll: plan.totalToll,
-        fuel: plan.fuelCost,
-        fuelActual: null,
-        date: new Date().toLocaleDateString("th-TH"),
-        status: "วางแผน",
-        notes,
-      };
-      setData((cur) => ({ ...cur, trips: [local, ...cur.trips] }));
-      return "local" as const;
+        },
+      );
     },
-    [data, reload, source, token],
+    [role, source, token],
   );
 
-  return { data, source, loading, reload, saveTrip };
-}
-
-// ---- Free route optimizer (haversine tour + nearest-neighbour + 2-opt) ----
-function haversineKm(a: TGeo, b: TGeo) {
-  const R = 6371;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLon = toRad(b.lon - a.lon);
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(s));
-}
-
-function tourKm(geo: Record<string, TGeo>, wh: TGeo | null, order: string[]) {
-  if (!wh || !order.length) return 0;
-  let d = 0;
-  let prev = wh;
-  for (const id of order) {
-    const g = geo[id];
-    if (g) {
-      d += haversineKm(prev, g);
-      prev = g;
-    }
-  }
-  d += haversineKm(prev, wh); // return to depot
-  return Math.round(d * 10) / 10;
-}
-
-function nearestNeighbour(geo: Record<string, TGeo>, wh: TGeo | null, stops: string[]) {
-  const remaining = stops.filter((id) => geo[id]);
-  const order: string[] = [];
-  let cur = wh;
-  while (remaining.length && cur) {
-    let bi = 0;
-    let best = Infinity;
-    remaining.forEach((id, idx) => {
-      const d = haversineKm(cur as TGeo, geo[id]);
-      if (d < best) {
-        best = d;
-        bi = idx;
+  const cancelLegacyTrip = useCallback(
+    async (tripId: string) => {
+      if (
+        source !== "supabase" ||
+        !token ||
+        !canMutateTransport(role)
+      ) {
+        throw new Error(
+          "ยกเลิกเที่ยวรถได้เฉพาะ admin/planner ที่ยืนยันตัวตนแล้ว",
+        );
       }
-    });
-    const next = remaining.splice(bi, 1)[0];
-    order.push(next);
-    cur = geo[next];
-  }
-  return order;
-}
+      await apiRequest<Row>(
+        `/v1/transport/trips/${encodeURIComponent(tripId)}/status`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ status: "cancelled" }),
+        },
+      );
+      await reload();
+    },
+    [reload, role, source, token],
+  );
 
-function twoOpt(geo: Record<string, TGeo>, wh: TGeo | null, initial: string[]) {
-  let order = [...initial];
-  if (order.length < 4 || !wh) return order;
-  let improved = true;
-  let guard = 0;
-  while (improved && guard < 60) {
-    improved = false;
-    guard += 1;
-    for (let i = 0; i < order.length - 1; i += 1) {
-      for (let k = i + 1; k < order.length; k += 1) {
-        const candidate = [
-          ...order.slice(0, i),
-          ...order.slice(i, k + 1).reverse(),
-          ...order.slice(k + 1),
-        ];
-        if (tourKm(geo, wh, candidate) + 1e-6 < tourKm(geo, wh, order)) {
-          order = candidate;
-          improved = true;
-        }
+  const queueOptimizationJob = useCallback(
+    async (planId: string, idempotencyKey: string) => {
+      if (
+        source !== "supabase" ||
+        !token ||
+        !canMutateTransport(role)
+      ) {
+        throw new Error(
+          "ส่งงาน optimize ได้เฉพาะ admin/planner ที่ยืนยันตัวตนแล้ว",
+        );
       }
-    }
-  }
-  return order;
-}
+      return apiRequest<RouteOptimizationJob>(
+        "/v1/transport/optimization-jobs",
+        token,
+        {
+          method: "POST",
+          headers: { "X-Request-ID": idempotencyKey },
+          body: JSON.stringify({
+            replenishment_plan_id: planId,
+            matrix_source: "valhalla",
+          }),
+        },
+      );
+    },
+    [role, source, token],
+  );
 
-type OptimizedPlan = {
-  order: string[];
-  tourDist: number;
-  matrixDist: number;
-  totalToll: number;
-  totalTime: number;
-  fuelCost: number;
-  vehicle: TVehicle | null;
-};
+  const readOptimizationJob = useCallback(
+    async (routeJobId: string) => {
+      if (
+        source !== "supabase" ||
+        !token ||
+        !canMutateTransport(role)
+      ) {
+        throw new Error(
+          "อ่านสถานะงาน optimize ได้เฉพาะ admin/planner ที่ยืนยันตัวตนแล้ว",
+        );
+      }
+      return apiRequest<RouteOptimizationJob>(
+        `/v1/transport/optimization-jobs/${encodeURIComponent(routeJobId)}`,
+        token,
+      );
+    },
+    [role, source, token],
+  );
 
-function optimizePlan(
-  data: TransportData,
-  warehouse: string,
-  stops: string[],
-): OptimizedPlan {
-  const wh = Object.values(data.geo).find((g) => g.isWarehouse) ?? null;
-  const nn = nearestNeighbour(data.geo, wh, stops);
-  const order = twoOpt(data.geo, wh, nn);
-  const legs = data.routes[warehouse] ?? {};
-  const matrixDist = order.reduce((s, id) => s + (legs[id]?.dist ?? 0), 0);
-  const totalToll = order.reduce((s, id) => s + (legs[id]?.toll ?? 0), 0);
-  const totalTime = order.reduce((s, id) => s + (legs[id]?.time ?? 0), 0);
-  const vehicle =
-    data.vehicles.find((v) => v.currentWarehouse === warehouse && v.active) ?? null;
-  const dist = tourKm(data.geo, wh, order);
-  const fuelCost = vehicle
-    ? Math.round((dist / vehicle.fuelRate) * vehicle.fuelPrice * 100) / 100
-    : 0;
   return {
-    order,
-    tourDist: dist,
-    matrixDist: Math.round(matrixDist * 10) / 10,
-    totalToll,
-    totalTime,
-    fuelCost,
-    vehicle,
+    data,
+    source,
+    loading,
+    loadError,
+    reload,
+    optimizeRoad,
+    cancelLegacyTrip,
+    queueOptimizationJob,
+    readOptimizationJob,
   };
-}
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  if (size <= 0) return [arr];
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
 }
 
 function statusTone(status: string) {
@@ -442,127 +716,467 @@ function TBadge({ children }: { children: ReactNode }) {
   );
 }
 
-function MapCanvas({
-  geo,
-  route,
-  highlight,
-  onPick,
-}: {
-  geo: Record<string, TGeo>;
-  route: string[];
-  highlight?: string | null;
-  onPick?: (id: string) => void;
-}) {
-  const wh = Object.values(geo).find((g) => g.isWarehouse) ?? null;
-  const nodes = Object.values(geo).filter((g) => !g.isWarehouse);
-  const points = [wh, ...route.map((id) => geo[id])].filter(Boolean) as TGeo[];
-  const polyline = points.map((p) => `${p.x},${p.y}`).join(" ");
+type QueueGroup = {
+  key: string;
+  planId: string | null;
+  planNumber: string;
+  warehouse: string;
+  rows: QueueRow[];
+  routeEligible: boolean;
+  blocker: string | null;
+};
+
+type FleetChunk = {
+  vehicle: TVehicle;
+  stops: string[];
+  weightKg: number;
+};
+
+function queueGroups(rows: QueueRow[]): QueueGroup[] {
+  const groups = new Map<string, QueueGroup>();
+  for (const row of rows) {
+    const key = `${row.planId ?? "missing-plan"}::${row.originWarehouse || "missing-origin"}`;
+    const group = groups.get(key);
+    if (group) {
+      group.rows.push(row);
+    } else {
+      groups.set(key, {
+        key,
+        planId: row.planId,
+        planNumber: row.planNumber || "ไม่พบเลขแผน",
+        warehouse: row.originWarehouse,
+        rows: [row],
+        routeEligible: false,
+        blocker: null,
+      });
+    }
+  }
+  return [...groups.values()]
+    .map((group) => {
+      const blocked = group.rows.find(
+        (row) =>
+          !row.planId ||
+          !row.originLocationId ||
+          !row.originWarehouseId ||
+          !row.originWarehouse ||
+          row.originWarehouseGeocodeStatus !== "verified" ||
+          !row.routeEligible,
+      );
+      let blocker: string | null = null;
+      if (blocked) {
+        blocker = !blocked.planId
+          ? "ไม่มี replenishment_plan_id"
+          : !blocked.originLocationId
+            ? "ไม่มี origin_location_id"
+            : !blocked.originWarehouseId
+              ? "ไม่มี origin_warehouse_id"
+              : !blocked.originWarehouse
+                ? "ไม่มี transport warehouse mapping"
+                : blocked.originWarehouseGeocodeStatus !== "verified"
+                  ? `พิกัดคลังเป็น ${blocked.originWarehouseGeocodeStatus}`
+                  : `จุด ${blocked.districtRef} มี route_eligible=false`;
+      }
+      return {
+        ...group,
+        routeEligible: blocker === null,
+        blocker,
+      };
+    })
+    .sort((a, b) =>
+      `${a.planNumber}-${a.warehouse}`.localeCompare(
+        `${b.planNumber}-${b.warehouse}`,
+        "th",
+      ),
+    );
+}
+
+function depotForWarehouse(
+  data: TransportData,
+  warehouse: string,
+  allowLegacyFallback = false,
+) {
+  const exact =
+    Object.values(data.geo).find(
+      (point) =>
+        point.isWarehouse &&
+        (point.warehouseCode === warehouse || point.ref === warehouse),
+    ) ?? null;
+  if (exact || !allowLegacyFallback) return exact;
+  return Object.values(data.geo).find((point) => point.isWarehouse) ?? null;
+}
+
+function mapPoints(
+  data: TransportData,
+  warehouse: string,
+  selected: string[],
+  route: string[],
+  allowLegacyFallback = false,
+): TransportRoadMapProps["points"] {
+  const depot = depotForWarehouse(data, warehouse, allowLegacyFallback);
+  const sequence = new Map(route.map((id, index) => [id, index + 1]));
+  return Object.values(data.geo)
+    .filter((point) => !point.isWarehouse || point.ref === depot?.ref)
+    .map((point) => ({
+      id: point.ref,
+      name: point.name,
+      lat: point.lat,
+      lon: point.lon,
+      isDepot: point.ref === depot?.ref,
+      selected: selected.includes(point.ref),
+      sequence: sequence.get(point.ref),
+      verificationStatus: point.verificationStatus,
+      routeEligible: point.routeEligible,
+    }));
+}
+
+function sameStopSet(expected: string[], actual: string[]) {
   return (
-    <svg
-      viewBox="0 0 850 520"
-      style={{
-        width: "100%",
-        height: "auto",
-        background: "linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%)",
-        borderRadius: 14,
-        border: "1px solid #e2e8f0",
-      }}
-    >
-      <defs>
-        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-          <path d="M0,0 L6,3 L0,6 Z" fill="#E3670A" />
-        </marker>
-      </defs>
-      {route.length > 0 && (
-        <polyline
-          points={polyline}
-          fill="none"
-          stroke="#E3670A"
-          strokeWidth={2.5}
-          strokeDasharray="6 4"
-          markerMid="url(#arrow)"
-          markerEnd="url(#arrow)"
-          opacity={0.85}
-        />
-      )}
-      {nodes.map((node) => {
-        const inRoute = route.includes(node.ref);
-        const isHi = highlight === node.ref;
-        return (
-          <g
-            key={node.ref}
-            transform={`translate(${node.x},${node.y})`}
-            style={{ cursor: onPick ? "pointer" : "default" }}
-            onClick={() => onPick?.(node.ref)}
-          >
-            <circle
-              r={isHi ? 11 : 7}
-              fill={inRoute ? "#E3670A" : isHi ? "#1A56DB" : "#fff"}
-              stroke={inRoute ? "#c2560a" : "#94a3b8"}
-              strokeWidth={2}
-            />
-            <text x={12} y={4} fontSize={11} fontWeight={600} fill="#334155">
-              {node.ref}
-            </text>
-          </g>
-        );
-      })}
-      {wh && (
-        <g transform={`translate(${wh.x},${wh.y})`}>
-          <rect x={-9} y={-9} width={18} height={18} rx={4} fill="#1A56DB" />
-          <text x={14} y={5} fontSize={12} fontWeight={700} fill="#1A56DB">
-            คลัง
-          </text>
-        </g>
-      )}
-    </svg>
+    expected.length === actual.length &&
+    new Set(expected).size === expected.length &&
+    new Set(actual).size === actual.length &&
+    expected.every((id) => actual.includes(id))
   );
 }
 
-function SourceTag({ source, loading }: { source: "supabase" | "local"; loading: boolean }) {
+function allocateFleet(
+  order: string[],
+  rows: QueueRow[],
+  vehicles: TVehicle[],
+  preferredVehicleId: string,
+  maxStops: number,
+): { chunks: FleetChunk[]; totalWeightKg: number; error: string | null } {
+  if (!order.length) return { chunks: [], totalWeightKg: 0, error: null };
+  const rowByStop = new Map(rows.map((row) => [row.districtRef, row]));
+  const incomplete = order.find((id) => {
+    const row = rowByStop.get(id);
+    return (
+      !row ||
+      !row.weightComplete ||
+      row.estimatedWeightKg == null ||
+      !Number.isFinite(row.estimatedWeightKg) ||
+      row.estimatedWeightKg < 0
+    );
+  });
+  if (incomplete) {
+    return {
+      chunks: [],
+      totalWeightKg: 0,
+      error: `ยังยืนยันน้ำหนักของ ${incomplete} ไม่ครบ จึงยังจัดรถหรือบันทึกไม่ได้`,
+    };
+  }
+  const weights = new Map(
+    order.map((id) => [id, rowByStop.get(id)?.estimatedWeightKg ?? 0]),
+  );
+  const usable = vehicles
+    .filter(
+      (vehicle) =>
+        vehicle.active &&
+        Number.isFinite(vehicle.maxWt) &&
+        vehicle.maxWt > 0,
+    )
+    .sort((a, b) => {
+      if (a.id === preferredVehicleId) return -1;
+      if (b.id === preferredVehicleId) return 1;
+      return b.maxWt - a.maxWt;
+    });
+  if (!usable.length) {
+    return {
+      chunks: [],
+      totalWeightKg: 0,
+      error:
+        "ยังไม่มีหลักฐาน availability ของรถที่คลังนี้; is_active อย่างเดียวไม่ยืนยันว่ารถพร้อมออกงาน",
+    };
+  }
+
+  const chunks: FleetChunk[] = [];
+  let cursor = 0;
+  const remaining = [...usable];
+  while (cursor < order.length) {
+    const firstWeight = weights.get(order[cursor]) ?? 0;
+    const vehicleIndex = remaining.findIndex(
+      (vehicle) => vehicle.maxWt >= firstWeight,
+    );
+    if (vehicleIndex < 0) {
+      return {
+        chunks: [],
+        totalWeightKg: 0,
+        error: `น้ำหนักของ ${order[cursor]} เกินความจุรถที่เหลือทั้งหมด`,
+      };
+    }
+    const [vehicle] = remaining.splice(vehicleIndex, 1);
+    const stops: string[] = [];
+    let weightKg = 0;
+    while (cursor < order.length && stops.length < maxStops) {
+      const nextWeight = weights.get(order[cursor]) ?? 0;
+      if (stops.length > 0 && weightKg + nextWeight > vehicle.maxWt) break;
+      if (nextWeight > vehicle.maxWt) break;
+      stops.push(order[cursor]);
+      weightKg += nextWeight;
+      cursor += 1;
+    }
+    chunks.push({ vehicle, stops, weightKg });
+    if (cursor < order.length && remaining.length === 0) {
+      return {
+        chunks: [],
+        totalWeightKg: 0,
+        error:
+          "จำนวนรถไม่พอสำหรับแยกเที่ยวตามน้ำหนักและจำนวนจุด กรุณาลดจุดส่งหรือเพิ่มรถ",
+      };
+    }
+  }
+  return {
+    chunks,
+    totalWeightKg: [...weights.values()].reduce(
+      (sum, weight) => sum + weight,
+      0,
+    ),
+    error: null,
+  };
+}
+
+function SourceTag({
+  source,
+  loading,
+  error,
+  onRetry,
+}: {
+  source: DataSource;
+  loading: boolean;
+  error: string;
+  onRetry: () => void;
+}) {
+  const isError = source === "error" && !loading;
   return (
     <aside
-      className={`runtime-message ${source === "supabase" ? "" : "warning"}`}
-      role="status"
-      style={{
-        background: source === "supabase" ? "#ecfdf5" : undefined,
-        borderColor: source === "supabase" ? "#a7f3d0" : undefined,
-      }}
+      className={`runtime-message transport-source ${loading ? "loading" : source}`}
+      role={isError ? "alert" : "status"}
+      aria-live="polite"
     >
-      <i>{source === "supabase" ? "✓" : "!"}</i>
+      <i>{source === "supabase" ? "✓" : "×"}</i>
       <div>
         <strong>
           {loading
             ? "กำลังโหลดข้อมูลขนส่ง…"
             : source === "supabase"
-              ? "เชื่อมต่อ Supabase แล้ว — ข้อมูลจริงจาก /v1/transport"
-              : "โหมดข้อมูลต้นแบบ (ยังไม่ได้ deploy migration M13/M13b)"}
+              ? "เชื่อมต่อข้อมูลจริงแล้ว"
+              : "โหลดข้อมูลขนส่งจริงไม่สำเร็จ — หยุดการวางแผนเพื่อความปลอดภัย"}
         </strong>
         <p>
           {source === "supabase"
-            ? "รถ เส้นทาง งานรอจัดส่ง และเที่ยวรถ อ่าน/บันทึกผ่าน m13_transport_dispatch → ตาราง core/ops บน Supabase"
-            : "ใช้ชุดข้อมูล DB_Route ที่พอร์ตจากแอปเก่า เมื่อ deploy migration 202607250001/250002 จะสลับเป็นข้อมูลจริงและงานจากแผน replenishment อัตโนมัติ"}
+            ? "งาน แผน รถ และพิกัดมาจาก transport API; ระบบจะไม่ใช้ข้อมูลสาธิตแทนเมื่อ API ผิดพลาด"
+            : error || "ไม่สามารถยืนยันสถานะข้อมูลจาก transport API ได้"}
         </p>
       </div>
+      {isError && (
+        <button type="button" className="btn ghost" onClick={onRetry}>
+          ลองโหลดอีกครั้ง
+        </button>
+      )}
     </aside>
   );
 }
 
+function readinessText(status: string) {
+  return (
+    {
+      ready: "ผ่าน gate",
+      blocked_no_verified_district_geocodes:
+        "ยังไม่มีพิกัดเขตที่ verified",
+      blocked_no_verified_depot_geocode: "ยังไม่มีพิกัดคลังที่ verified",
+      blocked_verified_depot_missing_canonical_origin:
+        "คลัง verified แต่ยังไม่มี canonical origin",
+      blocked_status_contract_mismatch:
+        "worker ยังไม่ตรงกับ status contract",
+      blocked_road_route_evidence_contract_missing:
+        "ยังไม่มี contract บันทึกหลักฐานเส้นทางถนน",
+      blocked_operational_writes_locked:
+        "Operational POST gate ยังล็อกอยู่",
+      blocked_route_master_data_not_ready:
+        "ข้อมูลหลักสำหรับจัดเส้นทางยังไม่ครบ",
+      blocked_no_exact_locked_plan_with_verified_depot_and_fleet:
+        "ยังไม่มี locked plan ที่พิกัด คลัง บรรจุภัณฑ์ และรถผ่านครบทั้งแผน",
+      blocked_no_recent_optimization_worker_heartbeat:
+        "ไม่พบ heartbeat ล่าสุดจาก OR-Tools + Valhalla worker",
+      ready_valhalla_exact_locked_plan_queue:
+        "พร้อมรับ locked plan ทั้งชุดเข้า Valhalla + OR-Tools queue",
+      blocked_route_plan_to_trip_activation_not_configured:
+        "สร้าง route plan พร้อมหลักฐานได้ แต่ยังไม่เปิดแปลงเป็นเที่ยวรถ",
+      unknown_route_readiness: "readiness API ไม่ส่งสถานะ route",
+      unknown_worker_readiness: "readiness API ไม่ส่งสถานะ worker",
+      unknown_persistence_readiness:
+        "readiness API ไม่ส่งสถานะ persistence",
+    }[status] ?? status
+  );
+}
+
+function TransportReadinessPanel({
+  readiness,
+  source,
+}: {
+  readiness: TransportReadiness | null;
+  source: DataSource;
+}) {
+  if (source !== "supabase" || !readiness) {
+    return (
+      <section
+        className="panel transport-readiness-panel blocked"
+        aria-labelledby="transport-readiness-title"
+      >
+        <div className="panel-title">
+          <div>
+            <span>PRODUCTION READINESS</span>
+            <h3 id="transport-readiness-title">ยังไม่ยืนยัน readiness contract</h3>
+          </div>
+          <span className="transport-data-state unverified">blocked</span>
+        </div>
+        <p>
+          ไม่มีผลจาก <code>/v1/transport/readiness</code> จึงถือว่า route
+          engine, worker, depot และ persistence ยังไม่พร้อม
+        </p>
+      </section>
+    );
+  }
+
+  const items = [
+    {
+      key: "operational-writes",
+      label: "Operational POST gate",
+      state: readiness.operationalWritesEnabled ? "ready" : "blocked",
+      detail: readiness.operationalWritesEnabled
+        ? "environment control อนุญาต POST"
+        : "environment control ล็อกทั้ง routing work และ status mutation",
+      status: readiness.operationalWritesEnabled
+        ? "operational_writes_enabled"
+        : "production_not_ready",
+    },
+    {
+      key: "canonical-route-gate",
+      label: "Canonical route gate + depot",
+      state: readiness.routeReady ? "ready" : "blocked",
+      detail: readinessText(readiness.routeReadinessStatus),
+      status: readiness.routeReadinessStatus,
+    },
+    {
+      key: "road-engine-runtime",
+      label: "Road engine runtime",
+      state: "unknown",
+      detail:
+        "readiness contract ยังไม่ attest engine config; ยืนยันได้เมื่อ /optimize คืน geometry จริง",
+      status: "not_attested_by_transport_readiness",
+    },
+    {
+      key: "optimization-worker",
+      label: "OR-Tools + Valhalla worker",
+      state: readiness.optimizationWorkerReady ? "ready" : "blocked",
+      detail: `${readinessText(
+        readiness.optimizationWorkerStatus,
+      )}; direct /optimize preview เป็นคนละ execution path`,
+      status: readiness.optimizationWorkerStatus,
+    },
+    {
+      key: "trip-persistence",
+      label: "Trip + road-evidence persistence",
+      state: readiness.tripPersistenceReady ? "ready" : "blocked",
+      detail: readinessText(readiness.tripPersistenceStatus),
+      status: readiness.tripPersistenceStatus,
+    },
+  ] as const;
+
+  return (
+    <section
+      className="panel transport-readiness-panel"
+      aria-labelledby="transport-readiness-title"
+    >
+      <div className="panel-title">
+        <div>
+          <span>PRODUCTION READINESS</span>
+          <h3 id="transport-readiness-title">สถานะ gate จากระบบจริง</h3>
+        </div>
+        <span
+          className={`transport-data-state ${
+            readiness.routeReady ? "verified" : "quarantined"
+          }`}
+        >
+          {readiness.routeReady ? "route gate ready" : "route gate blocked"}
+        </span>
+      </div>
+      <div className="transport-readiness-grid">
+        {items.map((item) => (
+          <article
+            key={item.key}
+            className={item.state}
+            data-readiness-key={item.key}
+          >
+            <div>
+              <strong>{item.label}</strong>
+              <span>{item.state}</span>
+            </div>
+            <p>{item.detail}</p>
+            <code>{item.status}</code>
+          </article>
+        ))}
+      </div>
+      <div className="transport-depot-readiness">
+        <strong>Depot readiness</strong>
+        {readiness.warehouseRouteReadiness.length ? (
+          readiness.warehouseRouteReadiness.map((depot) => (
+            <span
+              key={depot.warehouseCode}
+              className={`transport-data-state ${
+                depot.routeEligible ? "verified" : "quarantined"
+              }`}
+              title={`geocode=${depot.geocodeStatus}; canonical_origin=${depot.canonicalOriginReady}`}
+            >
+              {depot.warehouseCode}:{" "}
+              {depot.routeEligible
+                ? "พร้อม"
+                : depot.geocodeStatus !== "verified"
+                  ? `พิกัด ${depot.geocodeStatus}`
+                  : "ไม่มี canonical origin"}
+            </span>
+          ))
+        ) : (
+          <span className="transport-data-state unverified">
+            ไม่พบ depot readiness
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function tripHasStatus(trip: TTrip, raw: string, translated: string) {
+  return trip.status === raw || trip.status.includes(translated);
+}
+
 function TransportDashboard({ data }: { data: TransportData }) {
-  const planned = data.trips.filter((t) => t.status.includes("วางแผน"));
-  const done = data.trips.filter((t) => t.status.includes("ส่งครบ"));
+  const planned = data.trips.filter((trip) =>
+    tripHasStatus(trip, "planned", "วางแผน"),
+  );
+  const done = data.trips.filter((trip) =>
+    tripHasStatus(trip, "completed", "ส่งครบ"),
+  );
   const activeVeh = data.vehicles.filter((v) => v.active).length;
-  const pending = data.queue.length || REPLENISHMENT_PLAN.length;
+  const availabilityKnown = data.vehicles.some(
+    (vehicle) => vehicle.availability !== "unknown",
+  );
+  const availableVeh = data.vehicles.filter(
+    (vehicle) => vehicle.availability === "available",
+  ).length;
+  const pending = data.queue.length;
   return (
     <div className="stack">
       <section className="kpis">
         <article>
           <div>
-            <span>รถพร้อมใช้งาน</span>
+            <span>รถ active ในทะเบียน</span>
             <i className="dot blue" />
           </div>
           <strong>{formatNumber(activeVeh)}</strong>
-          <small>{data.warehouses.length} คลัง</small>
+          <small>
+            พร้อมออกงาน:{" "}
+            {availabilityKnown ? formatNumber(availableVeh) : "ไม่ทราบ"}
+          </small>
         </article>
         <article>
           <div>
@@ -578,7 +1192,7 @@ function TransportDashboard({ data }: { data: TransportData }) {
             <i className="dot purple" />
           </div>
           <strong>{formatNumber(pending)}</strong>
-          <small>{data.queue.length ? "จากแผน locked" : "ต้นแบบ"}</small>
+          <small>จาก locked dispatch queue จริง</small>
         </article>
         <article>
           <div>
@@ -594,9 +1208,9 @@ function TransportDashboard({ data }: { data: TransportData }) {
         <div className="panel-title">
           <div>
             <span>รถขนส่ง</span>
-            <h3>สถานะรถและคนขับ</h3>
+            <h3>ทะเบียนรถและหลักฐาน availability</h3>
           </div>
-          <b>{formatNumber(activeVeh)}</b>
+          <b>{availabilityKnown ? `${availableVeh} พร้อม` : "ยังไม่ทราบความพร้อม"}</b>
         </div>
         <div className="live-table-wrap">
           <table className="live-table">
@@ -608,6 +1222,7 @@ function TransportDashboard({ data }: { data: TransportData }) {
                 <th>คนขับ</th>
                 <th>น้ำหนักบรรทุก</th>
                 <th>อัตราน้ำมัน</th>
+                <th>Availability</th>
               </tr>
             </thead>
             <tbody>
@@ -624,6 +1239,26 @@ function TransportDashboard({ data }: { data: TransportData }) {
                   <td>{v.driver}</td>
                   <td>{formatNumber(v.maxWt)} กก.</td>
                   <td>{v.fuelRate} กม./ล.</td>
+                  <td>
+                    <span
+                      className={`transport-data-state ${
+                        v.availability === "available"
+                          ? "verified"
+                          : v.availability === "unavailable"
+                            ? "quarantined"
+                            : "unverified"
+                      }`}
+                    >
+                      {v.availability === "available"
+                        ? "พร้อมตามหลักฐาน"
+                        : v.availability === "unavailable"
+                          ? "ไม่พร้อม"
+                          : "ไม่ทราบ—active ≠ available"}
+                    </span>
+                    {v.availabilityEvidence && (
+                      <small>{v.availabilityEvidence}</small>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -634,332 +1269,1392 @@ function TransportDashboard({ data }: { data: TransportData }) {
   );
 }
 
+type CanonicalRoadResult = RoadOptimizationResult & {
+  replenishmentPlanId?: string;
+  coordinateProvenance?: {
+    depot?: {
+      id?: string;
+      verifiedAt?: string | null;
+      sourceReference?: string | null;
+      sourceChecksumSha256?: string | null;
+      sourceRowNumber?: number | null;
+    };
+    stops?: Array<{
+      id?: string;
+      verifiedAt?: string | null;
+      sourceReference?: string | null;
+      sourceChecksumSha256?: string | null;
+      sourceRowNumber?: number | null;
+    }>;
+  };
+  monetaryTollEstimateAvailable?: false;
+  monetaryTollEstimateStatus?: string;
+};
+
+type OptimizeRoad = (
+  depot: TGeo,
+  stops: TGeo[],
+  planId: string,
+  avoidTolls: boolean,
+) => Promise<RoadOptimizationResult>;
+
+function hasCanonicalProvenance(
+  result: CanonicalRoadResult,
+  planId: string,
+  stops: string[],
+) {
+  const provenanceIds =
+    result.coordinateProvenance?.stops
+      ?.map((point) => point.id)
+      .filter((id): id is string => Boolean(id)) ?? [];
+  const provenancePoints = [
+    result.coordinateProvenance?.depot,
+    ...(result.coordinateProvenance?.stops ?? []),
+  ];
+  return (
+    result.engineMode === "configured" &&
+    Boolean(result.dataVersion) &&
+    result.replenishmentPlanId === planId &&
+    Boolean(result.coordinateProvenance?.depot?.id) &&
+    provenancePoints.every(
+      (point) =>
+        Boolean(point?.verifiedAt) &&
+        Boolean(point?.sourceReference) &&
+        /^[0-9a-f]{64}$/.test(point?.sourceChecksumSha256 ?? "") &&
+        Number.isInteger(point?.sourceRowNumber) &&
+        Number(point?.sourceRowNumber) > 0,
+    ) &&
+    sameStopSet(stops, provenanceIds)
+  );
+}
+
+function RoadEvidence({ result }: { result: CanonicalRoadResult }) {
+  const costUnit = result.objective === "duration" ? "วินาที" : "เมตร";
+  const stopSources = [
+    ...new Set(
+      result.coordinateProvenance?.stops
+        ?.map((point) => point.sourceReference)
+        .filter((source): source is string => Boolean(source)) ?? [],
+    ),
+  ];
+  return (
+    <dl className="transport-road-evidence" aria-label="หลักฐานผลคำนวณเส้นทาง">
+      <div>
+        <dt>Objective</dt>
+        <dd>
+          {result.objective === "duration" ? "เวลา" : "ระยะทาง"} · cost เป็น{" "}
+          {costUnit}
+        </dd>
+      </div>
+      <div>
+        <dt>Baseline → best found</dt>
+        <dd>
+          {formatNumber(result.baselineCost, 1)} →{" "}
+          {formatNumber(result.optimizedCost, 1)} {costUnit}
+        </dd>
+      </div>
+      <div>
+        <dt>Generated / data version</dt>
+        <dd>
+          {formatDateTime(result.generatedAt)} ·{" "}
+          {result.dataVersion || "engine ไม่ส่ง data version"} ·{" "}
+          {result.dataVersionSource}
+        </dd>
+      </div>
+      <div>
+        <dt>Coordinate provenance</dt>
+        <dd>
+          คลัง:{" "}
+          {result.coordinateProvenance?.depot?.sourceReference ||
+            "ไม่พบ source reference"}
+          {" · "}
+          จุดส่ง:{" "}
+          {stopSources.length
+            ? stopSources.join(", ")
+            : "ไม่พบ source reference"}
+        </dd>
+      </div>
+      <div>
+        <dt>Engine / algorithm</dt>
+        <dd>
+          {result.provider}/{result.profile} · {result.engineMode} ·{" "}
+          {result.algorithm}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
 function TransportPlanner({
   data,
-  onSave,
+  source,
+  actorId,
+  onOptimize,
+  onQueueJob,
+  onReadJob,
 }: {
   data: TransportData;
-  onSave: (
-    warehouse: string,
-    stops: string[],
-    notes: string,
-    planId: string | null,
-  ) => Promise<"supabase" | "local">;
+  source: DataSource;
+  actorId: string;
+  onOptimize: OptimizeRoad;
+  onQueueJob: (
+    planId: string,
+    idempotencyKey: string,
+  ) => Promise<RouteOptimizationJob>;
+  onReadJob: (routeJobId: string) => Promise<RouteOptimizationJob>;
 }) {
-  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
+  const groups = useMemo(() => queueGroups(data.queue), [data.queue]);
+  const eligibleGroups = useMemo(
+    () => groups.filter((group) => group.routeEligible),
+    [groups],
+  );
+  const [selectedGroupKey, setSelectedGroupKey] = useState("");
+  const activeGroup =
+    eligibleGroups.find((group) => group.key === selectedGroupKey) ??
+    eligibleGroups[0] ??
+    null;
   const [selected, setSelected] = useState<string[]>([]);
-  const [planId, setPlanId] = useState<string | null>(null);
+  const [preferredVehicleId, setPreferredVehicleId] = useState("");
   const [maxStops, setMaxStops] = useState(6);
-  const [notes, setNotes] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [avoidTolls, setAvoidTolls] = useState(false);
   const [msg, setMsg] = useState("");
-  const warehouse =
-    selectedWarehouse && data.warehouses.includes(selectedWarehouse)
-      ? selectedWarehouse
-      : data.warehouses[0] ?? "";
+  const [roadState, setRoadState] = useState<{
+    signature: string;
+    result: CanonicalRoadResult | null;
+    error: string;
+    loading: boolean;
+  }>({ signature: "", result: null, error: "", loading: false });
+  const [jobState, setJobState] = useState<{
+    groupKey: string;
+    planId: string;
+    requestId: string;
+    attemptStatus: OptimizationAttemptStatus | null;
+    job: RouteOptimizationJob | null;
+    loading: boolean;
+    error: string;
+  }>({
+    groupKey: "",
+    planId: "",
+    requestId: "",
+    attemptStatus: null,
+    job: null,
+    loading: false,
+    error: "",
+  });
+
+  const warehouse = activeGroup?.warehouse ?? "";
+  const planId = activeGroup?.planId ?? null;
+  const groupRows = useMemo(() => activeGroup?.rows ?? [], [activeGroup]);
   const servable = useMemo(
-    () => Object.keys(data.routes[warehouse] ?? {}).sort(),
-    [data.routes, warehouse],
+    () => groupRows.map((row) => row.districtRef),
+    [groupRows],
   );
-  const toggle = (id: string) =>
-    setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-  const addFromQueue = (q: QueueRow) => {
-    if (data.warehouses.includes(q.suggestedWarehouse)) setSelectedWarehouse(q.suggestedWarehouse);
-    setPlanId(q.planId);
-    setSelected((cur) => (cur.includes(q.districtRef) ? cur : [...cur, q.districtRef]));
-  };
-  const plan = useMemo(() => optimizePlan(data, warehouse, selected), [data, warehouse, selected]);
-  const trips = useMemo(
-    () => (maxStops > 0 ? chunk(plan.order, maxStops) : [plan.order]),
-    [plan.order, maxStops],
+  const availableVehicles = useMemo(
+    () =>
+      data.vehicles.filter(
+        (vehicle) =>
+          vehicle.active &&
+          vehicle.availability === "available" &&
+          vehicle.currentWarehouse === warehouse,
+      ),
+    [data.vehicles, warehouse],
   );
-  const save = async () => {
-    if (!plan.order.length) return;
-    setBusy(true);
+  const preferredVehicle =
+    availableVehicles.find((vehicle) => vehicle.id === preferredVehicleId) ??
+    availableVehicles[0] ??
+    null;
+  const selectionSignature = JSON.stringify({
+    group: activeGroup?.key ?? "",
+    warehouse,
+    stops: [...selected].sort(),
+    avoidTolls,
+  });
+  const roadCurrent =
+    roadState.signature === selectionSignature ? roadState.result : null;
+  const previewOrder = roadCurrent?.order ?? selected;
+  const depot = depotForWarehouse(data, warehouse);
+  const fleet = useMemo(
+    () =>
+      allocateFleet(
+        roadCurrent?.order ?? [],
+        groupRows,
+        availableVehicles,
+        preferredVehicle?.id ?? "",
+        maxStops,
+      ),
+    [
+      availableVehicles,
+      groupRows,
+      maxStops,
+      preferredVehicle?.id,
+      roadCurrent?.order,
+    ],
+  );
+  const geoCounts = useMemo(
+    () =>
+      Object.values(data.geo).reduce(
+        (counts, point) => {
+          counts[point.verificationStatus] += 1;
+          if (point.routeEligible && hasValidCoordinates(point)) {
+            counts.routeEligible += 1;
+          }
+          return counts;
+        },
+        { verified: 0, candidate: 0, quarantined: 0, routeEligible: 0 },
+      ),
+    [data.geo],
+  );
+  const points = useMemo(
+    () => mapPoints(data, warehouse, selected, previewOrder),
+    [data, previewOrder, selected, warehouse],
+  );
+  const roadIsCanonical =
+    Boolean(roadCurrent && planId) &&
+    hasCanonicalProvenance(
+      roadCurrent as CanonicalRoadResult,
+      planId as string,
+      selected,
+    );
+  const planEligibilityAttested =
+    data.readiness?.optimizationEligiblePlanIdsAttested === true;
+  const planQueueEligible = Boolean(
+    planId &&
+      planEligibilityAttested &&
+      data.readiness?.optimizationEligiblePlanIds.includes(planId),
+  );
+  const planQueueBlocker = !planId
+    ? "ยังไม่ได้เลือก locked plan"
+    : !planEligibilityAttested
+      ? "readiness ไม่ส่ง optimization_eligible_plan_ids ที่ตรวจสอบได้ — ปิด queue แบบ fail-closed"
+      : !planQueueEligible
+        ? `แผน ${activeGroup?.planNumber ?? planId} ไม่อยู่ใน optimization_eligible_plan_ids จึงยังส่งเข้า worker ไม่ได้`
+        : "";
+  const queueGatesReady =
+    source === "supabase" &&
+    data.readiness?.operationalWritesEnabled === true &&
+    data.readiness?.routeReady === true &&
+    data.readiness?.optimizationWorkerReady === true &&
+    planQueueEligible;
+  const attemptActive =
+    jobState.attemptStatus === "queued" ||
+    jobState.attemptStatus === "running" ||
+    (jobState.attemptStatus === "submitting" &&
+      (jobState.loading || !jobState.error));
+  const attemptSucceeded = jobState.attemptStatus === "succeeded";
+  const attemptCanRestart =
+    jobState.attemptStatus === "failed" ||
+    jobState.attemptStatus === "cancelled";
+  const chooseGroup = (key: string) => {
+    if (jobState.loading) return;
+    setSelectedGroupKey(key);
+    setSelected([]);
+    setPreferredVehicleId("");
     setMsg("");
-    try {
-      let where: "supabase" | "local" = "local";
-      for (const c of trips) {
-        if (c.length) where = await onSave(warehouse, c, notes.trim(), planId);
-      }
-      setSelected([]);
-      setNotes("");
-      setPlanId(null);
+    setJobState({
+      groupKey: key,
+      planId: "",
+      requestId: "",
+      attemptStatus: null,
+      job: null,
+      loading: false,
+      error: "",
+    });
+  };
+  const toggle = (id: string) => {
+    if (!servable.includes(id)) {
+      setMsg("จุดส่งนี้อยู่นอกกลุ่ม plan + warehouse ที่เลือก");
+      return;
+    }
+    const point = data.geo[id];
+    if (
+      !point ||
+      point.verificationStatus !== "verified" ||
+      !point.routeEligible ||
+      !hasValidCoordinates(point)
+    ) {
       setMsg(
-        `${where === "supabase" ? "บันทึกลง Supabase" : "บันทึก (ต้นแบบ)"} ${trips.length} เที่ยวแล้ว`,
+        point?.verificationStatus === "verified" &&
+          !hasValidCoordinates(point)
+          ? `พิกัด ${id} มีสถานะ verified แต่ค่า latitude/longitude ไม่ครบ`
+          : point?.verificationStatus === "verified"
+          ? `พิกัด ${id} ยืนยันแล้ว แต่ยังไม่พร้อมจัดเส้นทางเพราะไม่มี canonical mapping`
+          : `พิกัด ${id} ยังไม่ผ่านการรับรอง จึงไม่สามารถส่งเข้า road optimizer`,
       );
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
-    } finally {
-      setBusy(false);
+      return;
+    }
+    setMsg("");
+    setSelected((current) =>
+      current.includes(id)
+        ? current.filter((selectedId) => selectedId !== id)
+        : [...current, id],
+    );
+  };
+
+  const optimize = async () => {
+    if (source !== "supabase") {
+      setRoadState({
+        signature: selectionSignature,
+        result: null,
+        error:
+          "Transport API ยังไม่พร้อม จึงไม่เรียก road optimizer และไม่ใช้เส้นตรงแทนผลถนนจริง",
+        loading: false,
+      });
+      return;
+    }
+    if (!data.readiness?.operationalWritesEnabled) {
+      setRoadState({
+        signature: selectionSignature,
+        result: null,
+        error:
+          "Operational POST gate ถูกล็อก (production_not_ready) จึงไม่ส่งงานไป routing engine",
+        loading: false,
+      });
+      return;
+    }
+    if (!data.readiness?.routeReady) {
+      setRoadState({
+        signature: selectionSignature,
+        result: null,
+        error: `Canonical route gate ยังไม่พร้อม: ${readinessText(
+          data.readiness?.routeReadinessStatus ?? "unknown_route_readiness",
+        )}`,
+        loading: false,
+      });
+      return;
+    }
+    if (!planId || !activeGroup) {
+      setRoadState({
+        signature: selectionSignature,
+        result: null,
+        error: "ต้องเลือก locked replenishment plan ที่มีรหัสถูกต้อง",
+        loading: false,
+      });
+      return;
+    }
+    if (
+      !depot ||
+      depot.verificationStatus !== "verified" ||
+      !depot.routeEligible ||
+      !hasValidCoordinates(depot)
+    ) {
+      setRoadState({
+        signature: selectionSignature,
+        result: null,
+        error: `คลัง ${warehouse || "ที่เลือก"} อาจมีพิกัด verified แต่ยังไม่พร้อมจัดเส้นทาง เพราะไม่มี canonical warehouse/origin mapping`,
+        loading: false,
+      });
+      return;
+    }
+    const stopPoints = selected.map((id) => data.geo[id]).filter(Boolean);
+    if (
+      !selected.length ||
+      stopPoints.length !== selected.length ||
+      stopPoints.some(
+        (point) =>
+          point.verificationStatus !== "verified" ||
+          !point.routeEligible ||
+          !hasValidCoordinates(point),
+      )
+    ) {
+      setRoadState({
+        signature: selectionSignature,
+        result: null,
+        error: "เลือกอย่างน้อย 1 จุด และทุกจุดต้องมีพิกัด verified",
+        loading: false,
+      });
+      return;
+    }
+    setMsg("");
+    setRoadState({
+      signature: selectionSignature,
+      result: null,
+      error: "",
+      loading: true,
+    });
+    try {
+      const result = (await onOptimize(
+        depot,
+        stopPoints,
+        planId,
+        avoidTolls,
+      )) as CanonicalRoadResult;
+      if (
+        !sameStopSet(selected, result.order) ||
+        result.geometry?.type !== "LineString" ||
+        result.geometry.coordinates.length < 2 ||
+        !Number.isFinite(result.distanceKm) ||
+        !Number.isFinite(result.durationMinutes)
+      ) {
+        throw new Error("Routing engine ส่งผลลัพธ์ไม่ครบหรือจุดส่งไม่ตรงกับคำขอ");
+      }
+      setRoadState({
+        signature: selectionSignature,
+        result,
+        error: "",
+        loading: false,
+      });
+    } catch (error) {
+      setRoadState({
+        signature: selectionSignature,
+        result: null,
+        error:
+          error instanceof Error
+            ? error.message
+            : "ไม่สามารถคำนวณเส้นทางบนถนนจริงได้",
+        loading: false,
+      });
     }
   };
-  return (
-    <div className="stack">
-      {data.queue.length > 0 && (
-        <section className="panel">
-          <div className="panel-title">
-            <div>
-              <span>งานรอจัดส่ง · จากแผน replenishment ที่ locked</span>
-              <h3>เลือกเขตเข้าทริป</h3>
-            </div>
-            <b>{data.queue.length} เขต</b>
-          </div>
-          <div className="live-table-wrap">
-            <table className="live-table">
-              <thead>
-                <tr>
-                  <th>เขต</th>
-                  <th>Plan</th>
-                  <th>รายการ</th>
-                  <th>ปริมาณรวม</th>
-                  <th>คลังใกล้สุด</th>
-                  <th>ระยะทาง</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.queue.map((q) => (
-                  <tr key={q.districtRef}>
-                    <td>
-                      <span>
-                        <strong>{q.districtName}</strong>
-                        <small>{q.districtId}</small>
-                      </span>
-                    </td>
-                    <td>{q.planNumber || "—"}</td>
-                    <td>{formatNumber(q.lineCount)}</td>
-                    <td>{formatNumber(q.totalQty, 2)}</td>
-                    <td>{q.suggestedWarehouse}</td>
-                    <td>{formatNumber(q.suggestedDistanceKm, 1)} กม.</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="table-action"
-                        disabled={selected.includes(q.districtRef)}
-                        onClick={() => addFromQueue(q)}
-                      >
-                        {selected.includes(q.districtRef) ? "เพิ่มแล้ว" : "เพิ่มเข้าทริป"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
 
-      <section className="filter-bar">
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          คลังต้นทาง
+  const queueJob = async () => {
+    if (!activeGroup || !planId) {
+      setJobState((current) => ({
+        ...current,
+        error: "ต้องเลือก locked replenishment plan ก่อนส่งเข้า optimizer",
+      }));
+      return;
+    }
+    if (
+      !queueGatesReady
+    ) {
+      setJobState((current) => ({
+        ...current,
+        error: planQueueBlocker
+          ? planQueueBlocker
+          : "ยังส่งงานไม่ได้: ต้องผ่าน operational, canonical route และ worker readiness ทุก gate",
+      }));
+      return;
+    }
+    if (attemptActive || attemptSucceeded) {
+      setJobState((current) => ({
+        ...current,
+        error: attemptSucceeded
+          ? "งานที่สำเร็จแล้วเป็น immutable; ไม่สร้างความพยายามซ้ำสำหรับ plan เดิม"
+          : "มีคำขอของ plan นี้กำลังทำงานอยู่; ระบบจะติดตามงานเดิมแทนการ queue ซ้ำ",
+      }));
+      return;
+    }
+    if (
+      attemptCanRestart &&
+      !window.confirm(
+        `งานเดิมเป็น ${jobState.attemptStatus} ยืนยันเริ่มความพยายามใหม่ด้วย X-Request-ID ใหม่หรือไม่?`,
+      )
+    ) {
+      return;
+    }
+    const resumeInterruptedSubmission =
+      jobState.groupKey === activeGroup.key &&
+      jobState.planId === planId &&
+      jobState.attemptStatus === "submitting" &&
+      Boolean(jobState.requestId);
+    const requestId = resumeInterruptedSubmission
+      ? jobState.requestId
+      : crypto.randomUUID();
+    const submittingAttempt: PersistedOptimizationAttempt = {
+      version: 1,
+      planId,
+      groupKey: activeGroup.key,
+      requestId,
+      routeJobId: null,
+      status: "submitting",
+      updatedAt: new Date().toISOString(),
+    };
+    writeOptimizationAttempt(actorId, submittingAttempt);
+    setJobState({
+      groupKey: activeGroup.key,
+      planId,
+      requestId,
+      attemptStatus: "submitting",
+      job: null,
+      loading: true,
+      error: "",
+    });
+    try {
+      const job = await onQueueJob(planId, requestId);
+      const status = assertJobMatchesPlan(job, planId);
+      writeOptimizationAttempt(actorId, {
+        ...submittingAttempt,
+        routeJobId: job.route_job_id,
+        status,
+        updatedAt: new Date().toISOString(),
+      });
+      setJobState({
+        groupKey: activeGroup.key,
+        planId,
+        requestId,
+        attemptStatus: status,
+        job,
+        loading: false,
+        error: "",
+      });
+    } catch (error) {
+      setJobState({
+        groupKey: activeGroup.key,
+        planId,
+        requestId,
+        attemptStatus: "submitting",
+        job: null,
+        loading: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "ส่ง locked plan เข้า optimizer ไม่สำเร็จ",
+      });
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const restore = async () => {
+      if (!activeGroup?.key || !planId || !uuidPattern.test(actorId)) {
+        if (!cancelled) {
+          setJobState({
+            groupKey: activeGroup?.key ?? "",
+            planId: planId ?? "",
+            requestId: "",
+            attemptStatus: null,
+            job: null,
+            loading: false,
+            error: "",
+          });
+        }
+        return;
+      }
+      const stored = readOptimizationAttempt(actorId, planId);
+      if (!stored) {
+        if (!cancelled) {
+          setJobState({
+            groupKey: activeGroup.key,
+            planId,
+            requestId: "",
+            attemptStatus: null,
+            job: null,
+            loading: false,
+            error: "",
+          });
+        }
+        return;
+      }
+
+      const placeholder: RouteOptimizationJob | null = stored.routeJobId
+        ? {
+            route_job_id: stored.routeJobId,
+            job_id: "",
+            replenishment_plan_id: planId,
+            algorithm_version: "กำลังรีเฟรชจาก governed queue",
+            matrix_source: "valhalla",
+            status: stored.status,
+          }
+        : null;
+      if (!cancelled) {
+        setJobState({
+          groupKey: activeGroup.key,
+          planId,
+          requestId: stored.requestId,
+          attemptStatus: stored.status,
+          job: placeholder,
+          loading: true,
+          error: "",
+        });
+      }
+
+      try {
+        let job: RouteOptimizationJob;
+        if (stored.routeJobId) {
+          job = await onReadJob(stored.routeJobId);
+        } else if (stored.status === "submitting" && queueGatesReady) {
+          // The POST response may have been lost during navigation/reload.
+          // Reusing the persisted request ID resumes the actor-scoped
+          // idempotent request and cannot create a second logical job.
+          job = await onQueueJob(planId, stored.requestId);
+        } else {
+          if (!cancelled) {
+            setJobState((current) => ({
+              ...current,
+              loading: false,
+              error: planQueueBlocker
+                ? `เก็บคำขอเดิมไว้แล้ว แต่ยัง resume ไม่ได้: ${planQueueBlocker}`
+                : "เก็บคำขอเดิมไว้แล้ว และจะ resume เมื่อ queue readiness พร้อม",
+            }));
+          }
+          return;
+        }
+        const status = assertJobMatchesPlan(
+          job,
+          planId,
+          stored.routeJobId ?? undefined,
+        );
+        writeOptimizationAttempt(actorId, {
+          version: 1,
+          planId,
+          groupKey: activeGroup.key,
+          requestId: stored.requestId,
+          routeJobId: job.route_job_id,
+          status,
+          updatedAt: new Date().toISOString(),
+        });
+        if (!cancelled) {
+          setJobState({
+            groupKey: activeGroup.key,
+            planId,
+            requestId: stored.requestId,
+            attemptStatus: status,
+            job,
+            loading: false,
+            error: "",
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setJobState((current) => ({
+            ...current,
+            loading: false,
+            error:
+              error instanceof Error
+                ? `resume งานไม่สำเร็จ: ${error.message}`
+                : "resume งาน optimize ไม่สำเร็จ",
+          }));
+        }
+      }
+    };
+    void restore();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeGroup?.key,
+    actorId,
+    onQueueJob,
+    onReadJob,
+    planId,
+    planQueueBlocker,
+    queueGatesReady,
+  ]);
+
+  const routeJobId = jobState.job?.route_job_id ?? "";
+  const routeJobStatus = jobState.attemptStatus ?? "";
+  useEffect(() => {
+    if (
+      !routeJobId ||
+      ["succeeded", "failed", "cancelled"].includes(routeJobStatus)
+    ) {
+      return;
+    }
+    let inFlight = false;
+    const timer = window.setInterval(() => {
+      if (inFlight) return;
+      inFlight = true;
+      void onReadJob(routeJobId)
+        .then((job) => {
+          if (!planId || !activeGroup?.key) {
+            throw new Error("plan scope หายไประหว่างติดตามงาน");
+          }
+          const status = assertJobMatchesPlan(job, planId, routeJobId);
+          writeOptimizationAttempt(actorId, {
+            version: 1,
+            planId,
+            groupKey: activeGroup.key,
+            requestId: jobState.requestId,
+            routeJobId,
+            status,
+            updatedAt: new Date().toISOString(),
+          });
+          setJobState((current) =>
+            current.job?.route_job_id === routeJobId
+              ? { ...current, attemptStatus: status, job, error: "" }
+              : current,
+          );
+        })
+        .catch((error) => {
+          setJobState((current) =>
+            current.job?.route_job_id === routeJobId
+              ? {
+                  ...current,
+                  error:
+                    error instanceof Error
+                      ? `อ่านสถานะงานไม่สำเร็จ: ${error.message}`
+                      : "อ่านสถานะงาน optimize ไม่สำเร็จ",
+                }
+              : current,
+          );
+        })
+        .finally(() => {
+          inFlight = false;
+        });
+    }, 3_000);
+    return () => window.clearInterval(timer);
+  }, [
+    activeGroup?.key,
+    actorId,
+    jobState.requestId,
+    onReadJob,
+    planId,
+    routeJobId,
+    routeJobStatus,
+  ]);
+
+  return (
+    <div className="stack transport-workspace">
+      <section className="transport-control-panel" aria-labelledby="route-scope-title">
+        <div>
+          <span>LOCKED PLAN SCOPE</span>
+          <h2 id="route-scope-title">เลือกแผนและคลังเป็นกลุ่มเดียว</h2>
+          <p>ระบบไม่อนุญาตให้รวมเขตจากคนละ replenishment plan หรือคนละคลังในเที่ยวเดียว</p>
+        </div>
+        <label>
+          Plan + คลัง
           <select
-            value={warehouse}
-            onChange={(e) => {
-              setSelectedWarehouse(e.target.value);
-              setSelected([]);
-              setPlanId(null);
-            }}
+            value={activeGroup?.key ?? ""}
+            onChange={(event) => chooseGroup(event.target.value)}
+            disabled={!eligibleGroups.length || jobState.loading}
           >
-            {data.warehouses.map((w) => (
-              <option key={w} value={w}>
-                {w}
+            {!eligibleGroups.length && (
+              <option value="">ไม่มี locked plan ที่ผ่าน route gate</option>
+            )}
+            {groups.map((group) => (
+              <option
+                key={group.key}
+                value={group.key}
+                disabled={!group.routeEligible}
+              >
+                {group.planNumber} · {group.warehouse || "ไม่พบคลัง"} ·{" "}
+                {group.rows.length} เขต
+                {group.blocker ? ` · BLOCKED: ${group.blocker}` : ""}
               </option>
             ))}
           </select>
         </label>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          จุดต่อรถ
+        <label>
+          รถเที่ยวแรก
+          <select
+            value={preferredVehicle?.id ?? ""}
+            onChange={(event) => setPreferredVehicleId(event.target.value)}
+            disabled={!availableVehicles.length}
+          >
+            {!availableVehicles.length && (
+              <option value="">ยังไม่มีหลักฐาน availability</option>
+            )}
+            {availableVehicles.map((vehicle) => (
+              <option key={vehicle.id} value={vehicle.id}>
+                {vehicle.code} · {formatNumber(vehicle.maxWt)} กก.
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          จุดสูงสุดต่อเที่ยว
           <input
             type="number"
             min={1}
             max={18}
             value={maxStops}
-            onChange={(e) => setMaxStops(Math.max(1, Number(e.target.value) || 1))}
-            style={{ width: 64, padding: "4px 6px", borderRadius: 6, border: "1px solid #e2e8f0" }}
+            onChange={(event) => {
+              setMaxStops(
+                Math.min(18, Math.max(1, Number(event.target.value) || 1)),
+              );
+            }}
           />
         </label>
-        <button className="btn primary" disabled={busy || !plan.order.length} onClick={save}>
-          ＋ บันทึก {trips.length > 1 ? `${trips.length} เที่ยว` : "เที่ยวรถ"}
-        </button>
-        {msg && <span style={{ fontSize: 13, color: "#0f766e" }}>{msg}</span>}
+        <label className="transport-check">
+          <input
+            type="checkbox"
+            checked={avoidTolls}
+            onChange={(event) => setAvoidTolls(event.target.checked)}
+          />
+          ขอหลีกเลี่ยงทางเก็บค่าผ่านทาง (เมื่อ engine รองรับ)
+        </label>
       </section>
-
-      <section className="dashboard-main">
-        <article className="panel">
-          <div className="panel-title">
-            <div>
-              <span>เลือกเขตปลายทาง</span>
-              <h3>{warehouse} → เขต</h3>
-            </div>
-            <b>{selected.length} เขต</b>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))",
-              gap: 8,
-              padding: 12,
-            }}
-          >
-            {servable.map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => toggle(id)}
-                style={{
-                  textAlign: "left",
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: selected.includes(id) ? "2px solid #E3670A" : "1px solid #e2e8f0",
-                  background: selected.includes(id) ? "#fff7ed" : "#fff",
-                  cursor: "pointer",
-                }}
-              >
-                <strong style={{ display: "block", fontSize: 12 }}>{id}</strong>
-                <small style={{ color: "#64748b" }}>{data.geo[id]?.name ?? id}</small>
-              </button>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel">
-          <div className="panel-title">
-            <div>
-              <span>ผลการปรับเส้นทาง</span>
-              <h3>Nearest-neighbour + 2-opt</h3>
-            </div>
-          </div>
-          <div className="inventory-summary" style={{ padding: 12 }}>
-            <article>
-              <span>ระยะทางทัวร์ (2-opt)</span>
-              <strong>{formatNumber(plan.tourDist, 1)}</strong>
-              <small>กม.</small>
-            </article>
-            <article>
-              <span>ค่าทางด่วน</span>
-              <strong>{formatNumber(plan.totalToll)}</strong>
-              <small>บาท</small>
-            </article>
-            <article>
-              <span>เวลาโดยประมาณ</span>
-              <strong>{formatNumber(plan.totalTime)}</strong>
-              <small>นาที</small>
-            </article>
-            <article>
-              <span>ค่าน้ำมันประมาณ</span>
-              <strong>{formatNumber(plan.fuelCost, 2)}</strong>
-              <small>บาท</small>
-            </article>
-          </div>
-          <div style={{ padding: "0 12px 12px" }}>
-            <p style={{ fontSize: 13, color: "#334155", margin: "4px 0" }}>
-              รถที่แนะนำ:{" "}
-              <strong>
-                {plan.vehicle ? `${plan.vehicle.code} · ${plan.vehicle.driver}` : "ไม่มีรถประจำคลังนี้"}
-              </strong>
-            </p>
-            <p style={{ fontSize: 13, color: "#334155", margin: "4px 0" }}>
-              ลำดับที่ปรับแล้ว:{" "}
-              <strong>{plan.order.length ? `คลัง → ${plan.order.join(" → ")} → คลัง` : "ยังไม่เลือกเขต"}</strong>
-            </p>
-            {trips.length > 1 && (
-              <p style={{ fontSize: 13, color: "#b45309", margin: "4px 0" }}>
-                เกิน {maxStops} จุด — จะถูกแบ่งเป็น {trips.length} เที่ยว/รถ
-              </p>
-            )}
-            {planId && (
-              <p style={{ fontSize: 12, color: "#0f766e", margin: "4px 0" }}>
-                ผูกกับแผน replenishment • plan {planId.slice(0, 8)}
-              </p>
-            )}
-            <label style={{ display: "block", marginTop: 8, fontSize: 13 }}>
-              หมายเหตุ
-              <input
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="บันทึกเพิ่มเติม (ถ้ามี)"
-                style={{ width: "100%", marginTop: 4, padding: "6px 8px", borderRadius: 6, border: "1px solid #e2e8f0" }}
-              />
-            </label>
-          </div>
-        </article>
-      </section>
+      {groups.some((group) => !group.routeEligible) && (
+        <aside className="transport-group-blockers" role="note">
+          <strong>กลุ่มที่ถูกหยุดก่อนเลือก</strong>
+          <ul>
+            {groups
+              .filter((group) => !group.routeEligible)
+              .map((group) => (
+                <li key={group.key}>
+                  {group.planNumber} · {group.warehouse || "ไม่พบคลัง"}:{" "}
+                  {group.blocker}
+                </li>
+              ))}
+          </ul>
+        </aside>
+      )}
 
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>แผนที่เส้นทาง</span>
-            <h3>เส้นทางที่ปรับแล้ว</h3>
+            <span>งานในกลุ่มที่เลือกเท่านั้น</span>
+            <h3>
+              {activeGroup
+                ? `${activeGroup.planNumber} · ${activeGroup.warehouse}`
+                : "ยังไม่มี locked plan"}
+            </h3>
           </div>
+          <b>{selected.length}/{groupRows.length} เขต</b>
         </div>
-        <div style={{ padding: 12 }}>
-          <MapCanvas geo={data.geo} route={plan.order} onPick={toggle} />
+        <div className="live-table-wrap">
+          <table className="live-table transport-queue-table">
+            <caption className="sr-only">
+              จุดส่งใน replenishment plan และคลังที่เลือก
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">เขต</th>
+                <th scope="col">รายการ / ปริมาณ</th>
+                <th scope="col">น้ำหนัก</th>
+                <th scope="col">พิกัด</th>
+                <th scope="col">เลือก</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupRows.map((row) => {
+                const point = data.geo[row.districtRef];
+                const verified = point?.verificationStatus === "verified";
+                const coordinateReady = hasValidCoordinates(point);
+                const routeReady =
+                  row.routeEligible &&
+                  verified &&
+                  point.routeEligible &&
+                  coordinateReady;
+                const weightReady =
+                  row.weightComplete && row.estimatedWeightKg != null;
+                return (
+                  <tr key={`${activeGroup?.key}:${row.districtRef}`}>
+                    <td>
+                      <span>
+                        <strong>{row.districtName}</strong>
+                        <small>{row.districtRef} · {row.districtId}</small>
+                      </span>
+                    </td>
+                    <td>
+                      {formatNumber(row.lineCount)} รายการ ·{" "}
+                      {row.totalQty == null
+                        ? "หลายหน่วย / —"
+                        : `${formatNumber(row.totalQty, 2)} หน่วย`}
+                    </td>
+                    <td>
+                      <span className={`transport-data-state ${weightReady ? "verified" : "quarantined"}`}>
+                        {weightReady
+                          ? `${formatNumber(row.estimatedWeightKg, 1)} กก.`
+                          : "ข้อมูลไม่ครบ"}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`transport-data-state ${routeReady ? "verified" : "quarantined"}`}>
+                        {routeReady
+                          ? "พิกัด verified · พร้อมจัดเส้นทาง"
+                          : !row.routeEligible
+                            ? "route_eligible=false จาก dispatch queue"
+                          : verified && !coordinateReady
+                            ? "พิกัด verified · latitude/longitude ไม่ครบ"
+                          : verified
+                            ? "พิกัด verified · ยังไม่มี canonical mapping"
+                            : point?.verificationStatus ?? "ไม่พบพิกัด"}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="table-action"
+                        aria-pressed={selected.includes(row.districtRef)}
+                        disabled={!routeReady}
+                        onClick={() => toggle(row.districtRef)}
+                      >
+                        {selected.includes(row.districtRef) ? "นำออก" : "เพิ่มจุดส่ง"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!groupRows.length && (
+                <tr>
+                  <td colSpan={5}>ไม่พบงาน locked ที่พร้อมเข้ากลุ่มขนส่ง</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
+      </section>
+
+      <section className="dashboard-main transport-planner-grid">
+        <article className="panel">
+          <div className="panel-title">
+            <div>
+              <span>ROAD PREVIEW</span>
+              <h3>เส้นทางบนถนนจริง</h3>
+            </div>
+            <div className="transport-geo-summary" aria-label="สถานะพิกัด">
+              <span className="verified">{geoCounts.verified} verified</span>
+              <span className="verified">{geoCounts.routeEligible} route-ready</span>
+              <span className="candidate">{geoCounts.candidate} candidate</span>
+              <span className="quarantined">{geoCounts.quarantined} quarantined</span>
+            </div>
+          </div>
+          <div className="transport-map-frame">
+            <TransportRoadMap
+              points={points}
+              geometry={(roadCurrent?.geometry as RoadGeometry | undefined) ?? null}
+              onPick={toggle}
+            />
+          </div>
+        </article>
+
+        <article className="panel transport-route-result">
+          <div className="panel-title">
+            <div>
+              <span>ผลการจัดลำดับ</span>
+              <h3>Heuristic · best found</h3>
+            </div>
+            <span className={`transport-data-state ${roadIsCanonical ? "verified" : "unverified"}`}>
+              {roadIsCanonical ? "canonical preview" : "รอผล canonical"}
+            </span>
+          </div>
+          <div className="transport-result-grid">
+            <article>
+              <span>ระยะทางถนน</span>
+              <strong>{roadCurrent ? formatNumber(roadCurrent.distanceKm, 1) : "—"}</strong>
+              <small>กม. · ไปและกลับคลัง</small>
+            </article>
+            <article>
+              <span>เวลาเดินทาง</span>
+              <strong>{roadCurrent ? formatNumber(roadCurrent.durationMinutes, 1) : "—"}</strong>
+              <small>นาที · ไม่รวมเวลาขนถ่าย</small>
+            </article>
+            <article>
+              <span>ดีขึ้นจากลำดับเดิม</span>
+              <strong>{roadCurrent ? `${formatNumber(roadCurrent.improvementPercent, 1)}%` : "—"}</strong>
+              <small>heuristic ไม่รับประกันคำตอบ optimal</small>
+            </article>
+            <article className="toll-unavailable">
+              <span>ค่าผ่านทาง</span>
+              <strong>ยังไม่คำนวณ</strong>
+              <small>รอ tariff ที่อนุมัติ</small>
+            </article>
+          </div>
+          <div className="transport-route-copy">
+            <p>
+              <strong>ลำดับ:</strong>{" "}
+              {roadCurrent?.order.length
+                ? `คลัง → ${roadCurrent.order.join(" → ")} → คลัง`
+                : "เลือกจุดส่งแล้วกดคำนวณถนนจริง"}
+            </p>
+            <p>
+              <strong>Engine:</strong>{" "}
+              {roadCurrent
+                ? `${roadCurrent.provider}/${roadCurrent.profile} · ${
+                    roadCurrent.engineMode === "configured"
+                      ? "configured"
+                      : "development demo (ห้ามบันทึก production)"
+                  }`
+                : "ยังไม่มีผลลัพธ์"}
+            </p>
+            {roadCurrent && <RoadEvidence result={roadCurrent} />}
+            {roadState.error && (
+              <p className="transport-inline-error" role="alert">
+                {roadState.error}
+              </p>
+            )}
+            {fleet.error && selected.length > 0 && roadCurrent && (
+              <p className="transport-inline-error" role="alert">
+                {fleet.error}
+              </p>
+            )}
+            {!fleet.error && fleet.chunks.length > 0 && (
+              <div className="transport-load-list">
+                <strong>
+                  Weight-only split preview: แบ่งได้ {fleet.chunks.length} เที่ยว ·{" "}
+                  {formatNumber(fleet.totalWeightKg, 1)} กก.
+                </strong>
+                <small>
+                  ยังไม่ใช่ OR-Tools fleet solve และยังไม่รวม volume, pallet,
+                  time window หรือกะรถ
+                </small>
+                <ol>
+                  {fleet.chunks.map((trip) => (
+                    <li key={trip.vehicle.id}>
+                      {trip.vehicle.code}: {trip.stops.join(" → ")} ·{" "}
+                      {formatNumber(trip.weightKg, 1)}/
+                      {formatNumber(trip.vehicle.maxWt)} กก.
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            <div className="transport-actions">
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={
+                  roadState.loading ||
+                  !selected.length ||
+                  data.readiness?.operationalWritesEnabled !== true ||
+                  data.readiness?.routeReady !== true
+                }
+                onClick={() => void optimize()}
+              >
+                {roadState.loading ? "กำลังคำนวณ…" : "คำนวณเส้นทางบนถนน"}
+              </button>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={
+                  jobState.loading ||
+                  attemptActive ||
+                  attemptSucceeded ||
+                  !activeGroup?.planId ||
+                  !queueGatesReady
+                }
+                aria-describedby="transport-queue-hint transport-save-hint"
+                onClick={() => void queueJob()}
+              >
+                {jobState.loading
+                  ? "กำลัง resume/ส่งเข้า optimizer…"
+                  : attemptSucceeded
+                    ? "Route plan สำเร็จแล้ว · immutable"
+                    : attemptCanRestart
+                      ? "เริ่มความพยายามใหม่ด้วย Request ID ใหม่"
+                      : jobState.attemptStatus === "submitting"
+                        ? "ดำเนินคำขอเดิมต่อด้วย Request ID เดิม"
+                        : attemptActive
+                          ? "กำลังติดตามงานเดิม"
+                          : "ส่งแผนเต็มเข้า OR-Tools + Valhalla"}
+              </button>
+            </div>
+            <p id="transport-queue-hint" className="transport-queue-hint">
+              ปุ่มนี้ส่ง locked plan ทั้งชุดของ {activeGroup?.planNumber ?? "แผนที่เลือก"}
+              เข้า governed queue; จุดที่เลือกบนแผนที่มีผลเฉพาะ heuristic preview
+              และไม่เปลี่ยนขอบเขตงานจริง
+            </p>
+            <p id="transport-save-hint" className="transport-save-hint">
+              เมื่อสำเร็จ ระบบจะสร้าง route plan พร้อม Valhalla road evidence
+              เท่านั้น; route-plan → trip activation ยังถูกล็อกและไม่มีการสร้างเที่ยวรถอัตโนมัติ
+            </p>
+            {planId && planQueueBlocker && (
+              <p className="transport-inline-error" role="note">
+                Plan-level queue gate: {planQueueBlocker}
+              </p>
+            )}
+            {jobState.requestId && !jobState.job && (
+              <aside className="transport-job-status submitting" role="status">
+                <strong>เก็บคำขอของ plan นี้ไว้ใน session แล้ว</strong>
+                <p>
+                  ระบบจะ reuse X-Request-ID เดิมเพื่อ resume เท่านั้น
+                  และจะไม่สร้างคำขอใหม่จนกว่างานเดิมจะเป็น failed/cancelled
+                </p>
+                <code>{jobState.requestId}</code>
+              </aside>
+            )}
+            {jobState.job && (
+              <aside
+                className={`transport-job-status ${jobState.attemptStatus ?? jobState.job.status}`}
+                role="status"
+                aria-live="polite"
+              >
+                <div>
+                  <strong>
+                    งาน {jobState.attemptStatus ?? jobState.job.status} · {jobState.job.matrix_source}
+                  </strong>
+                  <span>{jobState.job.algorithm_version}</span>
+                </div>
+                <code>{jobState.job.route_job_id}</code>
+                <p>
+                  {jobState.attemptStatus === "succeeded"
+                    ? `สร้าง route plan ${jobState.job.route_plan_id ?? "แล้ว"} — ผลสำเร็จนี้ immutable และรอ review/activation`
+                    : jobState.attemptStatus === "failed"
+                      ? jobState.job.error?.message ??
+                        "งานล้มเหลว; ตรวจ audited worker logs แล้วจึงกดเริ่มใหม่ด้วย Request ID ใหม่"
+                      : jobState.attemptStatus === "cancelled"
+                        ? "งานถูกยกเลิก; เริ่มใหม่ได้ด้วย Request ID ใหม่เท่านั้น"
+                        : "ระบบกำลังติดตามสถานะจาก governed queue ทุก 3 วินาที"}
+                </p>
+              </aside>
+            )}
+            {jobState.error && (
+              <p className="transport-inline-error" role="alert">
+                {jobState.error}
+              </p>
+            )}
+            {msg && (
+              <p className="transport-feedback" role="status" aria-live="polite">
+                {msg}
+              </p>
+            )}
+          </div>
+        </article>
       </section>
     </div>
   );
 }
 
-function TransportMap({ data }: { data: TransportData }) {
-  const [warehouse, setWarehouse] = useState<string>(data.warehouses[0] ?? "");
+function TransportMap({
+  data,
+  source,
+  canMutate,
+  onOptimize,
+}: {
+  data: TransportData;
+  source: DataSource;
+  canMutate: boolean;
+  onOptimize: OptimizeRoad;
+}) {
+  const groups = useMemo(() => queueGroups(data.queue), [data.queue]);
+  const eligibleGroups = useMemo(
+    () => groups.filter((routeGroup) => routeGroup.routeEligible),
+    [groups],
+  );
+  const [selectedGroupKey, setSelectedGroupKey] = useState("");
+  const group =
+    eligibleGroups.find((routeGroup) => routeGroup.key === selectedGroupKey) ??
+    eligibleGroups[0] ??
+    null;
   const [picked, setPicked] = useState<string | null>(null);
-  const leg = picked ? data.routes[warehouse]?.[picked] : null;
+  const [road, setRoad] = useState<CanonicalRoadResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const warehouse = group?.warehouse ?? "";
+  const depot = depotForWarehouse(data, warehouse);
+  const pickedGeo = picked ? data.geo[picked] : null;
+  const points = useMemo(
+    () =>
+      mapPoints(
+        data,
+        warehouse,
+        picked ? [picked] : [],
+        road?.order ?? (picked ? [picked] : []),
+      ),
+    [data, picked, road?.order, warehouse],
+  );
+
+  const choosePoint = (id: string) => {
+    if (!group?.rows.some((row) => row.districtRef === id)) {
+      setError("จุดนี้อยู่นอก plan + warehouse ที่เลือก");
+      return;
+    }
+    setPicked(id);
+    setRoad(null);
+    setError("");
+  };
+  const preview = async () => {
+    if (!canMutate) {
+      setError("สิทธิ์นี้อ่านข้อมูลขนส่งได้ แต่เรียก road optimizer ไม่ได้");
+      return;
+    }
+    if (!data.readiness?.operationalWritesEnabled) {
+      setError(
+        "Operational POST gate ถูกล็อก (production_not_ready) จึงไม่ส่งงานไป routing engine",
+      );
+      return;
+    }
+    if (!data.readiness?.routeReady) {
+      setError(
+        `Canonical route gate ยังไม่พร้อม: ${readinessText(
+          data.readiness?.routeReadinessStatus ?? "unknown_route_readiness",
+        )}`,
+      );
+      return;
+    }
+    if (
+      source !== "supabase" ||
+      !group?.planId ||
+      !depot ||
+      depot.verificationStatus !== "verified" ||
+      !depot.routeEligible ||
+      !hasValidCoordinates(depot) ||
+      !pickedGeo ||
+      pickedGeo.verificationStatus !== "verified" ||
+      !pickedGeo.routeEligible ||
+      !hasValidCoordinates(pickedGeo)
+    ) {
+      setError("ต้องใช้ locked plan และพิกัด verified จากระบบจริงก่อนคำนวณถนน");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const result = (await onOptimize(
+        depot,
+        [pickedGeo],
+        group.planId,
+        false,
+      )) as CanonicalRoadResult;
+      if (!sameStopSet([pickedGeo.ref], result.order)) {
+        throw new Error("ผลลัพธ์จาก routing engine ไม่ตรงกับจุดที่เลือก");
+      }
+      setRoad(result);
+    } catch (previewError) {
+      setRoad(null);
+      setError(
+        previewError instanceof Error
+          ? previewError.message
+          : "คำนวณเส้นทางไม่สำเร็จ",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="stack">
-      <section className="filter-bar">
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          คลังต้นทาง
-          <select value={warehouse} onChange={(e) => setWarehouse(e.target.value)}>
-            {data.warehouses.map((w) => (
-              <option key={w} value={w}>
-                {w}
+    <div className="stack transport-workspace">
+      <section className="filter-bar transport-map-controls">
+        <label>
+          Plan + คลัง
+          <select
+            value={group?.key ?? ""}
+            onChange={(event) => {
+              setSelectedGroupKey(event.target.value);
+              setPicked(null);
+              setRoad(null);
+              setError("");
+            }}
+            disabled={!eligibleGroups.length}
+          >
+            {!eligibleGroups.length && (
+              <option value="">ไม่มี locked plan ที่ผ่าน route gate</option>
+            )}
+            {groups.map((option) => (
+              <option
+                key={option.key}
+                value={option.key}
+                disabled={!option.routeEligible}
+              >
+                {option.planNumber} · {option.warehouse || "ไม่พบคลัง"}
+                {option.blocker ? ` · BLOCKED: ${option.blocker}` : ""}
               </option>
             ))}
           </select>
         </label>
-        <span style={{ fontSize: 13, color: "#64748b" }}>คลิกจุดเขตบนแผนที่เพื่อดูระยะทางจากคลัง</span>
+        <label>
+          จุดส่ง
+          <select
+            value={picked ?? ""}
+            onChange={(event) => choosePoint(event.target.value)}
+            disabled={!group}
+          >
+            <option value="">เลือกเขตปลายทาง</option>
+            {group?.rows.map((row) => (
+              <option
+                key={`${group.key}:${row.districtRef}`}
+                value={row.districtRef}
+                disabled={
+                  !row.routeEligible ||
+                  data.geo[row.districtRef]?.verificationStatus !== "verified" ||
+                  !data.geo[row.districtRef]?.routeEligible ||
+                  !hasValidCoordinates(data.geo[row.districtRef])
+                }
+              >
+                {row.districtName} · {row.districtRef}
+              </option>
+            ))}
+          </select>
+        </label>
+        {canMutate ? (
+          <button
+            type="button"
+            className="btn primary"
+            disabled={
+              !picked ||
+              loading ||
+              source !== "supabase" ||
+              data.readiness?.operationalWritesEnabled !== true ||
+              data.readiness?.routeReady !== true
+            }
+            onClick={() => void preview()}
+          >
+            {loading ? "กำลังคำนวณ…" : "ดูเส้นทางถนน"}
+          </button>
+        ) : (
+          <p className="transport-read-only-note" role="note">
+            โหมดอ่านอย่างเดียว · การคำนวณใหม่ใช้ได้เฉพาะ Admin/Planner
+          </p>
+        )}
       </section>
+      {groups.some((routeGroup) => !routeGroup.routeEligible) && (
+        <aside className="transport-group-blockers" role="note">
+          <strong>Route-blocked groups</strong>
+          <ul>
+            {groups
+              .filter((routeGroup) => !routeGroup.routeEligible)
+              .map((routeGroup) => (
+                <li key={routeGroup.key}>
+                  {routeGroup.planNumber} ·{" "}
+                  {routeGroup.warehouse || "ไม่พบคลัง"}: {routeGroup.blocker}
+                </li>
+              ))}
+          </ul>
+        </aside>
+      )}
+      {error && (
+        <aside className="transport-inline-error transport-map-error" role="alert">
+          {error}
+        </aside>
+      )}
       <section className="panel">
-        <div style={{ padding: 12 }}>
-          <MapCanvas
-            geo={data.geo}
-            route={picked ? [picked] : []}
-            highlight={picked}
-            onPick={setPicked}
+        <div className="panel-title">
+          <div>
+            <span>OSM-DERIVED BASEMAP + ROUTING GEOMETRY</span>
+            <h3>{warehouse || "ยังไม่ได้เลือกคลัง"}</h3>
+          </div>
+          {pickedGeo && (
+            <span className={`transport-data-state ${pickedGeo.verificationStatus}`}>
+              {pickedGeo.verificationStatus}
+            </span>
+          )}
+        </div>
+        <div className="transport-map-frame">
+          <TransportRoadMap
+            points={points}
+            geometry={(road?.geometry as RoadGeometry | undefined) ?? null}
+            onPick={choosePoint}
           />
         </div>
       </section>
-      {picked && leg && (
-        <section className="inventory-summary">
-          <article>
-            <span>เขตปลายทาง</span>
-            <strong style={{ fontSize: 15 }}>{data.geo[picked]?.name ?? picked}</strong>
-            <small>{picked}</small>
-          </article>
-          <article>
-            <span>ระยะทางจาก {warehouse}</span>
-            <strong>{formatNumber(leg.dist, 1)}</strong>
-            <small>กม.</small>
-          </article>
-          <article>
-            <span>ค่าทางด่วน</span>
-            <strong>{formatNumber(leg.toll)}</strong>
-            <small>บาท</small>
-          </article>
-          <article>
-            <span>เวลาเดินทาง</span>
-            <strong>{formatNumber(leg.time)}</strong>
-            <small>นาที</small>
-          </article>
-        </section>
+      {picked && (
+        <>
+          <section className="transport-result-grid" aria-label="ผลเส้นทางถนน">
+            <article>
+              <span>ปลายทาง</span>
+              <strong>{pickedGeo?.name ?? picked}</strong>
+              <small>{picked}</small>
+            </article>
+            <article>
+              <span>ระยะทางถนนไป-กลับ</span>
+              <strong>{road ? formatNumber(road.distanceKm, 1) : "—"}</strong>
+              <small>กม.</small>
+            </article>
+            <article>
+              <span>เวลาเดินทาง</span>
+              <strong>{road ? formatNumber(road.durationMinutes, 1) : "—"}</strong>
+              <small>นาที</small>
+            </article>
+            <article className="toll-unavailable">
+              <span>ค่าผ่านทาง</span>
+              <strong>ยังไม่คำนวณ</strong>
+              <small>รอ tariff ที่อนุมัติ</small>
+            </article>
+          </section>
+          {road && <RoadEvidence result={road} />}
+        </>
       )}
     </div>
   );
 }
 
-function TransportHistory({ data }: { data: TransportData }) {
+type CancelLegacyTrip = (tripId: string) => Promise<void>;
+
+function TransportHistory({
+  data,
+  source,
+  canMutate,
+  onCancel,
+}: {
+  data: TransportData;
+  source: DataSource;
+  canMutate: boolean;
+  onCancel: CancelLegacyTrip;
+}) {
   const [filter, setFilter] = useState("");
+  const [pendingTripId, setPendingTripId] = useState("");
+  const [feedback, setFeedback] = useState("");
   const rows = data.trips.filter(
     (t) =>
       !filter ||
@@ -967,8 +2662,44 @@ function TransportHistory({ data }: { data: TransportData }) {
         .toLowerCase()
         .includes(filter.toLowerCase()),
   );
+  const cancelTrip = async (trip: TTrip) => {
+    if (!canMutate) {
+      setFeedback("สิทธิ์นี้อ่านประวัติได้ แต่ยกเลิกเที่ยวรถไม่ได้");
+      return;
+    }
+    if (
+      !window.confirm(
+        `ยืนยันยกเลิกเที่ยว ${trip.code}? การยกเลิกจะถูกบันทึกเป็นสถานะ operational จริง`,
+      )
+    ) {
+      return;
+    }
+    setPendingTripId(trip.id);
+    setFeedback("");
+    try {
+      await onCancel(trip.id);
+      setFeedback(`ยกเลิกเที่ยว ${trip.code} แล้ว`);
+    } catch (cancelError) {
+      setFeedback(
+        cancelError instanceof Error
+          ? cancelError.message
+          : "ยกเลิกเที่ยวรถไม่สำเร็จ",
+      );
+    } finally {
+      setPendingTripId("");
+    }
+  };
   return (
     <div className="stack">
+      <aside className="transport-history-warning" role="note">
+        <strong>ประวัติชุดนี้เป็น legacy illustrative / unverified</strong>
+        <p>
+          Trip-summary contract ปัจจุบันยังไม่มีหลักฐานเส้นทางถนนที่ยืนยันได้
+          ระยะทาง เวลา และค่าใช้จ่ายจึงใช้เพื่ออ้างอิงเท่านั้น
+          ระบบปิดการเดินหน้าสถานะ dispatch/completed และอนุญาตเฉพาะ
+          “ยกเลิก” สำหรับเที่ยวที่ยังไม่สิ้นสุดโดย Admin/Planner เท่านั้น
+        </p>
+      </aside>
       <section className="filter-bar">
         <input
           value={filter}
@@ -996,6 +2727,7 @@ function TransportHistory({ data }: { data: TransportData }) {
                 <th>ค่าน้ำมัน (ประมาณ/จริง)</th>
                 <th>วันที่</th>
                 <th>สถานะ</th>
+                <th>หลักฐาน / Action</th>
               </tr>
             </thead>
             <tbody>
@@ -1011,26 +2743,75 @@ function TransportHistory({ data }: { data: TransportData }) {
                   </td>
                   <td>{t.warehouse}</td>
                   <td>{t.route.join(" → ")}</td>
-                  <td>{formatNumber(t.dist, 1)} กม.</td>
+                  <td>
+                    {formatNumber(t.dist, 1)} กม.
+                    <small>legacy · ไม่ใช่ road evidence</small>
+                  </td>
                   <td>
                     {formatNumber(t.fuel, 2)}
                     {t.fuelActual != null ? ` / ${formatNumber(t.fuelActual, 2)}` : " / —"}
                   </td>
                   <td>{t.date}</td>
                   <td>
-                    <TBadge>{t.status}</TBadge>
+                    <TBadge>{mapStatus(t.status)}</TBadge>
+                  </td>
+                  <td>
+                    <span className="transport-data-state unverified">
+                      illustrative / unverified
+                    </span>
+                    {(tripHasStatus(t, "planned", "วางแผน") ||
+                      tripHasStatus(t, "dispatched", "ออกรถแล้ว")) &&
+                    canMutate &&
+                    source === "supabase" &&
+                    uuidPattern.test(t.id) ? (
+                      <button
+                        type="button"
+                        className="table-action danger"
+                        disabled={
+                          Boolean(pendingTripId) ||
+                          data.readiness?.operationalWritesEnabled !== true
+                        }
+                        title={
+                          data.readiness?.operationalWritesEnabled === true
+                            ? "ยกเลิกเที่ยว legacy"
+                            : "Operational POST gate ถูกล็อก"
+                        }
+                        onClick={() => void cancelTrip(t)}
+                      >
+                        {pendingTripId === t.id
+                          ? "กำลังยกเลิก…"
+                          : data.readiness?.operationalWritesEnabled === true
+                            ? "ยกเลิกเที่ยว"
+                            : "ยกเลิกถูกล็อก"}
+                      </button>
+                    ) : (
+                      <small>
+                        {canMutate
+                          ? "ไม่มี operational continuation"
+                          : "อ่านอย่างเดียวตามสิทธิ์"}
+                      </small>
+                    )}
                   </td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={9}>ไม่พบเที่ยวรถ</td>
+                  <td colSpan={10}>ไม่พบเที่ยวรถ</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
+      {feedback && (
+        <p
+          className="transport-feedback"
+          role="status"
+          aria-live="polite"
+        >
+          {feedback}
+        </p>
+      )}
     </div>
   );
 }
@@ -1038,11 +2819,26 @@ function TransportHistory({ data }: { data: TransportData }) {
 export function TransportModule({
   view,
   token,
+  role,
+  actorId,
 }: {
   view: TransportView;
   token: string | null;
+  role: Role;
+  actorId: string;
 }) {
-  const { data, source, loading, saveTrip } = useTransportData(token);
+  const {
+    data,
+    source,
+    loading,
+    loadError,
+    reload,
+    optimizeRoad,
+    cancelLegacyTrip,
+    queueOptimizationJob,
+    readOptimizationJob,
+  } = useTransportData(token, role);
+  const canMutate = canMutateTransport(role);
   const [eyebrow, title, description] = transportTitles[view];
   return (
     <>
@@ -1053,11 +2849,67 @@ export function TransportModule({
           <p>{description}</p>
         </div>
       </header>
-      <SourceTag source={source} loading={loading} />
-      {view === "dashboard" && <TransportDashboard data={data} />}
-      {view === "planner" && <TransportPlanner data={data} onSave={saveTrip} />}
-      {view === "map" && <TransportMap data={data} />}
-      {view === "history" && <TransportHistory data={data} />}
+      <SourceTag
+        source={source}
+        loading={loading}
+        error={loadError}
+        onRetry={() => void reload()}
+      />
+      {source !== "error" && !canMutate && (
+        <aside className="transport-read-only-note" role="note">
+          <strong>Transport read-only</strong>
+          <p>
+            สิทธิ์ {role} อ่านภาพรวม แผนที่ และประวัติได้เท่านั้น
+            {role === "district"
+              ? " โดย dispatch queue และ trips ถูกจำกัดเขตจาก backend"
+              : " โดยไม่มี affordance ที่ส่ง POST ไปยัง optimizer หรือเที่ยวรถ"}
+          </p>
+        </aside>
+      )}
+      {source !== "error" && (
+        <TransportReadinessPanel
+          readiness={data.readiness}
+          source={source}
+        />
+      )}
+      {source !== "error" && view === "dashboard" && (
+        <TransportDashboard data={data} />
+      )}
+      {source !== "error" && view === "planner" && canMutate && (
+        <TransportPlanner
+          data={data}
+          source={source}
+          actorId={actorId}
+          onOptimize={optimizeRoad}
+          onQueueJob={queueOptimizationJob}
+          onReadJob={readOptimizationJob}
+        />
+      )}
+      {source !== "error" && view === "planner" && !canMutate && (
+        <aside className="runtime-message warning" role="status">
+          <i>!</i>
+          <div>
+            <strong>ไม่มีสิทธิ์วางแผนหรือ queue งานขนส่ง</strong>
+            <p>กลับไปยังภาพรวม แผนที่ หรือประวัติแบบอ่านอย่างเดียว</p>
+          </div>
+        </aside>
+      )}
+      {source !== "error" && view === "map" && (
+        <TransportMap
+          data={data}
+          source={source}
+          canMutate={canMutate}
+          onOptimize={optimizeRoad}
+        />
+      )}
+      {source !== "error" && view === "history" && (
+        <TransportHistory
+          data={data}
+          source={source}
+          canMutate={canMutate}
+          onCancel={cancelLegacyTrip}
+        />
+      )}
     </>
   );
 }

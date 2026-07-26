@@ -285,6 +285,22 @@ begin
     return public.m09_error(403, 'forbidden', 'No application role is assigned', p_request_id);
   end if;
 
+  -- Fail closed throughout an ordered production deploy. The illustrative
+  -- radial route-leg data below is retained only for historical comparison;
+  -- M13c replaces this dispatcher with canonical road-evidence gates.
+  if v_method = 'POST'
+     and (
+       p_path = '/v1/transport/trips'
+       or p_path ~ '^/v1/transport/trips/[0-9a-fA-F-]{36}/status$'
+     ) then
+    return public.m09_error(
+      410,
+      'road_route_evidence_not_persistable',
+      'Transport writes remain disabled until canonical real-road evidence is installed',
+      p_request_id
+    );
+  end if;
+
   -- ---- Reads (any authenticated role) ----
   if v_method = 'GET' and p_path = '/v1/transport/warehouses' then
     select coalesce(jsonb_agg(to_jsonb(q) order by q.warehouse_code), '[]'::jsonb) into v_payload
