@@ -296,6 +296,10 @@ values
   ),
   (
     'complete_route_input_gate_covers_every_positive_item',
+    -- M14 kept the public gate name but moved the pre-M14 packaging validations
+    -- into core.route_plan_has_complete_routing_inputs_m13e, which the public
+    -- wrapper still calls. Inspect the combined source so the packaging-coverage
+    -- guarantee is verified wherever the clause now lives.
     position(
       'not exists'
       in pg_get_functiondef(
@@ -304,14 +308,24 @@ values
     ) > 0
     and position(
       'physical_packaging'
-      in pg_get_functiondef(
-        'core.route_plan_has_complete_routing_inputs(uuid)'::regprocedure
+      in (
+        pg_get_functiondef(
+          'core.route_plan_has_complete_routing_inputs(uuid)'::regprocedure
+        )
+        || pg_get_functiondef(
+          'core.route_plan_has_complete_routing_inputs_m13e(uuid)'::regprocedure
+        )
       )
     ) > 0
     and position(
       'canonical_packaging'
-      in pg_get_functiondef(
-        'core.route_plan_has_complete_routing_inputs(uuid)'::regprocedure
+      in (
+        pg_get_functiondef(
+          'core.route_plan_has_complete_routing_inputs(uuid)'::regprocedure
+        )
+        || pg_get_functiondef(
+          'core.route_plan_has_complete_routing_inputs_m13e(uuid)'::regprocedure
+        )
       )
     ) > 0
   );
@@ -407,7 +421,11 @@ insert into core.material_packaging (
   boxes_per_pallet,
   source_reference,
   verified_at,
-  quantity_uom
+  quantity_uom,
+  source_checksum_sha256,
+  source_row_number,
+  verified_by,
+  verification_ticket
 )
 values (
   'M13E-MAT-A',
@@ -417,7 +435,11 @@ values (
   10,
   'm13e-contract-test/physical-packaging.csv#row=2',
   now(),
-  'EA'
+  'EA',
+  repeat('a', 64),
+  2,
+  '13500000-0000-4000-8000-000000000001',
+  'M13E-PKG-TICKET-001'
 );
 
 insert into core.packaging_profiles (
@@ -429,7 +451,11 @@ insert into core.packaging_profiles (
   source_reference,
   verified_at,
   data_class,
-  source_quality
+  source_quality,
+  source_checksum_sha256,
+  source_row_number,
+  verified_by,
+  verification_ticket
 )
 values (
   'M13E-MAT-A',
@@ -440,8 +466,73 @@ values (
   'm13e-contract-test/canonical-packaging.csv#row=2',
   now(),
   'actual',
-  'verified'
+  'verified',
+  repeat('a', 64),
+  2,
+  '13500000-0000-4000-8000-000000000001',
+  'M13E-PKG-TICKET-001'
 );
+
+-- M14 (project-sheet incremental) tightened
+-- core.route_plan_has_complete_routing_inputs to also require every locked item's
+-- packaging to be traceable to reference_data.material_packaging_evidence linked
+-- to a succeeded ops.project_sheet_imports. Seed that provenance chain so a
+-- complete plan is genuinely route-ready under the post-M14 gate.
+insert into reference_data.source_artifacts (
+  artifact_id, source_path, source_checksum, source_file_size_bytes, data_class
+)
+values (
+  '13500000-0000-4000-8000-000000000701',
+  'm13e-contract-test/project-sheet.xlsx',
+  repeat('a', 64),
+  1024,
+  'reference_fixture'
+);
+
+with seeded_source_row as (
+  insert into reference_data.source_rows (
+    artifact_id, source_row_number, payload, row_hash, material_id
+  )
+  values (
+    '13500000-0000-4000-8000-000000000701', 2, '{}'::jsonb, repeat('a', 64), 'M13E-MAT-A'
+  )
+  returning source_row_id
+), seeded_raw_row as (
+  insert into raw.source_rows (
+    batch_id, source_entity, source_row_number, row_hash, payload
+  )
+  values (
+    '13500000-0000-4000-8000-000000000010', 'packaging', 2, repeat('a', 64), '{}'::jsonb
+  )
+  returning source_row_id
+), seeded_import as (
+  insert into ops.project_sheet_imports (
+    source_path, source_spreadsheet_id, source_checksum, source_downloaded_at,
+    material_artifact_id, packaging_artifact_id, contract_artifact_id, usage_artifact_id,
+    status, verified_by, attestation_text, change_ticket
+  )
+  values (
+    'm13e-contract-test/project-sheet.xlsx', 'M13E-SHEET', repeat('a', 64), now(),
+    '13500000-0000-4000-8000-000000000701', '13500000-0000-4000-8000-000000000701',
+    '13500000-0000-4000-8000-000000000701', '13500000-0000-4000-8000-000000000701',
+    'succeeded', '13500000-0000-4000-8000-000000000001',
+    'm13e fixture packaging attestation', 'M13E-PKG-TICKET-001'
+  )
+  returning project_sheet_import_id
+)
+insert into reference_data.material_packaging_evidence (
+  project_sheet_import_id, material_id, source_artifact_id, source_row_id,
+  raw_source_row_id, source_checksum, source_row_number, quantity_uom,
+  quantity_per_box, box_volume_m3, weight_per_box_kg, boxes_per_pallet,
+  pallet_volume_m3, pallet_weight_kg, verified_by, change_ticket
+)
+select
+  seeded_import.project_sheet_import_id, 'M13E-MAT-A',
+  '13500000-0000-4000-8000-000000000701', seeded_source_row.source_row_id,
+  seeded_raw_row.source_row_id, repeat('a', 64), 2, 'EA',
+  10, 0.05, 20, 10, 0.5, 200,
+  '13500000-0000-4000-8000-000000000001', 'M13E-PKG-TICKET-001'
+from seeded_source_row, seeded_raw_row, seeded_import;
 
 insert into core.warehouses (
   warehouse_id,
