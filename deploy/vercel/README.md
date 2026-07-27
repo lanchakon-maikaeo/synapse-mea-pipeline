@@ -69,9 +69,10 @@ NEXT_PUBLIC_MAP_ATTRIBUTION=&copy; OpenStreetMap contributors &middot; Protomaps
 ```
 
 The basemap is a bounded vector extract from the pinned Protomaps 2026-07-26
-daily build. The image verifies the exact 50 MiB extract digest at build time,
-and the tile service supports browser byte-range requests. It does not proxy or
-fall back to the OpenStreetMap Foundation public tile service.
+daily build. The image verifies the archive structure and exact dataset metadata
+at build time; the service computes the deployed artifact SHA-256 for its health
+response and ETag, and supports browser byte-range requests. It does not proxy
+or fall back to the OpenStreetMap Foundation public tile service.
 
 The dashboard refreshes an attested Valhalla heartbeat when an authenticated
 operator reads transport readiness. Before queueing an optimization job it

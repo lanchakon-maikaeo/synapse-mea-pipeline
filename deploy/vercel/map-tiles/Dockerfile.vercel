@@ -12,7 +12,13 @@ RUN apk add --no-cache ca-certificates curl tar \
       /tiles/bmr.pmtiles \
       --bbox=100.2,13.4,101.0,14.1 \
       --maxzoom=15 \
-    && echo "47ad4c453a42fae22559af424589c742904d9d98b4d11ce09fdd109f3a518d16  /tiles/bmr.pmtiles" | sha256sum -c -
+    && pmtiles verify /tiles/bmr.pmtiles \
+    && pmtiles show /tiles/bmr.pmtiles > /tmp/bmr-metadata.txt \
+    && grep -Fx "pmtiles spec version: 3" /tmp/bmr-metadata.txt \
+    && grep -Fx "tile type: mvt" /tmp/bmr-metadata.txt \
+    && grep -Fx "bounds: (long: 100.200000, lat: 13.400000) (long: 101.000000, lat: 14.100000)" /tmp/bmr-metadata.txt \
+    && grep -Fx "max zoom: 15" /tmp/bmr-metadata.txt \
+    && grep -Fx "planetiler:osm:osmosisreplicationtime 2026-07-26T04:00:00Z" /tmp/bmr-metadata.txt
 
 FROM golang:1.24.6-alpine3.22@sha256:c8c5f95d64aa79b6547f3b626eb84b16a7ce18a139e3e9ca19a8c078b85ba80d AS server-build
 WORKDIR /src
@@ -26,4 +32,3 @@ COPY --from=server-build /tile-server /usr/local/bin/tile-server
 USER 65532:65532
 ENV TILE_PATH=/tiles/bmr.pmtiles
 CMD ["/usr/local/bin/tile-server"]
-

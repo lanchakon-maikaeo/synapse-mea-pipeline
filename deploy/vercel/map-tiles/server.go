@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -33,6 +36,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	hasher := sha256.New()
+	if _, err = io.Copy(hasher, tile); err != nil {
+		log.Fatal(err)
+	}
+	tileDigest := fmt.Sprintf("%x", hasher.Sum(nil))
 	_ = tile.Close()
 
 	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -40,9 +48,10 @@ func main() {
 		writer.Header().Set("Referrer-Policy", "no-referrer")
 		if request.URL.Path == "/health" {
 			jsonResponse(writer, http.StatusOK, map[string]any{
-				"status": "ok",
+				"status":  "ok",
 				"dataset": "protomaps-bmr-20260726",
-				"bytes": info.Size(),
+				"bytes":   info.Size(),
+				"sha256":  tileDigest,
 			})
 			return
 		}
@@ -62,7 +71,7 @@ func main() {
 		writer.Header().Set("Access-Control-Expose-Headers", "Accept-Ranges, Content-Length, Content-Range, ETag")
 		writer.Header().Set("Cache-Control", "public, max-age=3600, s-maxage=31536000, immutable")
 		writer.Header().Set("Content-Type", "application/vnd.pmtiles")
-		writer.Header().Set("ETag", `"sha256-47ad4c453a42fae22559af424589c742904d9d98b4d11ce09fdd109f3a518d16"`)
+		writer.Header().Set("ETag", `"sha256-`+tileDigest+`"`)
 		if request.Method != http.MethodGet && request.Method != http.MethodHead {
 			writer.Header().Set("Allow", "GET, HEAD")
 			jsonResponse(writer, http.StatusMethodNotAllowed, map[string]string{"error": "method_not_allowed"})
