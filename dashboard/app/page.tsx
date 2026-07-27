@@ -35,6 +35,7 @@ type ViewKey =
   | "dashboard"
   | "weekly"
   | "recommendations"
+  | "advisory"
   | "changes"
   | "approvals"
   | "fifo"
@@ -76,6 +77,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       label: "ข้อมูล & ควบคุม",
       items: [
         ["recommendations", "หลักฐานปริมาณ", "✦"],
+        ["advisory", "Intelligence (advisory)", "◈"],
         ["stock", "ข้อมูล Stock", "◫"],
         ["input", "อัปเดต Stock", "↻"],
         ["data", "ข้อมูล SAP / คุณภาพ", "▥"],
@@ -93,6 +95,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
+        ["advisory", "Intelligence (advisory)", "◈"],
       ],
     },
     {
@@ -182,6 +185,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "DECISION SUPPORT",
     "Quantity Recommendation Evidence",
     "Business Rules v1 evidence only; no fabricated or auto-approved result.",
+  ],
+  advisory: [
+    "WAVE-3 INTELLIGENCE",
+    "Obsolescence & Slow-mover Advisory",
+    "Research-driven risk signal from real evidence; advisory only, never changes Business Rules v1.",
   ],
   changes: [
     "REQUEST CONTROL",
@@ -1375,6 +1383,126 @@ function RecommendationView({ data }: { data: DashboardData }) {
             ["MAX", (row) => formatNumber(row.max_fill_qty, 2)],
             ["Recommended", (row) => formatNumber(row.recommended_qty, 2)],
             ["Source", (row) => <Badge>{text(row.source_freshness_status)}</Badge>],
+          ]}
+        />
+      </section>
+    </div>
+  );
+}
+
+// --- Wave-3 intelligence: obsolescence / slow-mover advisory ----------------
+// A client-side port of the deterministic months-of-cover + threshold logic in
+// intelligence/src/synapse_intelligence/obsolescence.py, computed from the real
+// Quantity Recommendation Evidence. Advisory only: it never mutates Business
+// Rules v1 or any plan, and shows only what the available evidence supports
+// (demand volatility / forecast history is not exposed to the browser).
+type AdvisoryLevel = "critical" | "warning" | "watch" | "none";
+
+const ADVISORY_ORDER: Record<AdvisoryLevel, number> = {
+  critical: 0,
+  warning: 1,
+  watch: 2,
+  none: 3,
+};
+
+const ADVISORY_STYLE: Record<AdvisoryLevel, { bg: string; fg: string; label: string }> = {
+  critical: { bg: "#fee4e2", fg: "#b42318", label: "Critical" },
+  warning: { bg: "#fef0c7", fg: "#b54708", label: "Warning" },
+  watch: { bg: "#d1e9ff", fg: "#175cd3", label: "Watch" },
+  none: { bg: "#dcfae6", fg: "#067647", label: "OK" },
+};
+
+function advisoryFor(row: RecordRow): { level: AdvisoryLevel; reason: string } {
+  const cmp = Number(row.cmp_monthly);
+  const stock = Number(row.current_stock_qty);
+  const months = Number(row.months_available);
+  if (Number.isFinite(cmp) && cmp <= 0 && Number.isFinite(stock) && stock > 0) {
+    return { level: "critical", reason: "ไม่มีการใช้ (CMP=0) แต่ยังมีสต็อกค้าง — เสี่ยงเป็นของตาย" };
+  }
+  if (Number.isFinite(months) && months > 9) {
+    return { level: "critical", reason: `คงคลัง ${months.toFixed(1)} เดือน (>9 — ต้องอนุมัติวิชาการ)` };
+  }
+  if (Number.isFinite(months) && months > 6) {
+    return { level: "warning", reason: `คงคลัง ${months.toFixed(1)} เดือน (>6 — overstock)` };
+  }
+  if (Number.isFinite(months) && months > 4.5) {
+    return { level: "watch", reason: `คงคลัง ${months.toFixed(1)} เดือน — เริ่มเข้าใกล้ overstock` };
+  }
+  return { level: "none", reason: "อยู่ในเกณฑ์ปกติ" };
+}
+
+function RiskBadge({ level }: { level: AdvisoryLevel }) {
+  const style = ADVISORY_STYLE[level];
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        padding: "2px 10px",
+        borderRadius: 999,
+        background: style.bg,
+        color: style.fg,
+        fontWeight: 600,
+        fontSize: "0.78rem",
+      }}
+    >
+      {style.label}
+    </span>
+  );
+}
+
+function IntelligenceAdvisoryView({ data }: { data: DashboardData }) {
+  const scored = data.recommendations.map((row) => ({ row, advisory: advisoryFor(row) }));
+  const counts = scored.reduce(
+    (acc, { advisory }) => {
+      acc[advisory.level] += 1;
+      return acc;
+    },
+    { critical: 0, warning: 0, watch: 0, none: 0 } as Record<AdvisoryLevel, number>,
+  );
+  const flagged = scored
+    .filter(({ advisory }) => advisory.level !== "none")
+    .sort((a, b) => ADVISORY_ORDER[a.advisory.level] - ADVISORY_ORDER[b.advisory.level])
+    .map(({ row, advisory }) => ({ ...row, __level: advisory.level, __reason: advisory.reason }));
+  return (
+    <div className="stack">
+      <section className="recommend-banner">
+        <div>
+          <span>WAVE-3 INTELLIGENCE · ADVISORY</span>
+          <h3>Obsolescence &amp; slow-mover risk</h3>
+          <p>
+            คำนวณจากหลักฐานปริมาณจริง (CMP, สต็อก, เดือนคงคลัง) ตามงานวิจัย
+            intermittent-demand / obsolescence เป็น <strong>advisory</strong>{" "}
+            เท่านั้น ไม่เปลี่ยน Business Rules v1 และไม่อนุมัติอัตโนมัติ
+          </p>
+        </div>
+        <div>
+          <strong>{formatNumber(flagged.length)}</strong>
+          <small>flagged / {formatNumber(scored.length)} records</small>
+        </div>
+      </section>
+      <section
+        className="panel"
+        style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}
+      >
+        {(["critical", "warning", "watch", "none"] as AdvisoryLevel[]).map((level) => (
+          <div key={level} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <RiskBadge level={level} />
+            <strong>{formatNumber(counts[level])}</strong>
+          </div>
+        ))}
+      </section>
+      <section className="panel">
+        <LiveTable
+          rows={flagged}
+          empty="ไม่มีรายการที่ต้องเฝ้าระวัง — หรือยังไม่มีหลักฐานปริมาณ"
+          columns={[
+            ["Material", (row) => row.material_id],
+            ["District", (row) => row.district_id],
+            ["Stock", (row) => formatNumber(row.current_stock_qty, 2)],
+            ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
+            ["Months", (row) => formatNumber(row.months_available, 1)],
+            ["Risk", (row) => <RiskBadge level={row.__level as AdvisoryLevel} />],
+            ["Signal", (row) => text(row.__reason)],
           ]}
         />
       </section>
@@ -2814,6 +2942,9 @@ function PageContent({
   }
   if (view === "recommendations") {
     return <RecommendationView data={backend.data} />;
+  }
+  if (view === "advisory") {
+    return <IntelligenceAdvisoryView data={backend.data} />;
   }
   if (view === "changes") {
     return (
