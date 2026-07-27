@@ -7,6 +7,6 @@ begin;
 delete from analytics.forecast_model_versions
 where model_version in ('croston-v1', 'croston-sba-v1', 'tsb-v1', 'adida-v1');
 
-delete from ops.schema_migrations where version = '202607270001';
+delete from ops.schema_migrations where version = '202607270004';
 
 commit;

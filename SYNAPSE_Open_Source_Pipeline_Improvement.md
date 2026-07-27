@@ -292,7 +292,7 @@ inventory-aware simulation (fill rate/service level/on-hand) พร้อม uni
 **อัปเดต 2026-07-27 (candidate):** เพิ่ม intermittent-demand family (ADI×CV²
 classification, Croston/SBA/TSB/ADIDA, MASE) ใน intelligence layer พร้อม unit
 tests — activation-gated ด้วย env `SYNAPSE_INTERMITTENT_FORECAST=1` และ prepared
-migration `supabase/candidate/202607270001_m07b_intermittent_forecasting.sql`
+migration `supabase/candidate/202607270004_m07b_intermittent_forecasting.sql`
 ดู `docs/RESEARCH_DRIVEN_IMPROVEMENTS.md`
 
 **ขอบเขตงาน:**

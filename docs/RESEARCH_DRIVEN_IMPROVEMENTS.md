@@ -65,7 +65,7 @@ map model → `analytics.forecast_model_versions` ผ่าน `MODEL_VERSIONS`
 
 ### Activation (2 อย่างต้องไปด้วยกัน)
 
-1. Apply `supabase/candidate/202607270001_m07b_intermittent_forecasting.sql`
+1. Apply `supabase/candidate/202607270004_m07b_intermittent_forecasting.sql`
    (ลงทะเบียน `croston-v1`, `croston-sba-v1`, `tsb-v1`, `adida-v1`) —
    ต้องมีก่อน ไม่งั้นละเมิด `model_version` foreign key
 2. ตั้ง `SYNAPSE_INTERMITTENT_FORECAST=1` ให้ forecast worker

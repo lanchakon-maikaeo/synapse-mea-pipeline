@@ -38,9 +38,9 @@ set model_name = excluded.model_name,
 
 insert into ops.schema_migrations (version, module, description, source_file)
 values (
-  '202607270001', 'W03',
+  '202607270004', 'W03',
   'Register Croston/SBA/TSB/ADIDA intermittent-demand model versions for M07.',
-  'supabase/migrations/202607270001_m07b_intermittent_forecasting.sql'
+  'supabase/migrations/202607270004_m07b_intermittent_forecasting.sql'
 )
 on conflict (version) do update set description=excluded.description, source_file=excluded.source_file;
 
