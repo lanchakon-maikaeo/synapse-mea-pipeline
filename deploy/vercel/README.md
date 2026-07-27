@@ -3,13 +3,14 @@
 These are new runtimes for the `synapse-mea` Vercel team. They do not deploy,
 call, or modify the unrelated `mea-vrp-solver` project.
 
-Create three Git-backed Vercel projects from this repository:
+Create four Git-backed Vercel projects from this repository:
 
 | Project | Root Directory | Purpose |
 | --- | --- | --- |
 | `synapse-routing-osrm` | `deploy/vercel/osrm` | authenticated OSRM Table + Route preview |
 | `synapse-routing-valhalla` | `deploy/vercel/valhalla` | authenticated truck matrix and route evidence |
 | `synapse-optimization-worker` | `intelligence` | authenticated on-demand OR-Tools worker |
+| `synapse-map-tiles` | `deploy/vercel/map-tiles` | self-hosted BMR PMTiles basemap |
 
 Both routing images download the immutable Geofabrik Thailand snapshot
 `thailand-260725.osm.pbf`, verify its SHA-256 digest, clip it to the reviewed MEA
@@ -63,7 +64,14 @@ ROUTING_ENGINE_DATA_VERSION=osm-bmr-2026-07-26-sha256-fc817b0f2c3ada5e8c2d7b99b6
 ROUTING_ENGINE_AUTH_TOKEN=<matching OSRM proxy token>
 OPTIMIZATION_WORKER_URL=https://<synapse-optimization-worker production domain>
 OPTIMIZATION_WORKER_AUTH_TOKEN=<matching worker token>
+NEXT_PUBLIC_MAP_TILE_URL=https://synapse-map-tiles.vercel.app/bmr.pmtiles
+NEXT_PUBLIC_MAP_ATTRIBUTION=&copy; OpenStreetMap contributors &middot; Protomaps
 ```
+
+The basemap is a bounded vector extract from the pinned Protomaps 2026-07-26
+daily build. The image verifies the exact 50 MiB extract digest at build time,
+and the tile service supports browser byte-range requests. It does not proxy or
+fall back to the OpenStreetMap Foundation public tile service.
 
 The dashboard refreshes an attested Valhalla heartbeat when an authenticated
 operator reads transport readiness. Before queueing an optimization job it

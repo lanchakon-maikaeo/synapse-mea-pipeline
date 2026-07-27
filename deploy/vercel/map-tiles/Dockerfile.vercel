@@ -1,0 +1,29 @@
+FROM alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1 AS tiles
+
+RUN apk add --no-cache ca-certificates curl tar \
+    && curl --fail --silent --show-error --location \
+      -o /tmp/pmtiles.tar.gz \
+      https://github.com/protomaps/go-pmtiles/releases/download/v1.30.1/go-pmtiles_1.30.1_Linux_x86_64.tar.gz \
+    && echo "23a2a2222f658320b539ccd06ac3b9b3b803ecbdd39a6cb5249d2ce2e16e38ae  /tmp/pmtiles.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/pmtiles.tar.gz -C /usr/local/bin pmtiles \
+    && mkdir -p /tiles \
+    && pmtiles extract \
+      https://build.protomaps.com/20260726.pmtiles \
+      /tiles/bmr.pmtiles \
+      --bbox=100.2,13.4,101.0,14.1 \
+      --maxzoom=15 \
+    && echo "47ad4c453a42fae22559af424589c742904d9d98b4d11ce09fdd109f3a518d16  /tiles/bmr.pmtiles" | sha256sum -c -
+
+FROM golang:1.24.6-alpine3.22@sha256:c8c5f95d64aa79b6547f3b626eb84b16a7ce18a139e3e9ca19a8c078b85ba80d AS server-build
+WORKDIR /src
+COPY server.go .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tile-server ./server.go
+
+FROM alpine:3.22.1@sha256:4bcff63911fcb4448bd4fdacec207030997caf25e9bea4045fa6c8c44de311d1
+RUN apk add --no-cache ca-certificates
+COPY --from=tiles /tiles/bmr.pmtiles /tiles/bmr.pmtiles
+COPY --from=server-build /tile-server /usr/local/bin/tile-server
+USER 65532:65532
+ENV TILE_PATH=/tiles/bmr.pmtiles
+CMD ["/usr/local/bin/tile-server"]
+

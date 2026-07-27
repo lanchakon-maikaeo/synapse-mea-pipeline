@@ -1,6 +1,7 @@
 "use client";
 
 import L from "leaflet";
+import { leafletLayer } from "protomaps-leaflet";
 import { useEffect, useMemo } from "react";
 import {
   MapContainer,
@@ -59,16 +60,20 @@ function controlledProductionTileConfig() {
       url.password ||
       publicCommunityHost ||
       loopbackHost ||
-      !configuredTileUrl.includes("{z}") ||
-      !configuredTileUrl.includes("{x}") ||
-      !configuredTileUrl.includes("{y}") ||
       !configuredTileAttribution.includes("OpenStreetMap")
     ) {
       return null;
     }
+    const isPmtiles = url.pathname.endsWith(".pmtiles");
+    const isXyz =
+      configuredTileUrl.includes("{z}") &&
+      configuredTileUrl.includes("{x}") &&
+      configuredTileUrl.includes("{y}");
+    if (!isPmtiles && !isXyz) return null;
     return {
       url: configuredTileUrl,
       attribution: configuredTileAttribution,
+      kind: isPmtiles ? ("pmtiles" as const) : ("xyz" as const),
     };
   } catch {
     return null;
@@ -78,8 +83,43 @@ const tileConfig =
   process.env.NODE_ENV === "production"
     ? controlledProductionTileConfig()
     : configuredTileUrl && configuredTileAttribution
-      ? { url: configuredTileUrl, attribution: configuredTileAttribution }
-      : { url: publicOsmTileUrl, attribution: publicOsmAttribution };
+      ? {
+          url: configuredTileUrl,
+          attribution: configuredTileAttribution,
+          kind: configuredTileUrl.endsWith(".pmtiles")
+            ? ("pmtiles" as const)
+            : ("xyz" as const),
+        }
+      : {
+          url: publicOsmTileUrl,
+          attribution: publicOsmAttribution,
+          kind: "xyz" as const,
+        };
+
+function PmTilesLayer({
+  url,
+  attribution,
+}: {
+  url: string;
+  attribution: string;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    const layer = leafletLayer({
+      url,
+      attribution,
+      flavor: "light",
+      lang: "th",
+      maxZoom: 18,
+      maxDataZoom: 15,
+    });
+    layer.addTo(map);
+    return () => {
+      layer.removeFrom(map);
+    };
+  }, [attribution, map, url]);
+  return null;
+}
 
 function FitVisibleRoute({ positions }: { positions: Array<[number, number]> }) {
   const map = useMap();
@@ -168,7 +208,12 @@ export function TransportRoadMap({
         fadeAnimation={false}
         markerZoomAnimation={false}
       >
-        {tileConfig ? (
+        {tileConfig?.kind === "pmtiles" ? (
+          <PmTilesLayer
+            url={tileConfig.url}
+            attribution={tileConfig.attribution}
+          />
+        ) : tileConfig ? (
           <TileLayer
             url={tileConfig.url}
             attribution={tileConfig.attribution}
