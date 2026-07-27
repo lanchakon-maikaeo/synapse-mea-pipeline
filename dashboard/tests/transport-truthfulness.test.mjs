@@ -3,10 +3,15 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const root = new URL("../", import.meta.url);
-const [transport, roadMap, page] = await Promise.all([
+const [transport, roadMap, page, workerCanary, workerClient] = await Promise.all([
   readFile(new URL("app/transport.tsx", root), "utf8"),
   readFile(new URL("app/transport-road-map.tsx", root), "utf8"),
   readFile(new URL("app/page.tsx", root), "utf8"),
+  readFile(
+    new URL("app/api/internal/optimization-canary/route.ts", root),
+    "utf8",
+  ),
+  readFile(new URL("app/api/optimization-worker.ts", root), "utf8"),
 ]);
 
 test("transport UI uses the live zero-state and readiness contract", () => {
@@ -158,4 +163,18 @@ test("map and optimization remain real-road-only", () => {
   );
   assert.match(roadMap, /hostname === "tile\.openstreetmap\.org"/);
   assert.match(roadMap, /url\.protocol !== "https:"/);
+});
+
+test("one-time canary capability is consumed before the server-only worker call", () => {
+  assert.match(workerCanary, /m14c_consume_worker_trigger/);
+  assert.match(workerCanary, /await sha256\(token\)/);
+  assert.match(workerCanary, /if \(!capability\.accepted/);
+  assert.ok(
+    workerCanary.indexOf("m14c_consume_worker_trigger") <
+      workerCanary.indexOf('triggerOptimizationWorker("run-once"'),
+  );
+  assert.match(workerCanary, /productionProjectHost/);
+  assert.doesNotMatch(workerCanary, /console\.|WORKER_API_KEY/);
+  assert.match(workerClient, /OPTIMIZATION_WORKER_AUTH_TOKEN/);
+  assert.match(workerClient, /Authorization: `Bearer \$\{configured\.token\}`/);
 });

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .actual_workbooks import (
@@ -12,6 +13,8 @@ from .actual_workbooks import (
 from .connectors import CsvConnector, DocumentConnector, ExcelConnector, GoogleSheetsCsvConnector
 from .ingestion import IngestionRunner, PostgresWriter
 from .legacy_actual import download_sources, import_sources
+from .project_sheet import import_project_sheet
+from .relational_sources import parse_project_sheet_sources
 from .test_fixture import import_test_fixture, parse_test_fixture_workbook
 
 
@@ -80,6 +83,29 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Required acknowledgement that the four checksummed workbooks "
             "are approved Actual source evidence"
+        ),
+    )
+
+    project_sheet = subparsers.add_parser(
+        "import-project-sheet",
+        help=(
+            "Import the four operational tabs from a project-shared Google "
+            "Sheet XLSX download as checksum-bound incremental Actual data"
+        ),
+    )
+    project_sheet.add_argument("--source", required=True)
+    project_sheet.add_argument("--spreadsheet-id", required=True)
+    project_sheet.add_argument("--source-downloaded-at")
+    project_sheet.add_argument("--verified-by", required=True)
+    project_sheet.add_argument("--attestation-text", required=True)
+    project_sheet.add_argument("--change-ticket", required=True)
+    project_sheet.add_argument("--chunk-size", type=int, default=200)
+    project_sheet.add_argument(
+        "--confirm-project-sheet-actual",
+        action="store_true",
+        help=(
+            "Required acknowledgement that this project-shared download is "
+            "authorized incremental Actual source evidence"
         ),
     )
     actual.add_argument(
@@ -213,6 +239,55 @@ def main(argv: list[str] | None = None) -> int:
             "artifact_rpc_calls": len(result.artifacts),
             "promotion": result.promotion,
             "production_completion": result.production_completion,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "import-project-sheet":
+        if not args.confirm_project_sheet_actual:
+            raise SystemExit(
+                "--confirm-project-sheet-actual is required because this "
+                "command promotes incremental Actual source evidence"
+            )
+        supabase_url = os.environ.get("SUPABASE_URL")
+        backend_key = (
+            os.environ.get("SUPABASE_SECRET_KEY")
+            or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        )
+        if not supabase_url:
+            raise SystemExit("Missing environment variable: SUPABASE_URL")
+        if not backend_key:
+            raise SystemExit(
+                "Missing backend credential: set SUPABASE_SECRET_KEY "
+                "(preferred) or SUPABASE_SERVICE_ROLE_KEY"
+            )
+        source_file = Path(args.source)
+        downloaded_at = args.source_downloaded_at or datetime.fromtimestamp(
+            source_file.stat().st_mtime,
+            timezone.utc,
+        ).isoformat()
+        sources = parse_project_sheet_sources(
+            source_file,
+            source_spreadsheet_id=args.spreadsheet_id,
+            source_downloaded_at=downloaded_at,
+        )
+        result = import_project_sheet(
+            sources,
+            supabase_url=supabase_url,
+            service_role_key=backend_key,
+            source_spreadsheet_id=args.spreadsheet_id,
+            source_downloaded_at=downloaded_at,
+            verified_by=args.verified_by,
+            attestation_text=args.attestation_text,
+            change_ticket=args.change_ticket,
+            chunk_size=args.chunk_size,
+        )
+        print(json.dumps({
+            "data_class": "actual",
+            "source_checksum": sources[0].checksum,
+            "source_spreadsheet_id": args.spreadsheet_id,
+            "source_downloaded_at": downloaded_at,
+            "artifact_rpc_calls": len(result.artifacts),
+            "promotion": result.promotion,
         }, ensure_ascii=False, indent=2))
         return 0
 

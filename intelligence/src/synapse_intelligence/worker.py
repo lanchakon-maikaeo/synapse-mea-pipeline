@@ -412,14 +412,24 @@ def _load_route_inputs(connection, route_job: dict[str, Any]):
               packaging.weight_per_box_kg,
               packaging.boxes_per_pallet,
               packaging.source_reference as packaging_source_reference,
+              packaging.source_checksum_sha256 as
+                packaging_source_checksum_sha256,
+              packaging.source_row_number as packaging_source_row_number,
               packaging.verified_at as packaging_verified_at,
+              packaging.verified_by as packaging_verified_by,
+              packaging.verification_ticket as packaging_verification_ticket,
               profile.base_uom as profile_base_uom,
               profile.full_pallet_qty,
               profile.inner_pack_qty,
               profile.data_class as profile_data_class,
               profile.source_quality as profile_source_quality,
               profile.source_reference as profile_source_reference,
+              profile.source_checksum_sha256 as
+                profile_source_checksum_sha256,
+              profile.source_row_number as profile_source_row_number,
               profile.verified_at as profile_verified_at,
+              profile.verified_by as profile_verified_by,
+              profile.verification_ticket as profile_verification_ticket,
               canonical_geo.latitude,
               canonical_geo.longitude,
               canonical_geo.geocode_status,
@@ -698,16 +708,39 @@ def _validate_route_item(row: dict[str, Any]) -> None:
     if (
         row.get("packaging_verified_at") is None
         or not _normalized_text(row.get("packaging_source_reference"))
+        or not _valid_sha256(row.get("packaging_source_checksum_sha256"))
+        or not _positive_integer(row.get("packaging_source_row_number"))
+        or row.get("packaging_verified_by") is None
+        or not _normalized_text(row.get("packaging_verification_ticket"))
     ):
-        raise ValueError("physical packaging evidence must be verified and sourced")
+        raise ValueError(
+            "physical packaging evidence must be verified, row-traceable and sourced"
+        )
     if (
         row.get("profile_data_class") != ACTUAL_DATA_CLASS
         or row.get("profile_source_quality") != VERIFIED_PACKAGING_QUALITY
         or row.get("profile_verified_at") is None
         or not _normalized_text(row.get("profile_source_reference"))
+        or not _valid_sha256(row.get("profile_source_checksum_sha256"))
+        or not _positive_integer(row.get("profile_source_row_number"))
+        or row.get("profile_verified_by") is None
+        or not _normalized_text(row.get("profile_verification_ticket"))
     ):
         raise ValueError(
             "canonical packaging profile must be verified actual evidence"
+        )
+    if (
+        row.get("packaging_source_checksum_sha256")
+        != row.get("profile_source_checksum_sha256")
+        or row.get("packaging_source_row_number")
+        != row.get("profile_source_row_number")
+        or row.get("packaging_verified_by")
+        != row.get("profile_verified_by")
+        or _normalized_text(row.get("packaging_verification_ticket"))
+        != _normalized_text(row.get("profile_verification_ticket"))
+    ):
+        raise ValueError(
+            "physical and canonical packaging evidence must share one source row"
         )
 
     quantity_per_box = _positive_finite(

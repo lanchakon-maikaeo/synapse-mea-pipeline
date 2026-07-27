@@ -95,6 +95,30 @@ Only Material gap fields, Packaging profiles, District stock and CMP usage are
 promoted. Dummy contracts, vendors, routes, drivers, plans, dispatches and trips
 are excluded so they cannot bypass approval, FIFO or immutable movement controls.
 
+## Import a current project-shared operational sheet
+
+Use this incremental path when the project-owned
+`MEA_VMI_Database_Template` Google Sheet contains newer CMP and matching
+packaging rows than the complete four-workbook snapshot. Download it as XLSX;
+the importer binds all four operational tabs to the downloaded SHA-256 and
+original row numbers. It does not deactivate omitted VMI rows or infer zeroes.
+
+```bash
+SUPABASE_URL="https://fvdfduuanfrncrwuareb.supabase.co" \
+SUPABASE_SECRET_KEY="<server-side-sb_secret-key>" \
+synapse-pipeline import-project-sheet \
+  --source "/path/to/MEA_VMI_Database_Template.xlsx" \
+  --spreadsheet-id "<google-sheet-id>" \
+  --verified-by "<active-production-admin-uuid>" \
+  --attestation-text "Authorized project-shared source for this incremental import." \
+  --change-ticket "SYNAPSE-PROD-<ticket>" \
+  --confirm-project-sheet-actual
+```
+
+Run migration `202607270001` first. Packaging is eligible for routing only
+when its physical and canonical records share the same checksum, source row,
+administrator verifier and change ticket.
+
 ## Tests
 
 ```bash

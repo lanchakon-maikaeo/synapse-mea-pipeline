@@ -127,14 +127,26 @@ def valid_item(**overrides):
         "weight_per_box_kg": 24,
         "boxes_per_pallet": 10,
         "packaging_source_reference": "owner-approved-packaging.xlsx#row=2",
+        "packaging_source_checksum_sha256": SOURCE_CHECKSUM,
+        "packaging_source_row_number": 2,
         "packaging_verified_at": "2026-07-25T00:00:00Z",
+        "packaging_verified_by": UUID(
+            "50000000-0000-4000-8000-000000000005"
+        ),
+        "packaging_verification_ticket": "MEA-PACKAGING-2026-001",
         "profile_base_uom": "EA",
         "full_pallet_qty": 120,
         "inner_pack_qty": 12,
         "profile_data_class": "actual",
         "profile_source_quality": "verified",
         "profile_source_reference": "owner-approved-packaging.xlsx#row=2",
+        "profile_source_checksum_sha256": SOURCE_CHECKSUM,
+        "profile_source_row_number": 2,
         "profile_verified_at": "2026-07-25T00:00:00Z",
+        "profile_verified_by": UUID(
+            "50000000-0000-4000-8000-000000000005"
+        ),
+        "profile_verification_ticket": "MEA-PACKAGING-2026-001",
         "latitude": 13.81895000,
         "longitude": 100.64410000,
         "geocode_status": "verified",
@@ -302,6 +314,8 @@ class WorkerRouteTests(unittest.TestCase):
         self.assertIn("item.status=%s", normalized_item_query)
         self.assertIn("item.final_qty > 0", normalized_item_query)
         self.assertIn("core.packaging_profiles", normalized_item_query)
+        self.assertIn("packaging_source_checksum_sha256", normalized_item_query)
+        self.assertIn("profile_source_checksum_sha256", normalized_item_query)
         self.assertIn("core.transport_district_geo", normalized_item_query)
         self.assertIn("core.location_geocodes", normalized_item_query)
         self.assertEqual(item_params, (plan_id, ROUTABLE_ITEM_STATUS))
@@ -407,6 +421,18 @@ class WorkerRouteTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "verified actual evidence"):
             _validate_route_inputs(
                 [valid_item(profile_data_class="test_fixture")],
+                valid_depot(),
+                [valid_vehicle()],
+            )
+        with self.assertRaisesRegex(ValueError, "row-traceable"):
+            _validate_route_inputs(
+                [valid_item(packaging_source_checksum_sha256=None)],
+                valid_depot(),
+                [valid_vehicle()],
+            )
+        with self.assertRaisesRegex(ValueError, "share one source row"):
+            _validate_route_inputs(
+                [valid_item(profile_source_row_number=3)],
                 valid_depot(),
                 [valid_vehicle()],
             )
