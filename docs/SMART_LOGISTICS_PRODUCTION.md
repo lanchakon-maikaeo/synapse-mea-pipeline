@@ -50,6 +50,15 @@ SYNAPSE therefore uses two levels:
    [routing overview](https://developers.google.com/optimization/routing) and
    [VRP with time windows](https://developers.google.com/optimization/routing/vrptw).
 
+> **Designed improvement (2026-07-27):** add [PyVRP](https://arxiv.org/pdf/2403.13795)
+> (a hybrid genetic search solver) as a second solver behind the same
+> `matrix_source` contract, so each locked plan produces an OR-Tools vs PyVRP
+> benchmark — the route benchmark report M08 already calls for. Longer term,
+> couple the replenishment decision with routing as a periodic inventory-routing
+> problem rather than solving them sequentially, and fold multi-echelon safety
+> stock (warehouse + district) into the plan. Full roadmap and research basis in
+> [research-driven improvements](RESEARCH_DRIVEN_IMPROVEMENTS.md).
+
 ## Runtime architecture
 
 ```mermaid

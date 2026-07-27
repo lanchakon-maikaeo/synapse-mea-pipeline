@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 from psycopg.rows import dict_row
 
-from .forecasting import forecast_best_available
+from .forecasting import MODEL_VERSIONS, forecast_best_available
 from .routing import (
     Coordinate,
     DeliveryStop,
@@ -294,6 +294,12 @@ def _process_forecast(connection, forecast_run_id: UUID) -> dict[str, Any]:
     if not any(len(rows) >= 7 for rows in series.values()):
         raise ValueError("no demand series has the minimum seven monthly observations")
 
+    # Intermittent-demand models (Croston/SBA/TSB) are activation-gated: they are
+    # only selected once their model versions are registered in
+    # analytics.forecast_model_versions. Enabling the flag without applying the
+    # prepared registration migration would violate the model_version foreign
+    # key, so keep the switch joined to the reviewed database release.
+    allow_intermittent = os.environ.get("SYNAPSE_INTERMITTENT_FORECAST", "").strip() == "1"
     result_count = 0
     processed_series = 0
     with connection.cursor() as cursor:
@@ -301,8 +307,10 @@ def _process_forecast(connection, forecast_run_id: UUID) -> dict[str, Any]:
             history = [float(row["demand_quantity"]) for row in rows]
             if len(history) < 7:
                 continue
-            evaluations, selected, forecast_points = forecast_best_available(history, run["horizon_months"])
-            model_versions = {"seasonal_naive": "seasonal-naive-v1", "moving_average": "moving-average-v1", "autoets": "autoets-v1"}
+            evaluations, selected, forecast_points = forecast_best_available(
+                history, run["horizon_months"], allow_intermittent=allow_intermittent
+            )
+            model_versions = MODEL_VERSIONS
             for evaluation in evaluations:
                 cursor.execute(
                     """

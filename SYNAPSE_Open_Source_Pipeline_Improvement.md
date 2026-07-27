@@ -260,6 +260,13 @@ flowchart LR
 
 **สถานะ 2026-07-15:** ส่วน Database deploy และ acceptance ผ่านแล้ว: policy `v1.0.0`, stock-health view, calculation/rounding, replenishment workflow, anti-hoarding และ adjustment audit. รอสิทธิ์อ่าน Stock source เพื่อ load snapshot จริงและสร้าง candidate แผนแรก ดู `docs/WAVE2_REPLENISHMENT_API.md`
 
+**อัปเดต 2026-07-27 (candidate):** เพิ่มทางเลือก **safety stock เชิงสถิติ** แทน
+buffer จำนวนเดือนคงที่ (`MIN=CMP×4`, `MAX=CMP×6`) — `intelligence/.../replenishment.py`
+มี `safety_stock = z(service level)×σ√protection`, `(R,s,S)` order-up-to policy และ
+inventory-aware simulation (fill rate/service level/on-hand) พร้อม unit tests
+เสนอใช้เป็น **advisory column คู่ขนาน** ให้ planner เทียบก่อน ไม่ override frozen rule
+ดู `docs/RESEARCH_DRIVEN_IMPROVEMENTS.md`
+
 **ขอบเขตงาน:**
 
 - คำนวณ CMP และ rolling usage
@@ -281,6 +288,12 @@ flowchart LR
 **เป้าหมาย:** สร้าง Forecast ที่วัดความแม่นยำและทำซ้ำได้
 
 **สถานะ 2026-07-15:** พัฒนาและ deploy แล้วทั้ง monthly feature contract, Seasonal Naive, Moving Average, StatsForecast AutoETS, rolling backtest/model selection, WAPE/MAE/Bias/80% interval, background worker, model registry, drift monitoring และ persisted Dashboard views; การรันข้อมูลจริงรอ usage history อย่างน้อย 14 เดือนต่อ material/เขต
+
+**อัปเดต 2026-07-27 (candidate):** เพิ่ม intermittent-demand family (ADI×CV²
+classification, Croston/SBA/TSB/ADIDA, MASE) ใน intelligence layer พร้อม unit
+tests — activation-gated ด้วย env `SYNAPSE_INTERMITTENT_FORECAST=1` และ prepared
+migration `supabase/candidate/202607270001_m07b_intermittent_forecasting.sql`
+ดู `docs/RESEARCH_DRIVEN_IMPROVEMENTS.md`
 
 **ขอบเขตงาน:**
 
@@ -624,11 +637,16 @@ analytics.route_metrics
 
 1. สร้างข้อมูลรายเดือนต่อ `material_id x district_id`
 2. ตรวจ missing periods, outliers และ stock-out censoring
-3. สร้าง baseline ด้วย Moving Average/Seasonal Naive
-4. ทดลอง StatsForecast หรือ Prophet เฉพาะ series ที่มีข้อมูลพอ
-5. ทำ rolling backtest
-6. เลือกโมเดลจาก WAPE/MAE และ business bias
-7. บันทึก model version, training window, metrics และ generated_at
+3. **จำแนก series ด้วย ADI × CV²** (smooth/erratic/intermittent/lumpy) เพื่อ route
+   ไปหาโมเดลที่เหมาะ — ดู `docs/RESEARCH_DRIVEN_IMPROVEMENTS.md`
+4. สร้าง baseline ด้วย Moving Average/Seasonal Naive
+5. สำหรับ series ต่อเนื่อง ทดลอง StatsForecast (AutoETS) หรือ Prophet
+6. **สำหรับ series แบบ intermittent/lumpy ใช้ Croston/SBA/TSB/ADIDA** (candidate,
+   activation-gated) — TSB จับ obsolescence ได้ตรงกับ rule ">9 เดือน"
+7. ทำ rolling backtest
+8. เลือกโมเดลจาก WAPE/MAE/bias สำหรับ series ต่อเนื่อง และ **MASE** สำหรับ
+   intermittent (WAPE ถูกครอบงำด้วยเดือนศูนย์)
+9. บันทึก model version, training window, metrics และ generated_at
 
 ### Output
 
@@ -861,3 +879,15 @@ MCP Tools ระยะแรกควรเป็น Read-only:
 - [pgvector](https://github.com/pgvector/pgvector)
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [OpenStreetMap Copyright and License](https://www.openstreetmap.org/copyright)
+
+### Research-driven improvements (2026-07-27)
+
+ดูรายละเอียดและ mapping ต่อโมดูลใน `docs/RESEARCH_DRIVEN_IMPROVEMENTS.md`
+
+- [A Review of Croston's method for intermittent demand forecasting](https://www.researchgate.net/publication/254044245_A_Review_of_Croston's_method_for_intermittent_demand_forecasting)
+- [Intermittent demand, obsolescence and temporal aggregation forecasts (TSB, ADIDA)](https://www.tandfonline.com/doi/full/10.1080/00207543.2023.2199435)
+- [Nixtla HierarchicalForecast](https://github.com/Nixtla/hierarchicalforecast)
+- [Optimal operational service levels in VMI contracts](https://www.sciencedirect.com/science/article/abs/pii/S0167637722001043)
+- [Multi-echelon inventory optimization (guaranteed-service extensions)](https://www.sciencedirect.com/science/article/abs/pii/S0377221723006173)
+- [PyVRP: a high-performance VRP solver](https://arxiv.org/pdf/2403.13795)
+- [Open-source data quality tools 2026](https://atlan.com/open-source-data-quality-tools/)
