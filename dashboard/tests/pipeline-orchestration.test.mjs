@@ -130,7 +130,14 @@ test("same-origin proxy pins a controlled Supabase origin and blocks redirects",
   assert.match(apiRoute, /\[a-z0-9\]\{20\}\\\.supabase\\\.co/);
   assert.match(apiRoute, /hasValidSuppliedRequestId\(request\)/);
   assert.match(apiRoute, /A valid X-Request-ID header is required/);
-  assert.equal(apiRoute.match(/redirect: "error"/g)?.length, 3);
+  // Every outbound proxy fetch must block redirects (SSRF guard). Assert the
+  // guard count equals the number of outbound fetches instead of a fixed magic
+  // number, so it tracks the code when a fetch is added or removed. The
+  // production routing canary path reduced the proxy to two outbound fetches
+  // (upstream request + engine readiness probe), each guarded.
+  const outboundFetchCount = apiRoute.match(/await fetch\(/g)?.length ?? 0;
+  assert.ok(outboundFetchCount >= 1);
+  assert.equal(apiRoute.match(/redirect: "error"/g)?.length, outboundFetchCount);
   assert.doesNotMatch(
     apiRoute,
     /`\$\{publicConfig\.supabaseUrl\}\/rest\/v1\/rpc/,

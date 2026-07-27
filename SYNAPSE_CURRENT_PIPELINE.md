@@ -8,6 +8,11 @@ Deployed release: **Production Operations v1 / M13e**
 
 Workspace candidate: **Self-hosted OSRM + Valhalla/OR-Tools runtime (not deployed)**
 
+Research-driven candidates (2026-07-27, intelligence layer, activation-gated):
+**intermittent-demand forecasting (Croston/SBA/TSB/ADIDA + MASE)** และ
+**statistical safety stock / (R,s,S) policy** — ดู
+[`docs/RESEARCH_DRIVEN_IMPROVEMENTS.md`](docs/RESEARCH_DRIVEN_IMPROVEMENTS.md)
+
 Environment ที่ deploy อยู่: **Production operational ผ่าน M13e; route execution ยัง fail closed**
 
 > เอกสารนี้เป็นจุดอ้างอิงหลักสำหรับ pipeline ปัจจุบันของ MEA SYNAPSE ตั้งแต่

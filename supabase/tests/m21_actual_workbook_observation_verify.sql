@@ -110,14 +110,23 @@ values
         and column_name = 'actual_workbook_import_id'
         and is_nullable = 'NO'
     )),
+  -- M14 (project-sheet incremental) allows usage evidence to originate from
+  -- either an actual-workbook import or a project-sheet import, so
+  -- actual_workbook_import_id is now nullable and lineage is guaranteed by the
+  -- exclusive-source constraint num_nonnulls(actual_workbook_import_id,
+  -- project_sheet_import_id) = 1. Verify that constraint rather than the old
+  -- NOT NULL, which enforces the same "every row has exactly one import
+  -- lineage" invariant under the new model.
   ('usage_evidence_import_lineage',
     exists (
       select 1
-      from information_schema.columns
-      where table_schema = 'reference_data'
-        and table_name = 'usage_observation_evidence'
-        and column_name = 'actual_workbook_import_id'
-        and is_nullable = 'NO'
+      from pg_constraint con
+      join pg_class rel on rel.oid = con.conrelid
+      join pg_namespace nsp on nsp.oid = rel.relnamespace
+      where nsp.nspname = 'reference_data'
+        and rel.relname = 'usage_observation_evidence'
+        and con.conname = 'usage_observation_import_exclusive_check'
+        and con.contype = 'c'
     )),
   ('signed_usage_summaries',
     (
