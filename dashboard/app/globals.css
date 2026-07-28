@@ -136,3 +136,31 @@
 .transport-queue-hint{color:#425b7a!important}.transport-job-status{display:grid;gap:7px;padding:13px 14px;border:1px solid #c9d5e5;border-radius:11px;background:#f7f9fc}.transport-job-status>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px}.transport-job-status strong{color:#263a55;font-size:11px}.transport-job-status span,.transport-job-status code{overflow-wrap:anywhere;color:#687991;font-size:9px}.transport-job-status p{margin:0!important}.transport-job-status.succeeded{border-color:#b8dfca;background:#f1fbf6}.transport-job-status.failed,.transport-job-status.cancelled{border-color:#e9b9bf;background:#fff5f6}.transport-read-only-note{display:grid;gap:4px;min-width:0;margin:0;padding:12px 14px;border:1px solid #bdd6ec;border-radius:11px;background:#f1f8ff;color:#28597d;font-size:10px;line-height:1.55}.transport-read-only-note p{margin:0}.transport-map-controls .transport-read-only-note{flex:1}
 @media(prefers-reduced-transparency:reduce){.transport-map-legend,.transport-map-config-error{background:#fff;backdrop-filter:none}}
 @media(prefers-contrast:more){.transport-control-panel,.transport-road-map,.transport-result-grid,.transport-source{border-color:currentColor}.transport-map-legend{border-color:#17213a;background:#fff}}
+
+/* ============================================================
+   UI/UX modernization pass — cohesive blue identity, layered
+   elevation, motion & numeric alignment. Appended layer: token-
+   driven and additive, overriding earlier rules without editing
+   them. Motion is auto-disabled by the prefers-reduced-motion
+   block earlier in this file.
+   ============================================================ */
+:root{--shadow:0 1px 2px #0b1f3a0d,0 8px 20px -8px #0b1f3a1f;--shadow-lg:0 2px 6px #0a1c3512,0 26px 52px -18px #0a1c352e;--ring:0 0 0 4px #0873bd26}
+
+/* Commit the primary hero to the blue brand identity (drop legacy purple end). */
+.executive-hero{background:radial-gradient(circle at 86% 12%,#1f8ad24d 0,transparent 44%),linear-gradient(112deg,#07203c 0%,#0d3d6b 58%,#0a5c9c 100%)}
+
+/* Interactive surfaces gain weight and a subtle lift on hover. */
+.kpis article,.panel,.mini-panel{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.kpis article{border-color:#e6eaf1}
+.kpis article:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg);border-color:#d3dce9}
+.btn{transition:transform .15s ease,box-shadow .15s ease,filter .15s ease,background .15s ease}
+.btn.primary:hover{transform:translateY(-1px);filter:brightness(1.03) saturate(1.05)}
+.btn.primary:active{transform:translateY(0);filter:brightness(.98)}
+.btn.ghost:hover{border-color:#c3ccd8;background:#fbfcfe;color:#3b4658}
+.btn.light:hover{transform:translateY(-1px);box-shadow:0 12px 26px #0000001f}
+
+/* Numbers line up cleanly in columns. */
+.kpis article>strong,.inventory-summary strong,.user-status strong,.live-table td,.data-table td,.recommend-banner>div:last-child strong{font-variant-numeric:tabular-nums}
+
+/* Focus ring aligned to the blue brand identity. */
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid #0873bd45;outline-offset:2px}
