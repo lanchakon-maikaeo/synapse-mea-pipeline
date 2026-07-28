@@ -116,7 +116,7 @@ export function useSynapseBackend() {
   const [authBusy, setAuthBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState(
-    authConfigured ? "" : "ยังไม่ได้ตั้งค่า Supabase Auth สำหรับ environment นี้",
+    authConfigured ? "" : "ขณะนี้ยังเข้าสู่ระบบไม่ได้ กรุณาลองใหม่ภายหลังหรือแจ้งเจ้าหน้าที่",
   );
   const [notice, setNotice] = useState("");
   const sessionTokenRef = useRef<string | null>(null);
@@ -149,7 +149,7 @@ export function useSynapseBackend() {
           const message =
             requestError instanceof Error
               ? requestError.message
-              : "unknown API error";
+              : "เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ";
           failures.push(`${label}: ${message}`);
           return fallback;
         }
@@ -427,7 +427,7 @@ export function useSynapseBackend() {
         data.readiness?.operational_writes_enabled !== true
       ) {
         setError(
-          "Production ยังล็อกการทำรายการ: ต้องผ่าน Actual data, Auth, backup และ restore-drill gates ก่อน cutover",
+          "ขณะนี้ยังไม่เปิดให้บันทึกข้อมูลจริง เปิดให้อ่านและตรวจข้อมูลได้เท่านั้น",
         );
         return null;
       }
@@ -446,7 +446,7 @@ export function useSynapseBackend() {
         setError(
           requestError instanceof Error
             ? requestError.message
-            : "ไม่สามารถดำเนินการกับ backend ได้",
+            : "ไม่สามารถดำเนินการได้ กรุณาลองใหม่",
         );
         return null;
       } finally {

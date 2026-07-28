@@ -172,79 +172,79 @@ const navByRole: Record<Role, NavGroup[]> = {
 
 const titles: Record<ViewKey, [string, string, string]> = {
   dashboard: [
-    "PRODUCTION OPERATIONS",
-    "Warehouse Operations Dashboard",
-    "Live, role-scoped status from the governed Supabase backend.",
+    "ภาพรวม",
+    "ภาพรวมงานคลังพัสดุ",
+    "สถานะงานตามสิทธิ์ของคุณ อัปเดตแบบเรียลไทม์",
   ],
   weekly: [
-    "WEEKLY CONTROL",
-    "Weekly Replenishment Plan",
-    "District → Planner → Academic → Lock → FIFO Issue.",
+    "แผนการจ่าย",
+    "แผนการจ่ายรายสัปดาห์",
+    "ขั้นตอน: เขต → ผู้วางแผน → วิชาการ → ล็อก → จ่ายแบบ FIFO",
   ],
   recommendations: [
-    "DECISION SUPPORT",
-    "Quantity Recommendation Evidence",
-    "Business Rules v1 evidence only; no fabricated or auto-approved result.",
+    "หลักฐานปริมาณ",
+    "หลักฐานการคำนวณปริมาณ",
+    "คำนวณจากข้อมูลจริงตามเกณฑ์ ไม่มีการสร้างตัวเลขเองหรืออนุมัติอัตโนมัติ",
   ],
   advisory: [
-    "WAVE-3 INTELLIGENCE",
-    "Obsolescence & Slow-mover Advisory",
-    "Research-driven risk signal from real evidence; advisory only, never changes Business Rules v1.",
+    "การเฝ้าระวัง",
+    "เฝ้าระวังของค้าง / ของเคลื่อนไหวช้า",
+    "สัญญาณความเสี่ยงจากข้อมูลจริง เป็นข้อมูลประกอบการตัดสินใจเท่านั้น",
   ],
   changes: [
-    "REQUEST CONTROL",
-    "Abnormal Request Review",
-    "Review quantity changes, projected months and the >6M / >9M controls.",
+    "ตรวจคำขอ",
+    "ตรวจคำขอที่ผิดปกติ",
+    "ตรวจการเปลี่ยนจำนวน และเดือนคงคลังที่เกิน 6 เดือน / 9 เดือน",
   ],
   approvals: [
-    "GOVERNANCE",
-    "Approval Timeline",
-    "Append-only District, Planner, Academic, Lock, Cancel and Version evidence.",
+    "ประวัติ",
+    "ไทม์ไลน์การอนุมัติ",
+    "บันทึกทุกขั้นตอน: เขต ผู้วางแผน วิชาการ ล็อก ยกเลิก และการออกเวอร์ชันใหม่",
   ],
   fifo: [
-    "WAREHOUSE EXECUTION",
-    "FIFO, Pallets & Remaining Quantity",
-    "Opened handling units first, then accepted date, PO, item and source row.",
+    "งานคลัง",
+    "FIFO พาเลท และจำนวนคงเหลือ",
+    "จ่ายหน่วยที่เปิดก่อน แล้วเรียงตามวันรับ ใบสั่งซื้อ และรายการ",
   ],
   receiving: [
-    "RECEIVING",
-    "Receive Traceable Handling Unit",
-    "Link every lot and handling unit to contract, acceptance evidence and source.",
+    "รับพัสดุ",
+    "รับพัสดุเข้าคลัง",
+    "ผูกทุกล็อตและหน่วยจัดเก็บเข้ากับสัญญาและหลักฐานการรับพัสดุ",
   ],
   adhoc: [
-    "EXCEPTION ISSUE",
-    "Ad-hoc Issue",
-    "Separate approval and actual movement; never mutates the Weekly Plan.",
+    "จ่ายกรณีพิเศษ",
+    "การจ่ายกรณีพิเศษ",
+    "แยกการอนุมัติออกจากการจ่ายจริง และไม่กระทบแผนการจ่ายรายสัปดาห์",
   ],
   trace: [
-    "TRACEABILITY",
-    "Issue Traceback",
-    "Search forward or reverse from district issue to pallet, lot, contract and vendor.",
+    "สอบกลับ",
+    "สอบกลับการจ่าย",
+    "ค้นย้อนกลับจากการจ่ายไปถึงพาเลท ล็อต สัญญา และผู้ขาย",
   ],
   stock: [
-    "STOCK POLICY",
-    "Stock Health",
-    "Unrestricted stock only; missing material/plant is shown as assumed zero with evidence.",
+    "ข้อมูลสต็อก",
+    "สุขภาพสต็อก",
+    "นับเฉพาะของพร้อมใช้ หากไม่มีข้อมูลจะแสดงเป็น 0 พร้อมหมายเหตุ",
   ],
   data: [
-    "DATA FOUNDATION",
-    "Source, Contract & Data Quality",
-    "Raw → Staging → Core lineage and source-quality evidence.",
+    "ข้อมูลต้นทาง",
+    "สัญญาและคุณภาพข้อมูล",
+    "ลำดับที่มาของข้อมูลจากต้นทางถึงระบบ พร้อมหลักฐานคุณภาพ",
   ],
   input: [
-    "GOVERNED INPUT",
-    "Publish Stock & Usage",
-    "Daily stock and monthly usage/CMP observations with immutable source lineage.",
+    "อัปเดตสต็อก",
+    "บันทึกสต็อกและการใช้งาน",
+    "บันทึกสต็อกรายวันและการใช้งานรายเดือน พร้อมอ้างอิงแหล่งที่มา",
   ],
   operations: [
-    "M12 CONTROL",
-    "Operations Center",
-    "Health, alerts, backup and deployment evidence for the operational release.",
+    "ศูนย์ควบคุม",
+    "ศูนย์ควบคุมการทำงาน",
+    "สุขภาพระบบ การแจ้งเตือน การสำรองข้อมูล และหลักฐานการติดตั้ง",
   ],
   release: [
-    "RELEASE CONTROL",
-    "Production Scope",
-    "Business Rules v1; governed transport preview is gated, while forecasting, legacy route jobs and RAG remain excluded.",
+    "ขอบเขตระบบ",
+    "ขอบเขตการใช้งาน",
+    "เกณฑ์การจ่ายเวอร์ชัน 1 พร้อมพรีวิวระบบขนส่งแบบจำกัด",
   ],
 };
 
@@ -394,44 +394,44 @@ function Login({
           <b>MEA</b>
           <span>
             <strong>MEA Synapse</strong>
-            <small>WAREHOUSE OPERATIONS</small>
+            <small>งานคลังพัสดุ</small>
           </span>
         </div>
         <div className="login-copy">
-          <span>PRODUCTION OPERATIONS · BUSINESS RULES V1</span>
+          <span>ระบบบริหารงานคลังพัสดุ</span>
           <h1>
-            Traceable stock.
+            จัดการสต็อกได้
             <br />
-            Governed decisions.
+            สอบกลับได้ทุกขั้นตอน
           </h1>
           <p>
-            Weekly planning, district confirmation, sequential approval, FIFO
-            allocation, ad-hoc issue and complete traceback in one workspace.
+            วางแผนการจ่ายรายสัปดาห์ ยืนยันโดยเขต อนุมัติตามลำดับ จ่ายแบบ FIFO
+            จ่ายกรณีพิเศษ และสอบกลับได้ครบในที่เดียว
           </p>
         </div>
         <div className="login-metrics">
           <span>
-            <strong>2401</strong> Khlong Toei Plant
+            <strong>2401</strong> คลังคลองเตย
           </span>
           <span>
-            <strong>0001</strong> Storage Location
+            <strong>0001</strong> ที่จัดเก็บ
           </span>
           <span>
-            <strong>18</strong> Districts
+            <strong>18</strong> เขต
           </span>
         </div>
       </section>
       <section className="login-form-wrap">
         <form className="login-form" onSubmit={submit}>
           <span className="demo-tag">
-            <i /> SUPABASE AUTH · RBAC
+            <i /> เข้าสู่ระบบอย่างปลอดภัย
           </span>
           <div className="login-heading">
-            <h2>Sign in to MEA Synapse</h2>
-            <p>Application role and district scope are enforced by the API.</p>
+            <h2>เข้าสู่ระบบ MEA Synapse</h2>
+            <p>ระบบจะกำหนดสิทธิ์และพื้นที่รับผิดชอบให้คุณโดยอัตโนมัติ</p>
           </div>
           <label>
-            Username or email
+            ชื่อผู้ใช้หรืออีเมล
             <input
               value={identifier}
               onChange={(event) => setIdentifier(event.target.value)}
@@ -440,7 +440,7 @@ function Login({
             />
           </label>
           <label>
-            Password
+            รหัสผ่าน
             <div className="password-field">
               <input
                 type={showPassword ? "text" : "password"}
@@ -451,11 +451,11 @@ function Login({
               />
               <button
                 type="button"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
                 aria-pressed={showPassword}
                 onClick={() => setShowPassword((visible) => !visible)}
               >
-                {showPassword ? "Hide" : "Show"}
+                {showPassword ? "ซ่อน" : "แสดง"}
               </button>
             </div>
           </label>
@@ -469,12 +469,12 @@ function Login({
             type="submit"
             disabled={busy}
           >
-            {busy ? "Checking access…" : "Sign in"} <span>→</span>
+            {busy ? "กำลังตรวจสอบ…" : "เข้าสู่ระบบ"} <span>→</span>
           </button>
           <div className="login-assurance">
-            <span>Role-based access</span>
+            <span>กำหนดสิทธิ์ตามบทบาท</span>
             <i />
-            <span>District-scoped data</span>
+            <span>ข้อมูลตามพื้นที่รับผิดชอบ</span>
           </div>
         </form>
       </section>
@@ -506,12 +506,12 @@ function Sidebar({
   setTransportView: (value: TransportView) => void;
 }) {
   const roleName: Record<Role, string> = {
-    admin: "Administrator",
-    planner: "Planner",
-    academic: "Academic Officer",
-    picker: "Picker / Outsource",
-    district: "District User",
-    viewer: "Viewer",
+    admin: "เจ้าหน้าที่ส่วนกลาง",
+    planner: "ผู้วางแผน",
+    academic: "เจ้าหน้าที่วิชาการ",
+    picker: "เจ้าหน้าที่คลัง",
+    district: "เจ้าหน้าที่เขต",
+    viewer: "ผู้อ่านข้อมูล",
   };
   const switchBtn = (key: "warehouse" | "transport", label: string) => (
     <button
@@ -546,13 +546,13 @@ function Sidebar({
           <span>MEA</span>
           <div>
             <strong>MEA Synapse</strong>
-            <small>WAREHOUSE OPERATIONS</small>
+            <small>งานคลังพัสดุ</small>
           </div>
         </div>
         <div className="user-scope">
           <i>{roleName[role].charAt(0)}</i>
           <div>
-            <small>Signed in as</small>
+            <small>บทบาทของคุณ</small>
             <strong>{roleName[role]}</strong>
           </div>
         </div>
@@ -604,9 +604,9 @@ function Sidebar({
               )}
         </nav>
         <div className="release-badge">
-          <small>Latest verified snapshot</small>
+          <small>ข้อมูลล่าสุด</small>
           <strong>{snapshot}</strong>
-          <span>LIVE BACKEND · NO DEMO DATA</span>
+          <span>ข้อมูลจริงจากระบบงาน</span>
         </div>
       </aside>
     </>
@@ -679,7 +679,7 @@ function Header({
             ref={searchRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="ค้นหา workflow"
+            placeholder="ค้นหาเมนู"
           />
           <kbd>Ctrl K</kbd>
         </form>
@@ -689,10 +689,10 @@ function Header({
           onClick={refresh}
           disabled={loading}
         >
-          <i /> {loading ? "Syncing…" : snapshot}
+          <i /> {loading ? "กำลังซิงก์…" : snapshot}
         </button>
         <button type="button" className="btn ghost logout" onClick={logout}>
-          Sign out
+          ออกจากระบบ
         </button>
       </div>
     </header>
@@ -740,11 +740,11 @@ function DashboardView({
     <div className="stack">
       <section className="executive-hero">
         <div>
-          <span>LIVE OPERATING MODEL</span>
-          <h2>One governed chain from source evidence to actual issue</h2>
+          <span>ภาพรวมการทำงาน</span>
+          <h2>เชื่อมโยงข้อมูลตั้งแต่ต้นทางจนถึงการจ่ายจริง</h2>
           <p>
-            Weekly Plan · District response · Planner · Academic · FIFO ·
-            Movement · Traceback
+            แผนการจ่าย · เขตยืนยัน · ผู้วางแผน · วิชาการ · FIFO · เคลื่อนไหวสต็อก ·
+            สอบกลับ
           </p>
         </div>
         <button className="btn light" onClick={() => navigate(nextView)}>
@@ -754,69 +754,69 @@ function DashboardView({
       <section className="kpis">
         <article>
           <div>
-            <span>Weekly Plans</span>
+            <span>แผนการจ่าย</span>
             <i className="dot purple" />
           </div>
           <strong>{formatNumber(planIds.size)}</strong>
-          <small>ตามสิทธิ์ของผู้ใช้</small>
+          <small>ตามสิทธิ์ของคุณ</small>
         </article>
         <article>
           <div>
-            <span>Pending Changes</span>
+            <span>คำขอรอตรวจ</span>
             <i className="dot orange" />
           </div>
           <strong>{formatNumber(pendingChanges)}</strong>
-          <small>ต้องมี Planner review</small>
+          <small>รอผู้วางแผนตรวจ</small>
         </article>
         <article>
           <div>
-            <span>FIFO Available</span>
+            <span>พร้อมจ่าย (FIFO)</span>
             <i className="dot green" />
           </div>
           <strong>{formatNumber(allocatable, 2)}</strong>
-          <small>Traceable base units</small>
+          <small>หน่วยนับพื้นฐานที่สอบกลับได้</small>
         </article>
         <article>
           <div>
-            <span>Ad-hoc Pending</span>
+            <span>กรณีพิเศษรอดำเนินการ</span>
             <i className="dot blue" />
           </div>
           <strong>{formatNumber(pendingAdHoc)}</strong>
-          <small>แยกจาก Weekly Plan</small>
+          <small>แยกจากแผนรายสัปดาห์</small>
         </article>
       </section>
       <section className="kpis">
         <article>
           <div>
-            <span>Materials (master)</span>
+            <span>รายการวัสดุ</span>
             <i className="dot purple" />
           </div>
           <strong>{formatNumber(materialsCount)}</strong>
-          <small>Live Supabase backend</small>
+          <small>ข้อมูลจริงจากระบบ</small>
         </article>
         <article>
           <div>
-            <span>Districts</span>
+            <span>เขต</span>
             <i className="dot blue" />
           </div>
           <strong>{formatNumber(districtsCount)}</strong>
-          <small>System District master</small>
+          <small>ทะเบียนเขตในระบบ</small>
         </article>
         <article>
           <div>
-            <span>Warehouse Snapshots</span>
+            <span>ข้อมูลสต็อกคลัง</span>
             <i className="dot green" />
           </div>
           <strong>{formatNumber(warehouseCount)}</strong>
-          <small>Khlong Toei actual stock</small>
+          <small>สต็อกจริงคลังคลองเตย</small>
         </article>
         <article>
           <div>
-            <span>Stock-Health Rows</span>
+            <span>ข้อมูลสุขภาพสต็อก</span>
             <i className="dot orange" />
           </div>
           <strong>{formatNumber(stockHealthCount)}</strong>
-          <small>Analytical coverage</small>
+          <small>ความครอบคลุมการวิเคราะห์</small>
         </article>
       </section>
       {hasReferenceData && (
@@ -824,40 +824,40 @@ function DashboardView({
           <article className="panel">
             <div className="panel-title">
               <div>
-                <span>WAREHOUSE STOCK · LIVE</span>
-                <h3>Khlong Toei actual snapshots</h3>
+                <span>สต็อกคลัง · เรียลไทม์</span>
+                <h3>ข้อมูลสต็อกจริงคลังคลองเตย</h3>
               </div>
               <b>{formatNumber(warehouseCount)}</b>
             </div>
             <LiveTable
               rows={data.warehouseStock.slice(0, 6)}
-              empty="ยังไม่มี Warehouse snapshot"
+              empty="ยังไม่มีข้อมูลสต็อกคลัง"
               columns={[
-                ["Material", (row) => row.material_id],
-                ["Description", (row) => row.material_name],
-                ["Quantity", (row) => formatNumber(row.quantity_on_hand, 2)],
-                ["Unit", (row) => row.unit],
-                ["Snapshot", (row) => formatDateTime(row.snapshot_at)],
+                ["วัสดุ", (row) => row.material_id],
+                ["รายละเอียด", (row) => row.material_name],
+                ["จำนวน", (row) => formatNumber(row.quantity_on_hand, 2)],
+                ["หน่วย", (row) => row.unit],
+                ["เวลาข้อมูล", (row) => formatDateTime(row.snapshot_at)],
               ]}
             />
           </article>
           <article className="panel">
             <div className="panel-title">
               <div>
-                <span>DISTRICT STOCK HEALTH · LIVE</span>
-                <h3>Latest stock and CMP</h3>
+                <span>สุขภาพสต็อกเขต · เรียลไทม์</span>
+                <h3>สต็อกและ CMP ล่าสุด</h3>
               </div>
               <b>{formatNumber(stockHealthCount)}</b>
             </div>
             <LiveTable
               rows={data.stock.slice(0, 6)}
-              empty="ยังไม่มี District Stock"
+              empty="ยังไม่มีข้อมูลสต็อกเขต"
               columns={[
-                ["Material", (row) => row.material_id],
-                ["District", (row) => row.district_id],
-                ["Stock", (row) => formatNumber(row.current_stock_qty, 2)],
+                ["วัสดุ", (row) => row.material_id],
+                ["เขต", (row) => row.district_id],
+                ["สต็อก", (row) => formatNumber(row.current_stock_qty, 2)],
                 ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
-                ["Health", (row) => <Badge>{text(row.health_band)}</Badge>],
+                ["สถานะ", (row) => <Badge>{text(row.health_band)}</Badge>],
               ]}
             />
           </article>
@@ -865,10 +865,10 @@ function DashboardView({
       )}
       <section className="workflow">
         {[
-          ["1", "District", "confirm / reject / change"],
-          ["2", "Planner", "review + approve"],
-          ["3", "Academic", ">9M evidence + lock"],
-          ["4", "Picker", "FIFO issue + movement"],
+          ["1", "เขต", "ยืนยัน / ปฏิเสธ / ขอแก้"],
+          ["2", "ผู้วางแผน", "ตรวจและอนุมัติ"],
+          ["3", "วิชาการ", "เกิน 9 เดือน ต้องมีหลักฐาน + ล็อก"],
+          ["4", "เจ้าหน้าที่คลัง", "จ่ายแบบ FIFO + บันทึกเคลื่อนไหว"],
         ].map(([step, name, note], index) => (
           <div className="workflow-step done" key={name}>
             <span>{step}</span>
@@ -884,7 +884,7 @@ function DashboardView({
         <article className="panel">
           <div className="panel-title">
             <div>
-              <span>ATTENTION QUEUE</span>
+              <span>รายการที่ต้องดู</span>
               <h3>คำขอที่มีความเสี่ยงสูง</h3>
             </div>
             <b className="count">{pendingChanges}</b>
@@ -893,18 +893,18 @@ function DashboardView({
             rows={data.changeRequests.slice(0, 6)}
             empty="ไม่มีคำขอผิดปกติ"
             columns={[
-              ["Material", (row) => row.material_id],
-              ["District", (row) => row.district_id],
-              ["Requested", (row) => formatNumber(row.requested_qty, 2)],
-              ["Projected", (row) => `${formatNumber(row.projected_months_after, 1)}M`],
-              ["Risk", (row) => <Badge>{text(row.risk_level)}</Badge>],
+              ["วัสดุ", (row) => row.material_id],
+              ["เขต", (row) => row.district_id],
+              ["ขอเบิก", (row) => formatNumber(row.requested_qty, 2)],
+              ["คงคลังหลังจ่าย", (row) => `${formatNumber(row.projected_months_after, 1)} เดือน`],
+              ["ความเสี่ยง", (row) => <Badge>{text(row.risk_level)}</Badge>],
             ]}
           />
         </article>
         <article className="panel">
           <div className="panel-title">
             <div>
-              <span>TRACEABILITY COVERAGE</span>
+              <span>ความครอบคลุมการสอบกลับ</span>
               <h3>การจ่ายที่สอบกลับได้</h3>
             </div>
             <b>{formatNumber(data.traceability.length)}</b>
@@ -913,10 +913,10 @@ function DashboardView({
             rows={data.traceability.slice(0, 6)}
             empty="ยังไม่มีการจ่ายจริง"
             columns={[
-              ["Issue", (row) => row.issue_reference],
-              ["Type", (row) => <Badge>{text(row.issue_type)}</Badge>],
-              ["HU", (row) => row.handling_unit_code],
-              ["Vendor Alias", (row) => row.vendor_name],
+              ["เลขที่จ่าย", (row) => row.issue_reference],
+              ["ประเภท", (row) => <Badge>{text(row.issue_type)}</Badge>],
+              ["หน่วยจัดเก็บ", (row) => row.handling_unit_code],
+              ["ผู้ขาย", (row) => row.vendor_name],
             ]}
           />
         </article>
@@ -1031,10 +1031,10 @@ function WeeklyPlanView({
     <div className="stack">
       <section className="workflow">
         {[
-          ["1", "District Response", "due next day"],
-          ["2", "Planner Approval", "all changes resolved"],
-          ["3", "Academic Approval", ">9M requires note"],
-          ["4", "Lock + FIFO", "immutable plan version"],
+          ["1", "เขตตอบกลับ", "ภายในวันถัดไป"],
+          ["2", "ผู้วางแผนอนุมัติ", "แก้ไขคำขอครบแล้ว"],
+          ["3", "วิชาการอนุมัติ", "เกิน 9 เดือนต้องมีหมายเหตุ"],
+          ["4", "ล็อก + FIFO", "แผนล็อกแก้ไขไม่ได้"],
         ].map(([step, name, note], index) => (
           <div className="workflow-step done" key={name}>
             <span>{step}</span>
@@ -1060,22 +1060,22 @@ function WeeklyPlanView({
             disabled={actionBusy}
             onClick={() => void onCreate()}
           >
-            ＋ สร้าง Weekly Plan
+            ＋ สร้างแผนการจ่าย
           </button>
         )}
       </section>
 
       <section className="user-status">
         {[
-          ["Plans", plans.length],
+          ["แผน", plans.length],
           [
-            "Awaiting District",
+            "รอเขตยืนยัน",
             plans.filter(
               (row) => row.plan_status === "pending_district_confirmation",
             ).length,
           ],
           [
-            "Awaiting Approval",
+            "รออนุมัติ",
             plans.filter((row) =>
               ["pending_planner_approval", "pending_academic_approval"].includes(
                 text(row.plan_status),
@@ -1083,14 +1083,14 @@ function WeeklyPlanView({
             ).length,
           ],
           [
-            "Locked",
+            "ล็อกแล้ว",
             plans.filter((row) => row.plan_status === "locked").length,
           ],
         ].map(([label, value]) => (
           <article key={String(label)}>
             <span>{label}</span>
             <strong>{formatNumber(value)}</strong>
-            <small>Live backend</small>
+            <small>ข้อมูลจริงจากระบบ</small>
           </article>
         ))}
       </section>
@@ -1098,8 +1098,8 @@ function WeeklyPlanView({
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>PLAN LINES</span>
-            <h3>Weekly allocation candidates</h3>
+            <span>รายการในแผน</span>
+            <h3>รายการที่รอจ่ายในสัปดาห์</h3>
           </div>
           <b>{formatNumber(rows.length)} rows</b>
         </div>
@@ -1108,7 +1108,7 @@ function WeeklyPlanView({
           empty="ยังไม่มีรายการใน Weekly Plan"
           columns={[
             [
-              "Plan",
+              "แผน",
               (row) => (
                 <span>
                   <strong>{text(row.plan_number)}</strong>
@@ -1116,9 +1116,9 @@ function WeeklyPlanView({
                 </span>
               ),
             ],
-            ["Status", (row) => <Badge>{text(row.plan_status)}</Badge>],
+            ["สถานะ", (row) => <Badge>{text(row.plan_status)}</Badge>],
             [
-              "Material",
+              "วัสดุ",
               (row) => (
                 <span>
                   <strong>{text(row.material_id)}</strong>
@@ -1126,15 +1126,15 @@ function WeeklyPlanView({
                 </span>
               ),
             ],
-            ["District", (row) => row.district_id],
-            ["Stock", (row) => formatNumber(row.current_stock_qty, 2)],
+            ["เขต", (row) => row.district_id],
+            ["สต็อก", (row) => formatNumber(row.current_stock_qty, 2)],
             ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
-            ["Months", (row) => formatNumber(row.months_available, 1)],
-            ["Suggested", (row) => formatNumber(row.suggested_qty, 2)],
-            ["Final", (row) => formatNumber(row.final_qty, 2)],
-            ["Line", (row) => <Badge>{text(row.item_status)}</Badge>],
+            ["เดือน", (row) => formatNumber(row.months_available, 1)],
+            ["แนะนำ", (row) => formatNumber(row.suggested_qty, 2)],
+            ["สุดท้าย", (row) => formatNumber(row.final_qty, 2)],
+            ["รายการ", (row) => <Badge>{text(row.item_status)}</Badge>],
             [
-              "Respond",
+              "ตอบกลับ",
               (row) => (
                 <button
                   type="button"
@@ -1158,21 +1158,21 @@ function WeeklyPlanView({
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>PLAN ACTIONS</span>
-            <h3>Sequential approval and controlled mutation</h3>
+            <span>การจัดการแผน</span>
+            <h3>อนุมัติตามลำดับและควบคุมการแก้ไข</h3>
           </div>
         </div>
         <LiveTable
           rows={plans}
           empty="ยังไม่มีแผน"
           columns={[
-            ["Plan", (row) => `${text(row.plan_number)} · V${text(row.version_no)}`],
-            ["Week", (row) => row.week_start_date],
-            ["Status", (row) => <Badge>{text(row.plan_status)}</Badge>],
-            ["Due", (row) => formatDateTime(row.response_due_at)],
-            ["Locked", (row) => formatDateTime(row.locked_at)],
+            ["แผน", (row) => `${text(row.plan_number)} · V${text(row.version_no)}`],
+            ["สัปดาห์", (row) => row.week_start_date],
+            ["สถานะ", (row) => <Badge>{text(row.plan_status)}</Badge>],
+            ["กำหนด", (row) => formatDateTime(row.response_due_at)],
+            ["ล็อกเมื่อ", (row) => formatDateTime(row.locked_at)],
             [
-              "Action",
+              "การดำเนินการ",
               (row) => {
                 const status = text(row.plan_status);
                 const canApprove =
@@ -1190,8 +1190,8 @@ function WeeklyPlanView({
                         onClick={() => setPlanAction({ type: "approve", row })}
                       >
                         {status === "pending_academic_approval"
-                          ? "Academic approve"
-                          : "Planner approve"}
+                          ? "วิชาการอนุมัติ"
+                          : "ผู้วางแผนอนุมัติ"}
                       </button>
                     )}
                     {canIssue && (
@@ -1202,7 +1202,7 @@ function WeeklyPlanView({
                           void onIssue(text(row.replenishment_plan_id))
                         }
                       >
-                        Issue
+                        จ่าย
                       </button>
                     )}
                     {["admin", "planner"].includes(role) &&
@@ -1211,7 +1211,7 @@ function WeeklyPlanView({
                           className="table-action"
                           onClick={() => setPlanAction({ type: "cancel", row })}
                         >
-                          Cancel
+                          ยกเลิก
                         </button>
                       )}
                     {["admin", "planner"].includes(role) &&
@@ -1220,7 +1220,7 @@ function WeeklyPlanView({
                           className="table-action"
                           onClick={() => setPlanAction({ type: "version", row })}
                         >
-                          New version
+                          ออกเวอร์ชันใหม่
                         </button>
                       )}
                   </span>
@@ -1235,7 +1235,7 @@ function WeeklyPlanView({
         <form className="pipeline-form" onSubmit={submitResponse}>
           <div className="panel-title">
             <div>
-              <span>DISTRICT RESPONSE</span>
+              <span>การตอบกลับของเขต</span>
               <h3>
                 {text(responseRow.material_id)} · District{" "}
                 {text(responseRow.district_id)}
@@ -1251,7 +1251,7 @@ function WeeklyPlanView({
           </div>
           <div className="form-grid">
             <label>
-              Decision
+              การตัดสินใจ
               <select
                 value={decision}
                 onChange={(event) =>
@@ -1266,7 +1266,7 @@ function WeeklyPlanView({
               </select>
             </label>
             <label>
-              Quantity
+              จำนวน
               <input
                 type="number"
                 min="0"
@@ -1278,7 +1278,7 @@ function WeeklyPlanView({
               />
             </label>
             <label>
-              Requester name
+              ชื่อผู้ขอ
               <input
                 value={requester}
                 onChange={(event) => setRequester(event.target.value)}
@@ -1287,7 +1287,7 @@ function WeeklyPlanView({
               />
             </label>
             <label className="wide">
-              Reason / evidence
+              เหตุผล / หลักฐาน
               <textarea
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
@@ -1298,7 +1298,7 @@ function WeeklyPlanView({
           </div>
           <div className="pipeline-actions">
             <button className="btn primary" disabled={actionBusy}>
-              บันทึก District response
+              บันทึกการตอบกลับของเขต
             </button>
           </div>
         </form>
@@ -1308,7 +1308,7 @@ function WeeklyPlanView({
         <form className="pipeline-form compact" onSubmit={submitPlanAction}>
           <div className="panel-title">
             <div>
-              <span>GOVERNED PLAN ACTION</span>
+              <span>การจัดการแผน</span>
               <h3>
                 {planAction.type.toUpperCase()} ·{" "}
                 {text(planAction.row.plan_number)}
@@ -1323,7 +1323,7 @@ function WeeklyPlanView({
             </button>
           </div>
           <label>
-            Note / reason
+            หมายเหตุ / เหตุผล
             <textarea
               value={planNote}
               onChange={(event) => setPlanNote(event.target.value)}
@@ -1335,8 +1335,8 @@ function WeeklyPlanView({
               }
               placeholder={
                 planAction.type === "approve"
-                  ? "Academic note is mandatory when any line exceeds 9 months"
-                  : "Required for cancellation/version audit"
+                  ? "หากมีรายการเกิน 9 เดือน วิชาการต้องระบุหมายเหตุ"
+                  : "จำเป็นสำหรับการยกเลิก/ออกเวอร์ชันใหม่"
               }
             />
           </label>
@@ -1356,33 +1356,33 @@ function RecommendationView({ data }: { data: DashboardData }) {
     <div className="stack">
       <section className="recommend-banner">
         <div>
-          <span>BUSINESS RULES V1</span>
-          <h3>CMP + 3.5M trigger + 4M MIN + 6M MAX</h3>
+          <span>เกณฑ์การจ่าย</span>
+          <h3>เกณฑ์ CMP + จุดสั่ง 3.5 เดือน + ขั้นต่ำ 4 เดือน + สูงสุด 6 เดือน</h3>
           <p>
-            CMP = ROUND(AVERAGE(LY, 12M, 6M, 4M), 0). Partial pallet issue is
-            allowed; fixed rounding tiers are disabled.
+            CMP = ค่าเฉลี่ยการใช้ (ปีก่อน, 12/6/4 เดือน) จ่ายไม่เต็มพาเลทได้
+            และไม่บังคับปัดจำนวนเป็นขั้น
           </p>
         </div>
         <div>
           <strong>{formatNumber(data.recommendations.length)}</strong>
-          <small>evidence records</small>
+          <small>รายการหลักฐาน</small>
         </div>
       </section>
       <section className="panel">
         <LiveTable
           rows={data.recommendations}
-          empty="ยังไม่มี Quantity recommendation"
+          empty="ยังไม่มีหลักฐานการคำนวณปริมาณ"
           columns={[
-            ["Plan", (row) => row.plan_number],
-            ["Material", (row) => row.material_id],
-            ["District", (row) => row.district_id],
-            ["Stock", (row) => formatNumber(row.current_stock_qty, 2)],
+            ["แผน", (row) => row.plan_number],
+            ["วัสดุ", (row) => row.material_id],
+            ["เขต", (row) => row.district_id],
+            ["สต็อก", (row) => formatNumber(row.current_stock_qty, 2)],
             ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
-            ["Months", (row) => formatNumber(row.months_available, 1)],
+            ["เดือน", (row) => formatNumber(row.months_available, 1)],
             ["MIN", (row) => formatNumber(row.min_fill_qty, 2)],
             ["MAX", (row) => formatNumber(row.max_fill_qty, 2)],
-            ["Recommended", (row) => formatNumber(row.recommended_qty, 2)],
-            ["Source", (row) => <Badge>{text(row.source_freshness_status)}</Badge>],
+            ["แนะนำ", (row) => formatNumber(row.recommended_qty, 2)],
+            ["แหล่งที่มา", (row) => <Badge>{text(row.source_freshness_status)}</Badge>],
           ]}
         />
       </section>
@@ -1467,17 +1467,17 @@ function IntelligenceAdvisoryView({ data }: { data: DashboardData }) {
     <div className="stack">
       <section className="recommend-banner">
         <div>
-          <span>WAVE-3 INTELLIGENCE · ADVISORY</span>
-          <h3>Obsolescence &amp; slow-mover risk</h3>
+          <span>การเฝ้าระวัง</span>
+          <h3>ความเสี่ยงของค้าง / ของเคลื่อนไหวช้า</h3>
           <p>
-            คำนวณจากหลักฐานปริมาณจริง (CMP, สต็อก, เดือนคงคลัง) ตามงานวิจัย
-            intermittent-demand / obsolescence เป็น <strong>advisory</strong>{" "}
-            เท่านั้น ไม่เปลี่ยน Business Rules v1 และไม่อนุมัติอัตโนมัติ
+            คำนวณจากข้อมูลจริง (CMP, สต็อก, เดือนคงคลัง) เป็น
+            <strong>ข้อมูลประกอบการตัดสินใจ</strong>{" "}
+            เท่านั้น ไม่เปลี่ยนเกณฑ์การจ่าย และไม่อนุมัติอัตโนมัติ
           </p>
         </div>
         <div>
           <strong>{formatNumber(flagged.length)}</strong>
-          <small>flagged / {formatNumber(scored.length)} records</small>
+          <small>ต้องเฝ้าระวัง / {formatNumber(scored.length)} records</small>
         </div>
       </section>
       <section
@@ -1496,13 +1496,13 @@ function IntelligenceAdvisoryView({ data }: { data: DashboardData }) {
           rows={flagged}
           empty="ไม่มีรายการที่ต้องเฝ้าระวัง — หรือยังไม่มีหลักฐานปริมาณ"
           columns={[
-            ["Material", (row) => row.material_id],
-            ["District", (row) => row.district_id],
-            ["Stock", (row) => formatNumber(row.current_stock_qty, 2)],
+            ["วัสดุ", (row) => row.material_id],
+            ["เขต", (row) => row.district_id],
+            ["สต็อก", (row) => formatNumber(row.current_stock_qty, 2)],
             ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
-            ["Months", (row) => formatNumber(row.months_available, 1)],
-            ["Risk", (row) => <RiskBadge level={row.__level as AdvisoryLevel} />],
-            ["Signal", (row) => text(row.__reason)],
+            ["เดือน", (row) => formatNumber(row.months_available, 1)],
+            ["ความเสี่ยง", (row) => <RiskBadge level={row.__level as AdvisoryLevel} />],
+            ["สัญญาณ", (row) => text(row.__reason)],
           ]}
         />
       </section>
@@ -1544,29 +1544,29 @@ function ChangeReviewView({
       <section className="plain-notice warning">
         <i>!</i>
         <div>
-          <strong>Quantity above 6 months requires review</strong>
+          <strong>คำขอที่คงคลังเกิน 6 เดือน ต้องผ่านการตรวจ</strong>
           <p>
-            Above 9 months is a special-approval flag and Academic approval
-            must include an evidence note.
+            คงคลังเกิน 9 เดือน ต้องขออนุมัติพิเศษ และการอนุมัติของวิชาการ
+            ต้องแนบหมายเหตุหลักฐาน
           </p>
         </div>
       </section>
       <section className="panel">
         <LiveTable
           rows={data.changeRequests}
-          empty="ไม่มี District change request"
+          empty="ไม่มีคำขอเปลี่ยนแปลงจากเขต"
           columns={[
-            ["Plan", (row) => row.plan_number],
-            ["Material", (row) => row.material_id],
-            ["District", (row) => row.district_id],
-            ["Baseline", (row) => formatNumber(row.baseline_qty, 2)],
-            ["Requested", (row) => formatNumber(row.requested_qty, 2)],
-            ["Projected", (row) => `${formatNumber(row.projected_months_after, 1)}M`],
-            ["Risk", (row) => <Badge>{text(row.risk_level)}</Badge>],
-            ["Requester", (row) => row.requester_name],
-            ["Status", (row) => <Badge>{text(row.status)}</Badge>],
+            ["แผน", (row) => row.plan_number],
+            ["วัสดุ", (row) => row.material_id],
+            ["เขต", (row) => row.district_id],
+            ["ฐาน", (row) => formatNumber(row.baseline_qty, 2)],
+            ["ขอเบิก", (row) => formatNumber(row.requested_qty, 2)],
+            ["คงคลังหลังจ่าย", (row) => `${formatNumber(row.projected_months_after, 1)}M`],
+            ["ความเสี่ยง", (row) => <Badge>{text(row.risk_level)}</Badge>],
+            ["ผู้ขอ", (row) => row.requester_name],
+            ["สถานะ", (row) => <Badge>{text(row.status)}</Badge>],
             [
-              "Review",
+              "ตรวจ",
               (row) => (
                 <button
                   className="table-action"
@@ -1587,7 +1587,7 @@ function ChangeReviewView({
         <form className="pipeline-form compact" onSubmit={submit}>
           <div className="form-grid">
             <label>
-              Decision
+              การตัดสินใจ
               <select
                 value={decision}
                 onChange={(event) =>
@@ -1599,7 +1599,7 @@ function ChangeReviewView({
               </select>
             </label>
             <label className="wide">
-              Review note
+              หมายเหตุการตรวจ
               <textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
@@ -1630,16 +1630,16 @@ function ApprovalView({ data }: { data: DashboardData }) {
     <section className="panel">
       <LiveTable
         rows={data.approvals}
-        empty="ยังไม่มี Approval audit"
+        empty="ยังไม่มีประวัติการอนุมัติ"
         columns={[
-          ["Time", (row) => formatDateTime(row.acted_at)],
-          ["Plan", (row) => text(row.replenishment_plan_id).slice(0, 8)],
-          ["Stage", (row) => <Badge>{text(row.approval_stage)}</Badge>],
-          ["Decision", (row) => row.decision],
-          ["Role", (row) => row.actor_role],
-          ["Actor", (row) => text(row.actor_id).slice(0, 8)],
-          ["District", (row) => row.district_id],
-          ["Note", (row) => row.note],
+          ["เวลา", (row) => formatDateTime(row.acted_at)],
+          ["แผน", (row) => text(row.replenishment_plan_id).slice(0, 8)],
+          ["ขั้นตอน", (row) => <Badge>{text(row.approval_stage)}</Badge>],
+          ["ผล", (row) => row.decision],
+          ["บทบาท", (row) => row.actor_role],
+          ["ผู้ทำ", (row) => text(row.actor_id).slice(0, 8)],
+          ["เขต", (row) => row.district_id],
+          ["หมายเหตุ", (row) => row.note],
         ]}
       />
     </section>
@@ -1681,9 +1681,9 @@ function FifoView({
     <div className="stack">
       <section className="inventory-summary">
         <article>
-          <span>Handling Units</span>
+          <span>หน่วยจัดเก็บ</span>
           <strong>{formatNumber(data.handlingUnits.length)}</strong>
-          <small>all statuses</small>
+          <small>ทุกสถานะ</small>
         </article>
         <article>
           <span>Open</span>
@@ -1693,10 +1693,10 @@ function FifoView({
                 .length,
             )}
           </strong>
-          <small>allocated before sealed</small>
+          <small>เปิดจ่ายก่อนปิดผนึก</small>
         </article>
         <article className="danger">
-          <span>Opening Unknown</span>
+          <span>สถานะการเปิดไม่ทราบ</span>
           <strong>
             {formatNumber(
               data.handlingUnits.filter(
@@ -1704,10 +1704,10 @@ function FifoView({
               ).length,
             )}
           </strong>
-          <small>blocked until reconciled</small>
+          <small>บล็อกจนกว่าจะยืนยัน</small>
         </article>
         <article>
-          <span>Allocatable</span>
+          <span>พร้อมจ่าย</span>
           <strong>
             {formatNumber(
               data.fifo.reduce(
@@ -1717,15 +1717,15 @@ function FifoView({
               2,
             )}
           </strong>
-          <small>base units</small>
+          <small>หน่วยนับพื้นฐาน</small>
         </article>
       </section>
       {data.warehouseStock.length > 0 && (
         <section className="panel">
           <div className="panel-title">
             <div>
-              <span>ACTUAL WAREHOUSE SNAPSHOTS</span>
-              <h3>Opening stock awaiting Handling Unit registration</h3>
+              <span>ข้อมูลสต็อกคลังจริง</span>
+              <h3>สต็อกที่รอลงทะเบียนหน่วยจัดเก็บ</h3>
             </div>
             <b>{formatNumber(data.warehouseStock.length)}</b>
           </div>
@@ -1733,25 +1733,24 @@ function FifoView({
             <aside className="plain-notice warning">
               <i>!</i>
               <div>
-                <strong>Stock exists, but no Handling Unit is registered</strong>
+                <strong>มีสต็อกอยู่ แต่ยังไม่ได้ลงทะเบียนหน่วยจัดเก็บ</strong>
                 <p>
-                  Source-backed warehouse balance is visible below. Register
-                  actual receipts or verified opening units before FIFO issue;
-                  the system does not fabricate pallet or contract lineage.
+                  ยอดสต็อกจากแหล่งข้อมูลจริงแสดงด้านล่าง กรุณาลงทะเบียนการรับพัสดุ
+                  หรือหน่วยที่เปิดแล้วก่อนจ่ายแบบ FIFO ระบบจะไม่สร้างข้อมูลพาเลทหรือสัญญาขึ้นเอง
                 </p>
               </div>
             </aside>
           )}
           <LiveTable
             rows={data.warehouseStock.slice(0, 100)}
-            empty="ยังไม่มี Warehouse snapshot"
+            empty="ยังไม่มีข้อมูลสต็อกคลัง"
             columns={[
-              ["Material", (row) => row.material_id],
-              ["Description", (row) => row.material_name],
-              ["Quantity", (row) => formatNumber(row.quantity_on_hand, 2)],
-              ["Unit", (row) => row.unit],
-              ["Location", (row) => row.location_name_th],
-              ["Snapshot", (row) => formatDateTime(row.snapshot_at)],
+              ["วัสดุ", (row) => row.material_id],
+              ["รายละเอียด", (row) => row.material_name],
+              ["จำนวน", (row) => formatNumber(row.quantity_on_hand, 2)],
+              ["หน่วย", (row) => row.unit],
+              ["สถานที่", (row) => row.location_name_th],
+              ["เวลาข้อมูล", (row) => formatDateTime(row.snapshot_at)],
             ]}
           />
         </section>
@@ -1759,23 +1758,23 @@ function FifoView({
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>FIFO QUEUE</span>
-            <h3>Opened unit first, then accepted date / PO / item / row</h3>
+            <span>คิว FIFO</span>
+            <h3>จ่ายหน่วยที่เปิดก่อน แล้วเรียงตามวันรับ / PO / รายการ</h3>
           </div>
         </div>
         <LiveTable
           rows={data.fifo}
-          empty="ไม่มี Handling Unit ที่พร้อมจ่าย"
+          empty="ไม่มีหน่วยจัดเก็บที่พร้อมจ่าย"
           columns={[
-            ["Seq", (row) => row.fifo_sequence],
+            ["ลำดับ", (row) => row.fifo_sequence],
             ["HU", (row) => row.handling_unit_code],
-            ["Status", (row) => <Badge>{text(row.opening_status)}</Badge>],
-            ["Material", (row) => row.material_id],
-            ["Available", (row) => formatNumber(row.available_qty, 2)],
-            ["Reserved", (row) => formatNumber(row.reserved_qty, 2)],
-            ["Remain", (row) => formatNumber(row.allocatable_qty, 2)],
-            ["Accepted", (row) => row.acceptance_date],
-            ["PO / Item", (row) => `${text(row.purchase_order)} / ${text(row.line_item)}`],
+            ["สถานะ", (row) => <Badge>{text(row.opening_status)}</Badge>],
+            ["วัสดุ", (row) => row.material_id],
+            ["พร้อมจ่าย", (row) => formatNumber(row.available_qty, 2)],
+            ["จอง", (row) => formatNumber(row.reserved_qty, 2)],
+            ["คงเหลือ", (row) => formatNumber(row.allocatable_qty, 2)],
+            ["วันรับ", (row) => row.acceptance_date],
+            ["PO / รายการ", (row) => `${text(row.purchase_order)} / ${text(row.line_item)}`],
             ["Lot", (row) => row.lot_code],
           ]}
         />
@@ -1783,22 +1782,22 @@ function FifoView({
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>ALL HANDLING UNITS</span>
-            <h3>Blocked, depleted and quarantined inventory</h3>
+            <span>หน่วยจัดเก็บทั้งหมด</span>
+            <h3>หน่วยที่ถูกบล็อก หมด หรือกักกัน</h3>
           </div>
         </div>
         <LiveTable
           rows={data.handlingUnits}
-          empty="ยังไม่มี Handling Unit"
+          empty="ยังไม่มีหน่วยจัดเก็บ"
           columns={[
             ["HU", (row) => row.handling_unit_code],
-            ["Material", (row) => row.material_id],
-            ["Status", (row) => <Badge>{text(row.opening_status)}</Badge>],
-            ["Trace", (row) => <Badge>{text(row.traceability_status)}</Badge>],
-            ["Available", (row) => formatNumber(row.available_qty, 2)],
-            ["Accepted", (row) => row.acceptance_date],
+            ["วัสดุ", (row) => row.material_id],
+            ["สถานะ", (row) => <Badge>{text(row.opening_status)}</Badge>],
+            ["สอบกลับ", (row) => <Badge>{text(row.traceability_status)}</Badge>],
+            ["พร้อมจ่าย", (row) => formatNumber(row.available_qty, 2)],
+            ["วันรับ", (row) => row.acceptance_date],
             [
-              "Reconcile",
+              "ยืนยัน",
               (row) => (
                 <button
                   className="table-action"
@@ -1821,7 +1820,7 @@ function FifoView({
         <form className="pipeline-form compact" onSubmit={submit}>
           <div className="form-grid">
             <label>
-              Resolved status
+              สถานะที่แก้ไข
               <select
                 value={resolvedStatus}
                 onChange={(event) =>
@@ -1833,7 +1832,7 @@ function FifoView({
               </select>
             </label>
             <label className="wide">
-              Count / acceptance evidence
+              จำนวน / หลักฐานการรับ
               <textarea
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
@@ -1850,7 +1849,7 @@ function FifoView({
               ยกเลิก
             </button>
             <button className="btn primary" disabled={actionBusy}>
-              บันทึก Reconciliation
+              บันทึกการยืนยัน
             </button>
           </div>
         </form>
@@ -1911,23 +1910,23 @@ function ReceivingView({
       <section className="plain-notice info">
         <i>i</i>
         <div>
-          <strong>Khlong Toei = Plant 2401 / Storage Location 0001</strong>
+          <strong>คลังคลองเตย = โรงงาน 2401 / ที่จัดเก็บ 0001</strong>
           <p>
-            OPENING_UNKNOWN is blocked from FIFO until a picker/admin records
-            reconciliation evidence.
+            หน่วยที่สถานะ OPENING_UNKNOWN จะยังจ่ายแบบ FIFO ไม่ได้
+            จนกว่าเจ้าหน้าที่คลังจะบันทึกหลักฐานยืนยัน
           </p>
         </div>
       </section>
       <form className="pipeline-form" onSubmit={submit}>
         <div className="form-grid">
           <label className="wide">
-            Contract item
+            รายการสัญญา
             <select
               value={contractItemId}
               onChange={(event) => setContractItemId(event.target.value)}
               required
             >
-              <option value="">เลือก PO / Item / Material</option>
+              <option value="">เลือก PO / รายการ / วัสดุ</option>
               {data.receiptOptions.map((row) => (
                 <option
                   key={text(row.contract_item_id)}
@@ -1940,7 +1939,7 @@ function ReceivingView({
             </select>
           </label>
           <label>
-            Acceptance date
+            วันที่รับ
             <input
               type="date"
               value={acceptanceDate}
@@ -1949,7 +1948,7 @@ function ReceivingView({
             />
           </label>
           <label>
-            Quantity
+            จำนวน
             <input
               type="number"
               min="0.000001"
@@ -1960,7 +1959,7 @@ function ReceivingView({
             />
           </label>
           <label>
-            Handling Unit code
+            รหัสหน่วยจัดเก็บ
             <input
               value={handlingUnitCode}
               onChange={(event) => setHandlingUnitCode(event.target.value)}
@@ -1968,7 +1967,7 @@ function ReceivingView({
             />
           </label>
           <label>
-            Unit type
+            ประเภทหน่วย
             <select
               value={unitType}
               onChange={(event) =>
@@ -1988,7 +1987,7 @@ function ReceivingView({
             </select>
           </label>
           <label>
-            Opening status
+            สถานะการเปิด
             <select
               value={openingStatus}
               onChange={(event) =>
@@ -2002,14 +2001,14 @@ function ReceivingView({
             </select>
           </label>
           <label>
-            Installment
+            งวด
             <input
               value={installment}
               onChange={(event) => setInstallment(event.target.value)}
             />
           </label>
           <label className="wide">
-            Source reference / acceptance evidence
+            อ้างอิงแหล่งที่มา / หลักฐานการรับ
             <textarea
               value={source}
               onChange={(event) => setSource(event.target.value)}
@@ -2019,7 +2018,7 @@ function ReceivingView({
         </div>
         <div className="pipeline-actions">
           <button className="btn primary" disabled={actionBusy}>
-            รับ Handling Unit
+            รับหน่วยจัดเก็บเข้าคลัง
           </button>
         </div>
       </form>
@@ -2089,13 +2088,13 @@ function AdHocView({
         <form className="pipeline-form" onSubmit={submit}>
           <div className="form-grid">
             <label>
-              Material
+              วัสดุ
               <select
                 value={materialId}
                 onChange={(event) => setMaterialId(event.target.value)}
                 required
               >
-                <option value="">เลือก Material</option>
+                <option value="">เลือกวัสดุ</option>
                 {data.materials.map((row) => (
                   <option key={text(row.material_id)} value={text(row.material_id)}>
                     {text(row.material_id)} · {text(row.material_name)}
@@ -2104,13 +2103,13 @@ function AdHocView({
               </select>
             </label>
             <label>
-              District
+              เขต
               <select
                 value={districtId}
                 onChange={(event) => setDistrictId(event.target.value)}
                 required
               >
-                <option value="">เลือก District</option>
+                <option value="">เลือกเขต</option>
                 {data.districts.map((row) => (
                   <option key={text(row.district_id)} value={text(row.district_id)}>
                     {text(row.district_id)} · {text(row.district_name_th)}
@@ -2119,7 +2118,7 @@ function AdHocView({
               </select>
             </label>
             <label>
-              Quantity
+              จำนวน
               <input
                 type="number"
                 min="0.000001"
@@ -2130,7 +2129,7 @@ function AdHocView({
               />
             </label>
             <label>
-              Requester name
+              ชื่อผู้ขอ
               <input
                 value={requester}
                 onChange={(event) => setRequester(event.target.value)}
@@ -2138,7 +2137,7 @@ function AdHocView({
               />
             </label>
             <label className="wide">
-              Emergency reason / evidence
+              เหตุผลกรณีพิเศษ / หลักฐาน
               <textarea
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
@@ -2148,7 +2147,7 @@ function AdHocView({
           </div>
           <div className="pipeline-actions">
             <button className="btn primary" disabled={actionBusy}>
-              สร้าง Ad-hoc Issue
+              สร้างรายการจ่ายกรณีพิเศษ
             </button>
           </div>
         </form>
@@ -2156,17 +2155,17 @@ function AdHocView({
       <section className="panel">
         <LiveTable
           rows={data.adHocIssues}
-          empty="ยังไม่มี Ad-hoc Issue"
+          empty="ยังไม่มีรายการจ่ายกรณีพิเศษ"
           columns={[
-            ["Issue", (row) => row.issue_number],
-            ["Material", (row) => row.material_id],
-            ["District", (row) => row.district_id],
-            ["Quantity", (row) => formatNumber(row.requested_qty, 2)],
-            ["Allocated", (row) => formatNumber(row.allocated_qty, 2)],
-            ["Requester", (row) => row.requester_name],
-            ["Status", (row) => <Badge>{text(row.status)}</Badge>],
+            ["เลขที่จ่าย", (row) => row.issue_number],
+            ["วัสดุ", (row) => row.material_id],
+            ["เขต", (row) => row.district_id],
+            ["จำนวน", (row) => formatNumber(row.requested_qty, 2)],
+            ["จ่ายแล้ว", (row) => formatNumber(row.allocated_qty, 2)],
+            ["ผู้ขอ", (row) => row.requester_name],
+            ["สถานะ", (row) => <Badge>{text(row.status)}</Badge>],
             [
-              "Action",
+              "การดำเนินการ",
               (row) => (
                 <span className="table-actions">
                   {["admin", "planner"].includes(role) &&
@@ -2178,7 +2177,7 @@ function AdHocView({
                           setApprovalNote("");
                         }}
                       >
-                        Approve
+                        อนุมัติ
                       </button>
                     )}
                   {["admin", "picker"].includes(role) &&
@@ -2190,7 +2189,7 @@ function AdHocView({
                           void onIssue(text(row.ad_hoc_issue_id))
                         }
                       >
-                        Issue
+                        จ่าย
                       </button>
                     )}
                 </span>
@@ -2202,7 +2201,7 @@ function AdHocView({
       {approveRow && (
         <form className="pipeline-form compact" onSubmit={approve}>
           <label>
-            Approval note
+            หมายเหตุการอนุมัติ
             <textarea
               value={approvalNote}
               onChange={(event) => setApprovalNote(event.target.value)}
@@ -2218,7 +2217,7 @@ function AdHocView({
               ยกเลิก
             </button>
             <button className="btn primary" disabled={actionBusy}>
-              Approve + FIFO reserve
+              อนุมัติ + จอง FIFO
             </button>
           </div>
         </form>
@@ -2293,31 +2292,31 @@ function TraceView({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Issue / Material / HU / Contract / PO / Vendor"
+          placeholder="ค้นหา: เลขที่จ่าย / วัสดุ / หน่วยจัดเก็บ / สัญญา / PO / ผู้ขาย"
           aria-label="ค้นหาการสอบกลับ"
         />
       </section>
       <section className="panel">
         <LiveTable
           rows={rows}
-          empty="ยังไม่มี Inventory ISSUE movement"
+          empty="ยังไม่มีการจ่ายสต็อก"
           columns={[
-            ["Issued", (row) => formatDateTime(row.occurred_at)],
-            ["Issue", (row) => row.issue_reference],
-            ["Type", (row) => <Badge>{text(row.issue_type)}</Badge>],
-            ["District", (row) => row.district_id],
-            ["Material", (row) => row.material_id],
-            ["Qty", (row) => formatNumber(row.issued_qty, 2)],
+            ["จ่ายเมื่อ", (row) => formatDateTime(row.occurred_at)],
+            ["เลขที่จ่าย", (row) => row.issue_reference],
+            ["ประเภท", (row) => <Badge>{text(row.issue_type)}</Badge>],
+            ["เขต", (row) => row.district_id],
+            ["วัสดุ", (row) => row.material_id],
+            ["จำนวน", (row) => formatNumber(row.issued_qty, 2)],
             ["HU", (row) => row.handling_unit_code],
             ["Lot", (row) => row.lot_code],
-            ["Accepted", (row) => row.acceptance_date],
-            ["PO / Item", (row) => `${text(row.purchase_order)} / ${text(row.line_item)}`],
-            ["Contract", (row) => row.contract_number],
-            ["Vendor Alias", (row) => row.vendor_name],
+            ["วันรับ", (row) => row.acceptance_date],
+            ["PO / รายการ", (row) => `${text(row.purchase_order)} / ${text(row.line_item)}`],
+            ["สัญญา", (row) => row.contract_number],
+            ["ผู้ขาย", (row) => row.vendor_name],
             ...(canReturn
               ? [
                   [
-                    "Return",
+                    "รับคืน",
                     (row: RecordRow) => (
                       <button
                         type="button"
@@ -2342,7 +2341,7 @@ function TraceView({
         <form className="pipeline-form compact" onSubmit={submitReturn}>
           <div className="panel-title">
             <div>
-              <span>APPEND-ONLY RETURN</span>
+              <span>บันทึกการรับคืน</span>
               <h3>
                 {text(returnRow.issue_reference)} ·{" "}
                 {text(returnRow.handling_unit_code)}
@@ -2358,7 +2357,7 @@ function TraceView({
           </div>
           <div className="form-grid">
             <label>
-              Return quantity (max {formatNumber(returnRow.issued_qty, 2)})
+              จำนวนรับคืน (สูงสุด {formatNumber(returnRow.issued_qty, 2)})
               <input
                 type="number"
                 min="0.000001"
@@ -2375,10 +2374,10 @@ function TraceView({
                 checked={damaged}
                 onChange={(event) => setDamaged(event.target.checked)}
               />
-              Damaged / test failed → Quarantine
+              ชำรุด / ทดสอบไม่ผ่าน → กักกัน
             </label>
             <label className="wide">
-              Return reason / physical evidence
+              เหตุผลการรับคืน / หลักฐาน
               <textarea
                 value={returnReason}
                 onChange={(event) => setReturnReason(event.target.value)}
@@ -2412,11 +2411,10 @@ function StockView({ data }: { data: DashboardData }) {
         <section className="plain-notice warning">
           <i>!</i>
           <div>
-            <strong>UAT data is active — TEST FIXTURE</strong>
+            <strong>กำลังใช้ข้อมูลทดสอบ (UAT)</strong>
             <p>
-              District stock or CMP on this screen includes governed Dummy
-              workbook values. It is not Actual SAP evidence and must not be
-              used for production readiness or operational dispatch.
+              สต็อกเขตหรือ CMP ในหน้านี้มีค่าจากไฟล์ทดสอบรวมอยู่ด้วย
+              ไม่ใช่ข้อมูลจริงจาก SAP และห้ามใช้ตัดสินใจจ่ายจริง
             </p>
           </div>
         </section>
@@ -2424,54 +2422,54 @@ function StockView({ data }: { data: DashboardData }) {
       <section className="plain-notice info">
         <i>i</i>
         <div>
-          <strong>Frozen stock interpretation</strong>
+          <strong>หลักเกณฑ์การนับสต็อก</strong>
           <p>
-            Unrestricted only; transfer excluded. Missing material + plant is
-            displayed as 0 with “Source Missing / Assumed 0”.
+            นับเฉพาะของพร้อมใช้ ไม่รวมของระหว่างโอน หากไม่มีข้อมูลวัสดุ + คลัง
+            จะแสดงเป็น 0 พร้อมหมายเหตุ “ไม่มีข้อมูล / ถือเป็น 0”
           </p>
         </div>
       </section>
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>DISTRICT STOCK HEALTH</span>
-            <h3>Latest stock and CMP</h3>
+            <span>สุขภาพสต็อกเขต</span>
+            <h3>สต็อกและ CMP ล่าสุด</h3>
           </div>
           <b>{formatNumber(data.stock.length)}</b>
         </div>
         <LiveTable
           rows={data.stock}
-          empty="ยังไม่มี District Stock"
+          empty="ยังไม่มีข้อมูลสต็อกเขต"
           columns={[
-            ["Material", (row) => row.material_id],
-            ["District", (row) => row.district_id],
-            ["Stock", (row) => formatNumber(row.current_stock_qty, 2)],
+            ["วัสดุ", (row) => row.material_id],
+            ["เขต", (row) => row.district_id],
+            ["สต็อก", (row) => formatNumber(row.current_stock_qty, 2)],
             ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
-            ["Months", (row) => formatNumber(row.months_available, 1)],
-            ["Health", (row) => <Badge>{text(row.health_band)}</Badge>],
-            ["Source", (row) => row.stock_source_status],
-            ["Snapshot", (row) => formatDateTime(row.snapshot_at)],
+            ["เดือน", (row) => formatNumber(row.months_available, 1)],
+            ["สถานะ", (row) => <Badge>{text(row.health_band)}</Badge>],
+            ["แหล่งที่มา", (row) => row.stock_source_status],
+            ["เวลาข้อมูล", (row) => formatDateTime(row.snapshot_at)],
           ]}
         />
       </section>
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>WAREHOUSE STOCK</span>
-            <h3>Khlong Toei actual snapshots</h3>
+            <span>สต็อกคลัง</span>
+            <h3>ข้อมูลสต็อกจริงคลังคลองเตย</h3>
           </div>
           <b>{formatNumber(data.warehouseStock.length)}</b>
         </div>
         <LiveTable
           rows={data.warehouseStock}
-          empty="ยังไม่มี Warehouse snapshot"
+          empty="ยังไม่มีข้อมูลสต็อกคลัง"
           columns={[
-            ["Material", (row) => row.material_id],
-            ["Description", (row) => row.material_name],
-            ["Quantity", (row) => formatNumber(row.quantity_on_hand, 2)],
-            ["Unit", (row) => row.unit],
-            ["Location", (row) => row.location_name_th],
-            ["Snapshot", (row) => formatDateTime(row.snapshot_at)],
+            ["วัสดุ", (row) => row.material_id],
+            ["รายละเอียด", (row) => row.material_name],
+            ["จำนวน", (row) => formatNumber(row.quantity_on_hand, 2)],
+            ["หน่วย", (row) => row.unit],
+            ["สถานที่", (row) => row.location_name_th],
+            ["เวลาข้อมูล", (row) => formatDateTime(row.snapshot_at)],
           ]}
         />
       </section>
@@ -2484,61 +2482,61 @@ function DataView({ data }: { data: DashboardData }) {
     <div className="stack">
       <section className="user-status">
         <article>
-          <span>Contracts</span>
+          <span>สัญญา</span>
           <strong>{formatNumber(data.contracts.length)}</strong>
-          <small>current API page</small>
+          <small>หน้าข้อมูลปัจจุบัน</small>
         </article>
         <article>
-          <span>Data Quality</span>
+          <span>คุณภาพข้อมูล</span>
           <strong>{formatNumber(data.quality.length)}</strong>
-          <small>rule summaries</small>
+          <small>สรุปตามกฎ</small>
         </article>
         <article>
-          <span>Governed Inputs</span>
+          <span>ข้อมูลที่บันทึก</span>
           <strong>{formatNumber(data.inputSubmissions.length)}</strong>
-          <small>recent submissions</small>
+          <small>รายการที่บันทึกล่าสุด</small>
         </article>
         <article>
-          <span>Materials</span>
+          <span>รายการวัสดุ</span>
           <strong>{formatNumber(data.materials.length)}</strong>
-          <small>role-scoped master</small>
+          <small>ตามสิทธิ์ของคุณ</small>
         </article>
       </section>
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>CONTRACT STATUS</span>
-            <h3>Current source-backed contracts</h3>
+            <span>สถานะสัญญา</span>
+            <h3>สัญญาจากแหล่งข้อมูลจริง</h3>
           </div>
         </div>
         <LiveTable
           rows={data.contracts}
-          empty="ไม่มี Contract rows ในสิทธิ์นี้"
+          empty="ไม่มีข้อมูลสัญญาในสิทธิ์นี้"
           columns={[
             ["PO", (row) => row.purchase_order],
-            ["Contract", (row) => row.contract_number],
-            ["Vendor Alias", (row) => row.vendor_name],
-            ["Items", (row) => row.item_count],
-            ["Status", (row) => <Badge>{text(row.contract_status)}</Badge>],
-            ["Updated", (row) => formatDateTime(row.updated_at)],
+            ["สัญญา", (row) => row.contract_number],
+            ["ผู้ขาย", (row) => row.vendor_name],
+            ["จำนวนรายการ", (row) => row.item_count],
+            ["สถานะ", (row) => <Badge>{text(row.contract_status)}</Badge>],
+            ["อัปเดต", (row) => formatDateTime(row.updated_at)],
           ]}
         />
       </section>
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>DATA QUALITY</span>
-            <h3>Active validation evidence</h3>
+            <span>คุณภาพข้อมูล</span>
+            <h3>หลักฐานการตรวจสอบที่ใช้งาน</h3>
           </div>
         </div>
         <LiveTable
           rows={data.quality}
-          empty="ไม่มี Data Quality issue"
+          empty="ไม่มีปัญหาคุณภาพข้อมูล"
           columns={[
-            ["Rule", (row) => row.rule_code],
-            ["Severity", (row) => <Badge>{text(row.severity)}</Badge>],
-            ["Open", (row) => row.open_issue_count],
-            ["Last detected", (row) => formatDateTime(row.last_detected_at)],
+            ["กฎ", (row) => row.rule_code],
+            ["ระดับ", (row) => <Badge>{text(row.severity)}</Badge>],
+            ["ค้าง", (row) => row.open_issue_count],
+            ["พบล่าสุด", (row) => formatDateTime(row.last_detected_at)],
           ]}
         />
       </section>
@@ -2600,13 +2598,13 @@ function GovernedInputView({
       <form className="pipeline-form" onSubmit={submit}>
         <div className="form-grid">
           <label>
-            Material
+            วัสดุ
             <select
               value={materialId}
               onChange={(event) => setMaterialId(event.target.value)}
               required
             >
-              <option value="">เลือก Material</option>
+              <option value="">เลือกวัสดุ</option>
               {data.materials.map((row) => (
                 <option key={text(row.material_id)} value={text(row.material_id)}>
                   {text(row.material_id)} · {text(row.material_name)}
@@ -2615,13 +2613,13 @@ function GovernedInputView({
             </select>
           </label>
           <label>
-            District
+            เขต
             <select
               value={districtId}
               onChange={(event) => setDistrictId(event.target.value)}
               required
             >
-              <option value="">เลือก District</option>
+              <option value="">เลือกเขต</option>
               {data.districts.map((row) => (
                 <option key={text(row.district_id)} value={text(row.district_id)}>
                   {text(row.district_id)} · {text(row.district_name_th)}
@@ -2630,7 +2628,7 @@ function GovernedInputView({
             </select>
           </label>
           <label>
-            Snapshot time
+            เวลาบันทึก
             <input
               type="datetime-local"
               value={snapshot}
@@ -2639,7 +2637,7 @@ function GovernedInputView({
             />
           </label>
           <label>
-            Unrestricted stock
+            สต็อกพร้อมใช้
             <input
               type="number"
               min="0"
@@ -2650,7 +2648,7 @@ function GovernedInputView({
             />
           </label>
           <label className="wide">
-            Source note
+            หมายเหตุแหล่งที่มา
             <input
               value={sourceNote}
               onChange={(event) => setSourceNote(event.target.value)}
@@ -2660,14 +2658,14 @@ function GovernedInputView({
             />
           </label>
           <label className="wide">
-            Monthly history
+            ประวัติรายเดือน
             <textarea
               value={history}
               onChange={(event) => setHistory(event.target.value)}
               placeholder={"2026-04,100,0,7\n2026-05,110,0,7\n2026-06,105,0,7"}
               required
             />
-            <small>YYYY-MM, demand, stockout days, lead time days</small>
+            <small>ปีเดือน (YYYY-MM), ความต้องการ, วันของขาด, วันนำส่ง</small>
           </label>
         </div>
         <label className="pipeline-check">
@@ -2676,7 +2674,7 @@ function GovernedInputView({
             checked={runPlan}
             onChange={(event) => setRunPlan(event.target.checked)}
           />
-          Create Weekly Plan after publish
+          สร้างแผนการจ่ายหลังบันทึก
         </label>
         {formError && <div className="form-error">{formError}</div>}
         <div className="pipeline-actions">
@@ -2686,17 +2684,17 @@ function GovernedInputView({
             onClick={() => void loadContext()}
             disabled={!materialId || !districtId || actionBusy}
           >
-            โหลด Context
+            โหลดข้อมูล
           </button>
           <button className="btn primary" disabled={actionBusy}>
-            Publish governed input
+            บันทึกข้อมูล
           </button>
         </div>
       </form>
       {context && (
         <article className="pipeline-detail">
           <div>
-            <span>LIVE SOURCE CONTEXT</span>
+            <span>ข้อมูลต้นทางล่าสุด</span>
             <button className="btn ghost" onClick={() => setContext(null)}>
               ปิด
             </button>
@@ -2721,11 +2719,11 @@ function OperationsView({ data }: { data: DashboardData }) {
     <div className="stack">
       <section className="operations-hero">
         <div>
-          <span>PRODUCTION RUNBOOK</span>
-          <h3>Daily Control Center</h3>
+          <span>คู่มือปฏิบัติงาน</span>
+          <h3>ศูนย์ควบคุมประจำวัน</h3>
           <p>
-            Backup before migration, append-only evidence and fail-closed
-            operational paths.
+            สำรองข้อมูลก่อนปรับปรุงระบบ บันทึกหลักฐานแบบเพิ่มอย่างเดียว
+            และปิดกั้นเมื่อพบข้อผิดพลาด
           </p>
         </div>
       </section>
@@ -2736,71 +2734,71 @@ function OperationsView({ data }: { data: DashboardData }) {
             <article key={key}>
               <span>{key.replaceAll("_", " ")}</span>
               <strong>{text(value)}</strong>
-              <small>live database health</small>
+              <small>สุขภาพฐานข้อมูล</small>
             </article>
           ))}
       </section>
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>PRODUCTION CUTOVER</span>
-            <h3>Fail-closed readiness gates</h3>
+            <span>การเปิดใช้งานจริง</span>
+            <h3>ด่านตรวจความพร้อมก่อนเปิดใช้งาน</h3>
           </div>
           <Badge>{text(readiness.readiness_status)}</Badge>
         </div>
         <section className="user-status">
           {[
-            ["Actual data", readiness.data_contract_ready],
-            ["Auth roles", readiness.identity_ready],
-            ["Backup + restore", readiness.recovery_ready],
-            ["Operational writes", readiness.operational_writes_enabled],
+            ["ข้อมูลจริง", readiness.data_contract_ready],
+            ["สิทธิ์ผู้ใช้", readiness.identity_ready],
+            ["สำรอง + กู้คืน", readiness.recovery_ready],
+            ["การบันทึกข้อมูล", readiness.operational_writes_enabled],
           ].map(([label, value]) => (
             <article key={text(label)}>
               <span>{text(label)}</span>
-              <strong>{bool(value) ? "PASS" : "BLOCKED"}</strong>
-              <small>production gate</small>
+              <strong>{bool(value) ? "ผ่าน" : "ไม่ผ่าน"}</strong>
+              <small>ด่านตรวจก่อนใช้งานจริง</small>
             </article>
           ))}
         </section>
       </section>
       <section className="user-status">
         {[
-          ["Materials", sourceTotals.materials],
-          ["Warehouse snapshots", sourceTotals.warehouse_stock_snapshots],
-          ["District snapshots", sourceTotals.district_stock_snapshots],
-          ["Usage rates", sourceTotals.usage_rates],
+          ["รายการวัสดุ", sourceTotals.materials],
+          ["ข้อมูลสต็อกคลัง", sourceTotals.warehouse_stock_snapshots],
+          ["ข้อมูลสต็อกเขต", sourceTotals.district_stock_snapshots],
+          ["อัตราการใช้", sourceTotals.usage_rates],
         ].map(([label, value]) => (
           <article key={text(label)}>
             <span>{text(label)}</span>
             <strong>{formatNumber(value)}</strong>
-            <small>source-backed production rows</small>
+            <small>ข้อมูลจริงจากแหล่งที่มา</small>
           </article>
         ))}
       </section>
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>DATA SOURCE READINESS</span>
-            <h3>Actual source load status</h3>
+            <span>ความพร้อมข้อมูลต้นทาง</span>
+            <h3>สถานะการโหลดข้อมูลต้นทาง</h3>
           </div>
         </div>
         <LiveTable
           rows={sourceRows}
-          empty="ยังไม่มี source import evidence"
+          empty="ยังไม่มีหลักฐานการนำเข้าข้อมูล"
           columns={[
-            ["Source", (row) => row.source_key],
-            ["Status", (row) => <Badge>{text(row.status)}</Badge>],
-            ["Expected", (row) => formatNumber(row.expected_rows)],
-            ["Loaded", (row) => formatNumber(row.loaded_rows)],
-            ["Observed", (row) => formatDateTime(row.source_observed_at)],
-            ["Updated", (row) => formatDateTime(row.updated_at)],
+            ["แหล่งที่มา", (row) => row.source_key],
+            ["สถานะ", (row) => <Badge>{text(row.status)}</Badge>],
+            ["คาดว่า", (row) => formatNumber(row.expected_rows)],
+            ["โหลดแล้ว", (row) => formatNumber(row.loaded_rows)],
+            ["พบเมื่อ", (row) => formatDateTime(row.source_observed_at)],
+            ["อัปเดต", (row) => formatDateTime(row.updated_at)],
           ]}
         />
         {sourceWarnings.map((warning) => (
           <aside className="plain-notice warning" key={warning}>
             <i>!</i>
             <div>
-              <strong>Source readiness warning</strong>
+              <strong>คำเตือนความพร้อมข้อมูลต้นทาง</strong>
               <p>{warning}</p>
             </div>
           </aside>
@@ -2809,39 +2807,39 @@ function OperationsView({ data }: { data: DashboardData }) {
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>SYSTEM ALERTS</span>
-            <h3>Operational exceptions</h3>
+            <span>การแจ้งเตือนระบบ</span>
+            <h3>ข้อยกเว้นการทำงาน</h3>
           </div>
         </div>
         <LiveTable
           rows={data.alerts}
-          empty="ไม่มี Operational alert"
+          empty="ไม่มีการแจ้งเตือน"
           columns={[
-            ["Created", (row) => formatDateTime(row.created_at)],
-            ["Type", (row) => row.alert_type],
-            ["Severity", (row) => <Badge>{text(row.severity)}</Badge>],
-            ["Status", (row) => row.status],
-            ["Message", (row) => row.message],
+            ["สร้างเมื่อ", (row) => formatDateTime(row.created_at)],
+            ["ประเภท", (row) => row.alert_type],
+            ["ระดับ", (row) => <Badge>{text(row.severity)}</Badge>],
+            ["สถานะ", (row) => row.status],
+            ["ข้อความ", (row) => row.message],
           ]}
         />
       </section>
       <section className="runbook-grid">
         {[
           [
-            "Daily backup",
-            "Logical dump + SHA-256 + ops.backup_runs evidence.",
+            "สำรองข้อมูลรายวัน",
+            "สำรองข้อมูลพร้อมรหัสตรวจสอบ (SHA-256) และบันทึกหลักฐาน",
           ],
           [
-            "Restore drill",
-            "Quarterly restore into an isolated database and verify all schemas.",
+            "ซ้อมกู้คืนข้อมูล",
+            "กู้คืนข้อมูลลงฐานข้อมูลแยกทุกไตรมาส และตรวจสอบครบทุกส่วน",
           ],
           [
-            "Safe release",
-            "Tests → backup → migration → acceptance → smoke → release record.",
+            "ปล่อยเวอร์ชันอย่างปลอดภัย",
+            "ทดสอบ → สำรอง → ปรับปรุงระบบ → ตรวจรับ → ทดสอบใช้งาน → บันทึกการปล่อย",
           ],
           [
-            "Incident",
-            "Rotate credentials, preserve audit evidence, then apply a forward fix.",
+            "เหตุขัดข้อง",
+            "เปลี่ยนรหัสผ่าน เก็บหลักฐานการตรวจสอบ แล้วแก้ไขไปข้างหน้า",
           ],
         ].map(([title, body]) => (
           <details key={title}>
@@ -2862,20 +2860,20 @@ function ReleaseView() {
     <div className="stack">
       <section className="release-hero">
         <div>
-          <span>PRODUCTION OPERATIONS V1</span>
-          <h3>Requirement-aligned operational release</h3>
-          <p>Business Rules v1 · Supabase migration 202607240019</p>
+          <span>ระบบงานเวอร์ชัน 1</span>
+          <h3>เวอร์ชันที่ตรงตามข้อกำหนดการใช้งาน</h3>
+          <p>เกณฑ์การจ่ายเวอร์ชัน 1</p>
         </div>
-        <Badge>TESTED</Badge>
+        <Badge>ผ่านการทดสอบ</Badge>
       </section>
       <section className="acceptance-grid">
         {[
-          ["Ordered Supabase migration chain", "Schema"],
-          ["48 same-origin API paths", "API"],
-          ["District → Planner → Academic → Lock", "Approval"],
-          ["Opened HU → accepted date → PO → item → row", "FIFO"],
-          ["Weekly + Ad-hoc actual movement", "Issue"],
-          ["Forward / reverse trace to contract and vendor", "Traceback"],
+          ["ลำดับการอัปเดตฐานข้อมูลครบถ้วน", "โครงสร้าง"],
+          ["เชื่อมต่อ API ภายในโดเมนเดียว 48 เส้นทาง", "API"],
+          ["เขต → ผู้วางแผน → วิชาการ → ล็อก", "การอนุมัติ"],
+          ["หน่วยที่เปิด → วันรับ → PO → รายการ", "FIFO"],
+          ["การจ่ายจริงรายสัปดาห์ + กรณีพิเศษ", "การจ่าย"],
+          ["สอบกลับไป-กลับ ถึงสัญญาและผู้ขาย", "สอบกลับ"],
         ].map(([result, name]) => (
           <article key={name}>
             <span>✓</span>
@@ -2889,21 +2887,21 @@ function ReleaseView() {
       <aside className="scope-exclusion">
         <i>—</i>
         <div>
-          <strong>Forecasting, legacy route jobs and RAG are excluded</strong>
+          <strong>ยังไม่รวมการพยากรณ์ งานจัดเส้นทางแบบเดิม และ RAG</strong>
           <p>
-            Governed transport and the bounded road preview are documented.
-            Legacy route-job namespaces remain fail-closed with HTTP 410{" "}
-            <code>scope_excluded</code>.
+            ระบบขนส่งและพรีวิวเส้นทางแบบจำกัดมีเอกสารกำกับ
+            ส่วนงานจัดเส้นทางแบบเดิมถูกปิดไว้ (HTTP 410{" "}
+            <code>scope_excluded</code>)
           </p>
         </div>
       </aside>
       <section className="plain-notice warning">
         <i>!</i>
         <div>
-          <strong>Deployment is an environment action</strong>
+          <strong>การติดตั้งใช้งานเป็นงานของระบบ</strong>
           <p>
-            Code readiness does not replace production secrets, Supabase backup
-            policy, authenticated smoke tests and authorized release approval.
+            ความพร้อมของโค้ดไม่ได้แทนการตั้งค่าลับสำหรับใช้งานจริง นโยบายสำรองข้อมูล
+            การทดสอบใช้งานหลังเข้าสู่ระบบ และการอนุมัติปล่อยเวอร์ชันตามสิทธิ์
           </p>
         </div>
       </section>
@@ -3114,7 +3112,7 @@ export default function Home() {
                   <aside className="runtime-message warning" role="status">
                     <i>!</i>
                     <div>
-                      <strong>Production cutover is locked</strong>
+                      <strong>ยังไม่เปิดให้บันทึกข้อมูลจริง</strong>
                       <p>
                         เปิดให้อ่านและตรวจข้อมูลได้ แต่คำสั่ง Replenishment,
                         Inventory และ Ad-hoc จะถูกปฏิเสธจนกว่า Actual data, Auth,
