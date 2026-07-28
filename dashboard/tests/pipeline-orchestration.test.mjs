@@ -164,20 +164,21 @@ test("frontend orchestrates the frozen production workflow", () => {
   ];
   for (const signal of requiredHookSignals) assert.ok(hook.includes(signal), signal);
 
+  // Localized (Thai) surface for the frozen production workflow.
   const requiredUiSignals = [
-    "District → Planner → Academic → Lock",
-    "Quantity Recommendation Evidence",
-    "Abnormal Request Review",
-    "FIFO, Pallets & Remaining Quantity",
-    "Receive Traceable Handling Unit",
-    "Ad-hoc Issue",
-    "Issue Traceback",
-    "APPEND-ONLY RETURN",
+    "เขต → ผู้วางแผน → วิชาการ → ล็อก",
+    "หลักฐานการคำนวณปริมาณ",
+    "ตรวจคำขอที่ผิดปกติ",
+    "FIFO พาเลท และจำนวนคงเหลือ",
+    "รับพัสดุเข้าคลัง",
+    "การจ่ายกรณีพิเศษ",
+    "สอบกลับการจ่าย",
+    "บันทึกการรับคืน",
     "OPENING_UNKNOWN",
-    "Publish governed input",
-    "48 same-origin API paths",
-    "Ordered Supabase migration chain",
-    "Production cutover is locked",
+    "บันทึกข้อมูล",
+    "เชื่อมต่อ API ภายในโดเมนเดียว 48 เส้นทาง",
+    "ลำดับการอัปเดตฐานข้อมูลครบถ้วน",
+    "ยังไม่เปิดให้บันทึกข้อมูลจริง",
   ];
   for (const signal of requiredUiSignals) assert.ok(page.includes(signal), signal);
 });
@@ -241,6 +242,6 @@ test("dashboard reads remain bounded and preserve successful partial data", () =
   assert.match(hook, /\/v1\/stock-health\?limit=250/);
   assert.match(hook, /const read = async <T,/);
   assert.match(hook, /โหลดสำเร็จบางส่วน/);
-  assert.match(page, /ACTUAL WAREHOUSE SNAPSHOTS/);
-  assert.match(page, /DATA SOURCE READINESS/);
+  assert.match(page, /ข้อมูลสต็อกคลังจริง/);
+  assert.match(page, /ความพร้อมข้อมูลต้นทาง/);
 });
