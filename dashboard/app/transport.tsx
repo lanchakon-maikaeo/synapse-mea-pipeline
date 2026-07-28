@@ -1024,8 +1024,8 @@ function TransportReadinessPanel({
       >
         <div className="panel-title">
           <div>
-            <span>PRODUCTION READINESS</span>
-            <h3 id="transport-readiness-title">ยังไม่ยืนยัน readiness contract</h3>
+            <span>ความพร้อมใช้งาน</span>
+            <h3 id="transport-readiness-title">ยังไม่ยืนยันความพร้อม</h3>
           </div>
           <span className="transport-data-state unverified">blocked</span>
         </div>
@@ -1117,7 +1117,7 @@ function TransportReadinessPanel({
         ))}
       </div>
       <div className="transport-depot-readiness">
-        <strong>Depot readiness</strong>
+        <strong>ความพร้อมของคลัง</strong>
         {readiness.warehouseRouteReadiness.length ? (
           readiness.warehouseRouteReadiness.map((depot) => (
             <span
@@ -1997,9 +1997,9 @@ function TransportPlanner({
     <div className="stack transport-workspace">
       <section className="transport-control-panel" aria-labelledby="route-scope-title">
         <div>
-          <span>LOCKED PLAN SCOPE</span>
+          <span>ขอบเขตแผนที่ล็อก</span>
           <h2 id="route-scope-title">เลือกแผนและคลังเป็นกลุ่มเดียว</h2>
-          <p>ระบบไม่อนุญาตให้รวมเขตจากคนละ replenishment plan หรือคนละคลังในเที่ยวเดียว</p>
+          <p>ระบบไม่อนุญาตให้รวมเขตจากคนละแผนการจ่าย หรือคนละคลังในเที่ยวเดียว</p>
         </div>
         <label>
           Plan + คลัง
@@ -2180,7 +2180,7 @@ function TransportPlanner({
         <article className="panel">
           <div className="panel-title">
             <div>
-              <span>ROAD PREVIEW</span>
+              <span>พรีวิวเส้นทาง</span>
               <h3>เส้นทางบนถนนจริง</h3>
             </div>
             <div className="transport-geo-summary" aria-label="สถานะพิกัด">
@@ -2203,7 +2203,7 @@ function TransportPlanner({
           <div className="panel-title">
             <div>
               <span>ผลการจัดลำดับ</span>
-              <h3>Heuristic · best found</h3>
+              <h3>ผลลัพธ์ที่ดีที่สุดที่พบ</h3>
             </div>
             <span className={`transport-data-state ${roadIsCanonical ? "verified" : "unverified"}`}>
               {roadIsCanonical ? "canonical preview" : "รอผล canonical"}
@@ -2239,7 +2239,7 @@ function TransportPlanner({
                 : "เลือกจุดส่งแล้วกดคำนวณถนนจริง"}
             </p>
             <p>
-              <strong>Engine:</strong>{" "}
+              <strong>เครื่องมือ:</strong>{" "}
               {roadCurrent
                 ? `${roadCurrent.provider}/${roadCurrent.profile} · ${
                     roadCurrent.engineMode === "configured"
@@ -2570,7 +2570,7 @@ function TransportMap({
       </section>
       {groups.some((routeGroup) => !routeGroup.routeEligible) && (
         <aside className="transport-group-blockers" role="note">
-          <strong>Route-blocked groups</strong>
+          <strong>กลุ่มที่จัดเส้นทางไม่ได้</strong>
           <ul>
             {groups
               .filter((routeGroup) => !routeGroup.routeEligible)
@@ -2591,7 +2591,7 @@ function TransportMap({
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>OSM-DERIVED BASEMAP + ROUTING GEOMETRY</span>
+            <span>แผนที่ฐานและเส้นทางจาก OSM</span>
             <h3>{warehouse || "ยังไม่ได้เลือกคลัง"}</h3>
           </div>
           {pickedGeo && (
@@ -2857,7 +2857,7 @@ export function TransportModule({
       />
       {source !== "error" && !canMutate && (
         <aside className="transport-read-only-note" role="note">
-          <strong>Transport read-only</strong>
+          <strong>โหมดอ่านอย่างเดียว</strong>
           <p>
             สิทธิ์ {role} อ่านภาพรวม แผนที่ และประวัติได้เท่านั้น
             {role === "district"

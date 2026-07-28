@@ -4,16 +4,18 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
-test("renders the MEA Synapse operational workspace", async () => {
+test("renders the MEA Synapse operational workspace in Thai", async () => {
   const html = await readFile(new URL(".next/server/app/index.html", root), "utf8");
   assert.match(html, /MEA Synapse/);
-  assert.match(html, /WAREHOUSE OPERATIONS/);
-  assert.match(html, /SUPABASE AUTH · RBAC/);
-  assert.match(html, /Sign in to MEA Synapse/);
-  assert.match(html, /Username or email/);
-  assert.match(html, /Application role and district scope/);
-  assert.match(html, /PRODUCTION OPERATIONS/);
-  assert.doesNotMatch(html, /Demo password|Select a role/);
+  assert.match(html, /งานคลังพัสดุ/);
+  assert.match(html, /เข้าสู่ระบบ MEA Synapse/);
+  assert.match(html, /ชื่อผู้ใช้หรืออีเมล/);
+  assert.match(html, /รหัสผ่าน/);
+  // English chrome and admin/technical jargon must be gone from the sign-in view.
+  assert.doesNotMatch(
+    html,
+    /Sign in to MEA Synapse|Username or email|SUPABASE AUTH · RBAC|Administrator/,
+  );
   assert.doesNotMatch(html, /Your site is taking shape|Codex is working/);
 });
 
@@ -22,27 +24,28 @@ test("keeps the UI aligned with the frozen production operations scope", async (
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/layout.tsx", root), "utf8"),
   ]);
+  // Localized (Thai) surface for the frozen operational scope.
   for (const required of [
-    "Weekly Plan",
-    "District Response",
-    "Planner",
-    "Academic Officer",
-    "Picker / Outsource",
-    "Viewer",
-    "Operations Center",
-    "Quantity Recommendation Evidence",
-    "Abnormal Request Review",
-    "Issue Traceback",
+    "แผนการจ่ายรายสัปดาห์",
+    "เขตตอบกลับ",
+    "ผู้วางแผน",
+    "เจ้าหน้าที่วิชาการ",
+    "เจ้าหน้าที่คลัง",
+    "ผู้อ่านข้อมูล",
+    "ศูนย์ควบคุมการทำงาน",
+    "หลักฐานการคำนวณปริมาณ",
+    "ตรวจคำขอที่ผิดปกติ",
+    "สอบกลับการจ่าย",
+    "การจ่ายกรณีพิเศษ",
+    // Frozen governance / wiring invariants (must stay in code).
     "OPENING_UNKNOWN",
-    "Ad-hoc Issue",
-    "48 same-origin API paths",
-    "Ordered Supabase migration chain",
-    "Production cutover is locked",
     "scope_excluded",
     "useSynapseBackend",
     "backend.createReplenishmentRun",
     "backend.respondReplenishment",
   ]) assert.match(page, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  // No admin-facing role wording in the UI (confuses end users).
+  assert.doesNotMatch(page, /Administrator|ผู้ดูแลระบบ/);
   assert.match(layout, /MEA Synapse — Warehouse Operations/);
   assert.doesNotMatch(page, /Queue Forecast Run|สร้าง Route job|SYNAPSE AI ASSISTANT/);
 });
