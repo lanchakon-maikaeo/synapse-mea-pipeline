@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
-:root{--navy:#091a38;--navy2:#10284e;--ink:#17213a;--muted:#6f7c91;--line:#e2e7ef;--bg:#f5f7fa;--white:#fff;--orange:#f36b21;--purple:#6137d6;--blue:#3d72df;--green:#24a36a;--red:#df4555;--amber:#db8b20;--shadow:0 8px 24px #17213a0b;--shadow-lg:0 22px 60px #091a3818}
+:root{--navy:#3a2213;--navy2:#4a2c17;--ink:#2a1d13;--muted:#8a7868;--line:#efe5dc;--bg:#fbf6f1;--white:#fff;--orange:#ee6a1f;--purple:#a0561d;--blue:#c07d2a;--green:#1f9d63;--red:#d8483b;--amber:#dd8a1a;--shadow:0 8px 24px #4a2c1710;--shadow-lg:0 22px 60px #3a221316}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 "IBM Plex Sans Thai","Leelawadee UI","Segoe UI",Tahoma,sans-serif;font-feature-settings:"kern" 1,"liga" 1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #f36b2140;outline-offset:2px}.skip{position:fixed;left:16px;top:-60px;z-index:200;padding:10px 14px;border-radius:8px;background:white;color:var(--ink);box-shadow:var(--shadow-lg)}.skip:focus{top:12px}
 
 /* Login */
@@ -164,3 +164,126 @@
 
 /* Focus ring aligned to the blue brand identity. */
 button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid #0873bd45;outline-offset:2px}
+
+/* ============================================================
+   MEA ORANGE — full redesign to the corporate orange + white
+   identity (กฟน.). Authoritative final layer: overrides the
+   earlier blue-identity rules. Warm-dark chrome · bold orange
+   hero banners · warm-white workspace · white cards.
+   ============================================================ */
+
+/* Warm-white app ground with a barely-there warm wash. */
+body{background:var(--bg)}
+.shell,.content{background:transparent}
+
+/* ---- Sidebar: warm espresso chrome with orange accents ---- */
+.sidebar{background:linear-gradient(180deg,#2c1a0f,#20130a 62%,#1a0f07)!important}
+.brand>span{background:linear-gradient(145deg,#ff8a3d,var(--orange))!important;box-shadow:0 8px 20px #ee6a1f45}
+.brand strong{color:#fff}
+.brand small{color:#b79a86}
+.sidebar nav section>p{color:#9c8472}
+.sidebar nav button{color:#d8c4b4}
+.sidebar nav button>i{color:#b38b6f}
+.sidebar nav button:hover{background:#ffffff0d;color:#fff}
+.sidebar nav button.active{background:linear-gradient(90deg,#ee6a1f33,#ee6a1f0d)!important;box-shadow:inset 3px 0 var(--orange)!important;color:#fff}
+.sidebar nav button.active>i{color:#ff9a5a!important}
+.release-badge{border-color:#ffffff14;background:#ffffff0a}
+.release-badge small{color:#a98f7c}
+.release-badge strong{color:#fff}
+.release-badge span{color:#ffb27d!important}
+
+/* ---- Topbar / breadcrumb ---- */
+.topbar{background:#fffdfbf2;border-bottom-color:var(--line)}
+.breadcrumb span{color:var(--orange)!important}
+.global-search{background:#fbf5f0;border-color:var(--line)}
+
+/* ---- Bold MEA-orange hero banners (the signature moment) ---- */
+.executive-hero,.recommend-banner,.transport-summary,.data-hero,.forecast-hero,
+.allocation-hero,.route-engine,.ops-home-hero,.capability-hero,.operations-hero,
+.release-hero{
+  background:
+    radial-gradient(circle at 88% 8%,#ffffff30 0,transparent 46%),
+    linear-gradient(118deg,#b8420a 0%,#e2621a 52%,#f4903c 100%)!important;
+  box-shadow:0 20px 50px #b8420a2e;
+}
+.executive-hero.truthful{background:radial-gradient(circle at 85% 12%,#ffffff33 0,transparent 40%),linear-gradient(118deg,#a93c09,#e2621a 60%,#f4903c)!important}
+.data-hero.honest{background:radial-gradient(circle at 85% 12%,#ffffff30,transparent 44%),linear-gradient(118deg,#a93c09,#e2621a 60%,#f4903c)!important}
+/* Hero eyebrow + supporting copy tuned for the orange ground. */
+.executive-hero>div>span,.executive-hero span,.recommend-banner span,.transport-summary span,
+.data-hero>div>span,.forecast-hero span,.allocation-hero>div:first-child>span,
+.route-engine>div:first-child>span,.ops-home-hero>div:first-child>span,
+.capability-hero>div>span,.operations-hero>div>span,.release-hero>div>span{color:#ffe7d5!important}
+.executive-hero p,.recommend-banner p,.transport-summary p,.data-hero p,.forecast-hero p,
+.allocation-hero p,.route-engine p,.ops-home-hero p,.capability-hero p,.operations-hero p,
+.release-hero p{color:#fff1e6!important}
+.data-hero.honest>strong,.data-hero>strong{color:#fff!important}
+.recommend-banner>div:last-child{border-left-color:#ffffff33}
+.recommend-banner>div:last-child small{color:#ffe0cc}
+.model-state{border-color:#ffffff2b;background:#ffffff14}
+
+/* ---- Primary buttons in MEA orange ---- */
+.btn.primary{background:linear-gradient(120deg,#f06a1c,#ef7a30)!important;box-shadow:0 8px 20px #ee6a1f30!important}
+.btn.primary:hover{filter:brightness(1.04) saturate(1.05)}
+.btn.light{background:#fff;color:#9a3f10}
+
+/* ---- KPI cards: white surfaces, warm category dots ---- */
+.kpis article{background:#fff;border-color:#f0e6dd}
+.dot.purple{background:var(--orange)}
+.dot.blue{background:#c07d2a}
+.dot.green{background:var(--green)}
+.dot.orange{background:var(--orange)}
+
+/* ---- Login: orange brand panel + orange sign-in ---- */
+.login-visual{background:radial-gradient(circle at 80% 26%,#ff9a4d40 0,transparent 32%),radial-gradient(circle at 16% 84%,#ffb47a26 0,transparent 28%),linear-gradient(145deg,#7a2c06 0%,#c24a0d 56%,#ed6a1c 100%)!important}
+.login-copy>span{color:#ffd9b8}
+.login-brand>b,.mobile-logo>b{background:linear-gradient(145deg,#ff9a52,#ee6a1f)!important;box-shadow:0 12px 30px #b8420a55!important}
+.login-form-wrap{background:radial-gradient(circle at 100% 0,#fff1e6 0,transparent 38%),#fbf6f1}
+.login-submit{background:linear-gradient(115deg,#ef6a1c,#f2843a)!important;box-shadow:0 12px 28px #ee6a1f33!important}
+.login-submit:hover{box-shadow:0 16px 32px #ee6a1f3d!important}
+.login-form input:focus{border-color:#ef7a30;box-shadow:0 0 0 4px #ee6a1f1a}
+.demo-tag{border-color:#f6ddc7!important;background:#fff3e9!important;color:#b7561c!important}
+.demo-tag i{background:var(--orange)!important;box-shadow:0 0 0 4px #ee6a1f22!important}
+
+/* ---- Scope chip + focus ring aligned to orange ---- */
+.scope-chip{border-color:#f4dcc6!important;background:#fff3e9!important;color:#b7561c!important}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid #ee6a1f55!important;outline-offset:2px}
+
+/* Metric bars / progress in the warm family. */
+.metric-bar i{background:linear-gradient(90deg,var(--orange),#f6a35f)}
+.load span,.large-progress i,.readiness-bar i.gated{background:linear-gradient(90deg,var(--orange),#f6a35f)}
+
+/* ---- MEA orange: warm the remaining purple/blue tints ---- */
+.user-scope>i{background:linear-gradient(145deg,#ff8a3d,var(--orange))!important;color:#fff}
+.user-scope small{color:#b79a86}
+.user-scope strong{color:#fff}
+
+/* Purple/blue icon-chip backgrounds → warm cream. */
+.action-icon,.timeline-icon,.pipeline-strip button>i,.process-steps i,.abc,
+.workspace-launcher>button>i,.next-ops>button>i,.source-status>button>i.gated{background:#fff1e6;color:#b7561c}
+.abc,.recommend,.text-btn{color:#b7561c}
+.next-action{background:linear-gradient(110deg,#fff,#fff6ef);border-color:#f3e3d4}
+.action-card{background:linear-gradient(135deg,#fff,#fff6ef)}
+
+/* Subtle table row hovers → warm. */
+.live-table tbody tr:hover,.data-table tbody tr:hover,.data-table tbody tr.selected,
+.risk-row:hover,.source-status>button:hover,.next-ops>button:hover,.readiness-board>button:hover,
+.blockers>button:hover,.pipeline-strip button:hover,.delivery-flow>button:hover{background:#fdf6ef}
+
+/* Active tabs / pickers / toolbars → orange. */
+.tabs button.active{border-color:var(--orange);color:#b7561c}
+.module-toolbar button.active,.horizon-picker button.active,.forecast-controls .horizon-picker button.active{border-color:var(--orange);background:#fff1e6;color:#b7561c}
+.data-table input[type=checkbox]{accent-color:var(--orange)}
+
+/* Spark/plot data accents → warm. */
+.spark-bars i{background:linear-gradient(180deg,#ef7a30,#f6b784)}
+.plot-bars i.predicted{background:linear-gradient(180deg,#ef7a30,#f6b784)}
+
+/* AI assistant + launch (was blue) → warm. */
+.ai-launch{border-color:#f4dcc6;background:#fff3e9;color:#b7561c}
+.ai-launch i{color:var(--orange)}
+.ai-launch small{color:#b7561c}
+.assistant-panel>header{background:linear-gradient(115deg,#c24a0d,#ee6a1f)}
+.assistant-messages>div>span{background:var(--orange)}
+.assistant-messages .user>span{background:#b7561c}
+.assistant-messages .user p{border-color:#ef7a30;background:#ef7a30}
+.assistant-panel>form button{background:var(--orange)}
