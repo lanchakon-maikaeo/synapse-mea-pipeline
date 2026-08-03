@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MEA Synapse — Weekly Plan Preview</title>
+  <link rel="stylesheet" href="../app/globals.css?v=2">
+  <style>
+    html,body{max-width:100%;overflow-x:hidden}body{margin:0;background:#f5f7fa;color:#17213a}.preview{width:calc(100% - 252px);max-width:calc(100% - 252px);min-width:0;margin-left:252px;overflow-x:clip}.preview .topbar{position:sticky}.preview main{width:100%;min-width:0;max-width:100%;padding:28px 32px 50px}.preview .stage,.preview .stage>*,.preview .panel,.preview .user-status,.preview .planner-workspace-grid{min-width:0;max-width:100%}.preview .live-table-wrap{width:100%;max-width:100%;overflow-x:auto}.preview .user-status{grid-template-columns:repeat(4,minmax(0,1fr))}.preview-banner{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 14px;border:1px solid #f0d4bb;border-radius:9px;background:#fff8f1;color:#76501e;font-size:10px}.preview-banner b{padding:3px 7px;border-radius:999px;background:#ee6a1f;color:#fff;font-size:8px}.stage{display:none}.stage.active{display:grid;gap:18px}.preview table button{white-space:nowrap}.summary-actions{display:flex;justify-content:flex-end;gap:8px;padding:14px 17px}.change-alert{color:#a32937;font-weight:700}.approval-path{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:18px}.approval-path article{padding:16px;border:1px solid #dfe4eb;border-radius:10px;background:#fafbfc}.approval-path article.ready{border-color:#f0bf98;background:#fff8f1}.approval-path span{display:block;color:#8a95a6;font-size:8px}.approval-path strong{display:block;margin-top:5px;font-size:12px}.preview-toast{position:fixed;z-index:20;right:24px;bottom:24px;max-width:360px;padding:12px 16px;border-radius:10px;background:#17213a;color:#fff;box-shadow:0 16px 40px #17213a3d;font-size:11px;opacity:0;pointer-events:none;transform:translateY(8px);transition:.2s}.preview-toast.show{opacity:1;transform:none}@media(max-width:820px){.preview{width:100%;max-width:100%;margin-left:0}.preview main{padding:20px 14px}.preview .sidebar{display:none}.preview .shell{margin-left:0}.preview .user-status{grid-template-columns:1fr}}
+    .district-entry{margin-left:auto}.district-only-nav{display:none}body.district-mode .sidebar nav section:not(.district-only-nav){display:none}body.district-mode .district-only-nav{display:block}body.district-mode .sidebar>div:nth-of-type(3){display:none}.district-identity{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px 22px;border:1px solid #f0d4bb;border-radius:14px;background:linear-gradient(135deg,#fffaf6,#fff)}.district-identity .identity-main{display:flex;align-items:center;gap:14px}.district-identity .identity-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;background:#e3670a;color:#fff;font-size:18px;font-weight:800}.district-identity span,.district-identity small{display:block;color:#7d8799;font-size:10px}.district-identity strong{display:block;margin:3px 0;color:#17213a;font-size:18px}.district-meta{text-align:right}.district-meta b{display:block;margin-top:4px;color:#a8500e;font-size:12px}.district-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.district-kpis article{padding:16px 18px;border:1px solid #e2e6ec;border-radius:12px;background:#fff}.district-kpis span{display:block;color:#7d8799;font-size:9px}.district-kpis strong{display:block;margin:6px 0 2px;font-size:24px}.district-kpis small{color:#7d8799;font-size:9px}.district-line-list{display:grid;gap:14px;padding:16px}.district-line{border:1px solid #e1e5eb;border-radius:12px;overflow:hidden;background:#fff}.district-line.completed{border-color:#9fd7ba}.district-line.changed{border-color:#f0c28f}.district-line.rejected{border-color:#efb3bb}.district-line-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 18px;background:#fafbfc;border-bottom:1px solid #e6e9ee}.district-line-head strong{display:block;font-size:14px}.district-line-head small{display:block;margin-top:4px;color:#7d8799}.district-line-head .line-number{color:#e3670a;font-size:9px;font-weight:800;letter-spacing:.08em}.district-line-body{display:grid;grid-template-columns:minmax(260px,.9fr) minmax(360px,1.25fr);gap:18px;padding:18px}.district-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.district-facts div{padding:11px;border:1px solid #e6e9ee;border-radius:9px;background:#fbfcfd}.district-facts dt{color:#7d8799;font-size:8px}.district-facts dd{margin:5px 0 0;font-size:14px;font-weight:700}.district-response h4{margin:0 0 10px;font-size:11px}.decision-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.decision-buttons button{min-height:40px;padding:8px;border:1px solid #d9dee6;border-radius:9px;background:#fff;color:#536079;font-size:10px;font-weight:700;cursor:pointer}.decision-buttons button:hover{border-color:#e3670a;color:#a8500e}.decision-buttons button.selected[data-decision="confirm"]{border-color:#199a61;background:#ecfaf3;color:#137546}.decision-buttons button.selected[data-decision="change"]{border-color:#e38a32;background:#fff5e9;color:#a8500e}.decision-buttons button.selected[data-decision="reject"]{border-color:#cf4355;background:#fff0f2;color:#a32937}.district-detail-fields{display:none;grid-template-columns:130px 1fr 180px;gap:8px;margin-top:10px}.district-detail-fields.visible{display:grid}.district-detail-fields label{display:grid;gap:5px;color:#68758a;font-size:8px}.district-detail-fields input,.district-detail-fields textarea{width:100%;min-width:0;padding:9px 10px;border:1px solid #d9dee6;border-radius:8px;background:#fff;color:#17213a;font:inherit;font-size:10px}.district-detail-fields textarea{min-height:42px;resize:vertical}.district-submitbar{position:sticky;bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:4px;padding:14px 16px;border:1px solid #e1e5eb;border-radius:12px;background:#fffffff2;box-shadow:0 12px 35px #17213a17;backdrop-filter:blur(8px)}.district-submitbar strong{display:block;font-size:11px}.district-submitbar small{display:block;margin-top:3px;color:#7d8799;font-size:9px}.district-progress{color:#a8500e;font-weight:800}.district-submit[disabled]{opacity:.45;cursor:not-allowed}@media(max-width:1050px){.district-line-body{grid-template-columns:1fr}.district-detail-fields{grid-template-columns:120px 1fr}}@media(max-width:820px){.district-identity{align-items:flex-start;flex-direction:column}.district-meta{text-align:left}.district-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.decision-buttons,.district-detail-fields{grid-template-columns:1fr}.district-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.district-submitbar{align-items:stretch;flex-direction:column}.district-submitbar .btn{width:100%}}
+    body.district-mode .planner-workflow,body.district-mode .user-status{display:none}.district-add-request{border:1px dashed #e3a46d;background:#fffaf6}.district-add-request .panel-title{align-items:center}.add-request-intro{max-width:760px}.add-request-form{display:none;grid-template-columns:minmax(240px,1.5fr) 130px minmax(240px,1.4fr) 190px 130px;gap:10px;padding:16px 18px;border-top:1px solid #f0dfd0;background:#fffdfb}.add-request-form.visible{display:grid}.add-request-form label{display:grid;align-content:start;gap:5px;color:#68758a;font-size:8px}.add-request-form input,.add-request-form select{width:100%;min-width:0;height:40px;padding:8px 10px;border:1px solid #d9dee6;border-radius:8px;background:#fff;color:#17213a;font:inherit;font-size:10px}.add-request-actions{display:flex;align-items:flex-end;gap:7px}.add-request-actions .btn{height:40px}.additional-request-list:empty{display:none}.additional-request-list{display:grid;gap:8px;padding:0 18px 16px}.additional-request-card{display:grid;grid-template-columns:minmax(250px,1.4fr) 100px minmax(220px,1fr) 170px auto;align-items:center;gap:12px;padding:12px 14px;border:1px solid #f0c28f;border-radius:10px;background:#fff}.additional-request-card strong,.additional-request-card small{display:block}.additional-request-card small{margin-top:3px;color:#7d8799;font-size:8px}.additional-request-card .request-value{font-size:12px;font-weight:800}.remove-additional{border:0;background:transparent;color:#a32937;font-size:10px;font-weight:700;cursor:pointer}.request-guidance{display:flex;align-items:center;gap:8px;padding:0 18px 14px;color:#7d8799;font-size:9px}.request-guidance b{color:#a8500e}@media(max-width:1180px){.add-request-form{grid-template-columns:1fr 120px 1fr}.add-request-actions{align-items:center}.additional-request-card{grid-template-columns:1fr 90px 1fr}}@media(max-width:820px){.add-request-form,.additional-request-card{grid-template-columns:1fr}.add-request-actions{align-items:stretch}.add-request-actions .btn{flex:1}}
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span>MEA</span><div><strong>MEA Synapse</strong><small>งานคลังพัสดุ</small></div></div>
+    <div class="user-scope"><i>เ</i><div><small>บทบาทของคุณ</small><strong>เจ้าหน้าที่ส่วนกลาง</strong></div></div>
+    <div style="display:flex;gap:6px;padding:0 12px 6px">
+      <button style="flex:1;padding:8px 6px;border:1px solid transparent;border-radius:8px;background:#e3670a;color:#fff;font-size:12px;font-weight:600">คลังพัสดุ</button>
+      <button style="flex:1;padding:8px 6px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);font-size:12px;font-weight:600">ระบบขนส่ง</button>
+    </div>
+    <nav>
+      <section><p>เมนูหลัก</p>
+        <button><i>⌂</i>แดชบอร์ด</button>
+        <button class="active"><i>▤</i>คำนวณการจ่าย</button>
+        <button><i>✓</i>ประวัติแผนการจ่าย</button>
+        <button><i>!</i>ตรวจคำขอผิดปกติ</button>
+      </section>
+      <section><p>คลังสินค้า</p>
+        <button><i>▦</i>FIFO &amp; พาเลท</button>
+        <button><i>＋</i>รับพัสดุเข้าคลัง</button>
+        <button><i>↗</i>จ่ายกรณีพิเศษ</button>
+        <button><i>⌕</i>สอบกลับการจ่าย</button>
+      </section>
+      <section><p>ข้อมูล &amp; ควบคุม</p>
+        <button><i>✦</i>หลักฐานปริมาณ</button>
+        <button><i>◈</i>Intelligence (advisory)</button>
+        <button><i>◫</i>ข้อมูล Stock</button>
+        <button><i>↻</i>อัปเดต Stock</button>
+        <button><i>▥</i>ข้อมูล SAP / คุณภาพ</button>
+        <button><i>⚙</i>ศูนย์ควบคุม</button>
+        <button><i>◉</i>ขอบเขตรุ่น</button>
+      </section>
+      <section class="district-only-nav"><p>งานของการไฟฟ้าเขต</p>
+        <button><i>⌂</i>ภาพรวมของเขต</button>
+        <button class="active"><i>✓</i>ยืนยันแผนการจ่าย</button>
+        <button><i>◷</i>ประวัติคำตอบ</button>
+        <button><i>!</i>คำขอนอกแผน</button>
+      </section>
+    </nav>
+    <div class="release-badge"><small>ข้อมูลล่าสุด</small><strong>21 ก.ค. 2569 07:00</strong><span>ข้อมูลจริงจากระบบงาน</span></div>
+  </aside>
+
+  <div class="preview">
+    <header class="topbar">
+      <div class="breadcrumb"><span>MEA SYNAPSE</span><i>/</i><strong>คำนวณการจ่าย</strong></div>
+      <div class="header-actions">
+        <form class="global-search"><button type="button" aria-label="ค้นหา">⌕</button><input placeholder="ค้นหาเมนู"><kbd>Ctrl K</kbd></form>
+        <button class="last-sync live-sync"><i></i>21 ก.ค. 2569 07:00</button>
+        <span class="badge urgent"><i></i>LOCAL PREVIEW</span>
+        <button class="btn ghost logout">ออกจากระบบ</button>
+      </div>
+    </header>
+    <main>
+      <div class="page-head"><div><span>WEEKLY PLAN</span><h1>สร้างแผนการจ่ายรายสัปดาห์</h1><p>เลือกจำนวนรายรายการ พร้อมหลักฐาน AI และ FIFO ก่อนส่งให้เขตยืนยัน</p></div></div>
+      <div class="preview-banner"><b>PREVIEW DATA</b><span>ข้อมูลในหน้านี้เป็นตัวอย่างเพื่อรีวิว UX เท่านั้น ไม่เขียนทับ Production</span><button class="btn ghost district-entry" data-go="3">ดูหน้าจอ District User</button></div>
+
+      <section class="workflow planner-workflow" aria-label="ขั้นตอน">
+        <button class="workflow-step current" data-go="0"><span>1</span><div><strong>Build Plan</strong><small>เลือกพัสดุ · กำหนดจำนวน · ดู AI + FIFO</small></div><i></i></button>
+        <button class="workflow-step" data-go="2"><span>2</span><div><strong>District Review</strong><small>สรุปแผน · เขตยืนยัน · Planner ตรวจการเปลี่ยน</small></div><i></i></button>
+        <button class="workflow-step" data-go="5"><span>3</span><div><strong>Approve &amp; Lock</strong><small>Planner → วิชาการ → Lock FIFO</small></div></button>
+      </section>
+
+      <section class="user-status" style="margin-top:18px">
+        <article><span>รายการที่เลือก</span><strong>0</strong><small>ต้องเลือกเข้าแผนก่อนยืนยัน</small></article>
+        <article><span>เขตในแผน</span><strong>0</strong><small>รวมจากรายการที่เลือก</small></article>
+        <article><span>รายการเข้าเกณฑ์</span><strong>3</strong><small>เรียง Priority สูงก่อน</small></article>
+        <article><span>คำขอเปลี่ยน</span><strong>1</strong><small>รอ Planner Review</small></article>
+      </section>
+
+      <div class="stage active" data-stage="0" style="margin-top:18px">
+        <section class="filter-bar planner-filter">
+          <div class="search-switch"><button class="active">ค้นหารายเขต</button><button>ค้นหารายพัสดุ</button></div>
+          <select class="district-select" aria-label="เลือกการไฟฟ้าเขต">
+            <option value="">ทุกเขตที่เข้าเกณฑ์</option>
+            <option value="5501">5501 : เขตนวลจันทร์</option><option value="5601">5601 : เขตสามเสน</option>
+            <option value="5701">5701 : เขตนนทบุรี</option><option value="5801">5801 : เขตธนบุรี</option>
+            <option value="5901">5901 : เขตบางใหญ่</option><option value="6001">6001 : เขตลาดกระบัง</option>
+            <option value="6501">6501 : เขตบางนา</option><option value="6601">6601 : เขตวัดเลียบ</option>
+            <option value="6701">6701 : เขตคลองเตย</option><option value="6801">6801 : เขตราษฎร์บูรณะ</option>
+            <option value="6901">6901 : เขตยานนาวา</option><option value="7001">7001 : เขตบางขุนเทียน</option>
+            <option value="7501">7501 : เขตบางบัวทอง</option><option value="7601">7601 : เขตบางกะปิ</option>
+            <option value="7701">7701 : เขตสมุทรปราการ</option><option value="7801">7801 : เขตบางพลี</option>
+            <option value="7901">7901 : เขตมีนบุรี</option><option value="8001">8001 : เขตบางเขน</option>
+          </select>
+          <input class="material-search" placeholder="พิมพ์รหัสหรือชื่อพัสดุ" aria-label="ค้นหารายพัสดุ" list="material-options" hidden>
+          <datalist id="material-options"><option value="592038410000 : Fuse cutout 12kA"></option><option value="21920122300 : Transformer unit"></option><option value="21920522320 : Transformer 1000kVA"></option></datalist>
+          <button class="btn primary plan-review" disabled>ยืนยันรายการที่เลือก (0)</button>
+        </section>
+        <section class="planner-preview-note"><strong>DISPLAY RULE</strong><span>รายเขตแสดงเฉพาะพัสดุที่ต้องเติม · รายพัสดุแสดงครบ 18 เขต · กรอก Planner Qty แล้วต้อง “เลือกเข้าแผน” อีกครั้งจึงจะยืนยันได้</span></section>
+        <section class="planner-workspace-grid">
+          <article class="panel planner-picker">
+            <div class="panel-title"><div><span>PLANNER WORKSPACE</span><h3>กรอกจำนวน → เลือกเข้าแผน → ยืนยันรายการที่เลือก</h3></div><b>0 เลือกแล้ว · 3 พบ</b></div>
+            <div class="planner-selection-tools"><span>Planner Qty แก้ไขได้ทุกแถว แต่จะยังไม่เข้า Draft Plan จนกว่าจะติ๊กเลือก</span><div><button class="btn ghost select-with-qty">เลือกทุกแถวที่มี Qty</button><button class="btn ghost clear-selected">ล้างที่เลือก</button></div></div>
+            <div class="live-table-wrap"><table class="live-table planner-item-table">
+              <thead><tr><th>เลือกเข้าแผน</th><th>สถานะการเติม</th><th>การไฟฟ้าเขต</th><th>พัสดุ</th><th>Stock คลังกลาง</th><th>Stock เขต</th><th>CMP</th><th>MIN</th><th>MAX</th><th>เหลือ (เดือน)</th><th>AI Suggestion</th><th>Planner Qty</th></tr></thead>
+              <tbody class="planner-items-body"></tbody>
+            </table></div>
+          </article>
+          <aside class="panel planner-evidence">
+            <div class="panel-title"><div><span>AI + FIFO EVIDENCE</span><h3 class="evidence-title">592038410000 · 5501 : เขตนวลจันทร์</h3></div><span class="badge urgent"><i></i>HIGH</span></div>
+            <div class="evidence-body">
+              <div class="suggestion-card"><span>✦ AI / RULE SUGGESTION</span><strong class="evidence-ai">420</strong><small>Business Rule V1 + ประวัติการรับของเขต</small><span class="badge normal"><i></i>evidence ready</span></div>
+              <dl class="evidence-metrics"><div><dt>Stock คลังคลองเตย</dt><dd data-field="warehouse">655</dd></div><div><dt>Stock เขต</dt><dd data-field="stock">225</dd></div><div><dt>CMP / เดือน</dt><dd data-field="cmp">110</dd></div><div><dt>เดือนที่เหลือ</dt><dd data-field="months">2.0M</dd></div><div><dt>MIN Fill · 4M</dt><dd data-field="min">215</dd></div><div><dt>MAX Fill · 6M</dt><dd data-field="max">435</dd></div><div><dt>Planner Qty</dt><dd data-field="planner">420</dd></div></dl>
+              <div class="fifo-preview"><header><div><span>FIFO + PACKING PICK PLAN</span><strong>ระบุ Full Pallet / Box / Crate / หน่วยย่อย และ Remain</strong></div><b class="fifo-count">หยิบรวม 420 EA</b></header>
+                <div class="fifo-preview-list">
+                  <article><div><strong>#1 · HU-KT-000184</strong><small>รับ 12 ก.ค. 2569 · งวด 1</small></div><div><span>PO-450001 · Contract C-001 · SUP-000104</span><small>พร้อมหยิบ 100 · แผนหยิบ 100 · Remain 0</small></div></article>
+                  <article><div><strong>#2 · HU-KT-000191</strong><small>รับ 18 ก.ค. 2569 · งวด 2</small></div><div><span>PO-450014 · Contract C-014 · SUP-000104</span><small>พร้อมหยิบ 200 · แผนหยิบ 200 · Remain 0</small></div></article>
+                  <article><div><strong>#3 · HU-KT-000207</strong><small>รับ 22 ก.ค. 2569 · งวด 3</small></div><div><span>PO-450021 · Contract C-021 · SUP-000207</span><small>พร้อมหยิบ 180 · แผนหยิบ 120 · Remain 60</small></div></article>
+                  <article><div><strong>#4 · HU-KT-000224</strong><small>รับ 29 ก.ค. 2569 · งวด 1</small></div><div><span>PO-450030 · Contract C-030 · SUP-000318</span><small>พร้อมหยิบ 175 · แผนหยิบ 0 · Remain 175</small></div></article>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </section>
+        <div class="planner-next"><div><strong class="selected-confirm-count">0 รายการที่เลือก</strong><small>ตรวจ Planner Qty และ Packing/FIFO ก่อนยืนยันเป็น Draft Plan</small></div><button class="btn primary plan-review" disabled>ยืนยันรายการที่เลือกเข้า Draft Plan (0) →</button></div>
+      </div>
+
+      <div class="stage" data-stage="2" style="margin-top:18px">
+        <section class="panel">
+          <div class="panel-title"><div><span>DRAFT PLAN CONFIRMATION</span><h3>รายการที่ Planner เลือกแล้ว — ตรวจจำนวนและแผนหยิบก่อนส่งเขต</h3></div><b class="summary-count">0 รายการ · 0 เขต</b></div>
+          <section class="plan-summary-kpis"></section>
+          <div class="live-table-wrap"><table class="live-table">
+            <thead><tr><th>การไฟฟ้าเขต</th><th>จำนวนรายการ</th><th>Planner Qty รวม</th><th>สถานะ</th><th>ตรวจรายการ</th></tr></thead>
+            <tbody class="district-summary-body"></tbody>
+          </table></div>
+          <div class="panel-title plan-line-summary"><div><span>LINE ITEMS</span><h3>รายการทั้งหมดใน Draft เดียวกัน ไม่ว่าค้นหาจากเขตหรือพัสดุ</h3></div></div>
+          <div class="live-table-wrap"><table class="live-table">
+            <thead><tr><th>การไฟฟ้าเขต</th><th>พัสดุ</th><th>Stock กลาง</th><th>Stock เขต</th><th>MIN / MAX</th><th>AI Suggestion</th><th>Planner Qty</th><th>สถานะ</th><th>แผนหยิบ FIFO + Packing</th></tr></thead>
+            <tbody class="plan-summary-body"></tbody>
+          </table></div>
+          <div class="summary-actions"><button class="btn ghost" data-go="0">← กลับไปแก้รายการ</button><button class="btn primary" data-go="3">ยืนยัน Draft Plan และส่งให้เขตตรวจทีละรายการ →</button></div>
+        </section>
+      </div>
+
+      <div class="stage" data-stage="3" style="margin-top:18px">
+        <section class="district-identity">
+          <div class="identity-main"><span class="identity-icon">น</span><div><span>DISTRICT WORKSPACE · พื้นที่ของผู้ใช้งานเขต</span><strong>5501 : เขตนวลจันทร์</strong><small>เห็นและตอบได้เฉพาะรายการของเขตตนเอง</small></div></div>
+          <div class="district-meta"><span>Weekly Plan</span><b>WP-2569-W30 · Version 1</b><small>กรุณาตอบภายใน 2 ส.ค. 2569 เวลา 16:00 น.</small></div>
+        </section>
+        <section class="district-kpis">
+          <article><span>รายการรอยืนยัน</span><strong>2</strong><small>ต้องตอบทีละรายการ</small></article>
+          <article><span>Planner Qty รวม</span><strong>446</strong><small>หน่วย</small></article>
+          <article><span>ตอบแล้ว</span><strong class="district-completed-count">0 / 2</strong><small>รายการ</small></article>
+          <article><span>เวลาที่เหลือ</span><strong>1 วัน</strong><small>ก่อนปิดรับคำตอบ</small></article>
+        </section>
+        <section class="plain-notice warning"><i>!</i><div><strong>ยืนยันเป็นรายรายการ ไม่ใช่ยืนยันทั้งยอด</strong><p>หากขอเปลี่ยนจำนวนหรือไม่รับ ต้องระบุเหตุผลและชื่อผู้ร้องขอ เพื่อส่งกลับให้ Planner คลังคลองเตยตรวจอีกครั้ง</p></div></section>
+        <section class="panel">
+          <div class="panel-title"><div><span>DISTRICT LINE CONFIRMATION</span><h3>ตรวจแผนการจ่ายและตอบกลับทีละรายการ</h3></div><b class="district-progress">ยังไม่ตอบ 2 รายการ</b></div>
+          <div class="district-line-list">
+            <article class="district-line" data-line="592038410000" data-planner="420">
+              <header class="district-line-head"><div><span class="line-number">LINE 01</span><strong>592038410000 · Fuse cutout 12kA</strong><small>หน่วย EA · สถานะ Stock: ต้องเติม</small></div><span class="badge urgent"><i></i>HIGH</span></header>
+              <div class="district-line-body">
+                <dl class="district-facts"><div><dt>Stock เขต</dt><dd>225</dd></div><div><dt>CMP / เดือน</dt><dd>110</dd></div><div><dt>เหลือ</dt><dd>2.0M</dd></div><div><dt>MIN Fill · 4M</dt><dd>215</dd></div><div><dt>MAX Fill · 6M</dt><dd>435</dd></div><div><dt>Planner Qty</dt><dd>420 EA</dd></div></dl>
+                <div class="district-response"><h4>คำตอบของเขตสำหรับรายการนี้</h4><div class="decision-buttons"><button data-decision="confirm">✓ ยืนยันรับ 420</button><button data-decision="change">↕ ขอเปลี่ยนจำนวน</button><button data-decision="reject">× ไม่รับรายการ</button></div><div class="district-detail-fields"><label>จำนวนที่เขตขอ<input class="district-request-qty" type="number" min="0" value="420"></label><label>เหตุผล<textarea class="district-reason" placeholder="ระบุเหตุผลที่ขอเปลี่ยนหรือไม่รับ"></textarea></label><label>ชื่อผู้ร้องขอ<input class="district-requester" placeholder="ชื่อ-นามสกุล"></label></div></div>
+              </div>
+            </article>
+            <article class="district-line" data-line="21920122300" data-planner="26">
+              <header class="district-line-head"><div><span class="line-number">LINE 02</span><strong>21920122300 · Transformer unit</strong><small>หน่วย EA · สถานะ Stock: ต้องเติม</small></div><span class="badge urgent"><i></i>HIGH</span></header>
+              <div class="district-line-body">
+                <dl class="district-facts"><div><dt>Stock เขต</dt><dd>22</dd></div><div><dt>CMP / เดือน</dt><dd>8</dd></div><div><dt>เหลือ</dt><dd>2.8M</dd></div><div><dt>MIN Fill · 4M</dt><dd>10</dd></div><div><dt>MAX Fill · 6M</dt><dd>26</dd></div><div><dt>Planner Qty</dt><dd>26 EA</dd></div></dl>
+                <div class="district-response"><h4>คำตอบของเขตสำหรับรายการนี้</h4><div class="decision-buttons"><button data-decision="confirm">✓ ยืนยันรับ 26</button><button data-decision="change">↕ ขอเปลี่ยนจำนวน</button><button data-decision="reject">× ไม่รับรายการ</button></div><div class="district-detail-fields"><label>จำนวนที่เขตขอ<input class="district-request-qty" type="number" min="0" value="26"></label><label>เหตุผล<textarea class="district-reason" placeholder="ระบุเหตุผลที่ขอเปลี่ยนหรือไม่รับ"></textarea></label><label>ชื่อผู้ร้องขอ<input class="district-requester" placeholder="ชื่อ-นามสกุล"></label></div></div>
+              </div>
+            </article>
+          </div>
+        </section>
+        <section class="panel district-add-request">
+          <div class="panel-title"><div class="add-request-intro"><span>ADDITIONAL ITEM REQUEST</span><h3>ต้องการพัสดุเพิ่มเติมจากรายการที่ Planner ส่งมา?</h3><small>เพิ่มได้ใน Weekly Plan นี้ แต่ต้องมีเหตุผลและรอ Planner คลังคลองเตยอนุมัติก่อนจึงจะเข้า Final Plan และจัด FIFO</small></div><button class="btn primary open-add-request">+ ขอเพิ่มพัสดุในแผนนี้</button></div>
+          <div class="add-request-form">
+            <label>ค้นหาพัสดุ<input class="additional-material" list="district-material-options" placeholder="พิมพ์รหัสหรือชื่อพัสดุ"></label>
+            <datalist id="district-material-options"><option value="4710500040000 : PVC CONDUIT 3/8 IN (15 MM) X 4 M."></option><option value="21920522320 : Transformer 1000kVA"></option><option value="592038410000 : Fuse cutout 12kA"></option><option value="21920122300 : Transformer unit"></option></datalist>
+            <label>จำนวนที่ขอ<input class="additional-qty" type="number" min="1" placeholder="0"></label>
+            <label>เหตุผลที่ขอเพิ่ม<input class="additional-reason" placeholder="เช่น รองรับงานเร่งด่วน / Stock ไม่เพียงพอ"></label>
+            <label>ชื่อผู้ร้องขอ<input class="additional-requester" placeholder="ชื่อ-นามสกุล"></label>
+            <label>ความเร่งด่วน<select class="additional-priority"><option value="normal">ปกติ</option><option value="urgent">เร่งด่วน</option></select></label>
+            <div class="add-request-actions"><button class="btn ghost cancel-add-request">ยกเลิก</button><button class="btn primary save-add-request" disabled>เพิ่มคำขอ</button></div>
+          </div>
+          <div class="request-guidance"><b>กติกา:</b><span>ถ้าพัสดุมีอยู่ในรายการด้านบน ให้ใช้ “ขอเปลี่ยนจำนวน” แทน ระบบจะไม่สร้างรายการซ้ำ</span></div>
+          <div class="additional-request-list"></div>
+        </section>
+        <div class="district-submitbar"><div><strong><span class="district-submit-count">0 จาก 2</span> รายการพร้อมส่งกลับ Planner</strong><small>ระบบจะส่งเฉพาะเมื่อทุกรายการมีคำตอบครบ และคำขอเปลี่ยนมีเหตุผลกับชื่อผู้ร้องขอ</small></div><div style="display:flex;gap:8px"><button class="btn ghost" data-go="2">← กลับมุมมอง Planner</button><button class="btn primary district-submit" disabled>ส่งคำตอบทั้งหมดให้ Planner →</button></div></div>
+      </div>
+
+      <div class="stage" data-stage="4" style="margin-top:18px"><section class="plain-notice warning"><i>!</i><div><strong>ตรวจเฉพาะรายการที่เขตเปลี่ยนหรือปฏิเสธ</strong><p>คำขอเกิน 6 เดือนต้องเตือน และเกิน 9 เดือนต้องอนุมัติพิเศษ</p></div></section><section class="panel"><div class="panel-title"><div><span>PLANNER REVIEW</span><h3>เหตุผล ผู้ขอ และผลกระทบ</h3></div><b>2 รายการ</b></div><div class="live-table-wrap"><table class="live-table"><thead><tr><th>พัสดุ / เขต</th><th>ฐาน</th><th>เขตขอ</th><th>หลังจ่าย</th><th>ผู้ขอ</th><th>เหตุผล</th><th>ผลตรวจ</th></tr></thead><tbody><tr><td><strong>21920122300 · 5501</strong></td><td>26</td><td class="change-alert">32</td><td>6.8M</td><td>เจ้าหน้าที่เขต A</td><td>รองรับงานเร่งด่วน</td><td><button class="table-action">Approve / Reject</button></td></tr><tr><td><strong>21920522320 · 5601</strong></td><td>14</td><td>0</td><td>1.3M</td><td>เจ้าหน้าที่เขต B</td><td>พื้นที่จัดเก็บไม่พร้อม</td><td><button class="table-action">Approve / Reject</button></td></tr></tbody></table></div></section></div>
+
+      <div class="stage" data-stage="5" style="margin-top:18px"><section class="panel"><div class="panel-title"><div><span>SEQUENTIAL APPROVAL</span><h3>อนุมัติตามลำดับก่อน Lock Plan</h3></div><span class="badge urgent"><i></i>PENDING</span></div><div class="approval-path"><article class="ready"><span>STEP 1</span><strong>Planner Review ครบแล้ว</strong><small>พร้อมอนุมัติแผน</small></article><article><span>STEP 2</span><strong>วิชาการอนุมัติ</strong><small>เกิน 9 เดือนต้องมีหมายเหตุ</small></article><article><span>STEP 3</span><strong>Lock + Reserve FIFO</strong><small>ผูกสัญญา พาเลท และ Remain</small></article></div><div class="summary-actions"><button class="btn ghost">ยกเลิก / ออกเวอร์ชันใหม่</button><button class="btn primary">Planner อนุมัติ →</button></div></section></div>
+    </main>
+  </div>
+  <div class="preview-toast" role="status" aria-live="polite"></div>
+  <script>
+    const steps=[...document.querySelectorAll("[data-go]")],panels=[...document.querySelectorAll("[data-stage]")],flow=[...document.querySelectorAll(".planner-workflow .workflow-step")];
+    const toast=document.querySelector(".preview-toast"),scopeTitle=document.querySelector(".user-scope strong"),pageTitle=document.querySelector(".page-head h1"),pageDescription=document.querySelector(".page-head p"),breadcrumbTitle=document.querySelector(".breadcrumb strong"),districtEntry=document.querySelector(".district-entry");let toastTimer;
+    function notify(message){toast.textContent=message;toast.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove("show"),2200)}
+    function show(index){
+      const phase=index<2?0:index<5?1:2;
+      if(index===2)renderSummary();
+      const districtMode=index===3;
+      document.body.classList.toggle("district-mode",districtMode);
+      scopeTitle.textContent=districtMode?"ผู้ใช้งานเขต 5501":"เจ้าหน้าที่ส่วนกลาง";
+      pageTitle.textContent=districtMode?"ยืนยันแผนการจ่ายของเขต":"สร้างแผนการจ่ายรายสัปดาห์";
+      pageDescription.textContent=districtMode?"ตรวจและตอบกลับทีละรายการ ก่อนส่งให้ Planner คลังคลองเตย":"เลือกจำนวนรายรายการ พร้อมหลักฐาน AI และ FIFO ก่อนส่งให้เขตยืนยัน";
+      breadcrumbTitle.textContent=districtMode?"ยืนยันแผนการจ่าย":"คำนวณการจ่าย";
+      districtEntry.textContent=districtMode?"กลับหน้าจอ Planner":"ดูหน้าจอ District User";
+      districtEntry.dataset.go=districtMode?"2":"3";
+      panels.forEach(panel=>panel.classList.toggle("active",Number(panel.dataset.stage)===index));
+      flow.forEach((step,i)=>{step.classList.toggle("current",i===phase);step.classList.toggle("done",i<phase)});
+      scrollTo({top:0,behavior:"smooth"});
+    }
+    steps.forEach(button=>button.addEventListener("click",()=>show(Number(button.dataset.go))));
+
+    const districts=[
+      ["5501","เขตนวลจันทร์"],["5601","เขตสามเสน"],["5701","เขตนนทบุรี"],["5801","เขตธนบุรี"],["5901","เขตบางใหญ่"],["6001","เขตลาดกระบัง"],
+      ["6501","เขตบางนา"],["6601","เขตวัดเลียบ"],["6701","เขตคลองเตย"],["6801","เขตราษฎร์บูรณะ"],["6901","เขตยานนาวา"],["7001","เขตบางขุนเทียน"],
+      ["7501","เขตบางบัวทอง"],["7601","เขตบางกะปิ"],["7701","เขตสมุทรปราการ"],["7801","เขตบางพลี"],["7901","เขตมีนบุรี"],["8001","เขตบางเขน"]
+    ];
+    const districtNames=Object.fromEntries(districts.map(([id,name])=>[id,`${id} : ${name}`]));
+    const materials={
+      "592038410000":{name:"Fuse cutout 12kA",warehouse:655,cmp:110},
+      "21920122300":{name:"Transformer unit",warehouse:84,cmp:8},
+      "21920522320":{name:"Transformer 1000kVA",warehouse:30,cmp:3}
+    };
+    const candidates=[
+      {district:"5501",material:"592038410000",name:"Fuse cutout 12kA",warehouse:655,stock:225,cmp:110,min:215,max:435,months:2.0,ai:420,needs:true},
+      {district:"5501",material:"21920122300",name:"Transformer unit",warehouse:84,stock:22,cmp:8,min:10,max:26,months:2.8,ai:26,needs:true},
+      {district:"5601",material:"21920522320",name:"Transformer 1000kVA",warehouse:30,stock:4,cmp:3,min:8,max:14,months:1.3,ai:14,needs:true}
+    ];
+    const keyOf=row=>`${row.district}|${row.material}`;
+    const quantities=new Map(candidates.map(row=>[keyOf(row),row.ai]));
+    const rowCache=new Map(candidates.map(row=>[keyOf(row),row]));
+    const monthPattern=[2,2.7,3.2,3.8,4.4,5,6.2,7.1,1.4,2.2,3.6,4.9,5.7,6.8,0,2.9,4.1,7.5];
+    const fifoByMaterial={
+      "592038410000":[
+        {hu:"HU-KT-000184",po:"PO-450001",contract:"C-001",vendor:"Drummy Vendor A",date:"12 ก.ค. 2569",installment:1,available:100,unitType:"FULL_PALLET",packSize:100},
+        {hu:"HU-KT-000191",po:"PO-450014",contract:"C-014",vendor:"Drummy Vendor A",date:"18 ก.ค. 2569",installment:2,available:200,unitType:"FULL_PALLET",packSize:200},
+        {hu:"HU-KT-000207",po:"PO-450021",contract:"C-021",vendor:"Drummy Vendor B",date:"22 ก.ค. 2569",installment:3,available:180,unitType:"FULL_PALLET",packSize:180},
+        {hu:"HU-KT-000224",po:"PO-450030",contract:"C-030",vendor:"Drummy Vendor C",date:"29 ก.ค. 2569",installment:1,available:175,unitType:"FULL_PALLET",packSize:175}
+      ],
+      "21920122300":[
+        {hu:"HU-KT-000072",po:"PO-449881",contract:"C-881",vendor:"Drummy Vendor D",date:"2 มิ.ย. 2569",installment:1,available:10,unitType:"BOX",packSize:5},
+        {hu:"HU-KT-000119",po:"PO-449940",contract:"C-940",vendor:"Drummy Vendor E",date:"20 มิ.ย. 2569",installment:2,available:30,unitType:"BOX",packSize:5},
+        {hu:"HU-KT-000168",po:"PO-449988",contract:"C-988",vendor:"Drummy Vendor E",date:"8 ก.ค. 2569",installment:3,available:44,unitType:"BOX",packSize:5}
+      ],
+      "21920522320":[
+        {hu:"HU-KT-000151",po:"PO-449970",contract:"C-970",vendor:"Drummy Vendor F",date:"29 มิ.ย. 2569",installment:1,available:12,unitType:"CRATE",packSize:1},
+        {hu:"HU-KT-000211",po:"PO-450024",contract:"C-024",vendor:"Drummy Vendor F",date:"24 ก.ค. 2569",installment:2,available:18,unitType:"CRATE",packSize:1}
+      ]
+    };
+    const modeButtons=[...document.querySelectorAll(".search-switch button")],districtSelect=document.querySelector(".district-select"),materialSearch=document.querySelector(".material-search");
+    const itemsBody=document.querySelector(".planner-items-body"),reviewButtons=[...document.querySelectorAll(".plan-review")];
+    const selectedTotal=document.querySelector(".user-status article:first-child strong"),districtTotal=document.querySelector(".user-status article:nth-child(2) strong");
+    const candidateTotal=document.querySelector(".user-status article:nth-child(3) strong"),candidateLabel=document.querySelector(".planner-picker .panel-title > b");
+    const selectedKeys=new Set();
+    let displayedRows=[];
+
+    function rowsForMaterial(materialId){
+      const material=materials[materialId];
+      if(!material)return[];
+      return districts.map(([district],index)=>{
+        const existing=candidates.find(row=>row.district===district&&row.material===materialId);
+        if(existing)return existing;
+        const months=monthPattern[index],stock=Math.round(material.cmp*months),needs=material.cmp>0&&months<=3.5;
+        return {district,material:materialId,name:material.name,warehouse:material.warehouse,stock,cmp:material.cmp,min:Math.max(0,material.cmp*4-stock),max:Math.max(0,material.cmp*6-stock),months,ai:needs?Math.max(0,material.cmp*6-stock):0,needs};
+      }).sort((a,b)=>Number(b.needs)-Number(a.needs)||a.district.localeCompare(b.district));
+    }
+    function currentRows(){
+      if(modeButtons[0].classList.contains("active")){
+        const district=districtSelect.value;
+        return candidates.filter(row=>!district||row.district===district);
+      }
+      const token=materialSearch.value.split(":")[0].trim();
+      return rowsForMaterial(token);
+    }
+    function planRows(){return [...rowCache.values()].filter(row=>selectedKeys.has(keyOf(row))&&(quantities.get(keyOf(row))||0)>0)}
+    function syncPlan(){
+      const rows=planRows(),districtCount=new Set(rows.map(row=>row.district)).size;
+      selectedTotal.textContent=rows.length;districtTotal.textContent=districtCount;
+      reviewButtons.forEach(button=>{
+        button.disabled=!rows.length;
+        button.textContent=button.closest(".planner-next")?`ยืนยันรายการที่เลือกเข้า Draft Plan (${rows.length}) →`:`ยืนยันรายการที่เลือก (${rows.length})`;
+      });
+      document.querySelector(".selected-confirm-count").textContent=`${rows.length} รายการที่เลือก`;
+      candidateLabel.textContent=`${rows.length} เลือกแล้ว · ${displayedRows.length} พบ`;
+    }
+    function renderRows(){
+      displayedRows=currentRows();
+      displayedRows.forEach(row=>rowCache.set(keyOf(row),row));
+      itemsBody.innerHTML=displayedRows.map(row=>{
+        const qty=quantities.get(keyOf(row))||0;
+        const selected=selectedKeys.has(keyOf(row));
+        return `<tr class="${selected?"in-plan":""}" data-key="${keyOf(row)}"><td class="plan-select-cell"><label><input class="plan-select" type="checkbox" aria-label="เลือกพัสดุ ${row.material} เขต ${row.district} เข้าแผน" ${selected?"checked":""} ${qty<=0?"disabled":""}><span>${selected?"เลือกแล้ว":qty>0?"เลือก":"ใส่ Qty ก่อน"}</span></label></td><td><span class="stock-state ${row.needs?"needs-fill":"no-fill"}">${row.needs?"ต้องเติม":"ไม่ต้องเติม"}</span></td><td><strong>${districtNames[row.district]}</strong></td><td><strong>${row.material}</strong><small>${row.name}</small></td><td>${row.warehouse.toLocaleString()}</td><td>${row.stock.toLocaleString()}</td><td>${row.cmp.toLocaleString()}</td><td>${row.min.toLocaleString()}</td><td>${row.max.toLocaleString()}</td><td>${row.months.toFixed(1)}M</td><td><span class="ai-suggestion">✦ AI ${row.ai.toLocaleString()}</span></td><td><input class="planner-qty" aria-label="Planner Qty ${row.material} ${row.district}" value="${qty}" min="0" type="number"></td></tr>`;
+      }).join("");
+      candidateTotal.textContent=displayedRows.length;
+      syncPlan();
+      if(displayedRows.length)renderEvidence(displayedRows[0]);
+    }
+    const packLabels={FULL_PALLET:"Full Pallet",BOX:"Box",CRATE:"Crate",BUNDLE:"Bundle",LOOSE:"Bundle/Loose",LONG_MATERIAL:"Long Material"};
+    function packingText(lot,qty){
+      const label=packLabels[lot.unitType]||"Handling Unit",size=Math.max(1,lot.packSize||1);
+      if(size<=1||["LOOSE","LONG_MATERIAL"].includes(lot.unitType))return `${qty.toLocaleString()} ${label}`;
+      const whole=Math.floor(qty/size),loose=qty-whole*size,parts=[];
+      if(whole>0)parts.push(`${whole.toLocaleString()} ${label} × ${size.toLocaleString()} EA`);
+      if(loose>0)parts.push(`เปิด ${label} หยิบย่อย ${loose.toLocaleString()} EA`);
+      return parts.join(" + ")||`0 ${label}`;
+    }
+    function fifoPlan(row){
+      let remaining=quantities.get(keyOf(row))||0;
+      const lots=(fifoByMaterial[row.material]||[]).map(lot=>{
+        const planned=Math.min(lot.available,remaining);remaining-=planned;
+        return {...lot,planned,remain:lot.available-planned};
+      });
+      return {lots,shortage:remaining};
+    }
+    function renderEvidence(row){
+      document.querySelectorAll(".planner-item-table tbody tr").forEach(item=>item.classList.toggle("selected",item.dataset.key===keyOf(row)));
+      document.querySelector(".evidence-title").textContent=`${row.material} · ${districtNames[row.district]}`;
+      document.querySelector(".evidence-ai").textContent=row.ai;
+      for(const field of ["warehouse","stock","cmp","min","max"])document.querySelector(`[data-field="${field}"]`).textContent=row[field].toLocaleString();
+      document.querySelector('[data-field="months"]').textContent=`${row.months.toFixed(1)}M`;
+      const qty=quantities.get(keyOf(row))||0;document.querySelector('[data-field="planner"]').textContent=qty.toLocaleString();
+      const plan=fifoPlan(row),packingSummary=plan.lots.filter(lot=>lot.planned>0).map(lot=>packingText(lot,lot.planned)).join(" + ");
+      document.querySelector(".fifo-count").textContent=`หยิบรวม ${qty.toLocaleString()} EA`;
+      document.querySelector(".fifo-preview-list").innerHTML=`<div class="packing-summary"><span>PACKING BREAKDOWN</span><strong>${packingSummary||"ยังไม่กำหนดจำนวนหยิบ"}</strong><small>ข้อมูล Packing ใน Preview เป็น Dummy จนกว่าจะยืนยัน Packing Master</small></div>`+plan.lots.map((lot,index)=>`<article class="${lot.planned>0?"planned-pick":""}"><div><strong>#${index+1} · ${lot.hu}</strong><small>รับ ${lot.date} · งวด ${lot.installment}</small><span class="pack-type">${packLabels[lot.unitType]} · ${lot.packSize.toLocaleString()} EA / Pack</span></div><div><span>${lot.po} · ${lot.contract} · ${lot.vendor}</span><b class="pick-mark">${lot.planned>0?`✓ ${packingText(lot,lot.planned)}`:"— ไม่หยิบ"}</b><small>พร้อมหยิบ ${packingText(lot,lot.available)} · Remain ${lot.remain.toLocaleString()} EA${lot.remain>0?` (${packingText(lot,lot.remain)})`:""}</small>${lot.planned>0&&lot.remain>0?`<small class="packing-opened">เปิด ${packLabels[lot.unitType]} แล้ว — เก็บ Remain ใน HU เดิม</small>`:""}</div></article>`).join("")+(plan.shortage>0?`<div class="fifo-shortage">Stock ตาม FIFO ขาด ${plan.shortage.toLocaleString()} EA</div>`:"");
+    }
+    itemsBody.addEventListener("click",event=>{
+      const tr=event.target.closest("tr");if(!tr)return;
+      const row=rowCache.get(tr.dataset.key);if(row)renderEvidence(row);
+    });
+    itemsBody.addEventListener("input",event=>{
+      if(!event.target.matches(".planner-qty"))return;
+      const tr=event.target.closest("tr"),row=rowCache.get(tr.dataset.key);
+      const qty=Math.max(0,Math.round(Number(event.target.value)||0));event.target.value=qty;
+      quantities.set(tr.dataset.key,qty);
+      const checkbox=tr.querySelector(".plan-select");checkbox.disabled=qty<=0;
+      if(qty<=0){selectedKeys.delete(tr.dataset.key);checkbox.checked=false}
+      tr.querySelector(".plan-select-cell span").textContent=selectedKeys.has(tr.dataset.key)?"เลือกแล้ว":qty>0?"เลือก":"ใส่ Qty ก่อน";
+      tr.classList.toggle("in-plan",selectedKeys.has(tr.dataset.key));
+      syncPlan();renderEvidence(row);
+    });
+    itemsBody.addEventListener("change",event=>{
+      if(!event.target.matches(".plan-select"))return;
+      const tr=event.target.closest("tr"),row=rowCache.get(tr.dataset.key);
+      if(event.target.checked)selectedKeys.add(tr.dataset.key);else selectedKeys.delete(tr.dataset.key);
+      tr.classList.toggle("in-plan",event.target.checked);
+      tr.querySelector(".plan-select-cell span").textContent=event.target.checked?"เลือกแล้ว":"เลือก";
+      syncPlan();
+      if(row)renderEvidence(row);
+    });
+    document.querySelector(".select-with-qty").addEventListener("click",()=>{
+      displayedRows.forEach(row=>{if((quantities.get(keyOf(row))||0)>0)selectedKeys.add(keyOf(row))});
+      renderRows();notify("เลือกรายการที่มี Planner Qty แล้ว กรุณากดยืนยันรายการที่เลือก");
+    });
+    document.querySelector(".clear-selected").addEventListener("click",()=>{
+      displayedRows.forEach(row=>selectedKeys.delete(keyOf(row)));
+      renderRows();notify("ล้างรายการที่เลือกในหน้าปัจจุบันแล้ว");
+    });
+    modeButtons.forEach((button,index)=>button.addEventListener("click",()=>{
+      modeButtons.forEach(item=>item.classList.toggle("active",item===button));
+      districtSelect.hidden=index!==0;materialSearch.hidden=index===0;
+      if(index===1&&!materialSearch.value)materialSearch.value="592038410000 : Fuse cutout 12kA";
+      renderRows();
+    }));
+    districtSelect.addEventListener("change",renderRows);materialSearch.addEventListener("input",renderRows);
+
+    function renderSummary(){
+      const rows=planRows(),groups={};
+      rows.forEach(row=>{
+        const district=row.district,qty=quantities.get(keyOf(row))||0;
+        groups[district]??={count:0,qty:0};
+        groups[district].count++;groups[district].qty+=qty;
+      });
+      document.querySelector(".summary-count").textContent=`${rows.length} รายการ · ${Object.keys(groups).length} เขต`;
+      const totalQty=rows.reduce((sum,row)=>sum+(quantities.get(keyOf(row))||0),0),materialCount=new Set(rows.map(row=>row.material)).size;
+      document.querySelector(".plan-summary-kpis").innerHTML=[["รายการจ่าย",rows.length,"รายการ"],["การไฟฟ้าเขต",Object.keys(groups).length,"เขต"],["พัสดุ",materialCount,"รหัส"],["Planner Qty รวม",totalQty,"หน่วย"]].map(([label,value,unit])=>`<article><span>${label}</span><strong>${Number(value).toLocaleString()}</strong><small>${unit}</small></article>`).join("");
+      document.querySelector(".district-summary-body").innerHTML=Object.entries(groups).map(([district,group])=>`<tr><td><strong>${districtNames[district]}</strong></td><td>${group.count}</td><td>${group.qty.toLocaleString()}</td><td><span class="badge urgent"><i></i>รอส่ง</span></td><td><button class="table-action summary-edit" data-district="${district}">แก้รายการเขต</button></td></tr>`).join("");
+      document.querySelector(".plan-summary-body").innerHTML=rows.map(row=>{
+        const qty=quantities.get(keyOf(row))||0,plan=fifoPlan(row),picks=plan.lots.filter(lot=>lot.planned>0).map((lot,index)=>`#${index+1} ${lot.contract} · ${lot.hu} · ${packingText(lot,lot.planned)} (${lot.planned.toLocaleString()} EA)`).join(" | ");
+        return `<tr><td><strong>${districtNames[row.district]}</strong></td><td><strong>${row.material}</strong><small>${row.name}</small></td><td>${row.warehouse.toLocaleString()}</td><td>${row.stock.toLocaleString()}</td><td>${row.min.toLocaleString()} / ${row.max.toLocaleString()}</td><td><span class="ai-suggestion">✦ AI ${row.ai.toLocaleString()}</span></td><td><strong>${qty.toLocaleString()}</strong></td><td><span class="stock-state ${row.needs?"needs-fill":"no-fill"}">${row.needs?"ต้องเติม":"ไม่ต้องเติม"}</span></td><td><strong>${picks||"ยังไม่มี FIFO พร้อมหยิบ"}</strong>${plan.shortage>0?`<small class="shortage-text">ขาด ${plan.shortage.toLocaleString()} หน่วย</small>`:""}</td></tr>`;
+      }).join("");
+      document.querySelectorAll(".summary-edit").forEach(button=>button.addEventListener("click",()=>{
+        districtSelect.value=button.dataset.district;
+        modeButtons[0].click();
+        show(0);
+      }));
+    }
+
+    reviewButtons.forEach(button=>button.addEventListener("click",()=>{
+      if(!planRows().length)return notify("กรอก Planner Qty และเลือกรายการเข้าแผนอย่างน้อย 1 รายการก่อนค่ะ");
+      show(2);
+      notify("ยืนยันรายการที่เลือกเข้า Draft Plan แล้ว พร้อมตรวจสรุปก่อนส่งเขต");
+    }));
+    const districtLines=[...document.querySelectorAll(".district-line")],districtSubmit=document.querySelector(".district-submit");
+    const addRequestForm=document.querySelector(".add-request-form"),openAddRequest=document.querySelector(".open-add-request"),saveAddRequest=document.querySelector(".save-add-request"),cancelAddRequest=document.querySelector(".cancel-add-request"),additionalMaterial=document.querySelector(".additional-material"),additionalQty=document.querySelector(".additional-qty"),additionalReason=document.querySelector(".additional-reason"),additionalRequester=document.querySelector(".additional-requester"),additionalPriority=document.querySelector(".additional-priority"),additionalRequestList=document.querySelector(".additional-request-list");
+    const additionalCatalog={"4710500040000":"PVC CONDUIT 3/8 IN (15 MM) X 4 M.","21920522320":"Transformer 1000kVA","592038410000":"Fuse cutout 12kA","21920122300":"Transformer unit"},existingDistrictMaterials=new Set(districtLines.map(line=>line.dataset.line));
+    let additionalRequests=[];
+    const escapeHtml=value=>String(value).replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+    function additionalMaterialId(){return additionalMaterial.value.trim().split(/\s*:\s*/)[0].trim()}
+    function syncAddRequestForm(){
+      const material=additionalMaterialId(),ready=Boolean(material&&additionalCatalog[material]&&Number(additionalQty.value)>0&&additionalReason.value.trim()&&additionalRequester.value.trim());
+      saveAddRequest.disabled=!ready;
+    }
+    function resetAddRequestForm(){
+      additionalMaterial.value="";additionalQty.value="";additionalReason.value="";additionalRequester.value="";additionalPriority.value="normal";saveAddRequest.disabled=true;addRequestForm.classList.remove("visible");openAddRequest.textContent=additionalRequests.length?"+ ขอเพิ่มพัสดุอีก":"+ ขอเพิ่มพัสดุในแผนนี้";
+    }
+    function renderAdditionalRequests(){
+      additionalRequestList.innerHTML=additionalRequests.map(request=>`<article class="additional-request-card"><div><strong>${escapeHtml(request.material)} · ${escapeHtml(additionalCatalog[request.material])}</strong><small>คำขอเพิ่มใน Weekly Plan นี้</small></div><div><span class="request-value">${request.qty.toLocaleString()} EA</span><small>จำนวนที่ขอ</small></div><div><strong>${escapeHtml(request.reason)}</strong><small>เหตุผล</small></div><div><strong>${escapeHtml(request.requester)}</strong><small>ผู้ร้องขอ · ${request.priority==="urgent"?"เร่งด่วน":"ปกติ"}</small></div><div><span class="badge urgent"><i></i>รอ Planner</span><button class="remove-additional" data-material="${request.material}">ลบ</button></div></article>`).join("");
+      openAddRequest.textContent=additionalRequests.length?"+ ขอเพิ่มพัสดุอีก":"+ ขอเพิ่มพัสดุในแผนนี้";
+    }
+    openAddRequest.addEventListener("click",()=>{addRequestForm.classList.toggle("visible");openAddRequest.textContent=addRequestForm.classList.contains("visible")?"ปิดแบบฟอร์ม":"+ ขอเพิ่มพัสดุในแผนนี้"});
+    [additionalMaterial,additionalQty,additionalReason,additionalRequester].forEach(input=>input.addEventListener("input",syncAddRequestForm));
+    cancelAddRequest.addEventListener("click",resetAddRequestForm);
+    saveAddRequest.addEventListener("click",()=>{
+      const material=additionalMaterialId();
+      if(existingDistrictMaterials.has(material))return notify("พัสดุนี้อยู่ในรายการเดิมแล้ว กรุณาใช้ ‘ขอเปลี่ยนจำนวน’ ในรายการด้านบน");
+      if(additionalRequests.some(request=>request.material===material))return notify("พัสดุนี้ถูกเพิ่มไว้แล้ว สามารถลบแล้วกรอกใหม่ได้");
+      additionalRequests.push({material,qty:Math.round(Number(additionalQty.value)),reason:additionalReason.value.trim(),requester:additionalRequester.value.trim(),priority:additionalPriority.value});
+      renderAdditionalRequests();resetAddRequestForm();notify("เพิ่มคำขอพัสดุแล้ว — สถานะรอ Planner อนุมัติ");
+    });
+    additionalRequestList.addEventListener("click",event=>{
+      const button=event.target.closest(".remove-additional");if(!button)return;
+      additionalRequests=additionalRequests.filter(request=>request.material!==button.dataset.material);renderAdditionalRequests();notify("ลบคำขอเพิ่มพัสดุแล้ว");
+    });
+    function districtLineValid(line){
+      const decision=line.dataset.decision;if(!decision)return false;
+      if(decision==="confirm")return true;
+      const reason=line.querySelector(".district-reason").value.trim(),requester=line.querySelector(".district-requester").value.trim(),qty=Number(line.querySelector(".district-request-qty").value);
+      if(!reason||!requester)return false;
+      return decision==="reject"||qty!==Number(line.dataset.planner);
+    }
+    function syncDistrictResponses(){
+      const valid=districtLines.filter(districtLineValid).length,pending=districtLines.length-valid;
+      document.querySelector(".district-completed-count").textContent=`${valid} / ${districtLines.length}`;
+      document.querySelector(".district-submit-count").textContent=`${valid} จาก ${districtLines.length}`;
+      document.querySelector(".district-progress").textContent=pending?`ยังไม่ครบ ${pending} รายการ`:"พร้อมส่งกลับ Planner";
+      districtSubmit.disabled=valid!==districtLines.length;
+    }
+    districtLines.forEach(line=>{
+      line.querySelectorAll("[data-decision]").forEach(button=>button.addEventListener("click",()=>{
+        const decision=button.dataset.decision,fields=line.querySelector(".district-detail-fields"),qty=line.querySelector(".district-request-qty");
+        line.dataset.decision=decision;
+        line.querySelectorAll("[data-decision]").forEach(item=>item.classList.toggle("selected",item===button));
+        fields.classList.toggle("visible",decision!=="confirm");
+        if(decision==="reject")qty.value=0;
+        if(decision==="change"&&Number(qty.value)===0)qty.value=line.dataset.planner;
+        line.classList.remove("completed","changed","rejected");
+        line.classList.add(decision==="confirm"?"completed":decision==="change"?"changed":"rejected");
+        syncDistrictResponses();
+      }));
+      line.querySelectorAll("input,textarea").forEach(input=>input.addEventListener("input",syncDistrictResponses));
+    });
+    districtSubmit.addEventListener("click",()=>{
+      if(districtSubmit.disabled)return;
+      districtSubmit.textContent="✓ ส่งคำตอบให้ Planner แล้ว";districtSubmit.disabled=true;
+      document.querySelector(".district-progress").textContent="ส่งคำตอบแล้ว";
+      notify(`บันทึกคำตอบ 2 รายการ${additionalRequests.length?` พร้อมคำขอเพิ่ม ${additionalRequests.length} รายการ`:""}แล้ว — Local Preview เท่านั้น`);
+    });
+    document.querySelectorAll('[data-stage="4"] .table-action').forEach(button=>button.addEventListener("click",()=>{
+      button.textContent="✓ Approved";
+      button.disabled=true;
+      notify("Planner review recorded in local preview.");
+    }));
+
+    const approvalButton=document.querySelector('[data-stage="5"] .btn.primary'), approvalCards=[...document.querySelectorAll(".approval-path article")], approvalBadge=document.querySelector('[data-stage="5"] .badge');
+    let approvalStep=1;
+    approvalButton.addEventListener("click",()=>{
+      approvalCards[approvalStep]?.classList.add("ready");
+      approvalStep++;
+      if(approvalStep===2){approvalButton.textContent="วิชาการอนุมัติ →";notify("Planner approved. Waiting for academic approval.");return}
+      approvalBadge.className="badge normal";approvalBadge.innerHTML="<i></i>LOCKED";approvalButton.textContent="✓ Plan Locked";approvalButton.disabled=true;notify("Plan locked in local preview only.");
+    });
+    document.querySelector(".logout").addEventListener("click",()=>notify("Logout is disabled in Local Preview."));
+    document.querySelectorAll(".sidebar nav button:not(.active)").forEach(button=>button.addEventListener("click",()=>notify("เมนูอื่นไม่ได้แก้ไขใน Local Preview นี้")));
+    syncPlan();renderRows();syncDistrictResponses();
+    if(location.hash==="#district")show(3);
+  </script>
+</body>
+</html>
