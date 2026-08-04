@@ -6,6 +6,10 @@ const apiRoute = readFileSync("app/api/[...path]/route.ts", "utf8");
 const hook = readFileSync("app/use-synapse-backend.ts", "utf8");
 const openapi = readFileSync("app/m09-openapi.ts", "utf8");
 const page = readFileSync("app/page.tsx", "utf8");
+const weeklyPlanRedirect = readFileSync(
+  "app/preview/weekly-plan.html/route.ts",
+  "utf8",
+);
 const smoke = readFileSync("scripts/smoke-deployment.mjs", "utf8");
 const productionRelease = readFileSync(
   "../.github/workflows/production-release.yml",
@@ -181,6 +185,13 @@ test("frontend orchestrates the frozen production workflow", () => {
     "ยังไม่เปิดให้บันทึกข้อมูลจริง",
   ];
   for (const signal of requiredUiSignals) assert.ok(page.includes(signal), signal);
+});
+
+test("legacy weekly-plan preview URL enters the authenticated production workflow", () => {
+  assert.match(weeklyPlanRedirect, /redirect\("\/\?view=weekly"\)/);
+  assert.doesNotMatch(weeklyPlanRedirect, /readFile|weekly-plan\.html/);
+  assert.match(page, /new URLSearchParams\(window\.location\.search\)/);
+  assert.match(page, /setView\("weekly"\)/);
 });
 
 test("excluded modules have no browser orchestration path", () => {

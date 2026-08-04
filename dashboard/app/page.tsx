@@ -3023,6 +3023,12 @@ export default function Home() {
   );
   const [transportView, setTransportView] = useState<TransportView>("dashboard");
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("view") === "weekly") {
+      setView("weekly");
+    }
+  }, []);
+
   if (!backend.session || !backend.identity) {
     return (
       <Login
