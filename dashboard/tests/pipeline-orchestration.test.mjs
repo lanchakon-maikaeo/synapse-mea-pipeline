@@ -10,8 +10,6 @@ const weeklyPlanRedirect = readFileSync(
   "app/preview/weekly-plan.html/route.ts",
   "utf8",
 );
-const weeklyPlanPreview = readFileSync("preview/weekly-plan.html", "utf8");
-const weeklyPlanCss = readFileSync("app/preview/weekly-plan.css/route.ts", "utf8");
 const smoke = readFileSync("scripts/smoke-deployment.mjs", "utf8");
 const productionRelease = readFileSync(
   "../.github/workflows/production-release.yml",
@@ -189,12 +187,11 @@ test("frontend orchestrates the frozen production workflow", () => {
   for (const signal of requiredUiSignals) assert.ok(page.includes(signal), signal);
 });
 
-test("weekly-plan preview URL serves Naraya's reviewed UI", () => {
-  assert.match(weeklyPlanRedirect, /readFile/);
-  assert.match(weeklyPlanRedirect, /weekly-plan\.html/);
-  assert.match(weeklyPlanPreview, /สร้างแผนการจ่ายรายสัปดาห์/);
-  assert.match(weeklyPlanPreview, /href="\/preview\/weekly-plan\.css"/);
-  assert.match(weeklyPlanCss, /globals\.css/);
+test("weekly-plan preview URL enters the live authenticated workflow", () => {
+  assert.match(weeklyPlanRedirect, /redirect\("\/\?view=weekly"\)/);
+  assert.doesNotMatch(weeklyPlanRedirect, /readFile|weekly-plan\.html/);
+  assert.match(page, /WEEKLY PLAN · LIVE/);
+  assert.match(page, /Supabase · ตามสิทธิ์ของคุณ/);
 });
 
 test("excluded modules have no browser orchestration path", () => {

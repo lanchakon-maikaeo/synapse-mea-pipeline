@@ -984,6 +984,16 @@ function WeeklyPlanView({
 
   const canCreate = role === "admin" || role === "planner";
   const canRespond = ["admin", "planner", "district"].includes(role);
+  const pendingDistrict = plans.filter(
+    (row) => row.plan_status === "pending_district_confirmation",
+  ).length;
+  const pendingApproval = plans.filter((row) =>
+    ["pending_planner_approval", "pending_academic_approval"].includes(
+      text(row.plan_status),
+    ),
+  ).length;
+  const lockedPlans = plans.filter((row) => row.plan_status === "locked").length;
+  const latestPlan = plans[0];
   const openResponse = (row: RecordRow) => {
     setResponseRow(row);
     setDecision("confirm");
@@ -1029,6 +1039,37 @@ function WeeklyPlanView({
 
   return (
     <div className="stack">
+      <section className="weekly-live-hero">
+        <div>
+          <span>WEEKLY PLAN · LIVE</span>
+          <h2>สร้างและควบคุมแผนการจ่ายรายสัปดาห์</h2>
+          <p>
+            ปริมาณ สถานะ และสิทธิ์การดำเนินการอ่านจาก Supabase ตามบทบาทและเขตของคุณ
+          </p>
+          <div className="weekly-live-steps">
+            <b>1. เขตตอบกลับ</b>
+            <i />
+            <b>2. อนุมัติ</b>
+            <i />
+            <b>3. ล็อก FIFO</b>
+          </div>
+        </div>
+        <dl>
+          <div>
+            <dt>แผนล่าสุด</dt>
+            <dd>{latestPlan ? text(latestPlan.plan_number) : "ยังไม่มีแผน"}</dd>
+          </div>
+          <div>
+            <dt>กำหนดตอบกลับ</dt>
+            <dd>{latestPlan ? formatDateTime(latestPlan.response_due_at) : "—"}</dd>
+          </div>
+          <div>
+            <dt>สถานะ</dt>
+            <dd>{latestPlan ? text(latestPlan.plan_status) : "รอข้อมูล"}</dd>
+          </div>
+        </dl>
+      </section>
+
       <section className="workflow">
         {[
           ["1", "เขตตอบกลับ", "ภายในวันถัดไป"],
@@ -1068,29 +1109,14 @@ function WeeklyPlanView({
       <section className="user-status">
         {[
           ["แผน", plans.length],
-          [
-            "รอเขตยืนยัน",
-            plans.filter(
-              (row) => row.plan_status === "pending_district_confirmation",
-            ).length,
-          ],
-          [
-            "รออนุมัติ",
-            plans.filter((row) =>
-              ["pending_planner_approval", "pending_academic_approval"].includes(
-                text(row.plan_status),
-              ),
-            ).length,
-          ],
-          [
-            "ล็อกแล้ว",
-            plans.filter((row) => row.plan_status === "locked").length,
-          ],
+          ["รอเขตยืนยัน", pendingDistrict],
+          ["รออนุมัติ", pendingApproval],
+          ["ล็อกแล้ว", lockedPlans],
         ].map(([label, value]) => (
           <article key={String(label)}>
             <span>{label}</span>
             <strong>{formatNumber(value)}</strong>
-            <small>ข้อมูลจริงจากระบบ</small>
+            <small>Supabase · ตามสิทธิ์ของคุณ</small>
           </article>
         ))}
       </section>
