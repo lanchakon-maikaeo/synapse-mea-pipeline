@@ -3,13 +3,14 @@ name: trigger-owner-vercel-deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   trigger:
-    if: github.actor == 'Naraya2026'
+    if: github.actor == 'Naraya2026' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
