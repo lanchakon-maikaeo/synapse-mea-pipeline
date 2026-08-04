@@ -3016,18 +3016,17 @@ function PageContent({
 
 export default function Home() {
   const backend = useSynapseBackend();
-  const [view, setView] = useState<ViewKey>("dashboard");
+  const [view, setView] = useState<ViewKey>(() =>
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("view") === "weekly"
+      ? "weekly"
+      : "dashboard",
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [moduleKey, setModule] = useState<"warehouse" | "transport">(
     "warehouse",
   );
   const [transportView, setTransportView] = useState<TransportView>("dashboard");
-
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("view") === "weekly") {
-      setView("weekly");
-    }
-  }, []);
 
   if (!backend.session || !backend.identity) {
     return (

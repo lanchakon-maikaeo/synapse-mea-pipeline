@@ -191,7 +191,7 @@ test("legacy weekly-plan preview URL enters the authenticated production workflo
   assert.match(weeklyPlanRedirect, /redirect\("\/\?view=weekly"\)/);
   assert.doesNotMatch(weeklyPlanRedirect, /readFile|weekly-plan\.html/);
   assert.match(page, /new URLSearchParams\(window\.location\.search\)/);
-  assert.match(page, /setView\("weekly"\)/);
+  assert.match(page, /\? "weekly"\s*:\s*"dashboard"/);
 });
 
 test("excluded modules have no browser orchestration path", () => {
