@@ -1,0 +1,25 @@
+name: trigger-owner-vercel-deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    if: github.actor == 'Naraya2026'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Trigger the owner-authorized Vercel deployment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'Lanchakon Maikaeo'
+          git config user.email 'lanchakon.career@gmail.com'
+          git commit --allow-empty -m 'chore: trigger production deploy'
+          git push origin HEAD:main
