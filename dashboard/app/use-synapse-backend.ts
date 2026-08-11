@@ -10,6 +10,14 @@ import {
   type Identity,
 } from "./lib";
 import type { VmiInputPayload } from "./pipeline-validation";
+import {
+  DEMO_MODE,
+  demoData,
+  demoIdentity,
+  demoSession,
+  demoVmiContext,
+} from "./demo-data";
+import type { Role } from "./lib";
 
 export type { VmiDemandPoint, VmiInputPayload } from "./pipeline-validation";
 
@@ -103,20 +111,20 @@ export const emptyData: DashboardData = {
   legacyStatus: null,
 };
 
-const browserSupabase = isAuthConfigured()
+const browserSupabase = !DEMO_MODE && isAuthConfigured()
   ? createClient(publicConfig.supabaseUrl, publicConfig.supabaseAnonKey)
   : null;
 
 export function useSynapseBackend() {
-  const authConfigured = isAuthConfigured();
-  const [session, setSession] = useState<Session | null>(null);
-  const [identity, setIdentity] = useState<Identity | null>(null);
-  const [data, setData] = useState<DashboardData>(emptyData);
-  const [loading, setLoading] = useState(authConfigured);
+  const authConfigured = !DEMO_MODE && isAuthConfigured();
+  const [session, setSession] = useState<Session | null>(DEMO_MODE ? demoSession : null);
+  const [identity, setIdentity] = useState<Identity | null>(DEMO_MODE ? demoIdentity("planner") : null);
+  const [data, setData] = useState<DashboardData>(DEMO_MODE ? demoData : emptyData);
+  const [loading, setLoading] = useState(DEMO_MODE ? false : authConfigured);
   const [authBusy, setAuthBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState(
-    authConfigured ? "" : "ขณะนี้ยังเข้าสู่ระบบไม่ได้ กรุณาลองใหม่ภายหลังหรือแจ้งเจ้าหน้าที่",
+    DEMO_MODE || authConfigured ? "" : "ขณะนี้ยังเข้าสู่ระบบไม่ได้ กรุณาลองใหม่ภายหลังหรือแจ้งเจ้าหน้าที่",
   );
   const [notice, setNotice] = useState("");
   const sessionTokenRef = useRef<string | null>(null);
@@ -336,6 +344,7 @@ export function useSynapseBackend() {
   }, []);
 
   useEffect(() => {
+    if (DEMO_MODE) return;
     if (!supabase) return;
     let active = true;
     void supabase.auth.getSession().then(({ data: authData }) => {
@@ -374,6 +383,13 @@ export function useSynapseBackend() {
 
   const signIn = useCallback(
     async (identifier: string, password: string) => {
+      if (DEMO_MODE) {
+        const requestedRole = ["admin", "planner", "academic", "picker", "viewer", "district"].find((role) => identifier.toLowerCase().includes(role)) as Role | undefined;
+        setSession(demoSession);
+        setIdentity(demoIdentity(requestedRole ?? "planner"));
+        setData(demoData);
+        return true;
+      }
       if (!supabase) return false;
       setAuthBusy(true);
       setError("");
@@ -398,6 +414,10 @@ export function useSynapseBackend() {
   );
 
   const signOut = useCallback(async () => {
+    if (DEMO_MODE) {
+      setNotice("Local Demo Mode: ใช้ตัวสลับบทบาทด้านบนแทนการออกจากระบบ");
+      return;
+    }
     if (supabase) await supabase.auth.signOut();
     sessionTokenRef.current = null;
     setSession(null);
@@ -408,6 +428,12 @@ export function useSynapseBackend() {
   }, [supabase]);
 
   const refresh = useCallback(async () => {
+    if (DEMO_MODE) {
+      setData(demoData);
+      setNotice("รีเซ็ตข้อมูลตัวอย่างแล้ว");
+      window.setTimeout(() => setNotice(""), 3000);
+      return;
+    }
     if (session) await load(session);
   }, [load, session]);
 
@@ -417,6 +443,15 @@ export function useSynapseBackend() {
       body: unknown,
       successMessage: string,
     ): Promise<T | null> => {
+      if (DEMO_MODE) {
+        setActionBusy(true);
+        setError("");
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+        setNotice(`${successMessage} (Demo เท่านั้น — ไม่บันทึกฐานข้อมูล)`);
+        window.setTimeout(() => setNotice(""), 4200);
+        setActionBusy(false);
+        return { demo: true } as T;
+      }
       if (!session) return null;
       const operationalMutation =
         path.startsWith("/v1/replenishment/") ||
@@ -458,6 +493,7 @@ export function useSynapseBackend() {
 
   const loadVmiContext = useCallback(
     async (materialId: string, districtId: string) => {
+      if (DEMO_MODE) return demoVmiContext(materialId, districtId);
       if (!session) return null;
       setError("");
       try {
@@ -641,6 +677,13 @@ export function useSynapseBackend() {
     [runAction],
   );
 
+  const setDemoRole = useCallback((role: Role) => {
+    if (!DEMO_MODE) return;
+    setIdentity(demoIdentity(role));
+    setNotice(`เปลี่ยนบทบาท Demo เป็น ${role}`);
+    window.setTimeout(() => setNotice(""), 2500);
+  }, []);
+
   return {
     actionBusy,
     approveAdHocIssue,
@@ -650,6 +693,7 @@ export function useSynapseBackend() {
     createAdHocIssue,
     createReplenishmentRun,
     data,
+    demoMode: DEMO_MODE,
     error,
     identity,
     issueAdHocIssue,
@@ -665,6 +709,7 @@ export function useSynapseBackend() {
     respondReplenishment,
     reviewChangeRequest,
     session,
+    setDemoRole,
     signIn,
     signOut,
     versionReplenishmentPlan,
