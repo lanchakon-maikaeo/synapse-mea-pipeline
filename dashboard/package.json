@@ -20,6 +20,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
     "drizzle-orm": "0.45.2",
+    "fflate": "0.8.3",
     "leaflet": "1.9.4",
     "next": "16.2.11",
     "protomaps-leaflet": "5.1.0",
@@ -44,7 +45,7 @@
     "@esbuild-kit/core-utils": {
       "esbuild": "0.25.12"
     },
-    "brace-expansion": "5.0.9",
+    "brace-expansion": "5.0.8",
     "fast-uri@^3.0.0": "3.1.4",
     "js-yaml@^4.0.0": "4.3.0",
     "minimatch": "10.2.5",

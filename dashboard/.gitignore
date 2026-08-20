@@ -15,6 +15,7 @@ dist
 *.log
 *.tsbuildinfo
 .npm-cache
+.npm-cache-*
 
 # OS/editor files
 .DS_Store

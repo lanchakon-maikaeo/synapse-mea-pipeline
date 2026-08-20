@@ -56,14 +56,14 @@ export const demoReplenishment: RecordRow[] = queueSeeds.map(([replenishment_ite
   const district = demoDistricts.find((row) => row.district_id === district_id) ?? {};
   const material = materialConfig[material_id];
   return {
-    replenishment_item_id, replenishment_plan_id, plan_code: "WP-2569-W30", plan_version: 1,
+    replenishment_item_id, replenishment_plan_id, plan_code: "WP-2569-W30", plan_number: "WP-2569-W30", plan_version: 1, version_no: 1,
     district_id, district_name_th: district.district_name_th, material_id, material_name: material.name,
     current_stock_qty: stock, cmp_monthly: cmp, months_available: stock / cmp,
     min_fill_qty: Math.max(0, cmp * 4 - stock), max_fill_qty: Math.max(0, cmp * 6 - stock),
     suggested_qty: suggested, confirmed_qty: suggested, needs_fill: true,
     priority_score: 100 - index * 8, priority_band: index === 0 ? "high" : "normal",
-    response_status: index === 1 ? "change_requested" : "pending_district",
-    plan_status: "district_review", created_at: snapshot,
+    response_status: "pending_district", item_status: "pending",
+    plan_status: "district_review", week_start_date: "2026-07-27", created_at: snapshot,
   };
 });
 
@@ -115,7 +115,7 @@ export const demoData: DashboardData = {
     change_request_id: "CR-DEMO-001", replenishment_item_id: "RPI-DEMO-002",
     plan_code: "WP-2569-W30", district_id: "5501", material_id: "21920122300",
     requested_qty: 40, original_qty: 26, projected_months_after: 7.8,
-    risk_level: "high", status: "pending_review", reason: "รองรับงานเร่งด่วน",
+    risk_level: "high", status: "evidence_only", reason: "ตัวอย่างหลักฐานคำขอเพิ่มจำนวนสำหรับ Academic Review",
     requester_name: "District Demo User", created_at: snapshot,
   }],
   approvals: [

@@ -27,7 +27,7 @@ test("keeps the UI aligned with the frozen production operations scope", async (
   // Localized (Thai) surface for the frozen operational scope.
   for (const required of [
     "แผนการจ่ายรายสัปดาห์",
-    "เขตตอบกลับ",
+    "ยืนยันรายการพัสดุ",
     "ผู้วางแผน",
     "เจ้าหน้าที่วิชาการ",
     "เจ้าหน้าที่คลัง",
@@ -43,6 +43,21 @@ test("keeps the UI aligned with the frozen production operations scope", async (
     "useSynapseBackend",
     "backend.createReplenishmentRun",
     "backend.respondReplenishment",
+    "Build Plan",
+    "ค้นหารายเขต",
+    "Stock คลังกลาง",
+    "AI Suggestion",
+    "AI + FIFO",
+    "สัญญาทั้งหมดเรียงเก่า",
+    "ยืนยันรายการที่เลือกเข้า Draft Plan",
+    "เลือกเข้าแผน",
+    "FIFO + PACKING PICK PLAN",
+    "Full Pallet",
+    "Box",
+    "Crate",
+    "เขตยืนยันเป็นรายรายการ",
+    "Planner ตรวจการเปลี่ยน",
+    "Approve & Lock",
   ]) assert.match(page, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   // No admin-facing role wording in the UI (confuses end users).
   assert.doesNotMatch(page, /Administrator|ผู้ดูแลระบบ/);

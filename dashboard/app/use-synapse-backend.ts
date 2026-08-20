@@ -538,12 +538,121 @@ export function useSynapseBackend() {
   );
 
   const respondReplenishment = useCallback(
-    async (itemId: string, payload: ReplenishmentResponsePayload) =>
-      (await runAction(
+    async (itemId: string, payload: ReplenishmentResponsePayload) => {
+      if (DEMO_MODE) {
+        const actedAt = new Date().toISOString();
+        setData((current) => {
+          const target = current.replenishment.find(
+            (row) => String(row.replenishment_item_id) === itemId,
+          );
+          const planId = String(target?.replenishment_plan_id ?? "");
+          const nextItems = current.replenishment.map((row) =>
+            String(row.replenishment_item_id) === itemId
+              ? {
+                  ...row,
+                  confirmed_qty: payload.confirmed_qty,
+                  requested_qty: payload.confirmed_qty,
+                  requester_name: payload.requester_name,
+                  response_reason: payload.reason,
+                  response_status:
+                    payload.decision === "change"
+                      ? "change_requested"
+                      : payload.decision === "reject"
+                        ? "rejected"
+                        : "confirmed",
+                  item_status:
+                    payload.decision === "change"
+                      ? "change_requested"
+                      : payload.decision === "reject"
+                        ? "rejected"
+                        : "confirmed",
+                  district_responded_at: actedAt,
+                }
+              : row,
+          );
+          const planItems = nextItems.filter(
+            (row) => String(row.replenishment_plan_id) === planId,
+          );
+          const districtComplete = planItems.every((row) =>
+            ["confirmed", "rejected"].includes(String(row.item_status)),
+          );
+          const replenishment = nextItems.map((row) =>
+            String(row.replenishment_plan_id) === planId
+              ? {
+                  ...row,
+                  plan_status: districtComplete
+                    ? "pending_planner_approval"
+                    : "district_review",
+                }
+              : row,
+          );
+          const existingRequest = current.changeRequests.find(
+            (row) => String(row.replenishment_item_id) === itemId,
+          );
+          const changeRequests =
+            payload.decision === "change"
+              ? existingRequest
+                ? current.changeRequests.map((row) =>
+                    String(row.replenishment_item_id) === itemId
+                      ? {
+                          ...row,
+                          requested_qty: payload.confirmed_qty,
+                          reason: payload.reason,
+                          requester_name: payload.requester_name,
+                          status: "pending_review",
+                          created_at: actedAt,
+                        }
+                      : row,
+                  )
+                : [
+                    {
+                      change_request_id: `CR-DEMO-${Date.now()}`,
+                      replenishment_item_id: itemId,
+                      replenishment_plan_id: planId,
+                      plan_code: target?.plan_code,
+                      district_id: target?.district_id,
+                      material_id: target?.material_id,
+                      original_qty: target?.suggested_qty,
+                      requested_qty: payload.confirmed_qty,
+                      reason: payload.reason,
+                      requester_name: payload.requester_name,
+                      risk_level: "high",
+                      status: "pending_review",
+                      created_at: actedAt,
+                    },
+                    ...current.changeRequests,
+                  ]
+              : current.changeRequests;
+          return {
+            ...current,
+            replenishment,
+            changeRequests,
+            approvals: [
+              {
+                approval_id: `APR-DEMO-DISTRICT-${Date.now()}`,
+                replenishment_plan_id: planId,
+                plan_code: target?.plan_code,
+                approval_stage: "district",
+                stage: "district",
+                decision: payload.decision,
+                actor_role: "district",
+                approver_name: payload.requester_name,
+                district_id: target?.district_id,
+                note: payload.reason,
+                acted_at: actedAt,
+                approved_at: actedAt,
+              },
+              ...current.approvals,
+            ],
+          };
+        });
+      }
+      return (await runAction(
         `/v1/replenishment/items/${itemId}/respond`,
         payload,
         "บันทึก District response พร้อมผู้ขอและเหตุผลแล้ว",
-      )) !== null,
+      )) !== null;
+    },
     [runAction],
   );
 
@@ -552,22 +661,161 @@ export function useSynapseBackend() {
       changeRequestId: string,
       decision: "approved" | "rejected",
       reviewNote: string,
-    ) =>
-      (await runAction(
+    ) => {
+      if (DEMO_MODE) {
+        const actedAt = new Date().toISOString();
+        setData((current) => {
+          const request = current.changeRequests.find(
+            (row) => String(row.change_request_id) === changeRequestId,
+          );
+          const itemId = String(request?.replenishment_item_id ?? "");
+          const planId = String(request?.replenishment_plan_id ?? "RP-DEMO-W30");
+          const nextItems = current.replenishment.map((row) =>
+            String(row.replenishment_item_id) === itemId
+              ? {
+                  ...row,
+                  confirmed_qty:
+                    decision === "approved"
+                      ? request?.requested_qty
+                      : row.suggested_qty,
+                  item_status: decision === "approved" ? "confirmed" : "rejected",
+                  response_status: decision === "approved" ? "confirmed" : "rejected",
+                }
+              : row,
+          );
+          const complete = nextItems
+            .filter((row) => String(row.replenishment_plan_id) === planId)
+            .every((row) => ["confirmed", "rejected"].includes(String(row.item_status)));
+          return {
+            ...current,
+            replenishment: nextItems.map((row) =>
+              String(row.replenishment_plan_id) === planId
+                ? {
+                    ...row,
+                    plan_status: complete
+                      ? "pending_planner_approval"
+                      : row.plan_status,
+                  }
+                : row,
+            ),
+            changeRequests: current.changeRequests.map((row) =>
+              String(row.change_request_id) === changeRequestId
+                ? { ...row, status: decision, review_note: reviewNote, reviewed_at: actedAt }
+                : row,
+            ),
+          };
+        });
+      }
+      return (await runAction(
         `/v1/replenishment/change-requests/${changeRequestId}/review`,
         { decision, review_note: reviewNote },
         "บันทึกผล Abnormal Request Review แล้ว",
-      )) !== null,
+      )) !== null;
+    },
     [runAction],
   );
 
   const approveReplenishmentPlan = useCallback(
-    async (planId: string, note = "") =>
-      (await runAction(
+    async (planId: string, note = "") => {
+      if (DEMO_MODE) {
+        const actedAt = new Date().toISOString();
+        setData((current) => {
+          const plan = current.replenishment.find(
+            (row) => String(row.replenishment_plan_id) === planId,
+          );
+          const currentStatus = String(plan?.plan_status ?? "");
+          const academicApproval = currentStatus === "pending_academic_approval";
+          const nextStatus = academicApproval
+            ? "locked"
+            : currentStatus === "pending_planner_approval"
+              ? "pending_academic_approval"
+              : currentStatus;
+          if (nextStatus === currentStatus) return current;
+          return {
+            ...current,
+            replenishment: current.replenishment.map((row) =>
+              String(row.replenishment_plan_id) === planId
+                ? {
+                    ...row,
+                    plan_status: nextStatus,
+                    ...(academicApproval
+                      ? { academic_approved_at: actedAt, locked_at: actedAt }
+                      : { planner_approved_at: actedAt }),
+                  }
+                : row,
+            ),
+            approvals: [
+              {
+                approval_id: `APR-DEMO-${academicApproval ? "ACADEMIC" : "PLANNER"}-${Date.now()}`,
+                replenishment_plan_id: planId,
+                plan_code: plan?.plan_code,
+                approval_stage: academicApproval ? "academic_lock" : "planner",
+                stage: academicApproval ? "academic" : "planner",
+                decision: academicApproval ? "approved_and_locked" : "approved",
+                actor_role: academicApproval ? "academic" : "planner",
+                approver_name: academicApproval ? "Academic Demo" : "Planner Demo",
+                note,
+                acted_at: actedAt,
+                approved_at: actedAt,
+              },
+              ...current.approvals,
+            ],
+          };
+        });
+      }
+      return (await runAction(
         `/v1/replenishment/plans/${planId}/approve`,
         { note },
         "บันทึก approval stage และสถานะแผนแล้ว",
-      )) !== null,
+      )) !== null;
+    },
+    [runAction],
+  );
+
+  const returnAcademicPlan = useCallback(
+    async (planId: string, note: string) => {
+      if (!DEMO_MODE) return false;
+      const actedAt = new Date().toISOString();
+      setData((current) => {
+        const plan = current.replenishment.find(
+          (row) => String(row.replenishment_plan_id) === planId,
+        );
+        if (String(plan?.plan_status) !== "pending_academic_approval") return current;
+        return {
+          ...current,
+          replenishment: current.replenishment.map((row) =>
+            String(row.replenishment_plan_id) === planId
+              ? {
+                  ...row,
+                  plan_status: "pending_planner_approval",
+                  academic_return_note: note,
+                  academic_returned_at: actedAt,
+                }
+              : row,
+          ),
+          approvals: [
+            {
+              approval_id: `APR-DEMO-RETURN-${Date.now()}`,
+              replenishment_plan_id: planId,
+              plan_code: plan?.plan_code,
+              approval_stage: "academic",
+              stage: "academic",
+              decision: "returned_to_planner",
+              actor_role: "academic",
+              approver_name: "Academic Demo",
+              note,
+              acted_at: actedAt,
+            },
+            ...current.approvals,
+          ],
+        };
+      });
+      return (await runAction(
+        `/demo/replenishment/plans/${planId}/return`,
+        { note },
+        "ส่งแผนกลับให้ Planner แก้ไขแล้ว",
+      )) !== null;
+    },
     [runAction],
   );
 
@@ -592,12 +840,24 @@ export function useSynapseBackend() {
   );
 
   const issueReplenishmentPlan = useCallback(
-    async (planId: string) =>
-      (await runAction(
+    async (planId: string) => {
+      if (DEMO_MODE) {
+        const actedAt = new Date().toISOString();
+        setData((current) => ({
+          ...current,
+          replenishment: current.replenishment.map((row) =>
+            String(row.replenishment_plan_id) === planId && row.plan_status === "locked"
+              ? { ...row, plan_status: "completed", issued_at: actedAt }
+              : row,
+          ),
+        }));
+      }
+      return (await runAction(
         `/v1/replenishment/plans/${planId}/issue`,
         {},
         "บันทึกการจ่ายจริงจาก FIFO allocation แล้ว",
-      )) !== null,
+      )) !== null;
+    },
     [runAction],
   );
 
@@ -706,6 +966,7 @@ export function useSynapseBackend() {
     reconcileHandlingUnit,
     recordInventoryReturn,
     refresh,
+    returnAcademicPlan,
     respondReplenishment,
     reviewChangeRequest,
     session,

@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -44,6 +45,7 @@ type ViewKey =
   | "trace"
   | "stock"
   | "data"
+  | "import"
   | "input"
   | "operations"
   | "release";
@@ -63,6 +65,10 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
       ],
+    },
+    {
+      label: "IMPORT CENTER",
+      items: [["import", "Import Data", "⇧"]],
     },
     {
       label: "คลังสินค้า",
@@ -230,6 +236,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "ข้อมูลต้นทาง",
     "สัญญาและคุณภาพข้อมูล",
     "ลำดับที่มาของข้อมูลจากต้นทางถึงระบบ พร้อมหลักฐานคุณภาพ",
+  ],
+  import: [
+    "Data Import",
+    "นำเข้าและประมวลผลข้อมูล",
+    "ตรวจสอบ แปลง และเตรียมข้อมูลจาก SAP ให้พร้อมใช้งานในแต่ละ Module",
   ],
   input: [
     "อัปเดตสต็อก",
@@ -569,7 +580,9 @@ function Sidebar({
                     <button
                       type="button"
                       key={key}
-                      className={active === key ? "active" : ""}
+                      className={`${active === key ? "active" : ""} ${
+                        key === "import" ? "import-nav-button" : ""
+                      }`}
                       aria-current={active === key ? "page" : undefined}
                       onClick={() => {
                         navigate(key);
@@ -935,6 +948,7 @@ function WeeklyPlanView({
   onIssue,
   onReview,
   onRespond,
+  onReturn,
   onVersion,
 }: {
   actionBusy: boolean;
@@ -953,6 +967,7 @@ function WeeklyPlanView({
     itemId: string,
     payload: ReplenishmentResponsePayload,
   ) => Promise<boolean>;
+  onReturn: (planId: string, note: string) => Promise<boolean>;
   onVersion: (planId: string, reason: string) => Promise<boolean>;
 }) {
   const [workflowStep, setWorkflowStep] = useState(() =>
@@ -978,11 +993,16 @@ function WeeklyPlanView({
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
   const [requester, setRequester] = useState("");
+  const [responseError, setResponseError] = useState("");
   const [planAction, setPlanAction] = useState<{
-    type: "approve" | "cancel" | "version";
+    type: "approve" | "return" | "cancel" | "version";
     row: RecordRow;
   } | null>(null);
   const [planNote, setPlanNote] = useState("");
+  const [pickingDocument, setPickingDocument] = useState<{
+    plan: RecordRow;
+    generatedAt: string;
+  } | null>(null);
 
   const itemId = (row: RecordRow) =>
     text(
@@ -1098,6 +1118,12 @@ function WeeklyPlanView({
             Boolean(selectedPlanningIds[itemId(row)]) &&
             plannerQuantity(row) > 0,
         );
+  const workflowStatusRows = ["academic", "picker", "viewer"].includes(role)
+    ? data.replenishment
+    : selectedRows;
+  const workflowStatusDistricts = new Set(
+    workflowStatusRows.map((row) => text(row.district_id)),
+  ).size;
   const warehouseQuantity = (row: RecordRow) =>
     data.warehouseStock
       .filter(
@@ -1144,8 +1170,11 @@ function WeeklyPlanView({
     }
     return parts.join(" + ") || `0 ${label}`;
   };
-  const fifoPlanFor = (planningRow: RecordRow) => {
-    let remaining = plannerQuantity(planningRow);
+  const fifoPlanFor = (
+    planningRow: RecordRow,
+    requestedQuantity = plannerQuantity(planningRow),
+  ) => {
+    let remaining = requestedQuantity;
     const picks = data.fifo
       .filter(
         (row) =>
@@ -1201,13 +1230,22 @@ function WeeklyPlanView({
             Number(right.fifo_sequence ?? 0),
         )
     : [];
-  let fifoRemaining = focusedRow ? plannerQuantity(focusedRow) : 0;
-  const fifoPreview = focusedFifo.map((row): RecordRow => {
+  const fifoPreviewResult = focusedFifo.reduce<{
+    remaining: number;
+    preview: RecordRow[];
+  }>((result, row) => {
       const allocatable = Math.max(0, Number(row.allocatable_qty ?? 0));
-      const allocated = Math.min(allocatable, fifoRemaining);
-      fifoRemaining -= allocated;
-      return { ...row, preview_allocated_qty: allocated };
+      const allocated = Math.min(allocatable, result.remaining);
+      return {
+        remaining: result.remaining - allocated,
+        preview: [...result.preview, { ...row, preview_allocated_qty: allocated }],
+      };
+    }, {
+      remaining: focusedRow ? plannerQuantity(focusedRow) : 0,
+      preview: [],
     });
+  const fifoPreview = fifoPreviewResult.preview;
+  const fifoPreviewShortage = fifoPreviewResult.remaining;
   const districtSummary = (() => {
     const summary = new Map<
       string,
@@ -1247,34 +1285,161 @@ function WeeklyPlanView({
     return [...unique.values()];
   }, [data.replenishment]);
 
+  const pickingPlanRows = pickingDocument
+    ? data.replenishment.filter(
+        (row) =>
+          text(row.replenishment_plan_id) ===
+          text(pickingDocument.plan.replenishment_plan_id),
+      )
+    : [];
+  const finalPickingQuantity = (row: RecordRow) => {
+    const value = Number(
+      row.final_qty ??
+        row.confirmed_qty ??
+        row.planner_qty ??
+        plannerQuantity(row),
+    );
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  };
+  const pickingDocumentNumber = pickingDocument
+    ? `PK-${text(
+        pickingDocument.plan.plan_number,
+        text(pickingDocument.plan.plan_code, "PLAN"),
+      )}-V${text(
+        pickingDocument.plan.version_no,
+        text(pickingDocument.plan.plan_version, "1"),
+      )}`
+    : "";
+  const exportPickingCsv = () => {
+    if (!pickingDocument) return;
+    const csvRows: Array<Array<string | number>> = [
+      [
+        "Document No.",
+        "District",
+        "Material",
+        "Material Name",
+        "Final Qty",
+        "FIFO Sequence",
+        "Contract",
+        "PO",
+        "Vendor",
+        "Delivery Lot",
+        "Installment",
+        "Handling Unit",
+        "Packing",
+        "Pick Qty",
+        "Remain After Pick",
+        "Status",
+      ],
+    ];
+    pickingPlanRows.forEach((row) => {
+      const finalQty = finalPickingQuantity(row);
+      const fifo = fifoPlanFor(row, finalQty);
+      fifo.picks.forEach(({ row: source, quantity }, index) => {
+        csvRows.push([
+          pickingDocumentNumber,
+          `${text(row.district_id)} : ${text(row.district_name_th)}`,
+          text(row.material_id),
+          text(row.material_name),
+          finalQty,
+          index + 1,
+          text(source.contract_number),
+          text(source.purchase_order),
+          text(source.vendor_name),
+          text(source.lot_code),
+          text(source.installment_no),
+          text(source.handling_unit_code),
+          packingText(source, quantity),
+          quantity,
+          Math.max(0, Number(source.allocatable_qty ?? 0) - quantity),
+          fifo.shortage > 0 ? `SHORT ${fifo.shortage}` : "READY",
+        ]);
+      });
+      if (!fifo.picks.length || fifo.shortage > 0) {
+        csvRows.push([
+          pickingDocumentNumber,
+          `${text(row.district_id)} : ${text(row.district_name_th)}`,
+          text(row.material_id),
+          text(row.material_name),
+          finalQty,
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          0,
+          0,
+          `SHORT ${formatNumber(fifo.shortage || finalQty, 0)}`,
+        ]);
+      }
+    });
+    const escapeCell = (value: string | number) =>
+      `"${String(value).replaceAll('"', '""')}"`;
+    const csv = `\uFEFF${csvRows
+      .map((row) => row.map(escapeCell).join(","))
+      .join("\r\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${pickingDocumentNumber}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const canCreate = role === "admin" || role === "planner";
   const canRespond = ["admin", "planner", "district"].includes(role);
+  const responseRequesterByRole: Record<"admin" | "planner" | "district", string> = {
+    admin: "Admin Demo User",
+    planner: "Planner คลังคลองเตย",
+    district: "ผู้ใช้งานเขต 5501",
+  };
   const openResponse = (row: RecordRow) => {
     setResponseRow(row);
     setDecision("confirm");
     setQuantity(text(row.suggested_qty, "0"));
-    setReason("");
-    setRequester("");
+    setReason("ยืนยันตามแผน");
+    setRequester(
+      role === "admin" || role === "planner" || role === "district"
+        ? responseRequesterByRole[role]
+        : "",
+    );
+    setResponseError("");
   };
   const submitResponse = async (event: FormEvent) => {
     event.preventDefault();
     if (!responseRow) return;
     const confirmedQty = decision === "reject" ? 0 : Number(quantity);
-    if (
-      !Number.isFinite(confirmedQty) ||
-      confirmedQty < 0 ||
-      reason.trim().length < 3 ||
-      requester.trim().length < 2
-    ) {
+    if (!Number.isFinite(confirmedQty) || confirmedQty < 0) {
+      setResponseError("กรุณาระบุจำนวนเป็นตัวเลขตั้งแต่ 0 ขึ้นไป");
       return;
     }
+    if (requester.trim().length < 2) {
+      setResponseError("กรุณาระบุชื่อผู้ขอหรือผู้ยืนยัน");
+      return;
+    }
+    if (decision !== "confirm" && reason.trim().length < 3) {
+      setResponseError("กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษรสำหรับ Change หรือ Reject");
+      return;
+    }
+    setResponseError("");
     const ok = await onRespond(text(responseRow.replenishment_item_id), {
       decision,
       confirmed_qty: confirmedQty,
-      reason: reason.trim(),
+      reason: reason.trim() || "ยืนยันตามแผน",
       requester_name: requester.trim(),
     });
-    if (ok) setResponseRow(null);
+    if (ok) {
+      setResponseRow(null);
+      setResponseError("");
+    } else {
+      setResponseError("ยังบันทึกการตอบกลับไม่ได้ กรุณาลองอีกครั้ง");
+    }
   };
   const submitPlanAction = async (event: FormEvent) => {
     event.preventDefault();
@@ -1283,6 +1448,8 @@ function WeeklyPlanView({
     const ok =
       planAction.type === "approve"
         ? await onApprove(planId, planNote)
+        : planAction.type === "return"
+          ? await onReturn(planId, planNote)
         : planAction.type === "cancel"
           ? await onCancel(planId, planNote)
           : await onVersion(planId, planNote);
@@ -1308,6 +1475,37 @@ function WeeklyPlanView({
   const materialOptions = materialCatalog.map(
     (material) => `${material.id} : ${material.name}`,
   );
+  const academicPlan =
+    plans.find((plan) =>
+      ["pending_academic_approval", "locked"].includes(text(plan.plan_status)),
+    ) ?? plans[0] ?? null;
+  const academicPlanRows = academicPlan
+    ? data.replenishment.filter(
+        (row) =>
+          text(row.replenishment_plan_id) ===
+          text(academicPlan.replenishment_plan_id),
+      )
+    : [];
+  const academicChangeRequests = academicPlan
+    ? data.changeRequests.filter((request) => {
+        const requestPlanId = text(request.replenishment_plan_id, "");
+        return requestPlanId
+          ? requestPlanId === text(academicPlan.replenishment_plan_id)
+          : academicPlanRows.some(
+              (row) =>
+                text(row.replenishment_item_id) ===
+                text(request.replenishment_item_id),
+            );
+      })
+    : [];
+  const academicTotalQty = academicPlanRows.reduce(
+    (sum, row) => sum + finalPickingQuantity(row),
+    0,
+  );
+  const academicStatus = text(academicPlan?.plan_status, "no_plan");
+  const canAcademicDecide =
+    academicStatus === "pending_academic_approval" &&
+    ["admin", "academic"].includes(role);
 
   return (
     <div className="stack">
@@ -1341,8 +1539,8 @@ function WeeklyPlanView({
 
       <section className="user-status">
         {[
-          ["รายการที่เลือก", selectedRows.length],
-          ["เขตในแผน", districtSummary.length],
+          [role === "academic" ? "รายการในแผน" : "รายการที่เลือก", workflowStatusRows.length],
+          ["เขตในแผน", role === "academic" ? workflowStatusDistricts : districtSummary.length],
           [
             "รอเขตตอบ",
             data.replenishment.filter((row) =>
@@ -1787,9 +1985,9 @@ function WeeklyPlanView({
                         </p>
                       </div>
                     )}
-                    {fifoRemaining > 0 && (
+                    {fifoPreviewShortage > 0 && (
                       <div className="fifo-shortage">
-                        หลักฐาน FIFO ขาด {formatNumber(fifoRemaining, 0)} หน่วย
+                        หลักฐาน FIFO ขาด {formatNumber(fifoPreviewShortage, 0)} หน่วย
                       </div>
                     )}
                   </div>
@@ -2018,11 +2216,159 @@ function WeeklyPlanView({
 
       {workflowStep === 5 && (
         <>
+          <section className="academic-review" aria-labelledby="academic-review-title">
+            <header className="academic-review-hero">
+              <div>
+                <span>ACADEMIC REVIEW · FINAL CONTROL</span>
+                <h2 id="academic-review-title">ตรวจหลักฐานก่อนอนุมัติและล็อกแผน</h2>
+                <p>
+                  ตรวจจำนวนที่เขตยืนยัน คำขอเปลี่ยน หลักฐาน AI และลำดับ FIFO
+                  ก่อนส่งแผนที่ล็อกแล้วให้คลังจัดทำ Picking Document
+                </p>
+              </div>
+              <div className="academic-review-state">
+                <small>สถานะแผนปัจจุบัน</small>
+                <Badge>{academicStatus}</Badge>
+                <strong>{text(academicPlan?.plan_number, text(academicPlan?.plan_code))}</strong>
+              </div>
+            </header>
+
+            {academicPlan ? (
+              <>
+                <section className="academic-summary" aria-label="สรุปแผน">
+                  {[
+                    ["Version", `V${text(academicPlan.version_no, text(academicPlan.plan_version, "1"))}`],
+                    ["รายการ", formatNumber(academicPlanRows.length)],
+                    ["เขต", formatNumber(new Set(academicPlanRows.map((row) => text(row.district_id))).size)],
+                    ["จำนวนรวม", `${formatNumber(academicTotalQty, 0)} EA`],
+                    ["คำขอเปลี่ยน", formatNumber(academicChangeRequests.length)],
+                  ].map(([label, value]) => (
+                    <article key={label}>
+                      <span>{label}</span>
+                      <strong>{value}</strong>
+                    </article>
+                  ))}
+                </section>
+
+                <div className="academic-review-grid">
+                  <section className="academic-review-main">
+                    <div className="academic-section-title">
+                      <div>
+                        <span>PLAN ITEM DETAILS</span>
+                        <h3>รายการ จำนวน และหลักฐานประกอบ</h3>
+                      </div>
+                      <b>{academicPlanRows.length} รายการ</b>
+                    </div>
+                    <div className="live-table-wrap academic-table-wrap">
+                      <table className="live-table academic-table">
+                        <thead>
+                          <tr>
+                            <th>เขต / พัสดุ</th>
+                            <th>จำนวน</th>
+                            <th>AI / Rule evidence</th>
+                            <th>FIFO evidence</th>
+                            <th>ผลตอบเขต</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {academicPlanRows.map((row) => {
+                            const recommendation = data.recommendations.find(
+                              (item) => itemId(item) === itemId(row),
+                            );
+                            const fifo = fifoPlanFor(row, finalPickingQuantity(row));
+                            return (
+                              <tr key={itemId(row)}>
+                                <td>
+                                  <strong>{text(row.district_id)} · {text(row.district_name_th)}</strong>
+                                  <small>{text(row.material_id)} · {text(row.material_name)}</small>
+                                </td>
+                                <td>
+                                  <strong>{formatNumber(finalPickingQuantity(row), 0)} EA</strong>
+                                  <small>AI {formatNumber(recommendation?.ai_suggested_qty ?? row.suggested_qty, 0)} · Min {formatNumber(row.min_fill_qty, 0)} · Max {formatNumber(row.max_fill_qty, 0)}</small>
+                                </td>
+                                <td>
+                                  <strong>Confidence {formatNumber(Number(recommendation?.confidence_score ?? 0) * 100, 0)}%</strong>
+                                  <small>CMP {formatNumber(row.cmp_monthly, 1)} / เดือน · คงเหลือ {formatNumber(row.months_available, 1)} เดือน</small>
+                                </td>
+                                <td className={fifo.shortage > 0 ? "evidence-short" : "evidence-ready"}>
+                                  <strong>{fifo.shortage > 0 ? `ขาด ${formatNumber(fifo.shortage, 0)} EA` : `${fifo.picks.length} HU พร้อมหยิบ`}</strong>
+                                  <small>{fifo.detail}</small>
+                                </td>
+                                <td><Badge>{text(row.item_status)}</Badge></td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <aside className="academic-change-panel">
+                    <div className="academic-section-title">
+                      <div>
+                        <span>CHANGE REQUESTS</span>
+                        <h3>คำขอเปลี่ยนและความเสี่ยง</h3>
+                      </div>
+                    </div>
+                    {academicChangeRequests.length ? (
+                      academicChangeRequests.map((request) => (
+                        <article key={text(request.change_request_id)}>
+                          <div>
+                            <strong>{text(request.material_id)}</strong>
+                            <Badge>{text(request.status)}</Badge>
+                          </div>
+                          <p>{text(request.reason)}</p>
+                          <dl>
+                            <div><dt>เดิม</dt><dd>{formatNumber(request.original_qty, 0)}</dd></div>
+                            <div><dt>ขอ</dt><dd>{formatNumber(request.requested_qty, 0)}</dd></div>
+                            <div><dt>Risk</dt><dd>{text(request.risk_level)}</dd></div>
+                          </dl>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="academic-empty">ไม่มีคำขอเปลี่ยนในแผนนี้</p>
+                    )}
+                  </aside>
+                </div>
+
+                <footer className="academic-review-actions">
+                  <div>
+                    <strong>
+                      {academicStatus === "locked"
+                        ? "แผนล็อกแล้ว — Picking Document พร้อมใช้งาน"
+                        : canAcademicDecide
+                          ? "พร้อมให้วิชาการตัดสินใจ"
+                          : "รอขั้นตอนก่อนหน้าให้เสร็จสมบูรณ์"}
+                    </strong>
+                    <small>การ Lock จะตรึงจำนวนและเปิดเอกสารหยิบตาม FIFO</small>
+                  </div>
+                  {canAcademicDecide && (
+                    <>
+                      <button type="button" className="btn ghost academic-return" onClick={() => setPlanAction({ type: "return", row: academicPlan })}>
+                        Return to Planner
+                      </button>
+                      <button type="button" className="btn primary academic-lock" onClick={() => setPlanAction({ type: "approve", row: academicPlan })}>
+                        Approve &amp; Lock Plan
+                      </button>
+                    </>
+                  )}
+                  {academicStatus === "locked" && (
+                    <button type="button" className="btn primary" onClick={() => setPickingDocument({ plan: academicPlan, generatedAt: new Date().toISOString() })}>
+                      Preview / Export Picking Document
+                    </button>
+                  )}
+                </footer>
+              </>
+            ) : (
+              <div className="academic-empty">ยังไม่มีแผนส่งเข้าตรวจวิชาการ</div>
+            )}
+          </section>
+
           <section className="panel">
             <div className="panel-title">
               <div>
-                <span>SEQUENTIAL APPROVAL</span>
-                <h3>Planner อนุมัติ → วิชาการอนุมัติ → Lock + Reserve FIFO</h3>
+                <span>PLAN QUEUE</span>
+                <h3>สถานะแผนและการดำเนินการตามบทบาท</h3>
               </div>
             </div>
             <LiveTable
@@ -2047,6 +2393,20 @@ function WeeklyPlanView({
                       status === "locked" && ["admin", "picker"].includes(role);
                     return (
                       <span className="table-actions">
+                        {status === "locked" &&
+                          ["admin", "planner", "academic", "picker"].includes(role) && (
+                            <button
+                              className="table-action"
+                              onClick={() =>
+                                setPickingDocument({
+                                  plan: row,
+                                  generatedAt: new Date().toISOString(),
+                                })
+                              }
+                            >
+                              Preview / Export Picking
+                            </button>
+                          )}
                         {canApprove && (
                           <button
                             className="table-action"
@@ -2120,6 +2480,255 @@ function WeeklyPlanView({
         </>
       )}
 
+      {pickingDocument && (
+        <div
+          className="picking-document-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="picking-document-title"
+        >
+          <section className="picking-document-sheet">
+            <div className="picking-document-actions no-print">
+              <div>
+                <strong>Picking Document Preview</strong>
+                <small>
+                  ตรวจสอบ FIFO และจำนวนก่อนพิมพ์ส่งให้หน้างาน
+                </small>
+              </div>
+              <span>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => setPickingDocument(null)}
+                >
+                  ปิด
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={exportPickingCsv}
+                >
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => window.print()}
+                >
+                  พิมพ์ / บันทึก PDF
+                </button>
+              </span>
+            </div>
+
+            <header className="picking-document-head">
+              <div className="picking-document-brand">
+                <b>MEA</b>
+                <span>
+                  <strong>MEA Synapse</strong>
+                  <small>Warehouse Operations · Khlong Toei</small>
+                </span>
+              </div>
+              <div>
+                <span>PICKING DOCUMENT</span>
+                <h2 id="picking-document-title">
+                  ใบจัดเตรียมและหยิบพัสดุ
+                </h2>
+                <strong>{pickingDocumentNumber}</strong>
+              </div>
+            </header>
+
+            <section className="picking-document-meta">
+              <div>
+                <span>Weekly Plan</span>
+                <strong>
+                  {text(
+                    pickingDocument.plan.plan_number,
+                    text(pickingDocument.plan.plan_code),
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Version / Status</span>
+                <strong>
+                  V
+                  {text(
+                    pickingDocument.plan.version_no,
+                    text(pickingDocument.plan.plan_version, "1"),
+                  )} · {text(pickingDocument.plan.plan_status)}
+                </strong>
+              </div>
+              <div>
+                <span>Warehouse</span>
+                <strong>คลังคลองเตย · Plant 2401 / SLoc 0001</strong>
+              </div>
+              <div>
+                <span>Generated</span>
+                <strong>{formatDateTime(pickingDocument.generatedAt)}</strong>
+              </div>
+            </section>
+
+            {text(pickingDocument.plan.plan_status) !== "locked" && (
+              <aside className="picking-document-draft">
+                DRAFT PREVIEW · ยังไม่ใช่คำสั่งหยิบ จนกว่าแผนจะอนุมัติครบและ Lock
+              </aside>
+            )}
+
+            <section className="picking-document-summary">
+              <article>
+                <span>Districts</span>
+                <strong>
+                  {
+                    new Set(
+                      pickingPlanRows.map((row) => text(row.district_id)),
+                    ).size
+                  }
+                </strong>
+              </article>
+              <article>
+                <span>Materials</span>
+                <strong>
+                  {
+                    new Set(
+                      pickingPlanRows.map((row) => text(row.material_id)),
+                    ).size
+                  }
+                </strong>
+              </article>
+              <article>
+                <span>Plan Lines</span>
+                <strong>{pickingPlanRows.length}</strong>
+              </article>
+              <article>
+                <span>Total Qty</span>
+                <strong>
+                  {formatNumber(
+                    pickingPlanRows.reduce(
+                      (sum, row) => sum + finalPickingQuantity(row),
+                      0,
+                    ),
+                    0,
+                  )}
+                </strong>
+              </article>
+            </section>
+
+            <div className="picking-document-table-wrap">
+              <table className="picking-document-table">
+                <thead>
+                  <tr>
+                    <th>เขต / พัสดุ</th>
+                    <th>Final Qty</th>
+                    <th>ลำดับ FIFO / Contract</th>
+                    <th>PO · Vendor · Lot</th>
+                    <th>Pallet / Box / HU</th>
+                    <th>Pick Qty</th>
+                    <th>Remain</th>
+                    <th>ตรวจหยิบ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pickingPlanRows.flatMap((planRow, planIndex) => {
+                    const finalQty = finalPickingQuantity(planRow);
+                    const fifo = fifoPlanFor(planRow, finalQty);
+                    const pickRows = fifo.picks.map(
+                      ({ row: source, quantity }, pickIndex) => (
+                        <tr
+                          key={`${text(planRow.replenishment_item_id)}:${text(
+                            source.handling_unit_code,
+                          )}:${pickIndex}`}
+                        >
+                          <td>
+                            <strong>
+                              {text(planRow.district_id)} :{" "}
+                              {text(planRow.district_name_th)}
+                            </strong>
+                            <small>
+                              {text(planRow.material_id)} ·{" "}
+                              {text(planRow.material_name)}
+                            </small>
+                          </td>
+                          <td>{formatNumber(finalQty, 0)}</td>
+                          <td>
+                            <strong>#{pickIndex + 1}</strong>
+                            <small>{text(source.contract_number)}</small>
+                          </td>
+                          <td>
+                            <strong>{text(source.purchase_order)}</strong>
+                            <small>
+                              {text(source.vendor_name)} · {text(source.lot_code)}
+                              {text(source.installment_no, "")
+                                ? ` · งวด ${text(source.installment_no)}`
+                                : ""}
+                            </small>
+                          </td>
+                          <td>
+                            <strong>{text(source.handling_unit_code)}</strong>
+                            <small>{packingText(source, quantity)}</small>
+                          </td>
+                          <td className="picking-quantity">
+                            {formatNumber(quantity, 0)}
+                          </td>
+                          <td>
+                            {formatNumber(
+                              Math.max(
+                                0,
+                                Number(source.allocatable_qty ?? 0) - quantity,
+                              ),
+                              0,
+                            )}
+                          </td>
+                          <td><span className="picking-check-box" /></td>
+                        </tr>
+                      ),
+                    );
+                    if (fifo.shortage > 0 || !pickRows.length) {
+                      pickRows.push(
+                        <tr
+                          className="picking-shortage-row"
+                          key={`shortage:${text(
+                            planRow.replenishment_item_id,
+                          )}:${planIndex}`}
+                        >
+                          <td>
+                            <strong>
+                              {text(planRow.district_id)} · {text(planRow.material_id)}
+                            </strong>
+                            <small>{text(planRow.material_name)}</small>
+                          </td>
+                          <td>{formatNumber(finalQty, 0)}</td>
+                          <td colSpan={4}>FIFO พร้อมหยิบไม่เพียงพอ</td>
+                          <td>
+                            ขาด {formatNumber(fifo.shortage || finalQty, 0)}
+                          </td>
+                          <td><span className="picking-check-box" /></td>
+                        </tr>,
+                      );
+                    }
+                    return pickRows;
+                  })}
+                  {!pickingPlanRows.length && (
+                    <tr>
+                      <td colSpan={8}>ไม่พบรายการของแผนนี้</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <footer className="picking-document-footer">
+              <div><span>ผู้จัดทำ Picking List</span><i /></div>
+              <div><span>ผู้หยิบพัสดุ</span><i /></div>
+              <div><span>ผู้ตรวจสอบ</span><i /></div>
+              <div><span>วันเวลาเสร็จสิ้น</span><i /></div>
+            </footer>
+            <p className="picking-document-note">
+              ใช้ Pallet/Box/HU เก่าให้หมดก่อนตาม FIFO และบันทึก Remain ของหน่วยที่เปิด
+              หากจำนวนหรือสภาพพัสดุไม่ตรง ให้หยุดงานและแจ้ง Planner ก่อนดำเนินการต่อ
+            </p>
+          </section>
+        </div>
+      )}
+
       {responseRow && (
         <form className="pipeline-form" onSubmit={submitResponse}>
           <div className="panel-title">
@@ -2143,11 +2752,13 @@ function WeeklyPlanView({
               การตัดสินใจ
               <select
                 value={decision}
-                onChange={(event) =>
-                  setDecision(
-                    event.target.value as ReplenishmentResponsePayload["decision"],
-                  )
-                }
+                onChange={(event) => {
+                  const nextDecision =
+                    event.target.value as ReplenishmentResponsePayload["decision"];
+                  setDecision(nextDecision);
+                  setReason(nextDecision === "confirm" ? "ยืนยันตามแผน" : "");
+                  setResponseError("");
+                }}
               >
                 <option value="confirm">Confirm</option>
                 <option value="change">Change quantity</option>
@@ -2181,10 +2792,20 @@ function WeeklyPlanView({
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
                 maxLength={1000}
-                required
+                required={decision !== "confirm"}
+                placeholder={
+                  decision === "confirm"
+                    ? "ยืนยันตามแผน"
+                    : "ระบุเหตุผลและหลักฐานประกอบ"
+                }
               />
             </label>
           </div>
+          {responseError && (
+            <div className="form-error" role="alert">
+              {responseError}
+            </div>
+          )}
           <div className="pipeline-actions">
             <button className="btn primary" disabled={actionBusy}>
               บันทึกการตอบกลับของเขต
@@ -2199,8 +2820,12 @@ function WeeklyPlanView({
             <div>
               <span>การจัดการแผน</span>
               <h3>
-                {planAction.type.toUpperCase()} ·{" "}
-                {text(planAction.row.plan_number)}
+                {planAction.type === "approve"
+                  ? "APPROVE & LOCK"
+                  : planAction.type === "return"
+                    ? "RETURN TO PLANNER"
+                    : planAction.type.toUpperCase()} ·{" "}
+                {text(planAction.row.plan_number, text(planAction.row.plan_code))}
               </h3>
             </div>
             <button
@@ -2217,6 +2842,7 @@ function WeeklyPlanView({
               value={planNote}
               onChange={(event) => setPlanNote(event.target.value)}
               required={
+                planAction.type === "return" ||
                 planAction.type !== "approve" ||
                 text(planAction.row.plan_status) ===
                   "pending_academic_approval" ||
@@ -2224,14 +2850,20 @@ function WeeklyPlanView({
               }
               placeholder={
                 planAction.type === "approve"
-                  ? "หากมีรายการเกิน 9 เดือน วิชาการต้องระบุหมายเหตุ"
+                  ? "สรุปผลการตรวจ AI, FIFO และคำขอเปลี่ยนก่อน Lock"
+                  : planAction.type === "return"
+                    ? "ระบุสิ่งที่ Planner ต้องแก้ไข (จำเป็น)"
                   : "จำเป็นสำหรับการยกเลิก/ออกเวอร์ชันใหม่"
               }
             />
           </label>
           <div className="pipeline-actions">
             <button className="btn primary" disabled={actionBusy}>
-              ยืนยัน {planAction.type}
+              {planAction.type === "approve"
+                ? "ยืนยัน Approve & Lock Plan"
+                : planAction.type === "return"
+                  ? "ยืนยัน Return to Planner"
+                  : `ยืนยัน ${planAction.type}`}
             </button>
           </div>
         </form>
@@ -3366,6 +3998,906 @@ function StockView({ data }: { data: DashboardData }) {
   );
 }
 
+type ImportSourceKey = "stock" | "usage" | "contracts" | "history";
+type ImportStage = "select" | "validated" | "processed" | "published";
+const importSequence: ImportSourceKey[] = [
+  "stock",
+  "usage",
+  "contracts",
+  "history",
+];
+type ImportedSheet = {
+  headers: string[];
+  rows: string[][];
+  sheetName: string;
+  totalRows: number;
+};
+type ImportHistoryRecord = {
+  id: string;
+  sourceKey: ImportSourceKey;
+  fileName: string;
+  importedAt: string;
+  importedBy: string;
+  rowCount: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  status: "published" | "needs_review" | "failed";
+  version: number;
+};
+
+const initialImportHistory: ImportHistoryRecord[] = [
+  {
+    id: "IMP-ST-20260721-003",
+    sourceKey: "stock",
+    fileName: "Stock_2026-07-21.xlsx",
+    importedAt: "2026-07-21T07:00:00+07:00",
+    importedBy: "Admin",
+    rowCount: 2_223,
+    acceptedCount: 2_218,
+    rejectedCount: 5,
+    status: "published",
+    version: 3,
+  },
+  {
+    id: "IMP-PO-20260721-006",
+    sourceKey: "contracts",
+    fileName: "รวมสัญญา_2026-07-21.xlsx",
+    importedAt: "2026-07-21T06:30:00+07:00",
+    importedBy: "Admin",
+    rowCount: 4_806,
+    acceptedCount: 4_791,
+    rejectedCount: 15,
+    status: "published",
+    version: 6,
+  },
+  {
+    id: "IMP-HX-20260718-002",
+    sourceKey: "history",
+    fileName: "คลังคลองเตย_2026-07-18.xlsx",
+    importedAt: "2026-07-18T15:42:00+07:00",
+    importedBy: "Admin",
+    rowCount: 1_348,
+    acceptedCount: 1_348,
+    rejectedCount: 0,
+    status: "published",
+    version: 2,
+  },
+  {
+    id: "IMP-CM-20260701-004",
+    sourceKey: "usage",
+    fileName: "อัตราการใช้งาน_2026-07.xlsx",
+    importedAt: "2026-07-01T09:15:00+07:00",
+    importedBy: "Admin",
+    rowCount: 2_000,
+    acceptedCount: 1_992,
+    rejectedCount: 8,
+    status: "published",
+    version: 4,
+  },
+  {
+    id: "IMP-ST-20260720-002",
+    sourceKey: "stock",
+    fileName: "Stock_2026-07-20.xlsx",
+    importedAt: "2026-07-20T07:02:00+07:00",
+    importedBy: "Admin",
+    rowCount: 2_218,
+    acceptedCount: 2_218,
+    rejectedCount: 0,
+    status: "published",
+    version: 2,
+  },
+  {
+    id: "IMP-PO-20260720-005",
+    sourceKey: "contracts",
+    fileName: "รวมสัญญา_2026-07-20.xlsx",
+    importedAt: "2026-07-20T06:35:00+07:00",
+    importedBy: "Admin",
+    rowCount: 4_781,
+    acceptedCount: 4_769,
+    rejectedCount: 12,
+    status: "published",
+    version: 5,
+  },
+];
+
+const importProfiles: Record<
+  ImportSourceKey,
+  {
+    title: string;
+    subtitle: string;
+    schedule: string;
+    icon: string;
+    fileHint: string;
+    required: Array<{ label: string; aliases: string[] }>;
+    rules: string[];
+  }
+> = {
+  stock: {
+    title: "Stock Snapshot",
+    subtitle: "Stock คลังกลางและคลังเขตจาก SAP",
+    schedule: "รายวัน",
+    icon: "ST",
+    fileHint: "Stock.xlsx",
+    required: [
+      { label: "Material", aliases: ["material", "เลขวัสดุ", "รหัสวัสดุ"] },
+      { label: "Plant", aliases: ["plant", "โรงงาน"] },
+      {
+        label: "Storage Location",
+        aliases: ["storagelocation", "sloc", "สถานที่เก็บ"],
+      },
+      {
+        label: "Unrestricted",
+        aliases: ["unrestricted", "ไม่จำกัด", "ยอดไม่จำกัด"],
+      },
+    ],
+    rules: [
+      "ใช้ Stock คอลัมน์ไม่จำกัดเท่านั้น",
+      "คลังคลองเตย = Plant 2401 / Storage Location 0001",
+      "Stock เขตสรุปทุก Storage Location ที่อนุญาตของ Plant นั้น",
+    ],
+  },
+  usage: {
+    title: "Usage Rate / CMP",
+    subtitle: "ประวัติการใช้งานและค่า CMP รายเดือน",
+    schedule: "รายเดือน",
+    icon: "CM",
+    fileHint: "อัตราการใช้งาน.xlsx",
+    required: [
+      { label: "Material", aliases: ["material", "เลขวัสดุ", "รหัสวัสดุ"] },
+      { label: "LY", aliases: ["ly", "lastyear"] },
+      { label: "12M", aliases: ["12m", "12เดือน"] },
+      { label: "6M", aliases: ["6m", "6เดือน"] },
+      { label: "4M", aliases: ["4m", "4เดือน"] },
+    ],
+    rules: [
+      "เครื่องหมาย - แทนเดือนที่ไม่มีการใช้งานและตีค่าเป็น 0",
+      "CMP = ค่าเฉลี่ย LY, 12M, 6M และ 4M",
+      "CMP ปัดเป็นจำนวนเต็มก่อนคำนวณแผน",
+    ],
+  },
+  contracts: {
+    title: "Contract & Delivery Lot",
+    subtitle: "สัญญา PO ผู้ขาย และงวดส่งมอบ",
+    schedule: "รายวัน",
+    icon: "PO",
+    fileHint: "รวมสัญญา.xlsx",
+    required: [
+      { label: "Material", aliases: ["material", "เลขวัสดุ", "รหัสวัสดุ"] },
+      {
+        label: "PO / Contract",
+        aliases: ["po", "purchaseorder", "สัญญา", "เลขที่po", "รหัสจัดหา"],
+      },
+      {
+        label: "Accepted Date",
+        aliases: ["วันผ่านตรวจรับ", "accepteddate", "receiptdate", "วันที่รับ"],
+      },
+    ],
+    rules: [
+      "นำเข้าเฉพาะแถวที่มี Material",
+      "อัปเดตของเดิมและเพิ่มสัญญาใหม่ใน Snapshot เดียวกัน",
+      "ใช้วันผ่านตรวจรับเป็นหลักฐานลำดับ FIFO",
+    ],
+  },
+  history: {
+    title: "Historical Operations",
+    subtitle: "ประวัติการจ่าย การรับ และข้อมูลประกอบ AI",
+    schedule: "ตามรอบข้อมูล",
+    icon: "HX",
+    fileHint: "คลังคลองเตย (1).xlsx",
+    required: [
+      { label: "Material", aliases: ["material", "เลขวัสดุ", "รหัสวัสดุ"] },
+      {
+        label: "District / Plant",
+        aliases: ["district", "plant", "เขต", "การไฟฟ้าเขต"],
+      },
+      {
+        label: "Quantity",
+        aliases: ["quantity", "qty", "จำนวน", "จำนวนจ่าย"],
+      },
+    ],
+    rules: [
+      "เก็บประวัติรายรายการเพื่อใช้เป็น Evidence ของ AI Suggestion",
+      "แยก Weekly Plan ออกจาก Daily Alert / Exception",
+      "ข้อมูลจริงต้องสอบกลับถึงผู้ขอ เหตุผล และผู้อนุมัติได้",
+    ],
+  },
+};
+
+function normalizeImportHeader(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_./\\()\-]+/g, "");
+}
+
+function parseCsvMatrix(source: string) {
+  const matrix: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(cell.trim());
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell.trim());
+      if (row.some(Boolean)) matrix.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  row.push(cell.trim());
+  if (row.some(Boolean)) matrix.push(row);
+  return matrix;
+}
+
+function excelColumnIndex(reference: string) {
+  const letters = reference.match(/^[A-Z]+/i)?.[0]?.toUpperCase() ?? "A";
+  return [...letters].reduce(
+    (value, letter) => value * 26 + letter.charCodeAt(0) - 64,
+    0,
+  ) - 1;
+}
+
+async function readImportSheet(file: File): Promise<ImportedSheet> {
+  if (file.name.toLowerCase().endsWith(".csv")) {
+    const matrix = parseCsvMatrix(await file.text());
+    return {
+      headers: matrix[0] ?? [],
+      rows: matrix.slice(1, 5001),
+      sheetName: "CSV",
+      totalRows: Math.max(0, matrix.length - 1),
+    };
+  }
+
+  const { strFromU8, unzipSync } = await import("fflate");
+  const archive = unzipSync(new Uint8Array(await file.arrayBuffer()));
+  const worksheetPath = Object.keys(archive)
+    .filter((path) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(path))
+    .sort()[0];
+  if (!worksheetPath) throw new Error("ไม่พบ Worksheet ในไฟล์ Excel");
+
+  const parser = new DOMParser();
+  const sharedXml = archive["xl/sharedStrings.xml"];
+  const shared = sharedXml
+    ? [...parser.parseFromString(strFromU8(sharedXml), "text/xml").getElementsByTagName("si")].map(
+        (node) => node.textContent ?? "",
+      )
+    : [];
+  const workbookXml = archive["xl/workbook.xml"];
+  const sheetName = workbookXml
+    ? parser
+        .parseFromString(strFromU8(workbookXml), "text/xml")
+        .getElementsByTagName("sheet")[0]
+        ?.getAttribute("name") ?? "Sheet 1"
+    : "Sheet 1";
+  const worksheet = parser.parseFromString(
+    strFromU8(archive[worksheetPath]),
+    "text/xml",
+  );
+  const matrix = [...worksheet.getElementsByTagName("row")]
+    .map((rowNode) => {
+      const values: string[] = [];
+      [...rowNode.getElementsByTagName("c")].forEach((cellNode) => {
+        const column = excelColumnIndex(cellNode.getAttribute("r") ?? "A1");
+        const kind = cellNode.getAttribute("t") ?? "";
+        const raw = cellNode.getElementsByTagName("v")[0]?.textContent ?? "";
+        const value =
+          kind === "s"
+            ? shared[Number(raw)] ?? ""
+            : kind === "inlineStr"
+              ? cellNode.getElementsByTagName("is")[0]?.textContent ?? ""
+              : raw;
+        values[column] = value.trim();
+      });
+      return values;
+    })
+    .filter((row) => row.some(Boolean));
+
+  return {
+    headers: matrix[0] ?? [],
+    rows: matrix.slice(1, 5001),
+    sheetName,
+    totalRows: Math.max(0, matrix.length - 1),
+  };
+}
+
+function DataImportView() {
+  const [sourceKey, setSourceKey] = useState<ImportSourceKey>("stock");
+  const [completedSequence, setCompletedSequence] = useState<ImportSourceKey[]>([]);
+  const [file, setFile] = useState<File | null>(null);
+  const [sheet, setSheet] = useState<ImportedSheet | null>(null);
+  const [stage, setStage] = useState<ImportStage>("select");
+  const [history, setHistory] = useState<ImportHistoryRecord[]>(
+    initialImportHistory,
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const profile = importProfiles[sourceKey];
+  const latestImport = history[0] ?? null;
+  const nextRequiredSource = importSequence[completedSequence.length] ?? null;
+  const sequenceComplete = completedSequence.length === importSequence.length;
+
+  const validation = useMemo(() => {
+    if (!sheet) return null;
+    const normalized = sheet.headers.map(normalizeImportHeader);
+    const matches = profile.required.map((requirement) => ({
+      ...requirement,
+      index: normalized.findIndex((header) =>
+        requirement.aliases.some((alias) =>
+          header.includes(normalizeImportHeader(alias)),
+        ),
+      ),
+    }));
+    const materialColumn = matches.find((item) => item.label === "Material")?.index ?? -1;
+    const invalidRows = sheet.rows.filter((row) =>
+      materialColumn >= 0 ? !String(row[materialColumn] ?? "").trim() : false,
+    ).length;
+    return {
+      matches,
+      missing: matches.filter((item) => item.index < 0),
+      invalidRows,
+      validRows: Math.max(0, sheet.totalRows - invalidRows),
+    };
+  }, [profile, sheet]);
+
+  const resetFile = () => {
+    setFile(null);
+    setSheet(null);
+    setStage("select");
+    setError("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const loadFile = async (nextFile: File | undefined) => {
+    if (!nextFile) return;
+    if (!/\.(xlsx|csv)$/i.test(nextFile.name)) {
+      setError("รองรับเฉพาะไฟล์ .xlsx และ .csv");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setStage("select");
+    try {
+      const parsed = await readImportSheet(nextFile);
+      if (!parsed.headers.length) throw new Error("ไม่พบหัวตารางในไฟล์");
+      setFile(nextFile);
+      setSheet(parsed);
+    } catch (loadError) {
+      setFile(null);
+      setSheet(null);
+      setError(
+        loadError instanceof Error ? loadError.message : "ไม่สามารถอ่านไฟล์ได้",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    void loadFile(event.target.files?.[0]);
+  };
+
+  const validate = () => {
+    if (!validation) return;
+    if (validation.missing.length) {
+      setError(
+        `ไม่พบคอลัมน์ที่จำเป็น: ${validation.missing.map((item) => item.label).join(", ")}`,
+      );
+      return;
+    }
+    setError("");
+    setStage("validated");
+  };
+
+  const process = () => {
+    if (stage !== "validated") return;
+    setBusy(true);
+    window.setTimeout(() => {
+      setStage("processed");
+      setBusy(false);
+    }, 550);
+  };
+
+  const publish = () => {
+    if (stage !== "processed" || !file || !sheet || !validation) return;
+    const nextVersion =
+      Math.max(
+        0,
+        ...history
+          .filter((record) => record.sourceKey === sourceKey)
+          .map((record) => record.version),
+      ) + 1;
+    const nextRecord: ImportHistoryRecord = {
+      id: `IMP-${sourceKey.toUpperCase()}-${Date.now()}`,
+      sourceKey,
+      fileName: file.name,
+      importedAt: new Date().toISOString(),
+      importedBy: "Admin",
+      rowCount: sheet.totalRows,
+      acceptedCount: validation.validRows,
+      rejectedCount: validation.invalidRows,
+      status: validation.invalidRows > 0 ? "needs_review" : "published",
+      version: nextVersion,
+    };
+    setHistory((current) => [nextRecord, ...current]);
+    setCompletedSequence((current) => {
+      const sourceIndex = importSequence.indexOf(sourceKey);
+      const isNextRequired = sourceIndex === current.length;
+      return isNextRequired && !current.includes(sourceKey)
+        ? [...current, sourceKey]
+        : current;
+    });
+    setStage("published");
+  };
+
+  const continueSequence = () => {
+    const nextSource = importSequence[completedSequence.length];
+    if (!nextSource) return;
+    setSourceKey(nextSource);
+    resetFile();
+  };
+
+  const restartSequence = () => {
+    setCompletedSequence([]);
+    setSourceKey("stock");
+    resetFile();
+  };
+
+  const stageIndex = { select: 1, validated: 2, processed: 3, published: 4 }[stage];
+  const moduleNames = [
+    "Dashboard",
+    "Replenishment",
+    "AI Suggestion",
+    "FIFO & Picking",
+    "Transport",
+    "Trackback",
+  ];
+
+  return (
+    <div className="stack import-page">
+      <section className="import-hero">
+        <div>
+          <span>DATA FOUNDATION · LOCAL / STAGING</span>
+          <h2>จากไฟล์ SAP สู่ข้อมูลพร้อมใช้งาน</h2>
+          <p>
+            นำเข้า ตรวจสอบ และประมวลผลเป็น Snapshot ก่อนส่งต่อให้แต่ละ Module
+            โดยไม่เขียนทับข้อมูลเดิมทันที
+          </p>
+        </div>
+        <div className="import-hero-actions">
+          <div className="import-hero-state">
+            <i />
+            <span>
+              <small>Environment</small>
+              <strong>LOCAL PREVIEW</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            className="btn primary import-new-button"
+            onClick={() => inputRef.current?.click()}
+          >
+            ⇧ Import New File
+          </button>
+        </div>
+      </section>
+
+      <section className="import-overview" aria-label="สถานะการนำเข้าล่าสุด">
+        <article className="import-latest-card">
+          <span>LAST IMPORT</span>
+          <strong>{latestImport ? formatDateTime(latestImport.importedAt) : "—"}</strong>
+          <small>
+            {latestImport
+              ? `${importProfiles[latestImport.sourceKey].title} · ${latestImport.fileName}`
+              : "ยังไม่มีประวัติการนำเข้า"}
+          </small>
+        </article>
+        <article>
+          <span>IMPORT BATCHES</span>
+          <strong>{formatNumber(history.length)}</strong>
+          <small>เก็บเป็นเวอร์ชัน ไม่เขียนทับประวัติ</small>
+        </article>
+        <article>
+          <span>ACCEPTED ROWS</span>
+          <strong>
+            {formatNumber(history.reduce((sum, record) => sum + record.acceptedCount, 0))}
+          </strong>
+          <small>จำนวนแถวที่ผ่านการตรวจทั้งหมด</small>
+        </article>
+        <article>
+          <span>NEEDS REVIEW</span>
+          <strong>
+            {formatNumber(history.reduce((sum, record) => sum + record.rejectedCount, 0))}
+          </strong>
+          <small>เก็บแยกเพื่อตรวจสอบ ไม่ทิ้งข้อมูล</small>
+        </article>
+      </section>
+
+      <section className="panel import-sequence-panel" aria-label="ลำดับการนำเข้าข้อมูล">
+        <div className="panel-title import-sequence-title">
+          <div>
+            <span>ORDERED IMPORT · ADMIN WORKFLOW</span>
+            <h3>นำเข้าข้อมูลตามลำดับ 1–4 เพื่อป้องกันข้อมูลตกหล่น</h3>
+            <p>
+              ตรวจสอบและ Publish ไฟล์ปัจจุบันให้เรียบร้อย ระบบจึงจะเปิดไฟล์ถัดไป
+            </p>
+          </div>
+          <div className={`import-sequence-progress ${sequenceComplete ? "complete" : ""}`}>
+            <strong>{completedSequence.length} / {importSequence.length}</strong>
+            <small>{sequenceComplete ? "ครบทุกแหล่งข้อมูล" : "เสร็จแล้วในรอบนี้"}</small>
+          </div>
+        </div>
+
+        <div className="import-sequence-grid">
+          {importSequence.map((key, index) => {
+            const item = importProfiles[key];
+            const completed = completedSequence.includes(key);
+            const current = key === nextRequiredSource && !sequenceComplete;
+            const locked = index > completedSequence.length;
+            const selected = sourceKey === key;
+            return (
+              <button
+                type="button"
+                key={key}
+                className={`${selected ? "selected" : ""} ${completed ? "completed" : ""} ${current ? "current" : ""}`}
+                disabled={locked}
+                aria-current={selected ? "step" : undefined}
+                onClick={() => {
+                  if (locked) return;
+                  setSourceKey(key);
+                  resetFile();
+                }}
+              >
+                <i>{completed ? "✓" : locked ? "🔒" : index + 1}</i>
+                <span>
+                  <b>STEP {index + 1}</b>
+                  <strong>{item.title}</strong>
+                  <small>{item.fileHint} · {item.schedule}</small>
+                  <em>
+                    {completed
+                      ? "Publish แล้ว"
+                      : current
+                        ? "เปิดให้นำเข้าตอนนี้"
+                        : "รอขั้นตอนก่อนหน้า"}
+                  </em>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <footer className={`import-readiness-strip ${sequenceComplete ? "ready" : ""}`}>
+          <div>
+            <i>{sequenceComplete ? "✓" : "!"}</i>
+            <span>
+              <strong>{sequenceComplete ? "Data Readiness: Complete" : "Data Readiness: In progress"}</strong>
+              <small>
+                {sequenceComplete
+                  ? "ข้อมูลทั้ง 4 แหล่งผ่านกระบวนการของรอบนี้แล้ว"
+                  : `รายการถัดไป: ${nextRequiredSource ? importProfiles[nextRequiredSource].title : "—"}`}
+              </small>
+            </span>
+          </div>
+          {sequenceComplete && (
+            <button type="button" className="btn ghost" onClick={restartSequence}>
+              เริ่มรอบ Import ใหม่
+            </button>
+          )}
+        </footer>
+      </section>
+
+      <section className="import-steps" aria-label="ขั้นตอนการนำเข้าข้อมูล">
+        {[
+          [1, "Upload", "เลือกไฟล์ต้นทาง"],
+          [2, "Validate", "ตรวจคอลัมน์และข้อมูล"],
+          [3, "Process", "คำนวณตาม Business Rules"],
+          [4, "Publish", "เตรียมข้อมูลให้ Module"],
+        ].map(([number, label, detail]) => (
+          <article
+            key={String(number)}
+            className={stageIndex >= Number(number) ? "active" : ""}
+          >
+            <i>{number}</i>
+            <span>
+              <strong>{label}</strong>
+              <small>{detail}</small>
+            </span>
+          </article>
+        ))}
+      </section>
+
+      <section className="import-workspace">
+        <article className="panel import-upload-panel">
+          <div className="panel-title">
+            <div>
+              <span>ACTIVE SOURCE · STEP {importSequence.indexOf(sourceKey) + 1} OF 4</span>
+              <h3>อัปโหลด {profile.fileHint}</h3>
+              <small>{profile.subtitle} · {profile.schedule}</small>
+            </div>
+            {file && <Badge>{stage === "published" ? "published" : "uploaded"}</Badge>}
+          </div>
+          <div
+            className={`import-dropzone ${file ? "has-file" : ""}`}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              void loadFile(event.dataTransfer.files?.[0]);
+            }}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".xlsx,.csv"
+              onChange={onFileChange}
+              aria-label="เลือกไฟล์สำหรับนำเข้า"
+            />
+            <i>{file ? "✓" : "⇧"}</i>
+            {file ? (
+              <div>
+                <strong>{file.name}</strong>
+                <p>
+                  {(file.size / 1024 / 1024).toFixed(2)} MB · {sheet?.sheetName} ·{" "}
+                  {formatNumber(sheet?.totalRows ?? 0)} แถว
+                </p>
+                <button type="button" className="text-btn" onClick={resetFile}>
+                  เปลี่ยนไฟล์
+                </button>
+              </div>
+            ) : (
+              <div>
+                <strong>ลากไฟล์มาวาง หรือกดเพื่อเลือกไฟล์</strong>
+                <p>รองรับ .xlsx และ .csv · ประมวลผลใน Local Preview</p>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  เลือกไฟล์
+                </button>
+              </div>
+            )}
+          </div>
+          {error && (
+            <div className="form-error import-error" role="alert">
+              {error}
+            </div>
+          )}
+          {sheet && (
+            <div className="import-preview">
+              <div>
+                <strong>Data Preview</strong>
+                <small>แสดง 5 แถวแรกจากไฟล์จริง</small>
+              </div>
+              <div className="live-table-wrap">
+                <table className="live-table">
+                  <thead>
+                    <tr>
+                      {sheet.headers.slice(0, 8).map((header, index) => (
+                        <th key={`${header}-${index}`}>{header || `Column ${index + 1}`}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sheet.rows.slice(0, 5).map((row, rowIndex) => (
+                      <tr key={`preview-${rowIndex}`}>
+                        {sheet.headers.slice(0, 8).map((_, columnIndex) => (
+                          <td key={`cell-${rowIndex}-${columnIndex}`}>
+                            {text(row[columnIndex])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </article>
+
+        <aside className="panel import-validation-panel">
+          <div className="panel-title">
+            <div>
+              <span>VALIDATION & RULES</span>
+              <h3>ความพร้อมของข้อมูล</h3>
+            </div>
+          </div>
+          <div className="import-checks">
+            {profile.required.map((requirement) => {
+              const match = validation?.matches.find(
+                (item) => item.label === requirement.label,
+              );
+              return (
+                <div key={requirement.label} className={match?.index === -1 ? "failed" : ""}>
+                  <i>{match?.index === -1 ? "!" : sheet ? "✓" : "—"}</i>
+                  <span>
+                    <strong>{requirement.label}</strong>
+                    <small>
+                      {match && match.index >= 0
+                        ? sheet?.headers[match.index]
+                        : "รอตรวจสอบคอลัมน์"}
+                    </small>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {validation && (
+            <div className="import-validation-summary">
+              <div>
+                <span>ผ่าน</span>
+                <strong>{formatNumber(validation.validRows)}</strong>
+              </div>
+              <div>
+                <span>ต้องตรวจ</span>
+                <strong>{formatNumber(validation.invalidRows)}</strong>
+              </div>
+            </div>
+          )}
+          <div className="import-rule-list">
+            <strong>Business Rules ที่จะใช้</strong>
+            {profile.rules.map((rule) => (
+              <p key={rule}>
+                <i>✓</i> {rule}
+              </p>
+            ))}
+          </div>
+        </aside>
+      </section>
+
+      <section className="panel import-publish-panel">
+        <div className="panel-title">
+          <div>
+            <span>3 · PROCESS & PUBLISH</span>
+            <h3>เตรียมข้อมูลให้แต่ละ Module</h3>
+          </div>
+          <Badge>{stage}</Badge>
+        </div>
+        <div className="import-module-grid">
+          {moduleNames.map((moduleName) => (
+            <article key={moduleName} className={stage === "published" ? "ready" : ""}>
+              <i>{stage === "published" ? "✓" : "○"}</i>
+              <span>
+                <strong>{moduleName}</strong>
+                <small>{stage === "published" ? "Ready" : "Waiting for publish"}</small>
+              </span>
+            </article>
+          ))}
+        </div>
+        <div className="import-actions">
+          <p>
+            <strong>Local Preview:</strong> ขั้นตอน Publish ด้านล่างเป็นการจำลองสถานะ
+            และยังไม่บันทึกเข้า Supabase หรือ Production
+          </p>
+          <div>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={validate}
+              disabled={!sheet || busy || stageIndex > 1}
+            >
+              ตรวจสอบข้อมูล
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={process}
+              disabled={stage !== "validated" || busy}
+            >
+              {busy ? "กำลังประมวลผล…" : "ประมวลผล Business Rules"}
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={publish}
+              disabled={stage !== "processed" || busy}
+            >
+              Publish to Staging Modules
+            </button>
+            {stage === "published" && !sequenceComplete && (
+              <button
+                type="button"
+                className="btn primary import-next-button"
+                onClick={continueSequence}
+              >
+                ไปไฟล์ถัดไป →
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="panel import-history-panel">
+        <div className="panel-title">
+          <div>
+            <span>IMPORT HISTORY · APPEND-ONLY</span>
+            <h3>ประวัติการนำเข้าและเวอร์ชันข้อมูล</h3>
+          </div>
+          <small>{history.length} Import Batches</small>
+        </div>
+        <aside className="import-history-notice">
+          <i>✓</i>
+          <div>
+            <strong>ข้อมูลใหม่ไม่ลบข้อมูลเดิม</strong>
+            <p>
+              แต่ละการอัปโหลดจะสร้าง Batch และ Version ใหม่ เพื่อให้ตรวจสอบย้อนหลัง
+              เปรียบเทียบ และสอบกลับว่าใครนำเข้าข้อมูลเมื่อใดได้
+            </p>
+          </div>
+        </aside>
+        <div className="live-table-wrap import-history-table">
+          <table className="live-table">
+            <thead>
+              <tr>
+                <th>Batch ID</th>
+                <th>ประเภทข้อมูล</th>
+                <th>ไฟล์</th>
+                <th>Version</th>
+                <th>ผลการตรวจ</th>
+                <th>ผู้ Import</th>
+                <th>วันและเวลา</th>
+                <th>สถานะ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((record) => (
+                <tr key={record.id}>
+                  <td>
+                    <strong>{record.id}</strong>
+                  </td>
+                  <td>{importProfiles[record.sourceKey].title}</td>
+                  <td>
+                    <span className="import-file-cell">
+                      <i>{importProfiles[record.sourceKey].icon}</i>
+                      <span>{record.fileName}</span>
+                    </span>
+                  </td>
+                  <td>v{record.version}</td>
+                  <td>
+                    <strong>{formatNumber(record.acceptedCount)}</strong> ผ่าน ·{" "}
+                    <span className={record.rejectedCount ? "has-rejected" : ""}>
+                      {formatNumber(record.rejectedCount)} ต้องตรวจ
+                    </span>
+                  </td>
+                  <td>{record.importedBy}</td>
+                  <td>{formatDateTime(record.importedAt)}</td>
+                  <td>
+                    <Badge>
+                      {record.status === "published"
+                        ? "Published"
+                        : record.status === "needs_review"
+                          ? "Needs review"
+                          : "Failed"}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <footer className="import-history-footer">
+          <span>
+            ฐานข้อมูลรองรับ <strong>raw.import_batches</strong> และเก็บ Source Snapshot
+            แยกตาม Batch เพื่อรักษาประวัติเดิม
+          </span>
+          <span>Local Preview แสดงข้อมูลตัวอย่างสำหรับตรวจ UX</span>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 function DataView({ data }: { data: DashboardData }) {
   return (
     <div className="stack">
@@ -3824,6 +5356,7 @@ function PageContent({
         onIssue={backend.issueReplenishmentPlan}
         onReview={backend.reviewChangeRequest}
         onRespond={backend.respondReplenishment}
+        onReturn={backend.returnAcademicPlan}
         onVersion={backend.versionReplenishmentPlan}
       />
     );
@@ -3889,6 +5422,7 @@ function PageContent({
     );
   }
   if (view === "stock") return <StockView data={backend.data} />;
+  if (view === "import") return <DataImportView />;
   if (view === "data") return <DataView data={backend.data} />;
   if (view === "input") {
     return (
@@ -3997,6 +5531,7 @@ export default function Home() {
               token={backend.session?.access_token ?? null}
               role={role}
               actorId={backend.identity.user_id}
+              demoMode={backend.demoMode}
             />
           ) : (
             <>

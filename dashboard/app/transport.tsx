@@ -19,6 +19,14 @@ import type {
   RoadGeometry,
   TransportRoadMapProps,
 } from "./transport-road-map";
+import {
+  DIST_GEO,
+  REPLENISHMENT_PLAN,
+  SEED_TRIPS,
+  VEHICLES,
+  planRoute,
+  type Warehouse,
+} from "./transport-data";
 
 const TransportRoadMap = dynamic<TransportRoadMapProps>(
   () =>
@@ -322,7 +330,7 @@ const coordinateNum = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 const str = (v: unknown) => (v == null ? "" : String(v));
-type DataSource = "supabase" | "error";
+type DataSource = "supabase" | "demo" | "error";
 
 function geoStatus(value: unknown): TGeo["verificationStatus"] {
   return value === "verified" || value === "quarantined"
@@ -431,6 +439,134 @@ function emptyData(): TransportData {
     trips: [],
     warehouses: [],
     queue: [],
+    readiness: null,
+  };
+}
+
+const demoDistrictNames: Record<string, string> = {
+  "5501": "เขตนวลจันทร์",
+  "5601": "เขตสามเสน",
+  "5701": "เขตนนทบุรี",
+  "5801": "เขตธนบุรี",
+  "5901": "เขตบางใหญ่",
+  "6001": "เขตลาดกระบัง",
+  "6501": "เขตบางนา",
+  "6601": "เขตวัดเลียบ",
+  "6701": "เขตคลองเตย",
+  "6801": "เขตราษฎร์บูรณะ",
+  "6901": "เขตยานนาวา",
+  "7001": "เขตบางขุนเทียน",
+  "7501": "เขตบางบัวทอง",
+  "7601": "เขตบางกะปิ",
+  "7701": "เขตสมุทรปราการ",
+  "7801": "เขตบางพลี",
+  "7901": "เขตมีนบุรี",
+  "8001": "เขตบางเขน",
+};
+
+const demoWeightByDistrict: Record<string, number> = {
+  "5501": 2_800,
+  "5701": 2_100,
+  "5901": 1_600,
+};
+
+function demoTransportData(): TransportData {
+  const geo: Record<string, TGeo> = {
+    WH: {
+      ref: "WH",
+      name: "คลังกลางคลองเตย",
+      lat: DIST_GEO.WH.lat,
+      lon: DIST_GEO.WH.lon,
+      districtId: null,
+      isWarehouse: true,
+      warehouseCode: "คลองเตย",
+      verificationStatus: "verified",
+      routeEligible: true,
+      sourceReference: "LOCAL DEMO · คลังกลางคลองเตย",
+    },
+  };
+  Object.entries(DIST_GEO).forEach(([ref, point]) => {
+    if (ref === "WH") return;
+    geo[ref] = {
+      ref,
+      name: `${ref} : ${demoDistrictNames[ref] ?? point.name}`,
+      lat: point.lat,
+      lon: point.lon,
+      districtId: ref,
+      isWarehouse: false,
+      warehouseCode: null,
+      verificationStatus: "verified",
+      routeEligible: true,
+      sourceReference: "LOCAL DEMO · พิกัดประกอบการออกแบบ UX",
+    };
+  });
+
+  const vehicles: TVehicle[] = VEHICLES.filter(
+    (vehicle) => vehicle.currentWh === "คลองเตย" && vehicle.active,
+  ).map((vehicle) => ({
+    id: vehicle.id,
+    code: vehicle.code,
+    plate: vehicle.plate,
+    currentWarehouse: "คลองเตย",
+    driver: vehicle.driver,
+    maxWt: 6_000,
+    fuelRate: vehicle.fuelRate,
+    active: true,
+    availability: "available",
+    availabilityEvidence:
+      "LOCAL DEMO · รถ 6 ล้อ · พื้นที่ใช้งานเฉลี่ย 2.45 × 5.20 ม. · ไม่ซ้อนสูง · ไม่มีอุปกรณ์ยก",
+  }));
+
+  const planRows = REPLENISHMENT_PLAN.filter(
+    (line) => line.wh === "คลองเตย",
+  );
+  const grouped = new Map<string, typeof planRows>();
+  planRows.forEach((line) => {
+    grouped.set(line.dist, [...(grouped.get(line.dist) ?? []), line]);
+  });
+  const planId = "11111111-1111-4111-8111-111111111111";
+  const queue: QueueRow[] = [...grouped.entries()].map(([districtRef, rows]) => ({
+    districtRef,
+    districtId: districtRef,
+    districtName: demoDistrictNames[districtRef] ?? districtRef,
+    totalQty: rows.reduce((sum, row) => sum + row.qty, 0),
+    lineCount: rows.length,
+    originLocationId: "demo-location-khlong-toei",
+    originWarehouseId: "demo-warehouse-khlong-toei",
+    originWarehouse: "คลองเตย",
+    originWarehouseGeocodeStatus: "verified",
+    routeEligible: true,
+    planId,
+    planNumber: "WP-DEMO-W30 · Final Plan",
+    estimatedWeightKg: demoWeightByDistrict[districtRef] ?? 1_200,
+    weightComplete: true,
+  }));
+
+  const trips: TTrip[] = SEED_TRIPS.filter(
+    (trip) => trip.wh === "คลองเตย",
+  ).map((trip) => ({
+    id: trip.id,
+    code: trip.id,
+    batch: trip.batch,
+    vehicle: trip.veh,
+    driver: trip.driver,
+    warehouse: trip.wh,
+    route: trip.route,
+    dist: trip.dist,
+    fuel: trip.fuel,
+    fuelActual: trip.fuelAct,
+    date: trip.date,
+    status: trip.status,
+    notes: trip.notes,
+    evidenceStatus: "legacy_illustrative_unverified",
+  }));
+
+  return {
+    geo,
+    vehicles,
+    trips,
+    warehouses: ["คลองเตย"],
+    queue,
     readiness: null,
   };
 }
@@ -546,13 +682,20 @@ async function loadRemote(token: string): Promise<TransportData> {
   };
 }
 
-function useTransportData(token: string | null, role: Role) {
+function useTransportData(token: string | null, role: Role, demoMode = false) {
   const [data, setData] = useState<TransportData>(emptyData);
-  const [source, setSource] = useState<DataSource>("error");
-  const [loading, setLoading] = useState(Boolean(token));
+  const [source, setSource] = useState<DataSource>(demoMode ? "demo" : "error");
+  const [loading, setLoading] = useState(Boolean(token) && !demoMode);
   const [loadError, setLoadError] = useState("");
 
   const reload = useCallback(async () => {
+    if (demoMode) {
+      setData(demoTransportData());
+      setSource("demo");
+      setLoadError("");
+      setLoading(false);
+      return;
+    }
     if (!token) {
       setData(emptyData());
       setSource("error");
@@ -576,7 +719,7 @@ function useTransportData(token: string | null, role: Role) {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [demoMode, token]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -590,6 +733,42 @@ function useTransportData(token: string | null, role: Role) {
       planId: string,
       avoidTolls: boolean,
     ): Promise<RoadOptimizationResult> => {
+      if (source === "demo") {
+        const warehouse: Warehouse = "คลองเตย";
+        const local = planRoute(
+          warehouse,
+          stops.map((stop) => stop.ref),
+        );
+        const orderedStops = local.order
+          .map((ref) => stops.find((stop) => stop.ref === ref))
+          .filter((stop): stop is TGeo => Boolean(stop));
+        return {
+          provider: "osrm",
+          engineMode: "development-demo",
+          profile: "truck-constraints-preview",
+          algorithm: "road-matrix-nearest-neighbour-2opt",
+          objective: "duration",
+          order: local.order,
+          distanceKm: local.totalDist,
+          durationMinutes: local.totalTime,
+          baselineCost: local.totalTime,
+          optimizedCost: local.totalTime,
+          improvementPercent: 0,
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [depot.lon, depot.lat],
+              ...orderedStops.map(
+                (stop) => [stop.lon, stop.lat] as [number, number],
+              ),
+              [depot.lon, depot.lat],
+            ],
+          },
+          dataVersion: null,
+          dataVersionSource: "unavailable-development",
+          generatedAt: "2026-08-18T00:00:00.000Z",
+        };
+      }
       if (
         source !== "supabase" ||
         !token ||
@@ -952,18 +1131,22 @@ function SourceTag({
       role={isError ? "alert" : "status"}
       aria-live="polite"
     >
-      <i>{source === "supabase" ? "✓" : "×"}</i>
+      <i>{source === "supabase" ? "✓" : source === "demo" ? "D" : "×"}</i>
       <div>
         <strong>
           {loading
             ? "กำลังโหลดข้อมูลขนส่ง…"
             : source === "supabase"
               ? "เชื่อมต่อข้อมูลจริงแล้ว"
+              : source === "demo"
+                ? "Transport Demo พร้อมทดลองวางแผน"
               : "โหลดข้อมูลขนส่งจริงไม่สำเร็จ — หยุดการวางแผนเพื่อความปลอดภัย"}
         </strong>
         <p>
           {source === "supabase"
             ? "งาน แผน รถ และพิกัดมาจาก transport API; ระบบจะไม่ใช้ข้อมูลสาธิตแทนเมื่อ API ผิดพลาด"
+            : source === "demo"
+              ? "ใช้ Final Plan จำลอง รถ พด.707/708 และข้อมูล 18 เขตเพื่อทดสอบ UX เท่านั้น — ไม่เขียนฐานข้อมูล ไม่สร้างเที่ยวรถ และไม่แตะ Production"
             : error || "ไม่สามารถยืนยันสถานะข้อมูลจาก transport API ได้"}
         </p>
       </div>
@@ -1471,6 +1654,10 @@ function TransportPlanner({
   });
   const roadCurrent =
     roadState.signature === selectionSignature ? roadState.result : null;
+  const demoRoute =
+    source === "demo" && roadCurrent
+      ? planRoute("คลองเตย", roadCurrent.order)
+      : null;
   const previewOrder = roadCurrent?.order ?? selected;
   const depot = depotForWarehouse(data, warehouse);
   const fleet = useMemo(
@@ -1591,7 +1778,7 @@ function TransportPlanner({
   };
 
   const optimize = async () => {
-    if (source !== "supabase") {
+    if (source !== "supabase" && source !== "demo") {
       setRoadState({
         signature: selectionSignature,
         result: null,
@@ -1601,7 +1788,7 @@ function TransportPlanner({
       });
       return;
     }
-    if (!data.readiness?.operationalWritesEnabled) {
+    if (source !== "demo" && !data.readiness?.operationalWritesEnabled) {
       setRoadState({
         signature: selectionSignature,
         result: null,
@@ -1611,7 +1798,7 @@ function TransportPlanner({
       });
       return;
     }
-    if (!data.readiness?.routeReady) {
+    if (source !== "demo" && !data.readiness?.routeReady) {
       setRoadState({
         signature: selectionSignature,
         result: null,
@@ -2181,7 +2368,11 @@ function TransportPlanner({
           <div className="panel-title">
             <div>
               <span>พรีวิวเส้นทาง</span>
-              <h3>เส้นทางบนถนนจริง</h3>
+              <h3>
+                {source === "demo"
+                  ? "เส้นทางจำลองเพื่อทดสอบการตัดสินใจ"
+                  : "เส้นทางบนถนนจริง"}
+              </h3>
             </div>
             <div className="transport-geo-summary" aria-label="สถานะพิกัด">
               <span className="verified">{geoCounts.verified} verified</span>
@@ -2280,6 +2471,29 @@ function TransportPlanner({
                 </ol>
               </div>
             )}
+            {demoRoute && !fleet.error && (
+              <div className="transport-load-list">
+                <strong>AI Decision Support · เปรียบเทียบวิธีส่ง</strong>
+                <small>
+                  ข้อเสนอเพื่อให้ Planner ตัดสินใจเท่านั้น ไม่อนุมัติและไม่สร้างเที่ยวรถอัตโนมัติ
+                </small>
+                <ol>
+                  <li>
+                    คลังกลางส่ง: {fleet.chunks.length} เที่ยว · ระยะทางประมาณ{" "}
+                    {formatNumber(demoRoute.totalDist, 1)} กม. · น้ำมันประมาณ{" "}
+                    {formatNumber(demoRoute.fuelCost, 2)} บาท · ค่าทางด่วนประมาณ{" "}
+                    {formatNumber(demoRoute.totalToll)} บาท
+                  </li>
+                  <li>
+                    เขตมารับเอง: ลดภาระรถคลังกลาง แต่ต้องนัดหมายรถเขตและบันทึกผู้มารับเป็นรายเขต
+                  </li>
+                  <li>
+                    ก่อน Lock Transport Plan ต้องยืนยัน Pallet/Box, น้ำหนักจริง,
+                    พื้นที่วาง และข้อจำกัดไม่มีอุปกรณ์ยก
+                  </li>
+                </ol>
+              </div>
+            )}
             <div className="transport-actions">
               <button
                 type="button"
@@ -2287,12 +2501,17 @@ function TransportPlanner({
                 disabled={
                   roadState.loading ||
                   !selected.length ||
-                  data.readiness?.operationalWritesEnabled !== true ||
-                  data.readiness?.routeReady !== true
+                  (source !== "demo" &&
+                    (data.readiness?.operationalWritesEnabled !== true ||
+                      data.readiness?.routeReady !== true))
                 }
                 onClick={() => void optimize()}
               >
-                {roadState.loading ? "กำลังคำนวณ…" : "คำนวณเส้นทางบนถนน"}
+                {roadState.loading
+                  ? "กำลังคำนวณ…"
+                  : source === "demo"
+                    ? "ทดลองจัดลำดับเส้นทาง"
+                    : "คำนวณเส้นทางบนถนน"}
               </button>
               <button
                 type="button"
@@ -2439,13 +2658,13 @@ function TransportMap({
       setError("สิทธิ์นี้อ่านข้อมูลขนส่งได้ แต่เรียก road optimizer ไม่ได้");
       return;
     }
-    if (!data.readiness?.operationalWritesEnabled) {
+    if (source !== "demo" && !data.readiness?.operationalWritesEnabled) {
       setError(
         "Operational POST gate ถูกล็อก (production_not_ready) จึงไม่ส่งงานไป routing engine",
       );
       return;
     }
-    if (!data.readiness?.routeReady) {
+    if (source !== "demo" && !data.readiness?.routeReady) {
       setError(
         `Canonical route gate ยังไม่พร้อม: ${readinessText(
           data.readiness?.routeReadinessStatus ?? "unknown_route_readiness",
@@ -2454,7 +2673,7 @@ function TransportMap({
       return;
     }
     if (
-      source !== "supabase" ||
+      (source !== "supabase" && source !== "demo") ||
       !group?.planId ||
       !depot ||
       depot.verificationStatus !== "verified" ||
@@ -2554,13 +2773,18 @@ function TransportMap({
             disabled={
               !picked ||
               loading ||
-              source !== "supabase" ||
-              data.readiness?.operationalWritesEnabled !== true ||
-              data.readiness?.routeReady !== true
+              (source !== "supabase" && source !== "demo") ||
+              (source !== "demo" &&
+                (data.readiness?.operationalWritesEnabled !== true ||
+                  data.readiness?.routeReady !== true))
             }
             onClick={() => void preview()}
           >
-            {loading ? "กำลังคำนวณ…" : "ดูเส้นทางถนน"}
+            {loading
+              ? "กำลังคำนวณ…"
+              : source === "demo"
+                ? "ทดลองเส้นทาง"
+                : "ดูเส้นทางถนน"}
           </button>
         ) : (
           <p className="transport-read-only-note" role="note">
@@ -2821,11 +3045,13 @@ export function TransportModule({
   token,
   role,
   actorId,
+  demoMode = false,
 }: {
   view: TransportView;
   token: string | null;
   role: Role;
   actorId: string;
+  demoMode?: boolean;
 }) {
   const {
     data,
@@ -2837,7 +3063,7 @@ export function TransportModule({
     cancelLegacyTrip,
     queueOptimizationJob,
     readOptimizationJob,
-  } = useTransportData(token, role);
+  } = useTransportData(token, role, demoMode);
   const canMutate = canMutateTransport(role);
   const [eyebrow, title, description] = transportTitles[view];
   return (
@@ -2866,7 +3092,7 @@ export function TransportModule({
           </p>
         </aside>
       )}
-      {source !== "error" && (
+      {source !== "error" && source !== "demo" && (
         <TransportReadinessPanel
           readiness={data.readiness}
           source={source}
