@@ -49,3 +49,19 @@ test("production configuration guard rejects a legacy project or a missing key",
   assert.match(result.errors[0], /fvdfduuanfrncrwuareb/);
   assert.match(result.errors[1], /NEXT_PUBLIC_SUPABASE_ANON_KEY/);
 });
+
+test("production configuration guard rejects local demo mode", () => {
+  const result = validateProductionSupabaseConfiguration({
+    VERCEL_ENV: "production",
+    VERCEL_PROJECT_PRODUCTION_URL: "mea-synapse-production.vercel.app",
+    NEXT_PUBLIC_SUPABASE_URL: canonicalUrl,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_example",
+    NEXT_PUBLIC_SYNAPSE_DEMO_MODE: "true",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.skipped, false);
+  assert.deepEqual(result.errors, [
+    "NEXT_PUBLIC_SYNAPSE_DEMO_MODE must not be enabled for the production deployment.",
+  ]);
+});

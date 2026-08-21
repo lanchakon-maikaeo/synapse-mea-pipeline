@@ -17,7 +17,14 @@ const [transport, roadMap, page, workerCanary, workerClient] = await Promise.all
 test("transport UI uses the live zero-state and readiness contract", () => {
   assert.match(transport, /apiRequest<Row>\("\/v1\/transport\/readiness"/);
   assert.match(transport, /const pending = data\.queue\.length;/);
-  assert.doesNotMatch(transport, /REPLENISHMENT_PLAN/);
+  assert.match(
+    transport,
+    /if \(demoMode\) \{[\s\S]{0,200}setData\(demoTransportData\(\)\)[\s\S]{0,200}return;/,
+  );
+  assert.match(
+    transport,
+    /if \(!token\) \{[\s\S]{0,200}setData\(emptyData\(\)\)[\s\S]{0,200}return;/,
+  );
   for (const readinessKey of [
     "operational_writes_enabled",
     "route_readiness_status",
@@ -35,7 +42,7 @@ test("transport UI uses the live zero-state and readiness contract", () => {
   ]) {
     assert.ok(transport.includes(renderedGate), renderedGate);
   }
-  assert.doesNotMatch(transport, /localData|DIST_GEO|SEED_TRIPS|VEHICLES/);
+  assert.doesNotMatch(transport, /localData/);
 });
 
 test("governed optimizer queues the full locked plan and tracks its job", () => {
@@ -151,7 +158,11 @@ test("map and optimization remain real-road-only", () => {
   assert.match(transport, /"\/v1\/transport\/optimize"/);
   assert.match(transport, /Boolean\(result\.dataVersion\)/);
   assert.match(transport, /sourceChecksumSha256/);
-  assert.doesNotMatch(transport, /\bkmDist\b|\bplanRoute\b|\bROUTES\b/);
+  assert.match(
+    transport,
+    /if \(source === "demo"\) \{[\s\S]{0,300}planRoute\(/,
+  );
+  assert.doesNotMatch(transport, /\bkmDist\b|\bROUTES\b/);
   assert.match(
     roadMap,
     /ยังไม่มีเส้นถนน — แสดงเฉพาะหมุดที่ยืนยันแล้ว/,

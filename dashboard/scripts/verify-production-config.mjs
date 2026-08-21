@@ -38,6 +38,12 @@ export function validateProductionSupabaseConfiguration(env = process.env) {
     );
   }
 
+  if (env.NEXT_PUBLIC_SYNAPSE_DEMO_MODE === "true") {
+    errors.push(
+      "NEXT_PUBLIC_SYNAPSE_DEMO_MODE must not be enabled for the production deployment.",
+    );
+  }
+
   return { ok: errors.length === 0, skipped: false, errors };
 }
 
