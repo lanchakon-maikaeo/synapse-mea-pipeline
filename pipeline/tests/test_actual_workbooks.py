@@ -20,6 +20,7 @@ from synapse_pipeline.actual_workbooks import (  # noqa: E402
     parse_actual_data_directory,
     parse_actual_stock_workbook,
     parse_actual_usage_workbook,
+    parse_khlong_toei_workbook,
 )
 from synapse_pipeline.relational_sources import RelationalSource  # noqa: E402
 
@@ -238,6 +239,42 @@ class ActualWorkbookParserTests(unittest.TestCase):
             source.metadata["negative_summary_fields_preserved_in_raw"],
             {"avg_ly_raw": 1},
         )
+
+    def test_historical_workbook_accepts_current_two_sheet_format(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "คลังคลองเตย (1).xlsx"
+            workbook = Workbook()
+            planned = workbook.active
+            planned.title = "History จ่ายได้ตามแผน"
+            rejected = workbook.create_sheet("History ไม่รับของ")
+            for sheet in (planned, rejected):
+                sheet.append([
+                    "วันที่", "เขต", "ลำดับ", "Material", "รายละเอียด",
+                    "แผน", "หน่วย", "Lot", "วันที่จ่าย", "สถานะ",
+                    "วันที่จริง", "จำนวนจริง", "หน่วยจริง", "ประเภท",
+                    "หมายเหตุ", "ผู้ยืนยัน",
+                ])
+                sheet.append([
+                    datetime(2026, 7, 21), "เขตนวลจันทร์", 1,
+                    592038410000, "TEST", 10, "EA", None,
+                    datetime(2026, 7, 22), "planned", None, None,
+                    None, None, None, "District User",
+                ])
+            workbook.save(path)
+
+            sources = parse_khlong_toei_workbook(path)
+
+        by_sheet = {source.source_sheet: source for source in sources}
+        self.assertEqual(
+            set(by_sheet),
+            {
+                "__workbook__",
+                "History จ่ายได้ตามแผน",
+                "History ไม่รับของ",
+            },
+        )
+        self.assertEqual(len(by_sheet["History จ่ายได้ตามแผน"].rows), 1)
+        self.assertEqual(len(by_sheet["History ไม่รับของ"].rows), 1)
 
 
 class ActualWorkbookIntegrationTests(unittest.TestCase):
