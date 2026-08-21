@@ -1,12 +1,7 @@
 FROM stefda/osmium-tool:latest@sha256:d2321d0e926f77ead7547b4b35f5cf98d9fd74043673cecc4fc2bb7cce06ff63 AS extract
 
-RUN mkdir -p /graph \
-    && wget --quiet --https-only -O /tmp/thailand.osm.pbf \
-      https://download.geofabrik.de/asia/thailand-260725.osm.pbf \
-    && echo "66b25effcc214685227aea02c94374806637eee1aa0b30c89575409c2d302723  /tmp/thailand.osm.pbf" | sha256sum -c - \
-    && osmium extract --bbox 100.2,13.4,101.0,14.1 --set-bounds --overwrite \
-      -o /graph/bmr.osm.pbf /tmp/thailand.osm.pbf \
-    && echo "fc817b0f2c3ada5e8c2d7b99b6276818bf00c7af9d10ee1fcdddf54cac6f3eea  /graph/bmr.osm.pbf" | sha256sum -c -
+COPY bmr-2026-08-20.osm.pbf /graph/bmr.osm.pbf
+RUN echo "b41ce7d5c5f2782fe4af222efede4edab366822cec0c3ed47dbc5c503b429351  /graph/bmr.osm.pbf" | sha256sum -c -
 
 FROM golang:1.24.6-alpine3.22@sha256:c8c5f95d64aa79b6547f3b626eb84b16a7ce18a139e3e9ca19a8c078b85ba80d AS proxy-build
 WORKDIR /src

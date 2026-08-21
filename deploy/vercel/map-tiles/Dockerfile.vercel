@@ -7,11 +7,10 @@ RUN apk add --no-cache ca-certificates curl tar \
     && echo "23a2a2222f658320b539ccd06ac3b9b3b803ecbdd39a6cb5249d2ce2e16e38ae  /tmp/pmtiles.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/pmtiles.tar.gz -C /usr/local/bin pmtiles \
     && mkdir -p /tiles \
-    && pmtiles extract \
-      https://build.protomaps.com/20260726.pmtiles \
-      /tiles/bmr.pmtiles \
-      --bbox=100.2,13.4,101.0,14.1 \
-      --maxzoom=15 \
+    && curl --fail --silent --show-error --location \
+      -o /tiles/bmr.pmtiles \
+      https://synapse-map-tiles.vercel.app/bmr.pmtiles \
+    && echo "fb3bd695cbd8e7efdfe3415a058c7fa1599274c2bedd8100b1124e8c47858881  /tiles/bmr.pmtiles" | sha256sum -c - \
     && pmtiles verify /tiles/bmr.pmtiles \
     && pmtiles show /tiles/bmr.pmtiles > /tmp/bmr-metadata.txt \
     && grep -Fx "pmtiles spec version: 3" /tmp/bmr-metadata.txt \

@@ -12,10 +12,15 @@ Create four Git-backed Vercel projects from this repository:
 | `synapse-optimization-worker` | `intelligence` | authenticated on-demand OR-Tools worker |
 | `synapse-map-tiles` | `deploy/vercel/map-tiles` | self-hosted BMR PMTiles basemap |
 
-Both routing images download the immutable Geofabrik Thailand snapshot
-`thailand-260725.osm.pbf`, verify its SHA-256 digest, clip it to the reviewed MEA
-service-area bounding box (`100.2,13.4,101.0,14.1`), and verify the clipped
-input digest before building. The runtime images and build tools are also
+Both routing images use the repository-pinned BMR extract
+`bmr-2026-08-20.osm.pbf` (SHA-256
+`b41ce7d5c5f2782fe4af222efede4edab366822cec0c3ed47dbc5c503b429351`).
+It was clipped to the reviewed MEA service-area bounding box
+(`100.2,13.4,101.0,14.1`) from Geofabrik's `thailand-260820.osm.pbf`
+(SHA-256 `44a9d2917210c3ca6ada097d4cb8e55401b95779d2b4317b716ee0af34268553`).
+Keeping the bounded extract in each Vercel build context prevents dated
+upstream snapshots from disappearing between deployments; Git stores the two
+identical copies as one blob. Runtime images and build tools remain
 digest-pinned. The source data remains subject to the OpenStreetMap ODbL; map
 UI attribution remains `© OpenStreetMap contributors`.
 
@@ -46,7 +51,7 @@ WORKER_API_KEY=<different random server-only token>
 WORKER_ID=vercel-worker-01
 VALHALLA_URL=https://<synapse-routing-valhalla production domain>
 VALHALLA_AUTH_TOKEN=<matching Valhalla proxy token>
-VALHALLA_TILESET_VERSION=valhalla-bmr-2026-07-26-sha256-fc817b0f2c3ada5e8c2d7b99b6276818bf00c7af9d10ee1fcdddf54cac6f3eea
+VALHALLA_TILESET_VERSION=valhalla-bmr-2026-08-20-sha256-b41ce7d5c5f2782fe4af222efede4edab366822cec0c3ed47dbc5c503b429351
 VALHALLA_OSM_CHANGESET=0
 VERCEL_SUPPORT_LARGE_FUNCTIONS=1
 ```
@@ -60,7 +65,7 @@ the Supabase Marketplace integration injects those values; explicit
 ```text
 ROUTING_ENGINE_URL=https://<synapse-routing-osrm production domain>
 ROUTING_ENGINE_PROFILE=driving
-ROUTING_ENGINE_DATA_VERSION=osm-bmr-2026-07-26-sha256-fc817b0f2c3ada5e8c2d7b99b6276818bf00c7af9d10ee1fcdddf54cac6f3eea
+ROUTING_ENGINE_DATA_VERSION=osm-bmr-2026-08-20-sha256-b41ce7d5c5f2782fe4af222efede4edab366822cec0c3ed47dbc5c503b429351
 ROUTING_ENGINE_AUTH_TOKEN=<matching OSRM proxy token>
 OPTIMIZATION_WORKER_URL=https://<synapse-optimization-worker production domain>
 OPTIMIZATION_WORKER_AUTH_TOKEN=<matching worker token>
@@ -68,11 +73,15 @@ NEXT_PUBLIC_MAP_TILE_URL=https://synapse-map-tiles.vercel.app/bmr.pmtiles
 NEXT_PUBLIC_MAP_ATTRIBUTION=&copy; OpenStreetMap contributors &middot; Protomaps
 ```
 
-The basemap is a bounded vector extract from the pinned Protomaps 2026-07-26
-daily build. The image verifies the archive structure and exact dataset metadata
-at build time; the service computes the deployed artifact SHA-256 for its health
-response and ETag, and supports browser byte-range requests. It does not proxy
-or fall back to the OpenStreetMap Foundation public tile service.
+The basemap is the bounded vector extract originally built from the pinned
+Protomaps 2026-07-26 daily build. New images seed from the canonical production
+artifact and require SHA-256
+`fb3bd695cbd8e7efdfe3415a058c7fa1599274c2bedd8100b1124e8c47858881`,
+so an upstream daily-build expiry or unexpected artifact change fails closed.
+The image also verifies the archive structure and exact dataset metadata; the
+service computes the deployed artifact SHA-256 for its health response and ETag,
+and supports browser byte-range requests. It does not proxy or fall back to the
+OpenStreetMap Foundation public tile service.
 
 The dashboard refreshes an attested Valhalla heartbeat when an authenticated
 operator reads transport readiness. Before queueing an optimization job it
