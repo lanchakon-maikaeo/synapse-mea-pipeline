@@ -716,27 +716,41 @@ def parse_khlong_toei_workbook(path: str | Path) -> list[RelationalSource]:
                     "operational_promotion": False,
                 },
             ),
-            _material_master_source(
-                source_path, checksum, len(content), workbook
-            ),
-            _district_source(source_path, checksum, len(content), workbook),
-            _vmi_matrix_source(source_path, checksum, len(content), workbook),
-            _dispatch_history_source(
-                source_path,
-                checksum,
-                len(content),
-                workbook,
-                "History จ่ายได้ตามแผน",
-            ),
-            _dispatch_history_source(
-                source_path,
-                checksum,
-                len(content),
-                workbook,
-                "History ไม่รับของ",
-            ),
-            _route_source(source_path, checksum, len(content), workbook),
         ]
+        optional_sources = (
+            ("MASTER", _material_master_source),
+            ("M_Districts", _district_source),
+            ("VMI คลองเตย", _vmi_matrix_source),
+            (
+                "History จ่ายได้ตามแผน",
+                lambda *args: _dispatch_history_source(
+                    *args, "History จ่ายได้ตามแผน"
+                ),
+            ),
+            (
+                "History ไม่รับของ",
+                lambda *args: _dispatch_history_source(
+                    *args, "History ไม่รับของ"
+                ),
+            ),
+            ("Route Library", _route_source),
+        )
+        for sheet_name, parser in optional_sources:
+            if sheet_name in workbook.sheetnames:
+                sources.append(
+                    parser(source_path, checksum, len(content), workbook)
+                )
+
+        history_sheets = {
+            "History จ่ายได้ตามแผน",
+            "History ไม่รับของ",
+        }
+        missing_history = history_sheets.difference(workbook.sheetnames)
+        if missing_history:
+            raise ValueError(
+                "Historical Distribution Data must contain both sheets: "
+                + ", ".join(sorted(history_sheets))
+            )
     finally:
         workbook.close()
     return sources
