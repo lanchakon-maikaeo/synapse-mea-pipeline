@@ -571,6 +571,24 @@ export function useSynapseBackend() {
     [runAction],
   );
 
+  const publishFifoOpening = useCallback(
+    async (
+      profiles: RecordRow[],
+      handlingUnits: RecordRow[],
+      sourceReference: string,
+    ) =>
+      (await runAction(
+        "/v1/admin/fifo-opening",
+        {
+          profiles,
+          handling_units: handlingUnits,
+          source_reference: sourceReference,
+        },
+        "บันทึก Packaging Master, Opening HU และยอด Stock คลังคลองเตยลง Supabase แล้ว",
+      )) !== null,
+    [runAction],
+  );
+
   const respondReplenishment = useCallback(
     async (itemId: string, payload: ReplenishmentResponsePayload) => {
       if (DEMO_MODE) {
@@ -995,6 +1013,7 @@ export function useSynapseBackend() {
     loadVmiContext,
     loading,
     notice,
+    publishFifoOpening,
     publishPackagingProfiles,
     publishVmiInput,
     receiveHandlingUnit,

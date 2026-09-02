@@ -5028,10 +5028,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
   const snapshotPublishedAt = publishedSnapshot?.publishedAt ?? null;
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setPublishedSnapshot(loadPublishedSnapshot());
-    }, 0);
-    return () => window.clearTimeout(timeout);
+    setPublishedSnapshot(loadPublishedSnapshot());
   }, []);
 
   const validation = useMemo(() => {
@@ -6083,7 +6080,7 @@ function ReleaseView() {
       <section className="acceptance-grid">
         {[
           ["ลำดับการอัปเดตฐานข้อมูลครบถ้วน", "โครงสร้าง"],
-          ["เชื่อมต่อ API ภายในโดเมนเดียว 49 เส้นทาง", "API"],
+          ["เชื่อมต่อ API ภายในโดเมนเดียว 48 เส้นทาง", "API"],
           ["เขต → ผู้วางแผน → วิชาการ → ล็อก", "การอนุมัติ"],
           ["หน่วยที่เปิด → วันรับ → PO → รายการ", "FIFO"],
           ["การจ่ายจริงรายสัปดาห์ + กรณีพิเศษ", "การจ่าย"],
@@ -6221,7 +6218,7 @@ function PageContent({
       <FifoPackagingSetupView
         contractRows={backend.data.receiptOptions}
         materialRows={backend.data.materials}
-        onPublishProfiles={backend.publishPackagingProfiles}
+        onPublishOpening={backend.publishFifoOpening}
       />
     );
   }

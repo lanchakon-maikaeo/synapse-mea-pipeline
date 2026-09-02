@@ -244,6 +244,10 @@ export const m09OpenApi = {
       get: get("Published FIFO packaging master profiles").get,
       post: post("Upsert packaging dimensions, pallet capacity and weight").post,
     },
+    "/v1/admin/fifo-opening": post(
+      "Publish packaging master, opening handling units and warehouse stock snapshot",
+      "201",
+    ),
     "/v1/reference/districts": get("Supabase district master"),
     "/v1/data-inputs/vmi": {
       get: get("Recent governed VMI inputs").get,

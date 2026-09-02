@@ -475,11 +475,15 @@ const fmt = (amount: number) => new Intl.NumberFormat("en-US").format(amount);
 export default function FifoPackagingSetupView({
   contractRows,
   materialRows = [],
-  onPublishProfiles,
+  onPublishOpening,
 }: {
   contractRows: RecordRow[];
   materialRows?: RecordRow[];
-  onPublishProfiles?: (profiles: RecordRow[], sourceReference: string) => Promise<boolean>;
+  onPublishOpening?: (
+    profiles: RecordRow[],
+    handlingUnits: RecordRow[],
+    sourceReference: string,
+  ) => Promise<boolean>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [sourceLabel, setSourceLabel] = useState("");
@@ -488,28 +492,24 @@ export default function FifoPackagingSetupView({
   const [confirmed, setConfirmed] = useState({ packaging: false, opening: false });
   const [reconciled, setReconciled] = useState(false);
   const [publishedAt, setPublishedAt] = useState("");
+  const [supabaseSynced, setSupabaseSynced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [expandedProfile, setExpandedProfile] = useState("");
   const materialLookup = useMemo(() => buildMaterialLookup(materialRows), [materialRows]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      try {
-        const saved = JSON.parse(localStorage.getItem(storageKey) ?? "null") as { publishedAt?: string } | null;
-        setPublishedAt(saved?.publishedAt ?? "");
-      } catch {
-        // Old preview snapshots must not block the setup screen.
-      }
-    }, 0);
-    return () => window.clearTimeout(timeout);
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "null") as { publishedAt?: string; supabaseSynced?: boolean } | null;
+      setPublishedAt(saved?.publishedAt ?? "");
+      setSupabaseSynced(saved?.supabaseSynced === true);
+    } catch {
+      // Old preview snapshots must not block the setup screen.
+    }
   }, []);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setSheets((current) => enrichSheetsFromMaterialMaster(current, materialLookup));
-    }, 0);
-    return () => window.clearTimeout(timeout);
+    setSheets((current) => enrichSheetsFromMaterialMaster(current, materialLookup));
   }, [materialLookup]);
 
   const sourceRows = useMemo(
@@ -556,6 +556,7 @@ export default function FifoPackagingSetupView({
     setConfirmed({ packaging: false, opening: false });
     setReconciled(false);
     setPublishedAt("");
+    setSupabaseSynced(false);
     setError("");
     setExpandedProfile("");
   };
@@ -641,6 +642,7 @@ export default function FifoPackagingSetupView({
     setConfirmed((current) => ({ ...current, opening: false }));
     setReconciled(false);
     setPublishedAt("");
+    setSupabaseSynced(false);
     setError("");
   };
 
@@ -728,15 +730,25 @@ export default function FifoPackagingSetupView({
     const profiles = packaging
       ? packagingRows.map((row) => rowObject(packaging, row))
       : [];
+    const handlingUnits = opening
+      ? huRows.map(({ row, huId }) => ({
+          ...rowObject(opening, row),
+          HU_ID: huId,
+        }))
+      : [];
     setBusy(true);
     setError("");
-    if (onPublishProfiles) {
-      const saved = await onPublishProfiles(profiles, sourceLabel);
+    if (onPublishOpening) {
+      const saved = await onPublishOpening(profiles, handlingUnits, sourceLabel);
       if (!saved) {
-        setError("ยังบันทึก Packaging Master ลง Supabase ไม่สำเร็จ จึงยังไม่ Publish Opening");
+        setError("ยังบันทึก Opening HU และ Stock ลง Supabase ไม่สำเร็จ จึงยังไม่พร้อมใช้คำนวณการจ่าย");
         setBusy(false);
         return;
       }
+    } else {
+      setError("ยังไม่ได้เชื่อม API สำหรับ Publish Opening ลง Supabase");
+      setBusy(false);
+      return;
     }
     const now = new Date().toISOString();
     localStorage.setItem(storageKey, JSON.stringify({
@@ -749,8 +761,10 @@ export default function FifoPackagingSetupView({
       packagingProfiles: profiles,
       handlingUnits: huRows.length,
       huIds: huRows.map((item) => item.huId),
+      supabaseSynced: true,
     }));
     setPublishedAt(now);
+    setSupabaseSynced(true);
     setBusy(false);
   }
 
@@ -836,7 +850,7 @@ export default function FifoPackagingSetupView({
             ["1", "Review Packaging", confirmed.packaging],
             ["2", "Review Opening HU", confirmed.opening],
             ["3", "Reconcile Stock", reconciled],
-            ["4", "Publish Opening", Boolean(publishedAt)],
+            ["4", "Publish Opening", supabaseSynced],
           ].map(([step, label, done], index) => (
             <article key={String(step)} className={done ? "done" : (index === 0 && packaging) || (index === 1 && confirmed.packaging) || (index === 2 && confirmed.opening) || (index === 3 && reconciled) ? "active" : ""}>
               <i>{done ? "✓" : step}</i><strong>{label}</strong>
@@ -990,9 +1004,9 @@ export default function FifoPackagingSetupView({
           <div className="fifo-setup-publish-actions">
             <button className="btn secondary" type="button" onClick={exportRegister}>Export HU Register</button>
             <button className="btn secondary" type="button" disabled={reconciled} onClick={() => setReconciled(true)}>{reconciled ? "✓ Reconciled" : "Run Reconcile"}</button>
-            <button className="btn primary" type="button" disabled={!reconciled || Boolean(publishedAt) || busy} onClick={publish}>{publishedAt ? "✓ Opening Published" : busy ? "กำลังบันทึก Supabase..." : "Publish FIFO Opening Snapshot"}</button>
+            <button className="btn primary" type="button" disabled={!reconciled || supabaseSynced || busy} onClick={publish}>{supabaseSynced ? "✓ Opening Published to Supabase" : busy ? "กำลังบันทึก Supabase..." : publishedAt ? "Sync Opening to Supabase" : "Publish FIFO Opening Snapshot"}</button>
           </div>
-          {publishedAt ? <div className="fifo-setup-notice"><b>Snapshot พร้อมใช้งานใน Local Preview</b><span>{new Date(publishedAt).toLocaleString("th-TH")} · {fmt(packagingRows.length)} Profiles · {fmt(huRows.length)} HU</span></div> : null}
+          {supabaseSynced && publishedAt ? <div className="fifo-setup-notice"><b>Supabase พร้อมใช้ในหน้าคำนวณการจ่าย</b><span>{new Date(publishedAt).toLocaleString("th-TH")} · {fmt(packagingRows.length)} Profiles · {fmt(huRows.length)} HU</span></div> : publishedAt ? <div className="fifo-setup-error">Snapshot เดิมอยู่เฉพาะ Local Preview — กด Sync Opening to Supabase เพื่อให้หน้าคำนวณการจ่ายนำไปใช้</div> : null}
         </section>
       ) : null}
     </div>
