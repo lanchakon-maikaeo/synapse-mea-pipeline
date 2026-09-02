@@ -11,6 +11,8 @@ const draftStorageKey = "mea-synapse.local-fifo-opening-draft.v1";
 const wantedSheets = ["PACKAGING_PROFILE", "OPENING_HANDLING_UNITS"];
 const calculationSheetName = "PACKAGING_CALCULATION";
 const setupTemplateUrl = "/templates/MEA_Synapse_FIFO_Packaging_Opening_Template_v1.xlsx";
+const fifoOpeningMigrationUrl = "https://github.com/lanchakon-maikaeo/synapse-mea-pipeline/blob/main/supabase/migrations/202609020001_m16b_fifo_opening_publish.sql";
+const supabaseSqlEditorUrl = "https://supabase.com/dashboard/project/fvdfduuanfrncrwuareb/sql/new";
 const packageTypes = ["FULL_PALLET", "BOX", "CRATE", "BUNDLE", "LOOSE", "LONG_MATERIAL"];
 const packagingDetailHeaders = [
   "ASSUMPTION_STATUS",
@@ -806,7 +808,7 @@ export default function FifoPackagingSetupView({
     if (onPublishOpening) {
       const saved = await onPublishOpening(profiles, handlingUnits, sourceLabel);
       if (!saved) {
-        setError("ยังบันทึก Opening HU และ Stock ลง Supabase ไม่สำเร็จ จึงยังไม่พร้อมใช้คำนวณการจ่าย");
+        setError("Publish ยังไม่สำเร็จ: กรุณาติดตั้ง Migration M16b ใน Supabase Production แล้วกด Publish ซ้ำ — Draft ที่กรอกไว้ยังถูกบันทึกอยู่");
         setBusy(false);
         return;
       }
@@ -1076,6 +1078,13 @@ export default function FifoPackagingSetupView({
             <button className="btn secondary" type="button" disabled={reconciled} onClick={() => setReconciled(true)}>{reconciled ? "✓ Reconciled" : "Run Reconcile"}</button>
             <button className="btn primary" type="button" disabled={!reconciled || supabaseSynced || busy} onClick={publish}>{supabaseSynced ? "✓ Opening Published to Supabase" : busy ? "กำลังบันทึก Supabase..." : publishedAt ? "Sync Opening to Supabase" : "Publish FIFO Opening Snapshot"}</button>
           </div>
+          {error ? (
+            <div className="fifo-setup-error" role="alert">
+              <span>{error}</span>{" "}
+              <a href={fifoOpeningMigrationUrl} target="_blank" rel="noreferrer">1. เปิดไฟล์ Migration M16b</a>{" · "}
+              <a href={supabaseSqlEditorUrl} target="_blank" rel="noreferrer">2. เปิด Supabase SQL Editor</a>
+            </div>
+          ) : null}
           {supabaseSynced && publishedAt ? <div className="fifo-setup-notice"><b>Supabase พร้อมใช้ในหน้าคำนวณการจ่าย</b><span>{new Date(publishedAt).toLocaleString("th-TH")} · {fmt(packagingRows.length)} Profiles · {fmt(huRows.length)} HU</span></div> : publishedAt ? <div className="fifo-setup-error">Snapshot เดิมอยู่เฉพาะ Local Preview — กด Sync Opening to Supabase เพื่อให้หน้าคำนวณการจ่ายนำไปใช้</div> : null}
         </section>
       ) : null}
