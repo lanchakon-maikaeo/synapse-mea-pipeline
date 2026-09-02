@@ -50,6 +50,7 @@ const expectedPaths = [
   "/v1/warehouse-stock",
   "/v1/data-sources/legacy/status",
   "/v1/admin/import/legacy",
+  "/v1/admin/packaging-profiles",
   "/v1/reference/districts",
   "/v1/data-inputs/vmi",
   "/v1/data-inputs/vmi/context",
