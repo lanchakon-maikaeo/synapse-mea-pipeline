@@ -7,6 +7,7 @@ type RecordRow = Record<string, unknown>;
 type MaterialReference = { description: string; baseUnit: string };
 
 const storageKey = "mea-synapse.local-fifo-opening-snapshot";
+const draftStorageKey = "mea-synapse.local-fifo-opening-draft.v1";
 const wantedSheets = ["PACKAGING_PROFILE", "OPENING_HANDLING_UNITS"];
 const calculationSheetName = "PACKAGING_CALCULATION";
 const setupTemplateUrl = "/templates/MEA_Synapse_FIFO_Packaging_Opening_Template_v1.xlsx";
@@ -472,6 +473,18 @@ function hydrateImportedOpening(sheets: Sheet[]) {
 
 const fmt = (amount: number) => new Intl.NumberFormat("en-US").format(amount);
 
+type SetupDraft = {
+  version: 1;
+  savedAt: string;
+  sourceLabel: string;
+  sheets: Sheet[];
+  tab: "packaging" | "opening";
+  confirmed: { packaging: boolean; opening: boolean };
+  reconciled: boolean;
+  publishedAt: string;
+  supabaseSynced: boolean;
+};
+
 export default function FifoPackagingSetupView({
   contractRows,
   materialRows = [],
@@ -486,6 +499,7 @@ export default function FifoPackagingSetupView({
   ) => Promise<boolean>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const draftHydratedRef = useRef(false);
   const [sourceLabel, setSourceLabel] = useState("");
   const [sheets, setSheets] = useState<Sheet[]>([]);
   const [tab, setTab] = useState<"packaging" | "opening">("packaging");
@@ -496,20 +510,71 @@ export default function FifoPackagingSetupView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [expandedProfile, setExpandedProfile] = useState("");
+  const [draftSavedAt, setDraftSavedAt] = useState("");
+  const [draftSaveError, setDraftSaveError] = useState("");
   const materialLookup = useMemo(() => buildMaterialLookup(materialRows), [materialRows]);
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "null") as { publishedAt?: string; supabaseSynced?: boolean } | null;
-      setPublishedAt(saved?.publishedAt ?? "");
-      setSupabaseSynced(saved?.supabaseSynced === true);
-    } catch {
-      // Old preview snapshots must not block the setup screen.
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        const draft = JSON.parse(localStorage.getItem(draftStorageKey) ?? "null") as SetupDraft | null;
+        if (draft?.version === 1 && Array.isArray(draft.sheets) && draft.sheets.length > 0) {
+          setSourceLabel(draft.sourceLabel ?? "");
+          setSheets(draft.sheets);
+          setTab(draft.tab === "opening" ? "opening" : "packaging");
+          setConfirmed({
+            packaging: draft.confirmed?.packaging === true,
+            opening: draft.confirmed?.opening === true,
+          });
+          setReconciled(draft.reconciled === true);
+          setPublishedAt(draft.publishedAt ?? "");
+          setSupabaseSynced(draft.supabaseSynced === true);
+          setDraftSavedAt(draft.savedAt ?? "");
+        } else {
+          const saved = JSON.parse(localStorage.getItem(storageKey) ?? "null") as { publishedAt?: string; supabaseSynced?: boolean } | null;
+          setPublishedAt(saved?.publishedAt ?? "");
+          setSupabaseSynced(saved?.supabaseSynced === true);
+        }
+      } catch {
+        setDraftSaveError("อ่าน Draft ที่บันทึกไว้ไม่สำเร็จ กรุณา Import Workbook สำรองอีกครั้ง");
+      } finally {
+        draftHydratedRef.current = true;
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    setSheets((current) => enrichSheetsFromMaterialMaster(current, materialLookup));
+    if (!draftHydratedRef.current || sheets.length === 0) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const savedAt = new Date().toISOString();
+        const draft: SetupDraft = {
+          version: 1,
+          savedAt,
+          sourceLabel,
+          sheets,
+          tab,
+          confirmed,
+          reconciled,
+          publishedAt,
+          supabaseSynced,
+        };
+        localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+        setDraftSavedAt(savedAt);
+        setDraftSaveError("");
+      } catch {
+        setDraftSaveError("บันทึก Draft ไม่สำเร็จ กรุณากด Export Setup Workbook เพื่อสำรองข้อมูล");
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [sourceLabel, sheets, tab, confirmed, reconciled, publishedAt, supabaseSynced]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSheets((current) => enrichSheetsFromMaterialMaster(current, materialLookup));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [materialLookup]);
 
   const sourceRows = useMemo(
@@ -834,6 +899,11 @@ export default function FifoPackagingSetupView({
           <div><span>AUTOMATIC OPENING WORKFLOW</span><h3>ดึงข้อมูลรวมสัญญา → เติม Packing → ตรวจยอด → Publish</h3></div>
           <div className="fifo-setup-workflow-actions">
             {sourceLabel ? <small>{sourceLabel}</small> : null}
+            {draftSaveError
+              ? <small className="fifo-setup-error">{draftSaveError}</small>
+              : draftSavedAt
+                ? <small>บันทึก Draft อัตโนมัติ {new Date(draftSavedAt).toLocaleTimeString("th-TH")}</small>
+                : null}
             <button className="btn primary" type="button" onClick={createFromContracts} disabled={!sourceRows.length || busy}>
               ดึงข้อมูลจากรวมสัญญา ({fmt(sourceRows.length)})
             </button>
