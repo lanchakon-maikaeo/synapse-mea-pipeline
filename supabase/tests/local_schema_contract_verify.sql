@@ -10,7 +10,7 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 35 from ops.schema_migrations)),
+    (select count(*) = 37 from ops.schema_migrations)),
   ('greenfield_bootstrap_registered',
     exists (
       select 1 from ops.schema_migrations
@@ -388,6 +388,47 @@ values
     and not has_function_privilege(
       'authenticated',
       'public.m09_dispatch_pre_m17(text,text,jsonb,jsonb,text)',
+      'execute'
+    )),
+  ('packaging_master_contract',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202609010001'
+    )
+    and (select relrowsecurity
+         from pg_class
+         where oid = 'core.packaging_master_profiles'::regclass)
+    and not has_table_privilege(
+      'authenticated',
+      'core.packaging_master_profiles',
+      'select,insert,update,delete'
+    )
+    and has_function_privilege(
+      'authenticated',
+      'public.m09_dispatch(text,text,jsonb,jsonb,text)',
+      'execute'
+    )
+    and not has_function_privilege(
+      'authenticated',
+      'core.m16_upsert_packaging_master_profiles(jsonb,text)',
+      'execute'
+    )),
+  ('access_request_contract',
+    exists (
+      select 1 from ops.schema_migrations
+      where version = '202609010000'
+    )
+    and (select relrowsecurity
+         from pg_class
+         where oid = 'ops.access_requests'::regclass)
+    and not has_table_privilege(
+      'anon',
+      'ops.access_requests',
+      'select,insert,update,delete'
+    )
+    and has_function_privilege(
+      'anon',
+      'public.m15_submit_access_request(text,text,text,text,text,text)',
       'execute'
     )),
   ('contract_item_version_lineage',

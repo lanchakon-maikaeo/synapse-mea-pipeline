@@ -79,7 +79,12 @@ export async function POST(request: Request) {
 
   let body: AccessRequestBody;
   try {
-    body = (await request.json()) as AccessRequestBody;
+    const rawBody = await request.text();
+    if (new TextEncoder().encode(rawBody).byteLength > 16_384) {
+      return error(413, "payload_too_large", "คำขอมีขนาดใหญ่เกินกำหนด", id);
+    }
+    body = JSON.parse(rawBody) as AccessRequestBody;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
   } catch {
     return error(400, "invalid_json", "รูปแบบคำขอไม่ถูกต้อง", id);
   }
@@ -117,27 +122,39 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = await fetch(
-    `${origin}/rest/v1/rpc/m15_submit_access_request`,
-    {
-      method: "POST",
-      headers: {
-        apikey: publicConfig.supabaseAnonKey,
-        Authorization: `Bearer ${publicConfig.supabaseAnonKey}`,
-        "Content-Type": "application/json",
-        "X-Client-Info": "mea-synapse-access-request/1.0",
+  let response: Response;
+  try {
+    response = await fetch(
+      `${origin}/rest/v1/rpc/m15_submit_access_request`,
+      {
+        method: "POST",
+        headers: {
+          apikey: publicConfig.supabaseAnonKey,
+          Authorization: `Bearer ${publicConfig.supabaseAnonKey}`,
+          "Content-Type": "application/json",
+          "X-Client-Info": "mea-synapse-access-request/1.0",
+        },
+        body: JSON.stringify({
+          p_full_name: fullName,
+          p_employee_id: employeeId,
+          p_work_email: workEmail,
+          p_organization_unit: organizationUnit,
+          p_requested_role: requestedRole,
+          p_reason: reason,
+        }),
+        cache: "no-store",
+        redirect: "error",
+        signal: AbortSignal.timeout(10_000),
       },
-      body: JSON.stringify({
-        p_full_name: fullName,
-        p_employee_id: employeeId,
-        p_work_email: workEmail,
-        p_organization_unit: organizationUnit,
-        p_requested_role: requestedRole,
-        p_reason: reason,
-      }),
-      cache: "no-store",
-    },
-  );
+    );
+  } catch {
+    return error(
+      503,
+      "access_request_unavailable",
+      "ระบบรับคำขอยังไม่พร้อมใช้งาน กรุณาติดต่อ Admin",
+      id,
+    );
+  }
 
   const payload = (await response.json().catch(() => null)) as
     | {
@@ -150,12 +167,13 @@ export async function POST(request: Request) {
 
   if (!response.ok || !payload?.request_number) {
     const unavailable = response.status === 404;
+    const validationMessage = response.ok ? payload?.message : null;
     return error(
       unavailable ? 503 : 400,
       unavailable ? "access_request_not_deployed" : "access_request_rejected",
       unavailable
         ? "ระบบรับคำขอยังไม่พร้อมใช้งาน กรุณาติดต่อ Admin"
-        : payload?.message ?? "ไม่สามารถบันทึกคำขอได้",
+        : validationMessage ?? "ไม่สามารถบันทึกคำขอได้",
       id,
     );
   }
@@ -170,4 +188,3 @@ export async function POST(request: Request) {
     id,
   );
 }
-

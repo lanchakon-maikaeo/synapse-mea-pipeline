@@ -494,16 +494,22 @@ export default function FifoPackagingSetupView({
   const materialLookup = useMemo(() => buildMaterialLookup(materialRows), [materialRows]);
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "null") as { publishedAt?: string } | null;
-      setPublishedAt(saved?.publishedAt ?? "");
-    } catch {
-      // Old preview snapshots must not block the setup screen.
-    }
+    const timeout = window.setTimeout(() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) ?? "null") as { publishedAt?: string } | null;
+        setPublishedAt(saved?.publishedAt ?? "");
+      } catch {
+        // Old preview snapshots must not block the setup screen.
+      }
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, []);
 
   useEffect(() => {
-    setSheets((current) => enrichSheetsFromMaterialMaster(current, materialLookup));
+    const timeout = window.setTimeout(() => {
+      setSheets((current) => enrichSheetsFromMaterialMaster(current, materialLookup));
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [materialLookup]);
 
   const sourceRows = useMemo(

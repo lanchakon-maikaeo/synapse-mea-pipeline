@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const apiRoute = readFileSync("app/api/[...path]/route.ts", "utf8");
+const accessRequestRoute = readFileSync("app/api/access-requests/route.ts", "utf8");
 const hook = readFileSync("app/use-synapse-backend.ts", "utf8");
 const openapi = readFileSync("app/m09-openapi.ts", "utf8");
 const page = readFileSync("app/page.tsx", "utf8");
@@ -142,6 +143,15 @@ test("same-origin proxy pins a controlled Supabase origin and blocks redirects",
     apiRoute,
     /`\$\{publicConfig\.supabaseUrl\}\/rest\/v1\/rpc/,
   );
+});
+
+test("public access requests stay bounded and fail closed", () => {
+  assert.match(accessRequestRoute, /m15_submit_access_request/);
+  assert.match(accessRequestRoute, /await request\.text\(\)/);
+  assert.match(accessRequestRoute, /new TextEncoder\(\)/);
+  assert.match(accessRequestRoute, /AbortSignal\.timeout\(10_000\)/);
+  assert.match(accessRequestRoute, /redirect: "error"/);
+  assert.doesNotMatch(accessRequestRoute, /request\.json\(\)/);
 });
 
 test("frontend orchestrates the frozen production workflow", () => {

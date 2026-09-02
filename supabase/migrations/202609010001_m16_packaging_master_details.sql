@@ -1,5 +1,7 @@
 -- M16: governed packaging master details for FIFO setup.
 
+begin;
+
 create table if not exists core.packaging_master_profiles (
   packaging_profile_id uuid primary key default gen_random_uuid(),
   material_id text not null references core.materials (material_id) on delete restrict,
@@ -49,6 +51,10 @@ create table if not exists core.packaging_master_profiles (
 
 create index if not exists packaging_master_profiles_scope_idx
   on core.packaging_master_profiles (plant, storage_location, material_id);
+create index if not exists packaging_master_profiles_created_by_idx
+  on core.packaging_master_profiles (created_by);
+create index if not exists packaging_master_profiles_updated_by_idx
+  on core.packaging_master_profiles (updated_by);
 
 alter table core.packaging_master_profiles enable row level security;
 revoke all on core.packaging_master_profiles from public, anon, authenticated;
@@ -60,7 +66,7 @@ create or replace function core.m16_upsert_packaging_master_profiles(
 returns jsonb
 language plpgsql
 security definer
-set search_path = pg_catalog, public, core
+set search_path = ''
 as $$
 declare
   v_user_id uuid := auth.uid();
@@ -184,7 +190,7 @@ create or replace function public.m09_dispatch(
 returns jsonb
 language plpgsql
 security definer
-set search_path = pg_catalog, public, core
+set search_path = ''
 as $$
 declare
   v_user_id uuid := auth.uid();
@@ -248,3 +254,21 @@ grant execute on function public.m09_dispatch(text, text, jsonb, jsonb, text)
 
 comment on table core.packaging_master_profiles is
   'Per material/vendor/contract/warehouse packaging dimensions, pallet capacity, weight and verification state.';
+
+insert into ops.schema_migrations (
+  version,
+  module,
+  description,
+  source_file
+)
+values (
+  '202609010001',
+  'M16-packaging',
+  'Governed packaging master details and authenticated FIFO setup dispatch.',
+  'supabase/migrations/202609010001_m16_packaging_master_details.sql'
+)
+on conflict (version) do update
+set description = excluded.description,
+    source_file = excluded.source_file;
+
+commit;

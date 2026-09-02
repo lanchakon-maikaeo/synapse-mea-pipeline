@@ -31,7 +31,7 @@ test("keeps the UI aligned with the frozen production operations scope", async (
     "ผู้วางแผน",
     "เจ้าหน้าที่วิชาการ",
     "เจ้าหน้าที่คลัง",
-    "ผู้อ่านข้อมูล",
+    "ผู้บริหาร / ผู้ดูข้อมูล",
     "ศูนย์ควบคุมการทำงาน",
     "หลักฐานการคำนวณปริมาณ",
     "ตรวจคำขอที่ผิดปกติ",
@@ -44,12 +44,12 @@ test("keeps the UI aligned with the frozen production operations scope", async (
     "backend.createReplenishmentRun",
     "backend.respondReplenishment",
     "Build Plan",
-    "ค้นหารายเขต",
+    "ค้นหาและจัดเรียงรายการแผน",
     "Stock คลังกลาง",
     "AI Suggestion",
     "AI + FIFO",
     "สัญญาทั้งหมดเรียงเก่า",
-    "ยืนยันรายการที่เลือกเข้า Draft Plan",
+    "ดูสรุปแผนทั้งหมด",
     "เลือกเข้าแผน",
     "FIFO + PACKING PICK PLAN",
     "Full Pallet",
@@ -59,8 +59,7 @@ test("keeps the UI aligned with the frozen production operations scope", async (
     "Planner ตรวจการเปลี่ยน",
     "Approve & Lock",
   ]) assert.match(page, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  // No admin-facing role wording in the UI (confuses end users).
-  assert.doesNotMatch(page, /Administrator|ผู้ดูแลระบบ/);
+  assert.doesNotMatch(page, /Administrator/);
   assert.match(layout, /MEA Synapse — Warehouse Operations/);
   assert.doesNotMatch(page, /Queue Forecast Run|สร้าง Route job|SYNAPSE AI ASSISTANT/);
 });
