@@ -1,7 +1,9 @@
 .vercel
 .git.nested-backup
 .next
+.next-*
 node_modules
+.pnpm-store
 .vinext
 .wrangler
 dist

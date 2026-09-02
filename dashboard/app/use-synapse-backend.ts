@@ -128,6 +128,7 @@ export function useSynapseBackend() {
   );
   const [notice, setNotice] = useState("");
   const sessionTokenRef = useRef<string | null>(null);
+  const sessionLoadRef = useRef<{ token: string; promise: Promise<void> } | null>(null);
   const supabase = browserSupabase;
 
   const load = useCallback(async (activeSession: Session) => {
@@ -343,35 +344,53 @@ export function useSynapseBackend() {
     }
   }, []);
 
+  const ensureSessionLoaded = useCallback((activeSession: Session) => {
+    const token = activeSession.access_token;
+    sessionTokenRef.current = token;
+    setSession(activeSession);
+    const pending = sessionLoadRef.current;
+    if (pending?.token === token) return pending.promise;
+
+    const promise = load(activeSession);
+    sessionLoadRef.current = { token, promise };
+    void promise.finally(() => {
+      if (sessionLoadRef.current?.promise === promise) {
+        sessionLoadRef.current = null;
+      }
+    });
+    return promise;
+  }, [load]);
+
   useEffect(() => {
     if (DEMO_MODE) return;
     if (!supabase) return;
     let active = true;
-    void supabase.auth.getSession().then(({ data: authData }) => {
-      if (!active) return;
-      if (authData.session) {
-        sessionTokenRef.current = authData.session.access_token;
-        setSession(authData.session);
-        void load(authData.session);
-      } else {
+    void supabase.auth.getSession()
+      .then(({ data: authData }) => {
+        if (!active) return;
+        if (authData.session) void ensureSessionLoaded(authData.session);
+        else setLoading(false);
+      })
+      .catch((reason: unknown) => {
+        if (!active) return;
         setLoading(false);
-      }
-    });
+        setError(reason instanceof Error ? reason.message : "ไม่สามารถตรวจสอบ Session ได้");
+      });
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
-        if (
-          !active ||
-          nextSession?.access_token === sessionTokenRef.current
-        ) {
-          return;
-        }
-        sessionTokenRef.current = nextSession?.access_token ?? null;
-        setSession(nextSession);
-        if (nextSession) void load(nextSession);
-        else {
+        if (!active) return;
+        if (!nextSession) {
+          sessionTokenRef.current = null;
+          sessionLoadRef.current = null;
+          setSession(null);
           setIdentity(null);
           setData(emptyData);
           setLoading(false);
+          return;
+        }
+        const tokenChanged = nextSession.access_token !== sessionTokenRef.current;
+        if (tokenChanged || sessionLoadRef.current?.token === nextSession.access_token) {
+          void ensureSessionLoaded(nextSession);
         }
       },
     );
@@ -379,7 +398,7 @@ export function useSynapseBackend() {
       active = false;
       listener.subscription.unsubscribe();
     };
-  }, [load, supabase]);
+  }, [ensureSessionLoaded, supabase]);
 
   const signIn = useCallback(
     async (identifier: string, password: string) => {
@@ -390,27 +409,31 @@ export function useSynapseBackend() {
         setData(demoData);
         return true;
       }
-      if (!supabase) return false;
+      if (!supabase) {
+        setError("ยังไม่ได้ตั้งค่าการเชื่อมต่อ Supabase");
+        return false;
+      }
       setAuthBusy(true);
       setError("");
-      const { data: authData, error: signInError } =
-        await supabase.auth.signInWithPassword({
+      try {
+        const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
           email: resolveSignInIdentifier(identifier),
           password,
         });
-      setAuthBusy(false);
-      if (signInError || !authData.session) {
-        setError(signInError?.message ?? "ไม่สามารถเข้าสู่ระบบได้");
+        if (signInError || !authData.session) {
+          setError(signInError?.message ?? "ไม่สามารถเข้าสู่ระบบได้");
+          return false;
+        }
+        await ensureSessionLoaded(authData.session);
+        return true;
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "ไม่สามารถเชื่อมต่อระบบเข้าสู่ระบบได้");
         return false;
+      } finally {
+        setAuthBusy(false);
       }
-      if (sessionTokenRef.current !== authData.session.access_token) {
-        sessionTokenRef.current = authData.session.access_token;
-        setSession(authData.session);
-        await load(authData.session);
-      }
-      return true;
     },
-    [load, supabase],
+    [ensureSessionLoaded, supabase],
   );
 
   const signOut = useCallback(async () => {
@@ -420,6 +443,7 @@ export function useSynapseBackend() {
     }
     if (supabase) await supabase.auth.signOut();
     sessionTokenRef.current = null;
+    sessionLoadRef.current = null;
     setSession(null);
     setIdentity(null);
     setData(emptyData);
@@ -533,6 +557,16 @@ export function useSynapseBackend() {
         "/v1/data-inputs/vmi",
         payload,
         "เผยแพร่ข้อมูลผ่าน Raw → Staging → Core/Analytics แล้ว",
+      )) !== null,
+    [runAction],
+  );
+
+  const publishPackagingProfiles = useCallback(
+    async (profiles: RecordRow[], sourceReference: string) =>
+      (await runAction(
+        "/v1/admin/packaging-profiles",
+        { profiles, source_reference: sourceReference },
+        "บันทึก Packaging Master พร้อมขนาด ความจุพาเลท และน้ำหนักลง Supabase แล้ว",
       )) !== null,
     [runAction],
   );
@@ -961,6 +995,7 @@ export function useSynapseBackend() {
     loadVmiContext,
     loading,
     notice,
+    publishPackagingProfiles,
     publishVmiInput,
     receiveHandlingUnit,
     reconcileHandlingUnit,

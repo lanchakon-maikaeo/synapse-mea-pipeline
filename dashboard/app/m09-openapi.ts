@@ -240,6 +240,10 @@ export const m09OpenApi = {
     "/v1/admin/import/legacy": post(
       "Import a governed chunk from a legacy actual source",
     ),
+    "/v1/admin/packaging-profiles": {
+      get: get("Published FIFO packaging master profiles").get,
+      post: post("Upsert packaging dimensions, pallet capacity and weight").post,
+    },
     "/v1/reference/districts": get("Supabase district master"),
     "/v1/data-inputs/vmi": {
       get: get("Recent governed VMI inputs").get,

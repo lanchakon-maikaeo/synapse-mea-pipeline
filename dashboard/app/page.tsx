@@ -26,6 +26,7 @@ import {
   type VmiContext,
   type VmiInputPayload,
 } from "./use-synapse-backend";
+import FifoPackagingSetupView from "./fifo-packaging-setup";
 import {
   TransportModule,
   transportNavForRole,
@@ -46,6 +47,7 @@ type ViewKey =
   | "stock"
   | "data"
   | "import"
+  | "fifo_setup"
   | "input"
   | "operations"
   | "release";
@@ -53,6 +55,24 @@ type ViewKey =
 type NavGroup = {
   label: string;
   items: Array<[ViewKey, string, string]>;
+};
+
+const roleNameTh: Record<Role, string> = {
+  admin: "ผู้ดูแลระบบ",
+  planner: "ผู้วางแผน",
+  academic: "เจ้าหน้าที่วิชาการ",
+  picker: "เจ้าหน้าที่คลัง",
+  district: "เจ้าหน้าที่เขต",
+  viewer: "ผู้บริหาร / ผู้ดูข้อมูล",
+};
+
+const roleNameEn: Record<Role, string> = {
+  admin: "Admin",
+  planner: "Planner",
+  academic: "Academic Approver",
+  picker: "Warehouse Staff",
+  district: "District User",
+  viewer: "Viewer",
 };
 
 const navByRole: Record<Role, NavGroup[]> = {
@@ -68,7 +88,10 @@ const navByRole: Record<Role, NavGroup[]> = {
     },
     {
       label: "IMPORT CENTER",
-      items: [["import", "Import Data", "⇧"]],
+      items: [
+        ["import", "Import Data", "⇧"],
+        ["fifo_setup", "FIFO / Packaging Setup", "▣"],
+      ],
     },
     {
       label: "คลังสินค้า",
@@ -242,6 +265,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "นำเข้าและประมวลผลข้อมูล",
     "ตรวจสอบ แปลง และเตรียมข้อมูลจาก SAP ให้พร้อมใช้งานในแต่ละ Module",
   ],
+  fifo_setup: [
+    "FIFO Setup",
+    "FIFO, Packaging & Opening Setup",
+    "ตรวจ Packing เริ่มต้นหน่วยขนถ่าย กระทบยอด และ Publish หลักฐาน FIFO ก่อนเริ่มใช้งานจริง",
+  ],
   input: [
     "อัปเดตสต็อก",
     "บันทึกสต็อกและการใช้งาน",
@@ -382,6 +410,203 @@ function LiveTable({
   );
 }
 
+type AccessRequestForm = {
+  fullName: string;
+  employeeId: string;
+  workEmail: string;
+  organizationUnit: string;
+  requestedRole: Exclude<Role, "admin">;
+  reason: string;
+};
+
+const emptyAccessRequest: AccessRequestForm = {
+  fullName: "",
+  employeeId: "",
+  workEmail: "",
+  organizationUnit: "",
+  requestedRole: "district",
+  reason: "",
+};
+
+function RequestAccessDialog({ close }: { close: () => void }) {
+  const [form, setForm] = useState<AccessRequestForm>(emptyAccessRequest);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [reference, setReference] = useState("");
+
+  const update = <K extends keyof AccessRequestForm>(
+    field: K,
+    value: AccessRequestForm[K],
+  ) => setForm((current) => ({ ...current, [field]: value }));
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/access-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        request_number?: string;
+        error?: { message?: string };
+      };
+      if (!response.ok) {
+        throw new Error(
+          payload.error?.message ?? "ไม่สามารถส่งคำขอได้ กรุณาลองอีกครั้ง",
+        );
+      }
+      setReference(payload.request_number ?? "ส่งคำขอแล้ว");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "ไม่สามารถส่งคำขอได้ กรุณาลองอีกครั้ง",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="access-request-backdrop" role="presentation">
+      <section
+        className="access-request-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="access-request-title"
+      >
+        <header>
+          <div>
+            <span>REQUEST ACCESS</span>
+            <h2 id="access-request-title">ขอสิทธิ์เข้าใช้งาน</h2>
+            <p>Admin จะตรวจสอบข้อมูลและกำหนดบทบาทก่อนสร้างบัญชี</p>
+          </div>
+          <button type="button" onClick={close} aria-label="ปิดแบบฟอร์ม">
+            ×
+          </button>
+        </header>
+        {reference ? (
+          <div className="access-request-success" role="status">
+            <i>✓</i>
+            <h3>ส่งคำขอเรียบร้อยแล้ว</h3>
+            <p>
+              เลขอ้างอิง <strong>{reference}</strong>
+            </p>
+            <small>
+              บัญชียังไม่ถูกสร้างจนกว่า Admin จะตรวจสอบและอนุมัติ
+            </small>
+            <button type="button" className="btn primary" onClick={close}>
+              กลับหน้า Login
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="access-request-form">
+            <div className="access-request-grid">
+              <label>
+                ชื่อ–นามสกุล
+                <input
+                  value={form.fullName}
+                  onChange={(event) => update("fullName", event.target.value)}
+                  autoComplete="name"
+                  required
+                  maxLength={120}
+                />
+              </label>
+              <label>
+                รหัสพนักงาน
+                <input
+                  value={form.employeeId}
+                  onChange={(event) => update("employeeId", event.target.value)}
+                  required
+                  maxLength={30}
+                />
+              </label>
+              <label>
+                อีเมลองค์กร
+                <input
+                  type="email"
+                  value={form.workEmail}
+                  onChange={(event) => update("workEmail", event.target.value)}
+                  autoComplete="email"
+                  required
+                  maxLength={160}
+                />
+              </label>
+              <label>
+                หน่วยงาน / การไฟฟ้าเขต
+                <input
+                  value={form.organizationUnit}
+                  onChange={(event) =>
+                    update("organizationUnit", event.target.value)
+                  }
+                  required
+                  maxLength={160}
+                  placeholder="เช่น 5501 : เขตนวลจันทร์"
+                />
+              </label>
+              <label className="access-request-wide">
+                บทบาทที่ขอ
+                <select
+                  value={form.requestedRole}
+                  onChange={(event) =>
+                    update(
+                      "requestedRole",
+                      event.target.value as AccessRequestForm["requestedRole"],
+                    )
+                  }
+                >
+                  <option value="district">District User · ผู้ใช้งานเขต</option>
+                  <option value="planner">Planner · ผู้วางแผน</option>
+                  <option value="academic">
+                    Academic Approver · นักวิชาการ
+                  </option>
+                  <option value="picker">
+                    Warehouse Staff · เจ้าหน้าที่คลัง
+                  </option>
+                  <option value="viewer">Viewer · ผู้บริหาร/ผู้ดูข้อมูล</option>
+                </select>
+              </label>
+              <label className="access-request-wide">
+                เหตุผลที่ขอใช้งาน
+                <textarea
+                  value={form.reason}
+                  onChange={(event) => update("reason", event.target.value)}
+                  required
+                  minLength={10}
+                  maxLength={800}
+                  rows={3}
+                />
+              </label>
+            </div>
+            <div className="access-request-note">
+              <i>i</i>
+              <p>
+                บทบาทที่เลือกเป็นเพียงคำขอเท่านั้น สิทธิ์จริงและพื้นที่รับผิดชอบจะถูกกำหนดโดย Admin
+              </p>
+            </div>
+            {error && (
+              <div className="form-error" role="alert">
+                {error}
+              </div>
+            )}
+            <footer>
+              <button type="button" className="btn ghost" onClick={close}>
+                ยกเลิก
+              </button>
+              <button type="submit" className="btn primary" disabled={busy}>
+                {busy ? "กำลังส่งคำขอ…" : "ส่งคำขอให้ Admin"}
+              </button>
+            </footer>
+          </form>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function Login({
   busy,
   error,
@@ -392,6 +617,7 @@ function Login({
   onLogin: (identifier: string, password: string) => Promise<boolean>;
 }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [showAccessRequest, setShowAccessRequest] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const submit = async (event: FormEvent) => {
@@ -482,6 +708,14 @@ function Login({
           >
             {busy ? "กำลังตรวจสอบ…" : "เข้าสู่ระบบ"} <span>→</span>
           </button>
+          <button
+            className="login-request-access"
+            type="button"
+            onClick={() => setShowAccessRequest(true)}
+          >
+            <span>ยังไม่มีบัญชี?</span>
+            <strong>Request Access · ขอสิทธิ์เข้าใช้งาน</strong>
+          </button>
           <div className="login-assurance">
             <span>กำหนดสิทธิ์ตามบทบาท</span>
             <i />
@@ -489,6 +723,9 @@ function Login({
           </div>
         </form>
       </section>
+      {showAccessRequest && (
+        <RequestAccessDialog close={() => setShowAccessRequest(false)} />
+      )}
     </main>
   );
 }
@@ -516,14 +753,6 @@ function Sidebar({
   transportView: TransportView;
   setTransportView: (value: TransportView) => void;
 }) {
-  const roleName: Record<Role, string> = {
-    admin: "เจ้าหน้าที่ส่วนกลาง",
-    planner: "ผู้วางแผน",
-    academic: "เจ้าหน้าที่วิชาการ",
-    picker: "เจ้าหน้าที่คลัง",
-    district: "เจ้าหน้าที่เขต",
-    viewer: "ผู้อ่านข้อมูล",
-  };
   const switchBtn = (key: "warehouse" | "transport", label: string) => (
     <button
       type="button"
@@ -561,10 +790,10 @@ function Sidebar({
           </div>
         </div>
         <div className="user-scope">
-          <i>{roleName[role].charAt(0)}</i>
+          <i>{roleNameTh[role].charAt(0)}</i>
           <div>
             <small>บทบาทของคุณ</small>
-            <strong>{roleName[role]}</strong>
+            <strong>{roleNameTh[role]}</strong>
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, padding: "0 12px 6px" }}>
@@ -628,6 +857,8 @@ function Sidebar({
 
 function Header({
   title,
+  role,
+  districtId,
   loading,
   openMenu,
   logout,
@@ -636,6 +867,8 @@ function Header({
   snapshot,
 }: {
   title: string;
+  role: Role;
+  districtId: string | null;
   loading: boolean;
   openMenu: () => void;
   logout: () => void;
@@ -704,6 +937,16 @@ function Header({
         >
           <i /> {loading ? "กำลังซิงก์…" : snapshot}
         </button>
+        <div className="identity-chip" title="สิทธิ์กำหนดจากบัญชีผู้ใช้งาน">
+          <i>{roleNameTh[role].charAt(0)}</i>
+          <span>
+            <small>Signed in as</small>
+            <strong>
+              {roleNameEn[role]} · {roleNameTh[role]}
+              {districtId ? ` ${districtId}` : ""}
+            </strong>
+          </span>
+        </div>
         <button type="button" className="btn ghost logout" onClick={logout}>
           ออกจากระบบ
         </button>
@@ -970,6 +1213,9 @@ function WeeklyPlanView({
   onReturn: (planId: string, note: string) => Promise<boolean>;
   onVersion: (planId: string, reason: string) => Promise<boolean>;
 }) {
+  const plannerTopScrollRef = useRef<HTMLDivElement>(null);
+  const plannerTableScrollRef = useRef<HTMLDivElement>(null);
+  const [plannerTableWidth, setPlannerTableWidth] = useState(1450);
   const [workflowStep, setWorkflowStep] = useState(() =>
     role === "district" ? 3 : role === "academic" ? 5 : 0,
   );
@@ -977,6 +1223,9 @@ function WeeklyPlanView({
     "district",
   );
   const [query, setQuery] = useState("");
+  const [sortMode, setSortMode] = useState<
+    "priority" | "district" | "material" | "months"
+  >("priority");
   const [focusedItemId, setFocusedItemId] = useState("");
   const [plannerQuantities, setPlannerQuantities] = useState<
     Record<string, string>
@@ -987,6 +1236,10 @@ function WeeklyPlanView({
   const [selectedPlanningIds, setSelectedPlanningIds] = useState<
     Record<string, boolean>
   >({});
+  const [savedDistrictIds, setSavedDistrictIds] = useState<
+    Record<string, boolean>
+  >({});
+  const [draftSaveMessage, setDraftSaveMessage] = useState("");
   const [responseRow, setResponseRow] = useState<RecordRow | null>(null);
   const [decision, setDecision] =
     useState<ReplenishmentResponsePayload["decision"]>("confirm");
@@ -1009,6 +1262,32 @@ function WeeklyPlanView({
       row.replenishment_item_id,
       `${text(row.district_id, "")}|${text(row.material_id, "")}`,
     );
+  const planningCandidateKey = (row: RecordRow) =>
+    `${text(row.district_id, "")}|${text(row.material_id, "")}`;
+  const planningCandidateRank = (row: RecordRow) => {
+    const timestamp = Date.parse(
+      text(
+        row.updated_at,
+        text(
+          row.calculated_at,
+          text(row.created_at, text(row.snapshot_date, "1970-01-01")),
+        ),
+      ),
+    );
+    const version = Number(row.version_no ?? row.plan_version ?? 0);
+    return (Number.isFinite(timestamp) ? timestamp : 0) * 1_000 + version;
+  };
+  const canonicalReplenishmentRows = (() => {
+    const candidates = new Map<string, RecordRow>();
+    data.replenishment.forEach((row) => {
+      const key = planningCandidateKey(row);
+      const current = candidates.get(key);
+      if (!current || planningCandidateRank(row) > planningCandidateRank(current)) {
+        candidates.set(key, row);
+      }
+    });
+    return [...candidates.values()];
+  })();
   const materialCatalog = [
     ...new Map(
       [...data.materials, ...data.replenishment, ...data.stock].map((row) => [
@@ -1049,7 +1328,7 @@ function WeeklyPlanView({
               text(row.district_id) === district.district_id,
           ) ?? {};
         const queued =
-          data.replenishment.find(
+          canonicalReplenishmentRows.find(
             (row) =>
               text(row.material_id) === selectedMaterial.id &&
               text(row.district_id) === district.district_id,
@@ -1081,18 +1360,75 @@ function WeeklyPlanView({
     : [];
   const rows = (
     searchMode === "district"
-      ? data.replenishment.filter((row) => {
+      ? canonicalReplenishmentRows.filter((row) => {
           const value = query.trim().toLowerCase();
           return !value || text(row.district_id).toLowerCase().includes(value);
         })
       : materialRows
-  ).sort(
-    (left, right) =>
+  ).sort((left, right) => {
+    if (sortMode === "district") {
+      return (
+        text(left.district_id).localeCompare(text(right.district_id)) ||
+        text(left.material_id).localeCompare(text(right.material_id))
+      );
+    }
+    if (sortMode === "material") {
+      return (
+        text(left.material_id).localeCompare(text(right.material_id)) ||
+        text(left.district_id).localeCompare(text(right.district_id))
+      );
+    }
+    if (sortMode === "months") {
+      return (
+        Number(left.months_available ?? Number.POSITIVE_INFINITY) -
+          Number(right.months_available ?? Number.POSITIVE_INFINITY) ||
+        text(left.district_id).localeCompare(text(right.district_id))
+      );
+    }
+    return (
       Number(Boolean(right.needs_fill ?? Number(right.suggested_qty ?? 0) > 0)) -
         Number(Boolean(left.needs_fill ?? Number(left.suggested_qty ?? 0) > 0)) ||
       Number(right.priority_score ?? 0) - Number(left.priority_score ?? 0) ||
-      text(left.district_id).localeCompare(text(right.district_id)),
-  );
+      text(left.district_id).localeCompare(text(right.district_id))
+    );
+  });
+
+  useEffect(() => {
+    const topScroller = plannerTopScrollRef.current;
+    const tableScroller = plannerTableScrollRef.current;
+    if (!topScroller || !tableScroller) return;
+
+    let syncingScroll = false;
+    const syncTopToTable = () => {
+      if (syncingScroll) return;
+      syncingScroll = true;
+      tableScroller.scrollLeft = topScroller.scrollLeft;
+      syncingScroll = false;
+    };
+    const syncTableToTop = () => {
+      if (syncingScroll) return;
+      syncingScroll = true;
+      topScroller.scrollLeft = tableScroller.scrollLeft;
+      syncingScroll = false;
+    };
+    const updateScrollableWidth = () =>
+      setPlannerTableWidth(tableScroller.scrollWidth);
+
+    topScroller.addEventListener("scroll", syncTopToTable, { passive: true });
+    tableScroller.addEventListener("scroll", syncTableToTop, { passive: true });
+    const observer = new ResizeObserver(updateScrollableWidth);
+    observer.observe(tableScroller);
+    if (tableScroller.firstElementChild) {
+      observer.observe(tableScroller.firstElementChild);
+    }
+    updateScrollableWidth();
+
+    return () => {
+      topScroller.removeEventListener("scroll", syncTopToTable);
+      tableScroller.removeEventListener("scroll", syncTableToTop);
+      observer.disconnect();
+    };
+  }, [rows.length, searchMode, query, sortMode]);
 
   const defaultPlannerQuantity = (row: RecordRow) =>
     row.replenishment_item_id ? Number(row.suggested_qty ?? 0) : 0;
@@ -1118,6 +1454,10 @@ function WeeklyPlanView({
             Boolean(selectedPlanningIds[itemId(row)]) &&
             plannerQuantity(row) > 0,
         );
+  const visibleRowIds = new Set(rows.map((row) => itemId(row)));
+  const selectedRowsInView = selectedRows.filter((row) =>
+    visibleRowIds.has(itemId(row)),
+  );
   const workflowStatusRows = ["academic", "picker", "viewer"].includes(role)
     ? data.replenishment
     : selectedRows;
@@ -1170,22 +1510,60 @@ function WeeklyPlanView({
     }
     return parts.join(" + ") || `0 ${label}`;
   };
+  const fifoRowsForMaterial = (planningRow: RecordRow): RecordRow[] => {
+    const materialCode = text(
+      planningRow.material_code,
+      text(planningRow.material_id),
+    );
+    const locationMatchesCentralWarehouse = (row: RecordRow) => {
+      const location = text(
+        row.location_id,
+        text(row.location_code, text(row.storage_location_code, "")),
+      );
+      if (!location) return true;
+      const normalized = location.toUpperCase().replaceAll(" ", "");
+      return ["WH-KT", "2401/0001", "2401-0001", "24010001"].includes(
+        normalized,
+      );
+    };
+    return data.fifo
+      .filter(
+        (row) =>
+          text(row.material_code, text(row.material_id)) === materialCode &&
+          locationMatchesCentralWarehouse(row),
+      )
+      .sort((left, right) => {
+        const leftSequence = Number(left.fifo_sequence ?? 0);
+        const rightSequence = Number(right.fifo_sequence ?? 0);
+        if (leftSequence && rightSequence && leftSequence !== rightSequence) {
+          return leftSequence - rightSequence;
+        }
+        return (
+          text(left.fifo_date, text(left.acceptance_date, "9999-12-31")).localeCompare(
+            text(right.fifo_date, text(right.acceptance_date, "9999-12-31")),
+          ) ||
+          text(left.handling_unit_code).localeCompare(
+            text(right.handling_unit_code),
+          )
+        );
+      })
+      .map((row, index): RecordRow => ({
+        ...row,
+        material_id: materialCode,
+        allocatable_qty: Number(row.allocatable_qty ?? row.available_qty ?? 0),
+        acceptance_date: row.acceptance_date ?? row.fifo_date,
+        purchase_order: row.purchase_order ?? row.purchase_order_no,
+        contract_number: row.contract_number ?? row.contract_no,
+        vendor_name: row.vendor_name ?? row.vendor_alias,
+        fifo_sequence: Number(row.fifo_sequence ?? index + 1),
+      }));
+  };
   const fifoPlanFor = (
     planningRow: RecordRow,
     requestedQuantity = plannerQuantity(planningRow),
   ) => {
     let remaining = requestedQuantity;
-    const picks = data.fifo
-      .filter(
-        (row) =>
-          text(row.material_id) === text(planningRow.material_id) &&
-          text(row.location_id) === "WH-KT",
-      )
-      .sort(
-        (left, right) =>
-          Number(left.fifo_sequence ?? 0) -
-          Number(right.fifo_sequence ?? 0),
-      )
+    const picks = fifoRowsForMaterial(planningRow)
       .map((row) => {
         const available = Math.max(0, Number(row.allocatable_qty ?? 0));
         const quantity = Math.min(available, remaining);
@@ -1218,17 +1596,7 @@ function WeeklyPlanView({
     : null;
   const focusedEvidence = record(focusedRecommendation?.evidence);
   const focusedFifo = focusedRow
-    ? data.fifo
-        .filter(
-          (row) =>
-            text(row.material_id) === text(focusedRow.material_id) &&
-            text(row.location_id) === "WH-KT",
-        )
-        .sort(
-          (left, right) =>
-            Number(left.fifo_sequence ?? 0) -
-            Number(right.fifo_sequence ?? 0),
-        )
+    ? fifoRowsForMaterial(focusedRow)
     : [];
   const fifoPreviewResult = focusedFifo.reduce<{
     remaining: number;
@@ -1475,6 +1843,63 @@ function WeeklyPlanView({
   const materialOptions = materialCatalog.map(
     (material) => `${material.id} : ${material.name}`,
   );
+  const savedDistrictSummary = districtSummary.filter(
+    (district) => savedDistrictIds[district.district],
+  );
+  const savedItemCount = selectedRows.filter((row) =>
+    savedDistrictIds[text(row.district_id)],
+  ).length;
+  const savePlanningScope = () => {
+    const scopeRows =
+      searchMode === "district" && query ? selectedRowsInView : selectedRows;
+    const districtIds = [
+      ...new Set(scopeRows.map((row) => text(row.district_id)).filter(Boolean)),
+    ];
+    if (!districtIds.length) return;
+
+    const nextSavedDistrictIds = { ...savedDistrictIds };
+    districtIds.forEach((districtId) => {
+      nextSavedDistrictIds[districtId] = true;
+    });
+    setSavedDistrictIds(nextSavedDistrictIds);
+
+    if (searchMode === "district" && query) {
+      const currentDistrict = districtOptions.find(
+        (district) => district.id === query,
+      );
+      const candidateDistrictIds = new Set(
+        canonicalReplenishmentRows.map((row) => text(row.district_id)),
+      );
+      const currentIndex = Math.max(
+        0,
+        districtOptions.findIndex((district) => district.id === query),
+      );
+      const nextDistrict = [
+        ...districtOptions.slice(currentIndex + 1),
+        ...districtOptions.slice(0, currentIndex),
+      ].find(
+        (district) =>
+          candidateDistrictIds.has(district.id) &&
+          !nextSavedDistrictIds[district.id],
+      );
+
+      setDraftSaveMessage(
+        `บันทึก ${query} : ${currentDistrict?.name ?? "การไฟฟ้าเขต"} แล้ว ${formatNumber(scopeRows.length)} รายการ`,
+      );
+      if (nextDistrict) {
+        setQuery(nextDistrict.id);
+      } else {
+        setDraftSaveMessage(
+          `บันทึกเขต ${query} แล้ว และตรวจครบทุกเขตที่มีรายการในรอบนี้`,
+        );
+      }
+      return;
+    }
+
+    setDraftSaveMessage(
+      `บันทึกรายการที่เลือกแล้ว ${formatNumber(scopeRows.length)} รายการ จาก ${formatNumber(districtIds.length)} เขต`,
+    );
+  };
   const academicPlan =
     plans.find((plan) =>
       ["pending_academic_approval", "locked"].includes(text(plan.plan_status)),
@@ -1561,78 +1986,6 @@ function WeeklyPlanView({
 
       {(workflowStep === 0 || workflowStep === 1) && (
         <>
-          <section className="filter-bar planner-filter">
-            <div className="search-switch" role="group" aria-label="ค้นหาตาม">
-              <button
-                type="button"
-                className={searchMode === "district" ? "active" : ""}
-                onClick={() => {
-                  setSearchMode("district");
-                  setQuery("");
-                }}
-              >
-                ค้นหารายเขต
-              </button>
-              <button
-                type="button"
-                className={searchMode === "material" ? "active" : ""}
-                onClick={() => {
-                  setSearchMode("material");
-                  setQuery(materialOptions[0] ?? "");
-                }}
-              >
-                ค้นหารายพัสดุ
-              </button>
-            </div>
-            {searchMode === "district" ? (
-              <select
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-label="เลือกการไฟฟ้าเขต"
-              >
-                <option value="">ทุกเขตที่เข้าเกณฑ์</option>
-                {districtOptions.map((district) => (
-                  <option key={district.id} value={district.id}>
-                    {district.id} : {district.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <>
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="พิมพ์รหัสหรือชื่อพัสดุ"
-                  aria-label="ค้นหารายพัสดุ"
-                  list="weekly-material-options"
-                />
-                <datalist id="weekly-material-options">
-                  {materialOptions.map((material) => (
-                    <option key={material} value={material} />
-                  ))}
-                </datalist>
-              </>
-            )}
-            {canCreate && data.replenishment.length === 0 ? (
-              <button
-                className="btn primary"
-                disabled={actionBusy}
-                onClick={() => void onCreate()}
-              >
-                เริ่มรอบแผนจากข้อมูลล่าสุด
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn primary"
-                disabled={!selectedRows.length}
-                onClick={() => setWorkflowStep(2)}
-              >
-                ยืนยันรายการที่เลือก ({formatNumber(selectedRows.length)})
-              </button>
-            )}
-          </section>
-
           <section className="planner-preview-note">
             <strong>Candidate Source</strong>
             <span>
@@ -1644,6 +1997,144 @@ function WeeklyPlanView({
 
           <section className="planner-workspace-grid">
             <article className="panel planner-picker">
+              <section className="planner-table-toolbar" aria-label="ค้นหาและจัดเรียงรายการแผน">
+                <div className="search-switch" role="group" aria-label="ค้นหาตาม">
+                  <button
+                    type="button"
+                    className={searchMode === "district" ? "active" : ""}
+                    onClick={() => {
+                      setSearchMode("district");
+                      setQuery("");
+                    }}
+                  >
+                    รายเขต
+                  </button>
+                  <button
+                    type="button"
+                    className={searchMode === "material" ? "active" : ""}
+                    onClick={() => {
+                      setSearchMode("material");
+                      setQuery(materialOptions[0] ?? "");
+                    }}
+                  >
+                    รายพัสดุ
+                  </button>
+                </div>
+                {searchMode === "district" ? (
+                  <select
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    aria-label="เลือกการไฟฟ้าเขต"
+                  >
+                    <option value="">ทุกเขตที่เข้าเกณฑ์</option>
+                    {districtOptions.map((district) => (
+                      <option key={district.id} value={district.id}>
+                        {savedDistrictIds[district.id] ? "✓ " : ""}
+                        {district.id} : {district.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <>
+                    <input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="พิมพ์รหัสหรือชื่อพัสดุ"
+                      aria-label="ค้นหารายพัสดุ"
+                      list="weekly-material-options"
+                    />
+                    <datalist id="weekly-material-options">
+                      {materialOptions.map((material) => (
+                        <option key={material} value={material} />
+                      ))}
+                    </datalist>
+                  </>
+                )}
+                <select
+                  value={sortMode}
+                  onChange={(event) =>
+                    setSortMode(
+                      event.target.value as
+                        | "priority"
+                        | "district"
+                        | "material"
+                        | "months",
+                    )
+                  }
+                  aria-label="เรียงรายการ"
+                >
+                  <option value="priority">เรียง: ต้องเติมก่อน</option>
+                  <option value="district">เรียง: รหัสเขต</option>
+                  <option value="material">เรียง: รหัสพัสดุ</option>
+                  <option value="months">เรียง: เดือนคงเหลือน้อย</option>
+                </select>
+                {canCreate && data.replenishment.length === 0 ? (
+                  <button
+                    className="btn primary"
+                    disabled={actionBusy}
+                    onClick={() => void onCreate()}
+                  >
+                    เริ่มรอบแผน
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn primary planner-district-confirm"
+                    disabled={
+                      searchMode === "district" && query
+                        ? !selectedRowsInView.length
+                        : !selectedRows.length
+                    }
+                    onClick={savePlanningScope}
+                  >
+                    {searchMode === "district" && query
+                      ? `${savedDistrictIds[query] ? "อัปเดต" : "บันทึก"}เขต ${query} (${formatNumber(selectedRowsInView.length)}) → เขตถัดไป`
+                      : `บันทึกรายการที่เลือก (${formatNumber(selectedRows.length)})`}
+                  </button>
+                )}
+              </section>
+              <section className="planner-draft-progress" aria-label="สถานะ Draft Plan">
+                <div className="planner-draft-copy">
+                  <span>DRAFT PLAN · บันทึกทีละเขต</span>
+                  <strong>
+                    {savedDistrictSummary.length >= 18
+                      ? `ครบ 18 เขตเรียบร้อยแล้ว · ${formatNumber(savedItemCount)} รายการ`
+                      : `${formatNumber(savedDistrictSummary.length)} / 18 เขต · ${formatNumber(savedItemCount)} รายการบันทึกแล้ว`}
+                  </strong>
+                  <small>
+                    {draftSaveMessage ||
+                      "เลือกรายการและ Qty ของเขตนี้ แล้วกดบันทึกเพื่อไปทำเขตถัดไป"}
+                  </small>
+                </div>
+                <div className="planner-saved-districts">
+                  {districtSummary.length ? (
+                    districtSummary.map((district) => (
+                      <button
+                        type="button"
+                        key={district.district}
+                        className={savedDistrictIds[district.district] ? "saved" : "pending"}
+                        onClick={() => {
+                          setSearchMode("district");
+                          setQuery(district.district);
+                        }}
+                      >
+                        {savedDistrictIds[district.district] ? "✓" : "•"}{" "}
+                        {district.district} · {formatNumber(district.items)} รายการ
+                      </button>
+                    ))
+                  ) : (
+                    <span>ยังไม่มีเขตใน Draft Plan</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="btn ghost planner-review-all"
+                  disabled={!selectedRows.length}
+                  onClick={() => setWorkflowStep(2)}
+                >
+                  ดูสรุปแผนทั้งหมด ({formatNumber(selectedRows.length)})
+                </button>
+              </section>
               <div className="panel-title">
                 <div>
                   <span>PLANNER WORKSPACE</span>
@@ -1677,6 +2168,12 @@ function WeeklyPlanView({
                             .map((row) => [itemId(row), true]),
                         ),
                       }));
+                      setSavedDistrictIds((current) => ({
+                        ...current,
+                        ...Object.fromEntries(
+                          rows.map((row) => [text(row.district_id), false]),
+                        ),
+                      }));
                     }}
                   >
                     เลือกทุกแถวที่มี Qty
@@ -1685,19 +2182,36 @@ function WeeklyPlanView({
                     type="button"
                     className="btn ghost"
                     disabled={!canCreate}
-                    onClick={() =>
+                    onClick={() => {
                       setSelectedPlanningIds((current) => ({
                         ...current,
                         ...Object.fromEntries(rows.map((row) => [itemId(row), false])),
-                      }))
-                    }
+                      }));
+                      setSavedDistrictIds((current) => ({
+                        ...current,
+                        ...Object.fromEntries(
+                          rows.map((row) => [text(row.district_id), false]),
+                        ),
+                      }));
+                    }}
                   >
                     ล้างที่เลือกในหน้านี้
                   </button>
                 </div>
               </div>
               {rows.length ? (
-                <div className="live-table-wrap">
+                <>
+                  <div
+                    ref={plannerTopScrollRef}
+                    className="planner-table-top-scroll"
+                    aria-label="เลื่อนดูคอลัมน์ตาราง"
+                  >
+                    <div style={{ width: `${plannerTableWidth}px` }} />
+                  </div>
+                  <div
+                    ref={plannerTableScrollRef}
+                    className="live-table-wrap planner-table-scroll-body"
+                  >
                   <table className="live-table planner-item-table">
                     <thead>
                       <tr>
@@ -1739,6 +2253,10 @@ function WeeklyPlanView({
                                   disabled={!canCreate || quantity <= 0}
                                   onChange={(event) => {
                                     setFocusedItemId(id);
+                                    setSavedDistrictIds((current) => ({
+                                      ...current,
+                                      [text(row.district_id)]: false,
+                                    }));
                                     setEditedPlanningRows((current) => ({
                                       ...current,
                                       [id]: row,
@@ -1799,6 +2317,10 @@ function WeeklyPlanView({
                                     0,
                                     Math.round(Number(event.target.value) || 0),
                                   );
+                                  setSavedDistrictIds((current) => ({
+                                    ...current,
+                                    [text(row.district_id)]: false,
+                                  }));
                                   setEditedPlanningRows((current) => ({
                                     ...current,
                                     [id]: row,
@@ -1822,7 +2344,8 @@ function WeeklyPlanView({
                       })}
                     </tbody>
                   </table>
-                </div>
+                  </div>
+                </>
               ) : (
                 <article className="workspace-empty">
                   <i>—</i>
@@ -1978,12 +2501,26 @@ function WeeklyPlanView({
                         )})}
                       </div>
                     ) : (
-                      <div className="evidence-empty">
-                        <strong>ยังไม่มีหลักฐาน FIFO ที่พร้อมจ่าย</strong>
-                        <p>
-                          ระบบไม่เลือกสัญญา ผู้ขาย หรือพาเลทจำลองแทนข้อมูลจริง
-                        </p>
-                      </div>
+                  <div className="evidence-empty">
+                    <strong>ยังไม่มีหลักฐาน FIFO ที่พร้อมจ่าย</strong>
+                    <p>
+                      Stock.xlsx เป็นยอดรวม จึงยังระบุไม่ได้ว่าต้องหยิบจากสัญญา
+                      งวด หรือพาเลทใด
+                    </p>
+                    <ul className="fifo-missing-list">
+                      <li>
+                        ไฟล์รวมสัญญา: Material, PO/สัญญา, งวดส่งมอบ และวันผ่านตรวจรับ
+                      </li>
+                      <li>
+                        ข้อมูลรับเข้าคลัง/HU: Receipt Lot, Pallet/Box ID, ประเภทบรรจุ,
+                        จำนวนต่อหน่วย และยอดพร้อมหยิบ
+                      </li>
+                      <li>
+                        เมื่อผูกสองส่วนนี้แล้ว ระบบจึงเรียงวันผ่านตรวจรับเก่า → ใหม่
+                        และคำนวณ Remain ได้
+                      </li>
+                    </ul>
+                  </div>
                     )}
                     {fifoPreviewShortage > 0 && (
                       <div className="fifo-shortage">
@@ -2013,7 +2550,7 @@ function WeeklyPlanView({
               disabled={!selectedRows.length}
               onClick={() => setWorkflowStep(2)}
             >
-              ยืนยันรายการที่เลือกเข้า Draft Plan ({formatNumber(selectedRows.length)}) →
+              ดูสรุปแผนทั้งหมด ({formatNumber(selectedRows.length)}) →
             </button>
           </div>
         </>
@@ -2024,7 +2561,7 @@ function WeeklyPlanView({
           <div className="panel-title">
             <div>
               <span>DRAFT PLAN CONFIRMATION</span>
-              <h3>รายการที่ Planner เลือกแล้ว — ตรวจจำนวนและแผนหยิบก่อนส่งเขต</h3>
+              <h3>สรุป Draft Plan แยกตามเขต — ตรวจทานทั้งหมดก่อนส่งให้เขต</h3>
             </div>
             <b>{formatNumber(districtSummary.length)} เขต</b>
           </div>
@@ -4028,6 +4565,36 @@ type ImportHistoryRecord = {
   version: number;
 };
 
+type PublishedDataSnapshot = {
+  id: string;
+  version: number;
+  publishedAt: string;
+  publishedBy: string;
+  batches: Array<{
+    sourceKey: ImportSourceKey;
+    fileName: string;
+    acceptedCount: number;
+    rejectedCount: number;
+    version: number;
+  }>;
+};
+
+const publishedSnapshotStorageKey = "mea-synapse.local-published-data-snapshot";
+
+function loadPublishedSnapshot(): PublishedDataSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.localStorage.getItem(publishedSnapshotStorageKey);
+    if (!value) return null;
+    const parsed = JSON.parse(value) as PublishedDataSnapshot;
+    return parsed?.id && parsed?.publishedAt && Array.isArray(parsed.batches)
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 const initialImportHistory: ImportHistoryRecord[] = [
   {
     id: "IMP-ST-20260721-003",
@@ -4436,10 +5003,13 @@ async function readImportSheet(
   return sheets[0];
 }
 
-function DataImportView() {
+function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
   const [sourceKey, setSourceKey] = useState<ImportSourceKey>("stock");
   const [completedSequence, setCompletedSequence] = useState<ImportSourceKey[]>([]);
-  const [snapshotPublishedAt, setSnapshotPublishedAt] = useState<string | null>(null);
+  // Start empty during SSR, then restore the local snapshot on the client.
+  // This avoids a server/client HTML mismatch when the browser already has a
+  // previously published Local Demo snapshot in localStorage.
+  const [publishedSnapshot, setPublishedSnapshot] = useState<PublishedDataSnapshot | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [sheet, setSheet] = useState<ImportedSheet | null>(null);
   const [historicalSheets, setHistoricalSheets] = useState<ImportedSheet[]>([]);
@@ -4455,6 +5025,11 @@ function DataImportView() {
   const latestImport = history[0] ?? null;
   const nextRequiredSource = importSequence[completedSequence.length] ?? null;
   const sequenceComplete = completedSequence.length === importSequence.length;
+  const snapshotPublishedAt = publishedSnapshot?.publishedAt ?? null;
+
+  useEffect(() => {
+    setPublishedSnapshot(loadPublishedSnapshot());
+  }, []);
 
   const validation = useMemo(() => {
     if (!sheet) return null;
@@ -4589,14 +5164,34 @@ function DataImportView() {
 
   const restartSequence = () => {
     setCompletedSequence([]);
-    setSnapshotPublishedAt(null);
     setSourceKey("stock");
     resetFile();
   };
 
   const publishSnapshot = () => {
-    if (!sequenceComplete || snapshotPublishedAt) return;
-    setSnapshotPublishedAt(new Date().toISOString());
+    if (!sequenceComplete) return;
+    const publishedAt = new Date().toISOString();
+    const nextVersion = (publishedSnapshot?.version ?? 0) + 1;
+    const nextSnapshot: PublishedDataSnapshot = {
+      id: `SNAP-${publishedAt.replace(/[-:TZ.]/g, "").slice(0, 14)}-V${nextVersion}`,
+      version: nextVersion,
+      publishedAt,
+      publishedBy: "Admin",
+      batches: importSequence.map((key) => {
+        const record = [...history]
+          .filter((item) => item.sourceKey === key)
+          .sort((left, right) => right.importedAt.localeCompare(left.importedAt))[0];
+        return {
+          sourceKey: key,
+          fileName: record?.fileName ?? "—",
+          acceptedCount: record?.acceptedCount ?? 0,
+          rejectedCount: record?.rejectedCount ?? 0,
+          version: record?.version ?? 0,
+        };
+      }),
+    };
+    window.localStorage.setItem(publishedSnapshotStorageKey, JSON.stringify(nextSnapshot));
+    setPublishedSnapshot(nextSnapshot);
   };
 
   useEffect(() => {
@@ -4743,38 +5338,81 @@ function DataImportView() {
             <i>{sequenceComplete ? "✓" : "!"}</i>
             <span>
               <strong>
-                {snapshotPublishedAt
+                {sequenceComplete && snapshotPublishedAt
                   ? "Data Snapshot: Published"
                   : sequenceComplete
                     ? "Data Readiness: Ready to publish"
+                    : snapshotPublishedAt
+                      ? "Data Snapshot: Published · new import in progress"
                     : "Data Readiness: In progress"}
               </strong>
               <small>
-                {snapshotPublishedAt
-                  ? `ยืนยันชุดข้อมูลและพร้อมใช้งานเมื่อ ${formatDateTime(snapshotPublishedAt)}`
+                {sequenceComplete && snapshotPublishedAt
+                  ? `Snapshot v${publishedSnapshot?.version} · ${publishedSnapshot?.id} · ยืนยันเมื่อ ${formatDateTime(snapshotPublishedAt)}`
                   : sequenceComplete
                     ? "ข้อมูลทั้ง 4 แหล่งผ่านการตรวจแล้ว กรุณายืนยันก่อนส่งต่อให้ Module"
-                  : `รายการถัดไป: ${nextRequiredSource ? importProfiles[nextRequiredSource].title : "—"}`}
+                    : snapshotPublishedAt
+                      ? `Planner ใช้ Snapshot v${publishedSnapshot?.version} ล่าสุดได้ระหว่างนำเข้ารอบใหม่`
+                    : `รายการถัดไป: ${nextRequiredSource ? importProfiles[nextRequiredSource].title : "—"}`}
               </small>
             </span>
           </div>
-          {sequenceComplete && (
+          {(sequenceComplete || snapshotPublishedAt) && (
             <div className="import-publish-actions">
-              {!snapshotPublishedAt && (
+              {sequenceComplete && (
                 <button type="button" className="btn import-publish-button" onClick={publishSnapshot}>
-                  Publish Data Snapshot
-                  <small>ยืนยันชุดข้อมูลและนำไปใช้งาน</small>
+                  {snapshotPublishedAt ? "Publish New Data Snapshot" : "Publish Data Snapshot"}
+                  <small>{snapshotPublishedAt ? "เผยแพร่ Snapshot เวอร์ชันใหม่" : "ยืนยันชุดข้อมูลและนำไปใช้งาน"}</small>
                 </button>
               )}
               {snapshotPublishedAt && (
-                <button type="button" className="btn ghost" onClick={restartSequence}>
-                  เริ่มรอบ Import ใหม่
-                </button>
+                <>
+                  <button type="button" className="btn primary" onClick={onOpenPlanner}>
+                    ไปที่ Planner Workspace →
+                  </button>
+                  {sequenceComplete && (
+                    <button type="button" className="btn ghost" onClick={restartSequence}>
+                      เริ่มรอบ Import ใหม่
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
         </footer>
       </section>
+
+      {snapshotPublishedAt && publishedSnapshot && (
+        <section className="panel published-snapshot-panel" aria-label="Published Data Snapshot">
+          <div className="panel-title">
+            <div>
+              <span>DATA SNAPSHOT · PUBLISHED</span>
+              <h3>ชุดข้อมูลที่ Planner ใช้งานอยู่</h3>
+              <p>
+                ระบบเก็บรายการแหล่งข้อมูลและเวอร์ชันที่ประกอบเป็น Snapshot นี้ไว้สำหรับสอบกลับ
+              </p>
+            </div>
+            <Badge>v{publishedSnapshot.version}</Badge>
+          </div>
+          <div className="published-snapshot-meta">
+            <span><b>Snapshot ID</b>{publishedSnapshot.id}</span>
+            <span><b>Published by</b>{publishedSnapshot.publishedBy}</span>
+            <span><b>Published at</b>{formatDateTime(publishedSnapshot.publishedAt)}</span>
+          </div>
+          <div className="published-snapshot-sources">
+            {publishedSnapshot.batches.map((batch) => (
+              <article key={batch.sourceKey}>
+                <i>{importProfiles[batch.sourceKey].icon}</i>
+                <span>
+                  <b>{importProfiles[batch.sourceKey].title}</b>
+                  <small>{batch.fileName} · v{batch.version}</small>
+                </span>
+                <strong>{formatNumber(batch.acceptedCount)} rows</strong>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {reviewOpen && file && sheet && validation && (
         <div
@@ -5574,7 +6212,16 @@ function PageContent({
     );
   }
   if (view === "stock") return <StockView data={backend.data} />;
-  if (view === "import") return <DataImportView />;
+  if (view === "import") return <DataImportView onOpenPlanner={() => navigate("weekly")} />;
+  if (view === "fifo_setup") {
+    return (
+      <FifoPackagingSetupView
+        contractRows={backend.data.receiptOptions}
+        materialRows={backend.data.materials}
+        onPublishProfiles={backend.publishPackagingProfiles}
+      />
+    );
+  }
   if (view === "data") return <DataView data={backend.data} />;
   if (view === "input") {
     return (
@@ -5669,6 +6316,8 @@ export default function Home() {
         )}
         <Header
           title={moduleKey === "transport" ? "ระบบขนส่ง" : title}
+          role={role}
+          districtId={backend.identity.district_id}
           loading={backend.loading}
           openMenu={() => setMenuOpen(true)}
           logout={() => void backend.signOut()}
