@@ -5380,7 +5380,10 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
   const snapshotPublishedAt = publishedSnapshot?.publishedAt ?? null;
 
   useEffect(() => {
-    setPublishedSnapshot(loadPublishedSnapshot());
+    const restoreSnapshot = window.setTimeout(() => {
+      setPublishedSnapshot(loadPublishedSnapshot());
+    }, 0);
+    return () => window.clearTimeout(restoreSnapshot);
   }, []);
 
   const validation = useMemo(() => {
