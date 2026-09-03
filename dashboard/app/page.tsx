@@ -1215,6 +1215,7 @@ function WeeklyPlanView({
 }) {
   const plannerTopScrollRef = useRef<HTMLDivElement>(null);
   const plannerTableScrollRef = useRef<HTMLDivElement>(null);
+  const districtBatchDetailRef = useRef<HTMLDivElement>(null);
   const [plannerTableWidth, setPlannerTableWidth] = useState(1450);
   const [workflowStep, setWorkflowStep] = useState(() =>
     role === "district" ? 3 : role === "academic" ? 5 : 0,
@@ -1901,6 +1902,21 @@ function WeeklyPlanView({
     districtBatches.find((batch) => batch.id === districtBatchId) ??
     districtBatches[0] ??
     null;
+  const openDistrictBatch = (
+    batch: (typeof districtBatches)[number],
+  ) => {
+    setDistrictBatchId(batch.id);
+    setDistrictReviewMode(batch.pendingRows.length ? "pending" : "history");
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        districtBatchDetailRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+        districtBatchDetailRef.current?.focus({ preventScroll: true });
+      });
+    });
+  };
   const districtPendingTotal = districtBatches.reduce(
     (sum, batch) => sum + batch.pendingRows.length,
     0,
@@ -2821,12 +2837,8 @@ function WeeklyPlanView({
                     className={`district-batch-card ${
                       activeDistrictBatch?.id === batch.id ? "active" : ""
                     }`}
-                    onClick={() => {
-                      setDistrictBatchId(batch.id);
-                      setDistrictReviewMode(
-                        batch.pendingRows.length ? "pending" : "history",
-                      );
-                    }}
+                    aria-controls="district-batch-detail"
+                    onClick={() => openDistrictBatch(batch)}
                   >
                     <span>
                       {index === 0 && batch.pendingRows.length > 0
@@ -2846,7 +2858,12 @@ function WeeklyPlanView({
               </div>
 
               {activeDistrictBatch && (
-                <div className="district-batch-detail">
+                <div
+                  ref={districtBatchDetailRef}
+                  id="district-batch-detail"
+                  className="district-batch-detail"
+                  tabIndex={-1}
+                >
                   <div className="district-batch-heading">
                     <div>
                       <span>ชุดที่กำลังเปิดดู</span>
