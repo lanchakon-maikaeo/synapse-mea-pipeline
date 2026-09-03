@@ -36,6 +36,7 @@ import {
 type ViewKey =
   | "dashboard"
   | "weekly"
+  | "district_confirmations"
   | "recommendations"
   | "advisory"
   | "changes"
@@ -82,6 +83,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "คำนวณการจ่าย", "▤"],
+        ["district_confirmations", "ยืนยันรายการเขต", "◎"],
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
       ],
@@ -121,6 +123,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "คำนวณการจ่าย", "▤"],
+        ["district_confirmations", "ยืนยันรายการเขต", "◎"],
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
@@ -144,6 +147,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "อนุมัติวิชาการ", "✓"],
+        ["district_confirmations", "ผลยืนยันจากเขต", "◎"],
         ["changes", "หลักฐานคำขอผิดปกติ", "!"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
         ["approvals", "ประวัติการอนุมัติ", "◷"],
@@ -209,6 +213,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "แผนการจ่าย",
     "แผนการจ่ายรายสัปดาห์",
     "ขั้นตอน: เขต → ผู้วางแผน → วิชาการ → ล็อก → จ่ายแบบ FIFO",
+  ],
+  district_confirmations: [
+    "DISTRICT REVIEW",
+    "ยืนยันรายการเขตก่อนจัดรถ",
+    "ตรวจผลตอบรายเขต คำขอเปลี่ยน และรายการค้าง ก่อนยืนยันแผนเข้าสู่ขั้นอนุมัติและจัดรถ",
   ],
   recommendations: [
     "หลักฐานปริมาณ",
@@ -3761,6 +3770,404 @@ function WeeklyPlanView({
   );
 }
 
+type DistrictResponseKind =
+  | "pending"
+  | "confirmed"
+  | "changed"
+  | "deferred"
+  | "rejected";
+
+function districtResponseKind(row: RecordRow): DistrictResponseKind {
+  const note = text(row.district_note, text(row.response_reason, ""));
+  if (note.startsWith("[DEFER_UNTIL:")) return "deferred";
+  const status = text(row.item_status, "");
+  const decision = text(row.district_decision, "");
+  if (["draft", "pending"].includes(status)) return "pending";
+  if (status === "change_requested" || decision === "change") return "changed";
+  if (status.includes("reject") || decision === "reject") return "rejected";
+  return "confirmed";
+}
+
+function DistrictConfirmationView({
+  actionBusy,
+  data,
+  role,
+  onApprove,
+  onOpenTransport,
+}: {
+  actionBusy: boolean;
+  data: DashboardData;
+  role: Role;
+  onApprove: (planId: string, note?: string) => Promise<boolean>;
+  onOpenTransport: () => void;
+}) {
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [selectedDistrictId, setSelectedDistrictId] = useState("");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [localError, setLocalError] = useState("");
+
+  const planGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        id: string;
+        planNumber: string;
+        version: string;
+        status: string;
+        weekStart: string;
+        dueAt: string;
+        createdAt: string;
+        rows: RecordRow[];
+      }
+    >();
+    data.replenishment.forEach((row) => {
+      const id = text(row.replenishment_plan_id, "");
+      if (!id) return;
+      const current = groups.get(id) ?? {
+        id,
+        planNumber: text(row.plan_number, text(row.plan_code, `แผน ${id.slice(0, 8)}`)),
+        version: text(row.version_no, text(row.plan_version, "1")),
+        status: text(row.plan_status, "district_review"),
+        weekStart: text(row.week_start_date, ""),
+        dueAt: text(row.response_due_at, ""),
+        createdAt: text(row.created_at, text(row.updated_at, "")),
+        rows: [],
+      };
+      current.rows.push(row);
+      groups.set(id, current);
+    });
+    return [...groups.values()].sort(
+      (left, right) =>
+        Date.parse(right.createdAt || right.weekStart || "1970-01-01") -
+          Date.parse(left.createdAt || left.weekStart || "1970-01-01") ||
+        right.version.localeCompare(left.version),
+    );
+  }, [data.replenishment]);
+
+  const activePlan =
+    planGroups.find((plan) => plan.id === selectedPlanId) ?? planGroups[0] ?? null;
+  const pendingChangeItemIds = useMemo(
+    () =>
+      new Set(
+        data.changeRequests
+          .filter((request) => text(request.status) === "pending_review")
+          .map((request) => text(request.replenishment_item_id, ""))
+          .filter(Boolean),
+      ),
+    [data.changeRequests],
+  );
+  const responseLabel = (row: RecordRow) => {
+    const labels: Record<string, string> = {
+      pending: "รอเขตยืนยัน",
+      confirmed: "ยืนยันตามแผน",
+      changed: pendingChangeItemIds.has(text(row.replenishment_item_id, ""))
+        ? "เปลี่ยนจำนวน · รอ Planner"
+        : "เปลี่ยนจำนวนแล้ว",
+      deferred: "เลื่อนรับ / ฝากไว้ก่อน",
+      rejected: "ไม่รับรายการ",
+    };
+    return labels[districtResponseKind(row)];
+  };
+  const responseQuantity = (row: RecordRow) => {
+    const note = text(row.district_note, text(row.response_reason, ""));
+    const deferredQty = note.match(/\[DEFER_QTY:([^\]]+)\]/)?.[1];
+    return districtResponseKind(row) === "deferred" && deferredQty
+      ? `${formatNumber(Number(deferredQty), 0)} (ภายหลัง)`
+      : formatNumber(row.requested_qty ?? row.confirmed_qty ?? row.suggested_qty, 0);
+  };
+
+  const districtSummaries = useMemo(() => {
+    if (!activePlan) return [];
+    const districtNames = new Map(
+      data.districts.map((district) => [
+        text(district.district_id, ""),
+        text(district.district_name_th, ""),
+      ]),
+    );
+    const groups = new Map<
+      string,
+      {
+        districtId: string;
+        districtName: string;
+        rows: RecordRow[];
+        total: number;
+        confirmed: number;
+        changed: number;
+        deferred: number;
+        rejected: number;
+        pending: number;
+        pendingChanges: number;
+      }
+    >();
+    activePlan.rows.forEach((row) => {
+      const districtId = text(row.district_id, "ไม่ระบุเขต");
+      const current = groups.get(districtId) ?? {
+        districtId,
+        districtName: text(
+          row.district_name_th,
+          districtNames.get(districtId) || `การไฟฟ้าเขต ${districtId}`,
+        ),
+        rows: [],
+        total: 0,
+        confirmed: 0,
+        changed: 0,
+        deferred: 0,
+        rejected: 0,
+        pending: 0,
+        pendingChanges: 0,
+      };
+      const kind = districtResponseKind(row);
+      current.rows.push(row);
+      current.total += 1;
+      current[kind] += 1;
+      if (pendingChangeItemIds.has(text(row.replenishment_item_id, ""))) {
+        current.pendingChanges += 1;
+      }
+      groups.set(districtId, current);
+    });
+    return [...groups.values()].sort((left, right) =>
+      left.districtId.localeCompare(right.districtId),
+    );
+  }, [activePlan, data.districts, pendingChangeItemIds]);
+
+  const activeDistrict =
+    districtSummaries.find((district) => district.districtId === selectedDistrictId) ??
+    districtSummaries[0] ??
+    null;
+  const totals = districtSummaries.reduce(
+    (summary, district) => ({
+      total: summary.total + district.total,
+      confirmed: summary.confirmed + district.confirmed,
+      changed: summary.changed + district.changed,
+      deferred: summary.deferred + district.deferred,
+      rejected: summary.rejected + district.rejected,
+      pending: summary.pending + district.pending,
+      pendingChanges: summary.pendingChanges + district.pendingChanges,
+    }),
+    {
+      total: 0,
+      confirmed: 0,
+      changed: 0,
+      deferred: 0,
+      rejected: 0,
+      pending: 0,
+      pendingChanges: 0,
+    },
+  );
+  const responded = totals.total - totals.pending;
+  const allDistrictsReady = totals.total > 0 && totals.pending === 0;
+  const allChangesReviewed = totals.pendingChanges === 0;
+  const planStatus = activePlan?.status ?? "";
+  const canPlannerApprove =
+    ["admin", "planner"].includes(role) && planStatus === "pending_planner_approval";
+  const canAcademicLock =
+    ["admin", "academic"].includes(role) && planStatus === "pending_academic_approval";
+  const canSubmitApproval =
+    (canPlannerApprove || canAcademicLock) && allDistrictsReady && allChangesReviewed;
+  const planStatusLabel: Record<string, string> = {
+    draft: "กำลังจัดทำแผน",
+    pending_district_confirmation: "รอเขตยืนยัน",
+    district_review: "รอเขตยืนยัน",
+    pending_planner_approval: "พร้อมให้ Planner ยืนยัน",
+    pending_academic_approval: "รอวิชาการอนุมัติและ Lock",
+    locked: "Lock แล้ว · พร้อมจัดรถ",
+    completed: "จ่ายตามแผนแล้ว",
+    cancelled: "ยกเลิกแล้ว",
+  };
+
+  const submitApproval = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!activePlan || !canSubmitApproval) return;
+    if (canAcademicLock && approvalNote.trim().length < 3) {
+      setLocalError("กรุณาระบุหมายเหตุการตรวจสอบก่อนอนุมัติและ Lock แผน");
+      return;
+    }
+    setLocalError("");
+    const ok = await onApprove(
+      activePlan.id,
+      approvalNote.trim() || "ตรวจผลตอบจากทุกเขตและคำขอเปลี่ยนครบแล้ว",
+    );
+    if (ok) setApprovalNote("");
+    else setLocalError("ยังยืนยันแผนไม่ได้ กรุณาตรวจสถานะรายการแล้วลองอีกครั้ง");
+  };
+
+  if (!activePlan) {
+    return (
+      <section className="panel district-confirmation-empty">
+        <span>◎</span>
+        <h3>ยังไม่มีแผนที่ส่งให้เขตยืนยัน</h3>
+        <p>สร้างและส่งแผนจากเมนู “คำนวณการจ่าย” ก่อนตรวจผลตอบรายเขต</p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="stack district-confirmation-view">
+      <section className="panel district-confirmation-toolbar">
+        <div>
+          <span>DISTRICT CONFIRMATION CONTROL</span>
+          <h3>ตรวจผลตอบทุกเขตจากแผนที่ Planner ส่ง</h3>
+          <p>แยกตามเลขแผนและเวอร์ชัน เพื่อไม่ปะปนข้อมูลคนละรอบ</p>
+        </div>
+        <label>
+          เลือกแผนที่ต้องการตรวจ
+          <select
+            value={activePlan.id}
+            onChange={(event) => {
+              setSelectedPlanId(event.target.value);
+              setSelectedDistrictId("");
+              setApprovalNote("");
+              setLocalError("");
+            }}
+          >
+            {planGroups.map((plan) => (
+              <option key={plan.id} value={plan.id}>
+                {plan.planNumber} · V{plan.version} · {planStatusLabel[plan.status] ?? plan.status}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
+      <section className="district-confirmation-kpis">
+        {[
+          ["เขตในแผน", districtSummaries.length, "เขต"],
+          ["รายการตามแผน", totals.total, "รายการ"],
+          ["เขตตอบแล้ว", responded, `จาก ${formatNumber(totals.total)}`],
+          ["เปลี่ยน / เลื่อน / ไม่รับ", totals.changed + totals.deferred + totals.rejected, "รายการ"],
+          ["ยังรอเขต", totals.pending, "รายการ"],
+        ].map(([label, value, unit]) => (
+          <article key={String(label)}>
+            <span>{label}</span>
+            <strong>{formatNumber(value, 0)}</strong>
+            <small>{unit}</small>
+          </article>
+        ))}
+      </section>
+
+      <section className="panel district-confirmation-progress">
+        <div className="panel-title">
+          <div>
+            <span>{activePlan.planNumber} · VERSION {activePlan.version}</span>
+            <h3>สถานะการตอบกลับรายเขต</h3>
+            <p>
+              ประจำสัปดาห์ {activePlan.weekStart || "—"} · กำหนดตอบ {formatDateTime(activePlan.dueAt)}
+            </p>
+          </div>
+          <Badge>{planStatusLabel[planStatus] ?? planStatus}</Badge>
+        </div>
+        <div className="district-confirmation-cards">
+          {districtSummaries.map((district) => {
+            const completed = district.total - district.pending;
+            const ready = district.pending === 0 && district.pendingChanges === 0;
+            return (
+              <button
+                type="button"
+                key={district.districtId}
+                className={`${activeDistrict?.districtId === district.districtId ? "active" : ""} ${ready ? "ready" : "waiting"}`}
+                onClick={() => setSelectedDistrictId(district.districtId)}
+              >
+                <header>
+                  <span>เขต {district.districtId}</span>
+                  <b>{ready ? "✓ ตรวจครบ" : `รอ ${district.pending + district.pendingChanges}`}</b>
+                </header>
+                <strong>{district.districtName}</strong>
+                <div className="district-card-progress">
+                  <i style={{ width: `${district.total ? (completed / district.total) * 100 : 0}%` }} />
+                </div>
+                <p>
+                  ตอบแล้ว {formatNumber(completed)}/{formatNumber(district.total)} · เปลี่ยน {formatNumber(district.changed)}
+                </p>
+                <small>
+                  เลื่อน {formatNumber(district.deferred)} · ไม่รับ {formatNumber(district.rejected)}
+                  {district.pendingChanges ? ` · รอ Planner ${district.pendingChanges}` : ""}
+                </small>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {activeDistrict && (
+        <section className="panel district-confirmation-detail">
+          <div className="panel-title">
+            <div>
+              <span>รายละเอียดเขต {activeDistrict.districtId}</span>
+              <h3>{activeDistrict.districtName}</h3>
+            </div>
+            <b>{formatNumber(activeDistrict.total)} รายการ</b>
+          </div>
+          <LiveTable
+            rows={activeDistrict.rows}
+            empty="ไม่มีรายการในเขตนี้"
+            columns={[
+              ["พัสดุ", (row) => <span><strong>{text(row.material_id)}</strong><small>{text(row.material_name)}</small></span>],
+              ["Planner Qty", (row) => formatNumber(row.suggested_qty, 0)],
+              ["เขตตอบ", (row) => responseQuantity(row)],
+              ["ผลตอบ", (row) => <Badge>{responseLabel(row)}</Badge>],
+              ["ผู้ยืนยัน", (row) => <span><strong>{text(row.requester_name)}</strong><small>{formatDateTime(row.district_confirmed_at ?? row.updated_at)}</small></span>],
+              ["เหตุผล", (row) => text(row.district_note, text(row.response_reason))],
+            ]}
+          />
+        </section>
+      )}
+
+      <form className="panel district-plan-gate" onSubmit={submitApproval}>
+        <div>
+          <span>PLAN CONFIRMATION GATE</span>
+          <h3>
+            {planStatus === "locked"
+              ? "แผน Lock แล้ว พร้อมนำไปจัดรถ"
+              : canAcademicLock
+                ? "วิชาการตรวจและ Lock แผน"
+                : "Planner ยืนยันผลตอบจากทุกเขต"}
+          </h3>
+          <ul>
+            <li className={allDistrictsReady ? "passed" : "blocked"}>
+              {allDistrictsReady ? "✓" : "!"} เขตตอบครบ: {formatNumber(responded)}/{formatNumber(totals.total)} รายการ
+            </li>
+            <li className={allChangesReviewed ? "passed" : "blocked"}>
+              {allChangesReviewed ? "✓" : "!"} คำขอเปลี่ยนที่ยังรอ Planner: {formatNumber(totals.pendingChanges)} รายการ
+            </li>
+          </ul>
+        </div>
+        {planStatus === "locked" ? (
+          <button type="button" className="btn primary" onClick={onOpenTransport}>
+            ไปหน้าจัดรถ →
+          </button>
+        ) : (
+          <div className="district-plan-approval">
+            <label>
+              หมายเหตุการตรวจสอบ
+              <textarea
+                value={approvalNote}
+                onChange={(event) => setApprovalNote(event.target.value)}
+                placeholder="สรุปผลการตรวจรายการยืนยันและคำขอเปลี่ยน"
+                maxLength={1000}
+                required={canAcademicLock}
+              />
+            </label>
+            {localError && <p className="form-error" role="alert">{localError}</p>}
+            <button className="btn primary" disabled={!canSubmitApproval || actionBusy}>
+              {actionBusy
+                ? "กำลังบันทึก..."
+                : canAcademicLock
+                  ? "อนุมัติและ Lock → พร้อมจัดรถ"
+                  : canPlannerApprove
+                    ? "ยืนยันแผน → ส่งให้วิชาการ"
+                    : totals.pending > 0
+                      ? `รอเขตอีก ${formatNumber(totals.pending)} รายการ`
+                      : totals.pendingChanges > 0
+                        ? `รอตรวจคำขอเปลี่ยน ${formatNumber(totals.pendingChanges)} รายการ`
+                        : "ยังไม่ถึงขั้นยืนยันแผน"}
+            </button>
+          </div>
+        )}
+      </form>
+    </div>
+  );
+}
+
 function RecommendationView({ data }: { data: DashboardData }) {
   return (
     <div className="stack">
@@ -6480,11 +6887,13 @@ function PageContent({
   role,
   backend,
   navigate,
+  onOpenTransport,
 }: {
   view: ViewKey;
   role: Role;
   backend: ReturnType<typeof useSynapseBackend>;
   navigate: (view: ViewKey) => void;
+  onOpenTransport: () => void;
 }) {
   if (view === "dashboard") {
     return <DashboardView data={backend.data} role={role} navigate={navigate} />;
@@ -6507,6 +6916,17 @@ function PageContent({
         onRespond={backend.respondReplenishment}
         onReturn={backend.returnAcademicPlan}
         onVersion={backend.versionReplenishmentPlan}
+      />
+    );
+  }
+  if (view === "district_confirmations") {
+    return (
+      <DistrictConfirmationView
+        actionBusy={backend.actionBusy}
+        data={backend.data}
+        role={role}
+        onApprove={backend.approveReplenishmentPlan}
+        onOpenTransport={onOpenTransport}
       />
     );
   }
@@ -6737,6 +7157,10 @@ export default function Home() {
                 role={role}
                 backend={backend}
                 navigate={setView}
+                onOpenTransport={() => {
+                  setTransportView("planner");
+                  setModule("transport");
+                }}
               />
             </>
           )}
