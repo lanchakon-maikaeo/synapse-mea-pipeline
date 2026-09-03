@@ -1247,6 +1247,10 @@ function WeeklyPlanView({
   const [reason, setReason] = useState("");
   const [requester, setRequester] = useState("");
   const [responseError, setResponseError] = useState("");
+  const [districtBatchId, setDistrictBatchId] = useState("");
+  const [districtReviewMode, setDistrictReviewMode] = useState<
+    "pending" | "history"
+  >("pending");
   const [planAction, setPlanAction] = useState<{
     type: "approve" | "return" | "cancel" | "version";
     row: RecordRow;
@@ -1825,6 +1829,101 @@ function WeeklyPlanView({
       setPlanAction(null);
       setPlanNote("");
     }
+  };
+  const pendingDistrictStatuses = new Set(["draft", "pending"]);
+  const districtApprovalByItem = (() => {
+    const approvals = new Map<string, RecordRow>();
+    [...data.approvals]
+      .sort(
+        (left, right) =>
+          Date.parse(text(right.acted_at, "1970-01-01")) -
+          Date.parse(text(left.acted_at, "1970-01-01")),
+      )
+      .forEach((approval) => {
+        const id = text(approval.replenishment_item_id, "");
+        if (
+          id &&
+          text(approval.approval_stage) === "district_response" &&
+          !approvals.has(id)
+        ) {
+          approvals.set(id, approval);
+        }
+      });
+    return approvals;
+  })();
+  const districtBatches = (() => {
+    const batches = new Map<
+      string,
+      {
+        id: string;
+        planNumber: string;
+        version: string;
+        weekStart: string;
+        receivedAt: string;
+        dueAt: string;
+        rows: RecordRow[];
+        pendingRows: RecordRow[];
+        historyRows: RecordRow[];
+      }
+    >();
+    selectedRows.forEach((row) => {
+      const id = text(
+        row.replenishment_plan_id,
+        `unplanned-${text(row.replenishment_item_id)}`,
+      );
+      const current = batches.get(id) ?? {
+        id,
+        planNumber: text(row.plan_number, `แผน ${id.slice(0, 8)}`),
+        version: text(row.version_no, "1"),
+        weekStart: text(row.week_start_date, ""),
+        receivedAt: text(row.created_at, ""),
+        dueAt: text(row.response_due_at, ""),
+        rows: [],
+        pendingRows: [],
+        historyRows: [],
+      };
+      current.rows.push(row);
+      if (pendingDistrictStatuses.has(text(row.item_status))) {
+        current.pendingRows.push(row);
+      } else {
+        current.historyRows.push(row);
+      }
+      batches.set(id, current);
+    });
+    return [...batches.values()].sort(
+      (left, right) =>
+        Date.parse(right.receivedAt || "1970-01-01") -
+          Date.parse(left.receivedAt || "1970-01-01") ||
+        right.version.localeCompare(left.version),
+    );
+  })();
+  const activeDistrictBatch =
+    districtBatches.find((batch) => batch.id === districtBatchId) ??
+    districtBatches[0] ??
+    null;
+  const districtPendingTotal = districtBatches.reduce(
+    (sum, batch) => sum + batch.pendingRows.length,
+    0,
+  );
+  const districtHistoryTotal = districtBatches.reduce(
+    (sum, batch) => sum + batch.historyRows.length,
+    0,
+  );
+  const districtStatusLabel = (row: RecordRow) => {
+    const labels: Record<string, string> = {
+      draft: "รอยืนยัน",
+      pending: "รอยืนยัน",
+      change_requested: "ขอเปลี่ยนแล้ว",
+      confirmed: "ยืนยันแล้ว",
+      district_confirmed: "ยืนยันแล้ว",
+      rejected: "ไม่รับรายการ",
+      district_rejected: "ไม่รับรายการ",
+      approved: "อนุมัติแล้ว",
+      locked: "ล็อกแผนแล้ว",
+      issued: "จ่ายแล้ว",
+      cancelled: "ยกเลิก",
+    };
+    return labels[text(row.item_status)] ?? text(row.item_status);
   };
   const activePhase = workflowStep < 2 ? 0 : workflowStep < 5 ? 1 : 2;
   const districtOptions = [
@@ -2691,7 +2790,143 @@ function WeeklyPlanView({
         </section>
       )}
 
-      {workflowStep === 3 && (
+      {workflowStep === 3 && role === "district" && (
+        <section className="district-inbox" aria-labelledby="district-inbox-title">
+          <header className="district-inbox-hero">
+            <div className="district-inbox-icon" aria-hidden="true">!</div>
+            <div>
+              <span>DISTRICT INBOX · งานเข้าจากคลังกลาง</span>
+              <h2 id="district-inbox-title">
+                {districtPendingTotal > 0
+                  ? `มี ${formatNumber(districtPendingTotal)} รายการใหม่รอการยืนยัน`
+                  : "ยืนยันรายการใหม่ครบแล้ว"}
+              </h2>
+              <p>
+                ข้อมูลถูกส่งมาเป็นชุดตามแผนรายสัปดาห์ เลือกชุดด้านล่างเพื่อดูรายการและวันที่รับเข้า
+              </p>
+            </div>
+            <div className="district-inbox-totals">
+              <span><b>{formatNumber(districtBatches.length)}</b> ชุดทั้งหมด</span>
+              <span><b>{formatNumber(districtHistoryTotal)}</b> รายการในประวัติ</span>
+            </div>
+          </header>
+
+          {districtBatches.length > 0 ? (
+            <>
+              <div className="district-batch-strip" aria-label="ชุดแผนที่ได้รับ">
+                {districtBatches.map((batch, index) => (
+                  <button
+                    type="button"
+                    key={batch.id}
+                    className={`district-batch-card ${
+                      activeDistrictBatch?.id === batch.id ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      setDistrictBatchId(batch.id);
+                      setDistrictReviewMode(
+                        batch.pendingRows.length ? "pending" : "history",
+                      );
+                    }}
+                  >
+                    <span>
+                      {index === 0 && batch.pendingRows.length > 0
+                        ? "ชุดล่าสุด"
+                        : "แผนรายสัปดาห์"}
+                    </span>
+                    <strong>{batch.planNumber} · V{batch.version}</strong>
+                    <small>
+                      ประจำวันที่ {batch.weekStart || "—"} · รับเมื่อ {formatDateTime(batch.receivedAt)}
+                    </small>
+                    <div>
+                      <b>{formatNumber(batch.pendingRows.length)} รอยืนยัน</b>
+                      <em>{formatNumber(batch.historyRows.length)} ตอบแล้ว</em>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {activeDistrictBatch && (
+                <div className="district-batch-detail">
+                  <div className="district-batch-heading">
+                    <div>
+                      <span>ชุดที่กำลังเปิดดู</span>
+                      <h3>{activeDistrictBatch.planNumber} · Version {activeDistrictBatch.version}</h3>
+                      <p>
+                        ประจำวันที่ <b>{activeDistrictBatch.weekStart || "—"}</b>
+                        {" · "}ส่งถึงเขตเมื่อ <b>{formatDateTime(activeDistrictBatch.receivedAt)}</b>
+                        {" · "}กำหนดตอบ <b>{formatDateTime(activeDistrictBatch.dueAt)}</b>
+                      </p>
+                    </div>
+                    <div className="district-review-tabs" role="tablist" aria-label="สถานะรายการ">
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={districtReviewMode === "pending"}
+                        className={districtReviewMode === "pending" ? "active" : ""}
+                        onClick={() => setDistrictReviewMode("pending")}
+                      >
+                        รอยืนยัน ({formatNumber(activeDistrictBatch.pendingRows.length)})
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={districtReviewMode === "history"}
+                        className={districtReviewMode === "history" ? "active" : ""}
+                        onClick={() => setDistrictReviewMode("history")}
+                      >
+                        ประวัติที่ตอบแล้ว ({formatNumber(activeDistrictBatch.historyRows.length)})
+                      </button>
+                    </div>
+                  </div>
+
+                  {districtReviewMode === "pending" ? (
+                    <LiveTable
+                      rows={activeDistrictBatch.pendingRows}
+                      empty="ชุดนี้ไม่มีรายการค้างยืนยัน"
+                      columns={[
+                        ["พัสดุ", (row) => <span><strong>{text(row.material_id)}</strong><small>{text(row.material_name)}</small></span>],
+                        ["Planner Qty", (row) => formatNumber(plannerQuantity(row), 0)],
+                        ["หลังจ่าย", (row) => `${formatNumber(row.projected_months_after, 1)}M`],
+                        ["สถานะ", (row) => <Badge>{districtStatusLabel(row)}</Badge>],
+                        ["ดำเนินการ", (row) => (
+                          <button
+                            type="button"
+                            className="table-action district-response-button"
+                            disabled={!canRespond || actionBusy}
+                            onClick={() => openResponse(row)}
+                          >
+                            Confirm / Change / Reject
+                          </button>
+                        )],
+                      ]}
+                    />
+                  ) : (
+                    <LiveTable
+                      rows={activeDistrictBatch.historyRows}
+                      empty="ชุดนี้ยังไม่มีประวัติการตอบ"
+                      columns={[
+                        ["วันที่ตอบ", (row) => formatDateTime(
+                          districtApprovalByItem.get(text(row.replenishment_item_id))?.acted_at ??
+                            row.district_confirmed_at ?? row.updated_at,
+                        )],
+                        ["พัสดุ", (row) => <span><strong>{text(row.material_id)}</strong><small>{text(row.material_name)}</small></span>],
+                        ["Planner Qty", (row) => formatNumber(plannerQuantity(row), 0)],
+                        ["เขตตอบ", (row) => formatNumber(row.requested_qty ?? row.confirmed_qty, 0)],
+                        ["ผลตอบ", (row) => <Badge>{districtStatusLabel(row)}</Badge>],
+                        ["ผู้ยืนยัน / เหตุผล", (row) => <span><strong>{text(row.requester_name)}</strong><small>{text(row.district_note)}</small></span>],
+                      ]}
+                    />
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="empty-state">ยังไม่มีชุดแผนจากคลังกลางส่งมาให้เขต</div>
+          )}
+        </section>
+      )}
+
+      {workflowStep === 3 && role !== "district" && (
         <section className="panel">
           <div className="panel-title">
             <div>
@@ -3267,11 +3502,26 @@ function WeeklyPlanView({
       )}
 
       {responseRow && (
-        <form className="pipeline-form" onSubmit={submitResponse}>
+        <div
+          className="district-response-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !actionBusy) {
+              setResponseRow(null);
+            }
+          }}
+        >
+        <form
+          className="pipeline-form district-response-dialog"
+          onSubmit={submitResponse}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="district-response-title"
+        >
           <div className="panel-title">
             <div>
               <span>การตอบกลับของเขต</span>
-              <h3>
+              <h3 id="district-response-title">
                 {text(responseRow.material_id)} · District{" "}
                 {text(responseRow.district_id)}
               </h3>
@@ -3344,11 +3594,20 @@ function WeeklyPlanView({
             </div>
           )}
           <div className="pipeline-actions">
+            <button
+              className="btn ghost"
+              type="button"
+              disabled={actionBusy}
+              onClick={() => setResponseRow(null)}
+            >
+              ยกเลิก
+            </button>
             <button className="btn primary" disabled={actionBusy}>
-              บันทึกการตอบกลับของเขต
+              {actionBusy ? "กำลังบันทึก..." : "บันทึกการตอบกลับของเขต"}
             </button>
           </div>
         </form>
+        </div>
       )}
 
       {planAction && (
