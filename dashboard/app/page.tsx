@@ -1183,6 +1183,7 @@ function DashboardView({
 
 function WeeklyPlanView({
   actionBusy,
+  currentUserName,
   data,
   role,
   onApprove,
@@ -1195,6 +1196,7 @@ function WeeklyPlanView({
   onVersion,
 }: {
   actionBusy: boolean;
+  currentUserName: string;
   data: DashboardData;
   role: Role;
   onApprove: (planId: string, note?: string) => Promise<boolean>;
@@ -1242,11 +1244,13 @@ function WeeklyPlanView({
   >({});
   const [draftSaveMessage, setDraftSaveMessage] = useState("");
   const [responseRow, setResponseRow] = useState<RecordRow | null>(null);
-  const [decision, setDecision] =
-    useState<ReplenishmentResponsePayload["decision"]>("confirm");
+  const [decision, setDecision] = useState<
+    ReplenishmentResponsePayload["decision"] | "defer"
+  >("confirm");
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
   const [requester, setRequester] = useState("");
+  const [deferredUntil, setDeferredUntil] = useState("");
   const [responseError, setResponseError] = useState("");
   const [districtBatchId, setDistrictBatchId] = useState("");
   const [districtReviewMode, setDistrictReviewMode] = useState<
@@ -1767,33 +1771,44 @@ function WeeklyPlanView({
 
   const canCreate = role === "admin" || role === "planner";
   const canRespond = ["admin", "planner", "district"].includes(role);
-  const responseRequesterByRole: Record<"admin" | "planner" | "district", string> = {
-    admin: "Admin Demo User",
-    planner: "Planner คลังคลองเตย",
-    district: "ผู้ใช้งานเขต 5501",
+  const dateInputValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const nextWeekDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    return dateInputValue(date);
   };
   const openResponse = (row: RecordRow) => {
     setResponseRow(row);
     setDecision("confirm");
     setQuantity(text(row.suggested_qty, "0"));
     setReason("ยืนยันตามแผน");
-    setRequester(
-      role === "admin" || role === "planner" || role === "district"
-        ? responseRequesterByRole[role]
-        : "",
-    );
+    setRequester(currentUserName);
+    setDeferredUntil(nextWeekDate());
     setResponseError("");
   };
   const submitResponse = async (event: FormEvent) => {
     event.preventDefault();
     if (!responseRow) return;
-    const confirmedQty = decision === "reject" ? 0 : Number(quantity);
-    if (!Number.isFinite(confirmedQty) || confirmedQty < 0) {
+    const enteredQty = Number(quantity);
+    if (!Number.isFinite(enteredQty) || enteredQty < 0) {
       setResponseError("กรุณาระบุจำนวนเป็นตัวเลขตั้งแต่ 0 ขึ้นไป");
       return;
     }
+    if (decision === "defer" && enteredQty <= 0) {
+      setResponseError("กรุณาระบุจำนวนที่ยังต้องการรับภายหลังมากกว่า 0");
+      return;
+    }
+    if (decision === "defer" && !deferredUntil) {
+      setResponseError("กรุณาระบุวันที่พร้อมรับโดยประมาณ");
+      return;
+    }
     if (requester.trim().length < 2) {
-      setResponseError("กรุณาระบุชื่อผู้ขอหรือผู้ยืนยัน");
+      setResponseError("ไม่พบชื่อผู้ใช้งาน กรุณาออกจากระบบแล้วเข้าสู่ระบบอีกครั้ง");
       return;
     }
     if (decision !== "confirm" && reason.trim().length < 3) {
@@ -1801,10 +1816,14 @@ function WeeklyPlanView({
       return;
     }
     setResponseError("");
+    const isDeferred = decision === "defer";
+    const recordedReason = isDeferred
+      ? `[DEFER_UNTIL:${deferredUntil}][DEFER_QTY:${enteredQty}] ${reason.trim()}`
+      : reason.trim() || "ยืนยันตามแผน";
     const ok = await onRespond(text(responseRow.replenishment_item_id), {
-      decision,
-      confirmed_qty: confirmedQty,
-      reason: reason.trim() || "ยืนยันตามแผน",
+      decision: isDeferred ? "change" : decision,
+      confirmed_qty: decision === "reject" || isDeferred ? 0 : enteredQty,
+      reason: recordedReason,
       requester_name: requester.trim(),
     });
     if (ok) {
@@ -1925,7 +1944,28 @@ function WeeklyPlanView({
     (sum, batch) => sum + batch.historyRows.length,
     0,
   );
+  const deferredResponseDetails = (row: RecordRow) => {
+    const note = text(row.district_note, text(row.response_reason, ""));
+    const match = note.match(
+      /^\[DEFER_UNTIL:(\d{4}-\d{2}-\d{2})\]\[DEFER_QTY:([^\]]+)\]\s*(.*)$/,
+    );
+    if (!match) return null;
+    const date = new Date(`${match[1]}T00:00:00`);
+    const formattedDate = Number.isNaN(date.getTime())
+      ? match[1]
+      : new Intl.DateTimeFormat("th-TH", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        }).format(date);
+    return {
+      date: formattedDate,
+      quantity: Number(match[2]),
+      reason: match[3] || "ขอเลื่อนรับ ฝากไว้ก่อน",
+    };
+  };
   const districtStatusLabel = (row: RecordRow) => {
+    if (deferredResponseDetails(row)) return "เลื่อนรับ / ฝากไว้ก่อน";
     const labels: Record<string, string> = {
       draft: "รอยืนยัน",
       pending: "รอยืนยัน",
@@ -1940,6 +1980,19 @@ function WeeklyPlanView({
       cancelled: "ยกเลิก",
     };
     return labels[text(row.item_status)] ?? text(row.item_status);
+  };
+  const districtResponseQuantity = (row: RecordRow) => {
+    const deferred = deferredResponseDetails(row);
+    if (deferred && Number.isFinite(deferred.quantity)) {
+      return `${formatNumber(deferred.quantity, 0)} (รับภายหลัง)`;
+    }
+    return formatNumber(row.requested_qty ?? row.confirmed_qty, 0);
+  };
+  const districtResponseReason = (row: RecordRow) => {
+    const deferred = deferredResponseDetails(row);
+    return deferred
+      ? `พร้อมรับประมาณ ${deferred.date} · ${deferred.reason}`
+      : text(row.district_note, text(row.response_reason));
   };
   const activePhase = workflowStep < 2 ? 0 : workflowStep < 5 ? 1 : 2;
   const districtOptions = [
@@ -2912,7 +2965,7 @@ function WeeklyPlanView({
                             disabled={!canRespond || actionBusy}
                             onClick={() => openResponse(row)}
                           >
-                            Confirm / Change / Reject
+                            Confirm / Change / Defer / Reject
                           </button>
                         )],
                       ]}
@@ -2928,9 +2981,9 @@ function WeeklyPlanView({
                         )],
                         ["พัสดุ", (row) => <span><strong>{text(row.material_id)}</strong><small>{text(row.material_name)}</small></span>],
                         ["Planner Qty", (row) => formatNumber(plannerQuantity(row), 0)],
-                        ["เขตตอบ", (row) => formatNumber(row.requested_qty ?? row.confirmed_qty, 0)],
+                        ["เขตตอบ", (row) => districtResponseQuantity(row)],
                         ["ผลตอบ", (row) => <Badge>{districtStatusLabel(row)}</Badge>],
-                        ["ผู้ยืนยัน / เหตุผล", (row) => <span><strong>{text(row.requester_name)}</strong><small>{text(row.district_note)}</small></span>],
+                        ["ผู้ยืนยัน / เหตุผล", (row) => <span><strong>{text(row.requester_name)}</strong><small>{districtResponseReason(row)}</small></span>],
                       ]}
                     />
                   )}
@@ -3558,19 +3611,26 @@ function WeeklyPlanView({
                 value={decision}
                 onChange={(event) => {
                   const nextDecision =
-                    event.target.value as ReplenishmentResponsePayload["decision"];
+                    event.target.value as ReplenishmentResponsePayload["decision"] | "defer";
                   setDecision(nextDecision);
-                  setReason(nextDecision === "confirm" ? "ยืนยันตามแผน" : "");
+                  setReason(
+                    nextDecision === "confirm"
+                      ? "ยืนยันตามแผน"
+                      : nextDecision === "defer"
+                        ? "ขอเลื่อนรับ ฝากไว้ก่อน"
+                        : "",
+                  );
                   setResponseError("");
                 }}
               >
                 <option value="confirm">Confirm</option>
                 <option value="change">Change quantity</option>
+                <option value="defer">Defer · เลื่อนรับ / ฝากไว้ก่อน</option>
                 <option value="reject">Reject</option>
               </select>
             </label>
             <label>
-              จำนวน
+              {decision === "defer" ? "จำนวนที่ต้องการรับภายหลัง" : "จำนวน"}
               <input
                 type="number"
                 min="0"
@@ -3585,22 +3645,38 @@ function WeeklyPlanView({
               ชื่อผู้ขอ
               <input
                 value={requester}
-                onChange={(event) => setRequester(event.target.value)}
+                readOnly
+                aria-readonly="true"
+                title="ดึงอัตโนมัติจากบัญชีที่เข้าสู่ระบบ"
                 maxLength={200}
                 required
               />
             </label>
+            {decision === "defer" && (
+              <label>
+                วันที่พร้อมรับโดยประมาณ
+                <input
+                  type="date"
+                  min={dateInputValue(new Date())}
+                  value={deferredUntil}
+                  onChange={(event) => setDeferredUntil(event.target.value)}
+                  required
+                />
+              </label>
+            )}
             <label className="wide">
               เหตุผล / หลักฐาน
               <textarea
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                maxLength={1000}
+                maxLength={900}
                 required={decision !== "confirm"}
                 placeholder={
                   decision === "confirm"
                     ? "ยืนยันตามแผน"
-                    : "ระบุเหตุผลและหลักฐานประกอบ"
+                    : decision === "defer"
+                      ? "เช่น พื้นที่จัดเก็บยังไม่พร้อม ขอรับในรอบถัดไป"
+                      : "ระบุเหตุผลและหลักฐานประกอบ"
                 }
               />
             </label>
@@ -6414,6 +6490,10 @@ function PageContent({
     return (
       <WeeklyPlanView
         actionBusy={backend.actionBusy}
+        currentUserName={text(
+          backend.identity?.display_name,
+          text(backend.session?.user?.email, backend.identity?.user_id),
+        )}
         data={backend.data}
         role={role}
         onApprove={backend.approveReplenishmentPlan}

@@ -167,7 +167,20 @@ export const demoSession = {
 } as Session;
 
 export function demoIdentity(role: Role): Identity {
-  return { user_id: `demo-${role}`, role, district_id: role === "district" ? "5501" : null };
+  const displayNameByRole: Record<Role, string> = {
+    admin: "ผู้ดูแลระบบ (Demo)",
+    planner: "เจ้าหน้าที่คลังกลาง (Demo)",
+    academic: "นักวิชาการ (Demo)",
+    picker: "เจ้าหน้าที่จ่ายพัสดุ (Demo)",
+    viewer: "ผู้ตรวจสอบ (Demo)",
+    district: "เจ้าหน้าที่เขต 5501 (Demo)",
+  };
+  return {
+    user_id: `demo-${role}`,
+    role,
+    district_id: role === "district" ? "5501" : null,
+    display_name: displayNameByRole[role],
+  };
 }
 
 export function demoVmiContext(materialId: string, districtId: string): VmiContext {

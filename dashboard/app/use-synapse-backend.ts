@@ -138,7 +138,25 @@ export function useSynapseBackend() {
     try {
       const token = activeSession.access_token;
       const me = await apiRequest<Identity>("/v1/me", token);
-      setIdentity(me);
+      const metadata = activeSession.user.user_metadata;
+      let displayName = String(
+        metadata?.display_name ??
+          metadata?.full_name ??
+          metadata?.name ??
+          activeSession.user.email ??
+          "",
+      ).trim();
+      if (browserSupabase) {
+        const { data: profile } = await browserSupabase
+          .from("user_profiles")
+          .select("display_name")
+          .eq("user_id", me.user_id)
+          .maybeSingle();
+        if (typeof profile?.display_name === "string" && profile.display_name.trim()) {
+          displayName = profile.display_name.trim();
+        }
+      }
+      setIdentity({ ...me, display_name: displayName || me.user_id });
       identityResolved = true;
 
       const contractReader = ["admin", "planner", "viewer"].includes(me.role);

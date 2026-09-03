@@ -10,6 +10,7 @@ export type Identity = {
   user_id: string;
   role: Role;
   district_id: string | null;
+  display_name?: string | null;
 };
 
 export type ApiError = {
