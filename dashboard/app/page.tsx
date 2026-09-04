@@ -3790,21 +3790,26 @@ function districtResponseKind(row: RecordRow): DistrictResponseKind {
 
 function DistrictConfirmationView({
   actionBusy,
+  currentUserName,
   data,
   role,
   onApprove,
+  onConfirmPending,
   onOpenTransport,
 }: {
   actionBusy: boolean;
+  currentUserName: string;
   data: DashboardData;
   role: Role;
   onApprove: (planId: string, note?: string) => Promise<boolean>;
+  onConfirmPending: (planId: string, requesterName: string) => Promise<boolean>;
   onOpenTransport: () => void;
 }) {
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [selectedDistrictId, setSelectedDistrictId] = useState("");
   const [approvalNote, setApprovalNote] = useState("");
   const [localError, setLocalError] = useState("");
+  const detailRef = useRef<HTMLElement>(null);
 
   const planGroups = useMemo(() => {
     const groups = new Map<
@@ -3991,6 +3996,29 @@ function DistrictConfirmationView({
     else setLocalError("ยังยืนยันแผนไม่ได้ กรุณาตรวจสถานะรายการแล้วลองอีกครั้ง");
   };
 
+  const openDistrictDetails = (districtId: string) => {
+    setSelectedDistrictId(districtId);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        detailRef.current?.focus({ preventScroll: true });
+      });
+    });
+  };
+
+  const confirmAllPending = async () => {
+    if (!activePlan || role !== "admin" || totals.pending < 1) return;
+    const accepted = window.confirm(
+      `ยืนยันรายการค้าง ${totals.pending} รายการของ ${activePlan.planNumber} · Version ${activePlan.version} ตามจำนวนที่ Planner วางแผนไว้ ใช่หรือไม่?`,
+    );
+    if (!accepted) return;
+    setLocalError("");
+    const ok = await onConfirmPending(activePlan.id, currentUserName);
+    if (!ok) {
+      setLocalError("มีบางรายการยังยืนยันไม่สำเร็จ ระบบโหลดข้อมูลล่าสุดให้แล้ว กรุณาตรวจยอดค้างและลองอีกครั้ง");
+    }
+  };
+
   if (!activePlan) {
     return (
       <section className="panel district-confirmation-empty">
@@ -4055,6 +4083,18 @@ function DistrictConfirmationView({
             </p>
           </div>
           <Badge>{planStatusLabel[planStatus] ?? planStatus}</Badge>
+          {role === "admin" && totals.pending > 0 && (
+            <button
+              type="button"
+              className="btn primary"
+              disabled={actionBusy}
+              onClick={() => void confirmAllPending()}
+            >
+              {actionBusy
+                ? "กำลังยืนยันรายการ..."
+                : `ยืนยันรายการค้างทุกเขต (${formatNumber(totals.pending)})`}
+            </button>
+          )}
         </div>
         <div className="district-confirmation-cards">
           {districtSummaries.map((district) => {
@@ -4065,7 +4105,7 @@ function DistrictConfirmationView({
                 type="button"
                 key={district.districtId}
                 className={`${activeDistrict?.districtId === district.districtId ? "active" : ""} ${ready ? "ready" : "waiting"}`}
-                onClick={() => setSelectedDistrictId(district.districtId)}
+                onClick={() => openDistrictDetails(district.districtId)}
               >
                 <header>
                   <span>เขต {district.districtId}</span>
@@ -4089,7 +4129,11 @@ function DistrictConfirmationView({
       </section>
 
       {activeDistrict && (
-        <section className="panel district-confirmation-detail">
+        <section
+          ref={detailRef}
+          className="panel district-confirmation-detail"
+          tabIndex={-1}
+        >
           <div className="panel-title">
             <div>
               <span>รายละเอียดเขต {activeDistrict.districtId}</span>
@@ -6923,9 +6967,14 @@ function PageContent({
     return (
       <DistrictConfirmationView
         actionBusy={backend.actionBusy}
+        currentUserName={text(
+          backend.identity?.display_name,
+          text(backend.session?.user?.email, backend.identity?.user_id),
+        )}
         data={backend.data}
         role={role}
         onApprove={backend.approveReplenishmentPlan}
+        onConfirmPending={backend.confirmPendingDistrictItems}
         onOpenTransport={onOpenTransport}
       />
     );

@@ -726,6 +726,113 @@ export function useSynapseBackend() {
     [runAction],
   );
 
+  const confirmPendingDistrictItems = useCallback(
+    async (planId: string, requesterName: string) => {
+      const pendingStatuses = new Set(["draft", "pending"]);
+      const pendingRows = data.replenishment.filter(
+        (row) =>
+          String(row.replenishment_plan_id) === planId &&
+          pendingStatuses.has(String(row.item_status)),
+      );
+      if (!pendingRows.length) return true;
+
+      if (DEMO_MODE) {
+        const actedAt = new Date().toISOString();
+        setData((current) => ({
+          ...current,
+          replenishment: current.replenishment.map((row) => {
+            if (
+              String(row.replenishment_plan_id) !== planId ||
+              !pendingStatuses.has(String(row.item_status))
+            ) {
+              return row;
+            }
+            const quantity = Number(row.suggested_qty ?? row.requested_qty ?? 0);
+            return {
+              ...row,
+              confirmed_qty: quantity,
+              requested_qty: quantity,
+              final_qty: quantity,
+              requester_name: requesterName,
+              response_reason: "ยืนยันตามแผนแทนเขตโดยผู้ดูแลระบบ",
+              district_note: "ยืนยันตามแผนแทนเขตโดยผู้ดูแลระบบ",
+              district_decision: "confirm",
+              response_status: quantity > 0 ? "confirmed" : "rejected",
+              item_status: quantity > 0 ? "district_confirmed" : "district_rejected",
+              district_confirmed_at: actedAt,
+              plan_status: "pending_planner_approval",
+            };
+          }),
+        }));
+        setNotice(`ยืนยันรายการค้างทั้งแผน ${pendingRows.length} รายการแล้ว (Demo)`);
+        window.setTimeout(() => setNotice(""), 4200);
+        return true;
+      }
+
+      if (!session) return false;
+      if (data.readiness?.operational_writes_enabled !== true) {
+        setError(
+          "ขณะนี้ยังไม่เปิดให้บันทึกข้อมูลจริง เปิดให้อ่านและตรวจข้อมูลได้เท่านั้น",
+        );
+        return false;
+      }
+
+      setActionBusy(true);
+      setError("");
+      let completed = 0;
+      const failures: string[] = [];
+      try {
+        for (let start = 0; start < pendingRows.length; start += 6) {
+          const batch = pendingRows.slice(start, start + 6);
+          const results = await Promise.allSettled(
+            batch.map((row) =>
+              apiRequest(
+                `/v1/replenishment/items/${String(row.replenishment_item_id)}/respond`,
+                session.access_token,
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    confirmed_qty: Number(
+                      row.suggested_qty ?? row.requested_qty ?? 0,
+                    ),
+                    decision: "confirm",
+                    reason: "ยืนยันตามแผนแทนเขตโดยผู้ดูแลระบบ เพื่อเตรียม Confirm Plan และจัดรถ",
+                    requester_name: requesterName || "ผู้ดูแลระบบ",
+                  }),
+                },
+              ),
+            ),
+          );
+          results.forEach((result, index) => {
+            if (result.status === "fulfilled") completed += 1;
+            else failures.push(String(batch[index]?.replenishment_item_id ?? "unknown"));
+          });
+        }
+        await load(session);
+        if (failures.length) {
+          setError(
+            `ยืนยันสำเร็จ ${completed}/${pendingRows.length} รายการ ยังไม่สำเร็จ ${failures.length} รายการ กรุณาลองอีกครั้ง`,
+          );
+          return false;
+        }
+        setNotice(`ยืนยันรายการค้างทุกเขต ${completed} รายการแล้ว พร้อมให้ Planner ตรวจแผน`);
+        window.setTimeout(() => setNotice(""), 5200);
+        return true;
+      } catch (requestError) {
+        await load(session);
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "ไม่สามารถยืนยันรายการค้างทุกเขตได้",
+        );
+        return false;
+      } finally {
+        setActionBusy(false);
+      }
+    },
+    [data.readiness, data.replenishment, load, session],
+  );
+
   const reviewChangeRequest = useCallback(
     async (
       changeRequestId: string,
@@ -1040,6 +1147,7 @@ export function useSynapseBackend() {
     refresh,
     returnAcademicPlan,
     respondReplenishment,
+    confirmPendingDistrictItems,
     reviewChangeRequest,
     session,
     setDemoRole,
