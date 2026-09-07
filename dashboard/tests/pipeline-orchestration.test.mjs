@@ -24,6 +24,7 @@ const paths = [
   "/v1/warehouse-stock",
   "/v1/data-sources/legacy/status",
   "/v1/admin/import/legacy",
+  "/v1/admin/fifo-opening",
   "/v1/admin/packaging-profiles",
   "/v1/reference/districts",
   "/v1/data-inputs/vmi",
@@ -66,8 +67,8 @@ const paths = [
   "/v1/transport/optimization-jobs/{route_job_id}",
 ];
 
-test("same-origin OpenAPI exposes the 49-path production operations contract", () => {
-  assert.equal(paths.length, 49);
+test("same-origin OpenAPI exposes the 50-path production operations contract", () => {
+  assert.equal(paths.length, 50);
   for (const path of paths) {
     assert.match(
       openapi,
@@ -187,7 +188,7 @@ test("frontend orchestrates the frozen production workflow", () => {
     "บันทึกการรับคืน",
     "OPENING_UNKNOWN",
     "บันทึกข้อมูล",
-    "เชื่อมต่อ API ภายในโดเมนเดียว 49 เส้นทาง",
+    "เชื่อมต่อ API ภายในโดเมนเดียว 50 เส้นทาง",
     "ลำดับการอัปเดตฐานข้อมูลครบถ้วน",
     "ยังไม่เปิดให้บันทึกข้อมูลจริง",
   ];
