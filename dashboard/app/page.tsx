@@ -382,7 +382,7 @@ function LiveTable({
     );
   }
   return (
-    <div className="live-table-wrap">
+    <div className="live-table-wrap" tabIndex={0} aria-label="ตารางข้อมูล เลื่อนแนวนอนได้เมื่อข้อมูลกว้างกว่าหน้าจอ">
       <table className="live-table">
         <thead>
           <tr>
@@ -4213,6 +4213,82 @@ function DistrictConfirmationView({
 }
 
 function RecommendationView({ data }: { data: DashboardData }) {
+  const [query, setQuery] = useState("");
+  const [districtFilter, setDistrictFilter] = useState("all");
+  const [riskFilter, setRiskFilter] = useState<"all" | AdvisoryLevel>("all");
+  const [selected, setSelected] = useState<RecordRow | null>(null);
+  const districtNames = useMemo(
+    () =>
+      new Map(
+        [...data.districts, ...data.stock, ...data.replenishment].map((row) => [
+          text(row.district_id, ""),
+          text(row.district_name_th, ""),
+        ]),
+      ),
+    [data.districts, data.replenishment, data.stock],
+  );
+  const materialNames = useMemo(
+    () =>
+      new Map(
+        [...data.materials, ...data.stock, ...data.replenishment].map((row) => [
+          text(row.material_id, ""),
+          text(row.material_name, ""),
+        ]),
+      ),
+    [data.materials, data.replenishment, data.stock],
+  );
+  const enrichedRows = useMemo(
+    () =>
+      data.recommendations.map((row) => ({
+        ...row,
+        __district_name: text(
+          row.district_name_th,
+          districtNames.get(text(row.district_id, "")) || "",
+        ),
+        __material_name: text(
+          row.material_name,
+          materialNames.get(text(row.material_id, "")) || "",
+        ),
+        __risk: advisoryFor(row).level,
+      }) as RecordRow),
+    [data.recommendations, districtNames, materialNames],
+  );
+  const districts = useMemo(
+    () =>
+      [...new Set(enrichedRows.map((row) => text(row.district_id, "")))]
+        .filter(Boolean)
+        .sort(),
+    [enrichedRows],
+  );
+  const filteredRows = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    return enrichedRows.filter((row) => {
+      const matchesQuery =
+        !value ||
+        [
+          row.plan_number,
+          row.plan_code,
+          row.material_id,
+          row.__material_name,
+          row.district_id,
+          row.__district_name,
+        ]
+          .map((item) => text(item, "").toLowerCase())
+          .some((item) => item.includes(value));
+      const matchesDistrict =
+        districtFilter === "all" || text(row.district_id, "") === districtFilter;
+      const matchesRisk = riskFilter === "all" || row.__risk === riskFilter;
+      return matchesQuery && matchesDistrict && matchesRisk;
+    });
+  }, [districtFilter, enrichedRows, query, riskFilter]);
+  const resetFilters = () => {
+    setQuery("");
+    setDistrictFilter("all");
+    setRiskFilter("all");
+  };
+  const distinctMaterials = new Set(enrichedRows.map((row) => text(row.material_id, ""))).size;
+  const criticalCount = enrichedRows.filter((row) => row.__risk === "critical").length;
+
   return (
     <div className="stack">
       <section className="recommend-banner">
@@ -4229,24 +4305,83 @@ function RecommendationView({ data }: { data: DashboardData }) {
           <small>รายการหลักฐาน</small>
         </div>
       </section>
+      <section className="explorer-kpis" aria-label="สรุปหลักฐานปริมาณ">
+        <article><span>หลักฐานทั้งหมด</span><strong>{formatNumber(enrichedRows.length)}</strong><small>รายการคำนวณ</small></article>
+        <article><span>พัสดุ</span><strong>{formatNumber(distinctMaterials)}</strong><small>รหัสพัสดุ</small></article>
+        <article><span>เขต</span><strong>{formatNumber(districts.length)}</strong><small>เขตที่มีแผน</small></article>
+        <article className={criticalCount ? "danger" : ""}><span>ต้องตรวจเร่งด่วน</span><strong>{formatNumber(criticalCount)}</strong><small>หลักฐาน Critical</small></article>
+      </section>
       <section className="panel">
+        <header className="explorer-heading">
+          <div>
+            <span>QUANTITY EVIDENCE EXPLORER</span>
+            <h3>ค้นหาหลักฐานตามเขตหรือพัสดุ</h3>
+            <p>แสดงที่มาของจำนวนแนะนำจากสต็อก, CMP และกรอบขั้นต่ำ–สูงสุด</p>
+          </div>
+          <b aria-live="polite">พบ {formatNumber(filteredRows.length)} จาก {formatNumber(enrichedRows.length)} รายการ</b>
+        </header>
+        <div className="explorer-toolbar">
+          <label className="explorer-search">
+            <span>ค้นหา</span>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="รหัส/ชื่อพัสดุ, เขต หรือเลขแผน" />
+          </label>
+          <label>
+            <span>เขต</span>
+            <select value={districtFilter} onChange={(event) => setDistrictFilter(event.target.value)}>
+              <option value="all">ทุกเขต</option>
+              {districts.map((districtId) => <option key={districtId} value={districtId}>{districtId} · {districtNames.get(districtId) || "ไม่ระบุชื่อ"}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>ระดับความเสี่ยง</span>
+            <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value as "all" | AdvisoryLevel)}>
+              <option value="all">ทุกระดับ</option>
+              <option value="critical">Critical</option>
+              <option value="warning">Warning</option>
+              <option value="watch">Watch</option>
+              <option value="none">ปกติ</option>
+            </select>
+          </label>
+          <button type="button" className="btn ghost" onClick={resetFilters}>ล้างตัวกรอง</button>
+        </div>
         <LiveTable
-          rows={data.recommendations}
-          empty="ยังไม่มีหลักฐานการคำนวณปริมาณ"
+          rows={filteredRows}
+          empty="ไม่พบหลักฐานที่ตรงกับตัวกรอง"
           columns={[
-            ["แผน", (row) => row.plan_number],
-            ["วัสดุ", (row) => row.material_id],
-            ["เขต", (row) => row.district_id],
-            ["สต็อก", (row) => formatNumber(row.current_stock_qty, 2)],
-            ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
-            ["เดือน", (row) => formatNumber(row.months_available, 1)],
-            ["MIN", (row) => formatNumber(row.min_fill_qty, 2)],
-            ["MAX", (row) => formatNumber(row.max_fill_qty, 2)],
-            ["แนะนำ", (row) => formatNumber(row.recommended_qty, 2)],
-            ["แหล่งที่มา", (row) => <Badge>{text(row.source_freshness_status)}</Badge>],
+            ["แผน", (row) => <span><strong>{text(row.plan_number, text(row.plan_code))}</strong><small>{text(row.generated_at, "") ? formatDateTime(row.generated_at) : "หลักฐานล่าสุด"}</small></span>],
+            ["พัสดุ", (row) => <span><strong>{text(row.material_id)}</strong><small>{text(row.__material_name)}</small></span>],
+            ["เขต", (row) => <span><strong>{text(row.district_id)}</strong><small>{text(row.__district_name)}</small></span>],
+            ["สต็อก / CMP", (row) => <span><strong>{formatNumber(row.current_stock_qty, 2)} EA</strong><small>CMP {formatNumber(row.cmp_monthly, 2)} / เดือน</small></span>],
+            ["เดือนคงเหลือ", (row) => <span><strong>{formatNumber(row.months_available, 1)} เดือน</strong><small><RiskBadge level={row.__risk as AdvisoryLevel} /></small></span>],
+            ["จำนวนแนะนำ", (row) => <span><strong>{formatNumber(row.recommended_qty ?? row.rule_suggested_qty ?? row.suggested_qty, 2)} EA</strong><small>Min {formatNumber(row.min_fill_qty, 2)} · Max {formatNumber(row.max_fill_qty, 2)}</small></span>],
+            ["รายละเอียด", (row) => <button type="button" className="table-action" onClick={() => setSelected(row)}>ดูที่มาจำนวน</button>],
           ]}
         />
       </section>
+      {selected && (
+        <div className="explorer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
+          <section className="explorer-dialog" role="dialog" aria-modal="true" aria-labelledby="quantity-evidence-title">
+            <header>
+              <div><span>หลักฐานเชิงปริมาณ</span><h3 id="quantity-evidence-title">{text(selected.material_id)} · เขต {text(selected.district_id)}</h3><p>{text(selected.__material_name)} · {text(selected.__district_name)}</p></div>
+              <button type="button" onClick={() => setSelected(null)} aria-label="ปิดรายละเอียด">×</button>
+            </header>
+            <div className="explorer-dialog-body">
+              <aside className="evidence-equation"><span>เหตุผลของจำนวนแนะนำ</span><strong>{formatNumber(selected.recommended_qty ?? selected.rule_suggested_qty ?? selected.suggested_qty, 2)} EA</strong><p>คำนวณจากสต็อกปัจจุบัน {formatNumber(selected.current_stock_qty, 2)} และ CMP {formatNumber(selected.cmp_monthly, 2)} ต่อเดือน เพื่อเติมให้อยู่ในกรอบ 4–6 เดือน (Min {formatNumber(selected.min_fill_qty, 2)} ถึง Max {formatNumber(selected.max_fill_qty, 2)})</p></aside>
+              <dl className="explorer-detail-grid">
+                <div><dt>แผน</dt><dd>{text(selected.plan_number, text(selected.plan_code))}</dd></div>
+                <div><dt>CMP ต่อเดือน</dt><dd>{formatNumber(selected.cmp_monthly, 2)}</dd></div>
+                <div><dt>เดือนคงเหลือ</dt><dd>{formatNumber(selected.months_available, 1)}</dd></div>
+                <div><dt>ระดับความเสี่ยง</dt><dd><RiskBadge level={selected.__risk as AdvisoryLevel} /></dd></div>
+                <div><dt>กฎแนะนำ</dt><dd>{formatNumber(selected.rule_suggested_qty ?? selected.recommended_qty ?? selected.suggested_qty, 2)} EA</dd></div>
+                <div><dt>AI แนะนำ</dt><dd>{formatNumber(selected.ai_suggested_qty ?? selected.recommended_qty ?? selected.suggested_qty, 2)} EA</dd></div>
+                <div><dt>ความมั่นใจ</dt><dd>{formatNumber(Number(selected.confidence_score ?? 0) * 100, 0)}%</dd></div>
+                <div><dt>ความสดข้อมูล</dt><dd><Badge>{text(selected.source_freshness_status, text(selected.evidence_status, "unknown"))}</Badge></dd></div>
+              </dl>
+            </div>
+            <footer><button type="button" className="btn primary" onClick={() => setSelected(null)}>ปิดรายละเอียด</button></footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -4386,10 +4521,39 @@ function ChangeReviewView({
     note: string,
   ) => Promise<boolean>;
 }) {
+  type ReviewFilter = "abnormal" | "pending" | "normal";
   const [selected, setSelected] = useState<RecordRow | null>(null);
+  const [filter, setFilter] = useState<ReviewFilter>("abnormal");
   const [decision, setDecision] = useState<"approved" | "rejected">("approved");
   const [note, setNote] = useState("");
   const canReview = role === "admin" || role === "planner";
+  const classify = (row: RecordRow): ReviewFilter => {
+    const status = text(row.status).toLowerCase();
+    const risk = text(row.risk_level).toLowerCase();
+    const projectedMonths = Number(row.projected_months_after);
+    if (status === "pending_review") return "pending";
+    if (
+      ["critical", "high", "urgent"].includes(risk) ||
+      (Number.isFinite(projectedMonths) && projectedMonths > 6)
+    ) {
+      return "abnormal";
+    }
+    return "normal";
+  };
+  const grouped = data.changeRequests.reduce<Record<ReviewFilter, RecordRow[]>>(
+    (result, row) => {
+      result[classify(row)].push(row);
+      return result;
+    },
+    { abnormal: [], pending: [], normal: [] },
+  );
+  const visibleRows = grouped[filter];
+  const selectedStatus = text(selected?.status).toLowerCase();
+  const selectedOriginalQty = Number(
+    selected?.original_qty ?? selected?.baseline_qty ?? 0,
+  );
+  const selectedRequestedQty = Number(selected?.requested_qty ?? 0);
+  const selectedDelta = selectedRequestedQty - selectedOriginalQty;
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!selected || note.trim().length < 3) return;
@@ -4412,10 +4576,50 @@ function ChangeReviewView({
           </p>
         </div>
       </section>
-      <section className="panel">
+      <section className="panel change-review-panel">
+        <div className="change-review-summary" aria-label="สรุปรายการตรวจ">
+          {([
+            ["abnormal", "ผิดปกติ", "เกินเกณฑ์หรือมีความเสี่ยง"],
+            ["pending", "รอตรวจ", "รอ Planner ตัดสินใจ"],
+            ["normal", "ปกติ", "ผ่านเกณฑ์และเก็บเป็นประวัติ"],
+          ] as [ReviewFilter, string, string][]).map(([value, label, detail]) => (
+            <button
+              type="button"
+              key={value}
+              className={`${filter === value ? "active" : ""} ${value}`}
+              onClick={() => {
+                setFilter(value);
+                setSelected(null);
+              }}
+            >
+              <span>{label}</span>
+              <strong>{formatNumber(grouped[value].length)}</strong>
+              <small>{detail}</small>
+            </button>
+          ))}
+        </div>
+        <div className="change-review-heading">
+          <div>
+            <span>{filter === "abnormal" ? "ABNORMAL REQUESTS" : filter === "pending" ? "PENDING REVIEW" : "NORMAL RECORDS"}</span>
+            <h3>
+              {filter === "abnormal"
+                ? "รายการที่ต้องตรวจความเสี่ยง"
+                : filter === "pending"
+                  ? "รายการที่ยังรอผลตรวจ"
+                  : "รายการปกติและผลที่ตรวจแล้ว"}
+            </h3>
+          </div>
+          <b>{formatNumber(visibleRows.length)} รายการ</b>
+        </div>
         <LiveTable
-          rows={data.changeRequests}
-          empty="ไม่มีคำขอเปลี่ยนแปลงจากเขต"
+          rows={visibleRows}
+          empty={
+            filter === "abnormal"
+              ? "ไม่พบคำขอผิดปกติในข้อมูลรอบนี้"
+              : filter === "pending"
+                ? "ไม่มีรายการรอตรวจ"
+                : "ไม่มีรายการปกติ"
+          }
           columns={[
             ["แผน", (row) => row.plan_number],
             ["วัสดุ", (row) => row.material_id],
@@ -4431,79 +4635,223 @@ function ChangeReviewView({
               (row) => (
                 <button
                   className="table-action"
-                  disabled={!canReview || row.status !== "pending_review"}
                   onClick={() => {
                     setSelected(row);
                     setNote("");
                   }}
                 >
-                  ตรวจหลักฐาน
+                  {canReview && text(row.status).toLowerCase() === "pending_review"
+                    ? "ตรวจและตัดสินใจ"
+                    : "ดูหลักฐาน"}
                 </button>
               ),
             ],
           ]}
         />
+        {filter === "abnormal" && visibleRows.length === 0 && grouped.normal.length > 0 && (
+          <div className="change-review-empty-action">
+            <strong>รอบนี้ไม่มีรายการผิดปกติ</strong>
+            <p>รายการปกติถูกแยกออกเพื่อไม่ให้ปะปนกับงานที่ต้องตรวจ</p>
+            <button type="button" className="btn ghost" onClick={() => setFilter("normal")}>
+              เปิดดูรายการปกติ ({formatNumber(grouped.normal.length)})
+            </button>
+          </div>
+        )}
       </section>
       {selected && (
-        <form className="pipeline-form compact" onSubmit={submit}>
-          <div className="form-grid">
-            <label>
-              การตัดสินใจ
-              <select
-                value={decision}
-                onChange={(event) =>
-                  setDecision(event.target.value as "approved" | "rejected")
-                }
-              >
-                <option value="approved">Approve change</option>
-                <option value="rejected">Reject and use baseline</option>
-              </select>
-            </label>
-            <label className="wide">
-              หมายเหตุการตรวจ
-              <textarea
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                required
-              />
-            </label>
-          </div>
-          <div className="pipeline-actions">
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => setSelected(null)}
-            >
-              ยกเลิก
-            </button>
-            <button className="btn primary" disabled={actionBusy}>
-              บันทึกผล Review
-            </button>
-          </div>
-        </form>
+        <div className="change-evidence-backdrop" role="presentation">
+          <form
+            className="change-evidence-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="change-evidence-title"
+            onSubmit={submit}
+          >
+            <header>
+              <div>
+                <span>REQUEST EVIDENCE · {text(selected.plan_number)}</span>
+                <h3 id="change-evidence-title">
+                  {text(selected.material_id)} · เขต {text(selected.district_id)}
+                </h3>
+                <p>ตรวจค่าก่อน–หลัง เหตุผล ผู้ขอ และผลการพิจารณาในที่เดียว</p>
+              </div>
+              <button type="button" aria-label="ปิด" onClick={() => setSelected(null)}>×</button>
+            </header>
+
+            <div className="change-evidence-metrics">
+              <article><span>จำนวนเดิม</span><strong>{formatNumber(selectedOriginalQty, 2)}</strong></article>
+              <article><span>จำนวนที่ขอ</span><strong>{formatNumber(selectedRequestedQty, 2)}</strong></article>
+              <article className={selectedDelta === 0 ? "normal" : "warning"}>
+                <span>ผลต่าง</span><strong>{selectedDelta > 0 ? "+" : ""}{formatNumber(selectedDelta, 2)}</strong>
+              </article>
+              <article><span>คงคลังหลังจ่าย</span><strong>{formatNumber(selected.projected_months_after, 1)} เดือน</strong></article>
+              <article><span>ความเสี่ยง</span><Badge>{text(selected.risk_level)}</Badge></article>
+              <article><span>สถานะ</span><Badge>{text(selected.status)}</Badge></article>
+            </div>
+
+            <div className="change-evidence-body">
+              <section>
+                <span>เหตุผล / หลักฐานจากผู้ขอ</span>
+                <p>{text(selected.reason, "ไม่มีการระบุเหตุผลเพิ่มเติม")}</p>
+              </section>
+              <section>
+                <span>ผู้ขอและเวลาที่ส่ง</span>
+                <p><strong>{text(selected.requester_name, "—")}</strong><br />{formatDateTime(selected.created_at)}</p>
+              </section>
+              {Boolean(selected.review_note) && (
+                <section className="reviewed">
+                  <span>ผลการตรวจที่ผ่านมา</span>
+                  <p>{text(selected.review_note)}<br />{formatDateTime(selected.reviewed_at)}</p>
+                </section>
+              )}
+            </div>
+
+            {canReview && selectedStatus === "pending_review" ? (
+              <div className="change-evidence-decision">
+                <label>
+                  การตัดสินใจ
+                  <select
+                    value={decision}
+                    onChange={(event) =>
+                      setDecision(event.target.value as "approved" | "rejected")
+                    }
+                  >
+                    <option value="approved">อนุมัติจำนวนที่ขอ</option>
+                    <option value="rejected">ไม่อนุมัติ และใช้จำนวนเดิม</option>
+                  </select>
+                </label>
+                <label>
+                  หมายเหตุการตรวจ
+                  <textarea
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="ระบุเหตุผลและหลักฐานประกอบการตัดสินใจ"
+                    required
+                  />
+                </label>
+              </div>
+            ) : (
+              <p className="change-evidence-readonly">
+                {selectedStatus === "pending_review"
+                  ? "ดูหลักฐานได้ในโหมดอ่านอย่างเดียว การตัดสินใจคำขอเป็นหน้าที่ Planner หรือ Admin"
+                  : "รายการนี้มีผลการตรวจแล้ว เปิดดูได้เพื่อสอบกลับและใช้ประกอบการอนุมัติแผน"}
+              </p>
+            )}
+
+            <footer>
+              <button type="button" className="btn ghost" onClick={() => setSelected(null)}>ปิด</button>
+              {canReview && selectedStatus === "pending_review" && (
+                <button className="btn primary" disabled={actionBusy || note.trim().length < 3}>
+                  {actionBusy ? "กำลังบันทึก..." : "บันทึกผลการตรวจ"}
+                </button>
+              )}
+            </footer>
+          </form>
+        </div>
       )}
     </div>
   );
 }
 
 function ApprovalView({ data }: { data: DashboardData }) {
+  const [query, setQuery] = useState("");
+  const [stageFilter, setStageFilter] = useState("all");
+  const [decisionFilter, setDecisionFilter] = useState("all");
+  const [selected, setSelected] = useState<RecordRow | null>(null);
+  const normalizedRows = useMemo(
+    () =>
+      data.approvals
+        .map((row) => ({
+          ...row,
+          __acted_at: row.acted_at ?? row.approved_at ?? row.created_at,
+          __stage: text(row.approval_stage, text(row.stage, "ไม่ระบุขั้นตอน")),
+          __decision: text(row.decision, text(row.status, "ไม่ระบุผล")),
+          __actor: text(row.approver_name, text(row.actor_name, text(row.actor_id, "ไม่ระบุผู้ทำ"))),
+          __role: text(row.actor_role, text(row.approver_role, "ไม่ระบุบทบาท")),
+          __plan: text(row.plan_number, text(row.plan_code, text(row.replenishment_plan_id))),
+          __version: Number(row.version_no ?? row.plan_version ?? row.version ?? 1),
+        }) as RecordRow)
+        .sort((a, b) => Date.parse(text(b.__acted_at, "")) - Date.parse(text(a.__acted_at, ""))),
+    [data.approvals],
+  );
+  const stages = useMemo(
+    () => [...new Set(normalizedRows.map((row) => text(row.__stage, "")))].filter(Boolean).sort(),
+    [normalizedRows],
+  );
+  const decisions = useMemo(
+    () => [...new Set(normalizedRows.map((row) => text(row.__decision, "")))].filter(Boolean).sort(),
+    [normalizedRows],
+  );
+  const filteredRows = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    return normalizedRows.filter((row) => {
+      const matchesQuery = !value || [row.__plan, row.__actor, row.__role, row.district_id, row.note]
+        .map((item) => text(item, "").toLowerCase())
+        .some((item) => item.includes(value));
+      return matchesQuery && (stageFilter === "all" || row.__stage === stageFilter) && (decisionFilter === "all" || row.__decision === decisionFilter);
+    });
+  }, [decisionFilter, normalizedRows, query, stageFilter]);
+  const approvedCount = normalizedRows.filter((row) => /approve|confirm|lock/i.test(text(row.__decision, ""))).length;
+  const returnedCount = normalizedRows.filter((row) => /reject|return|change|cancel/i.test(text(row.__decision, ""))).length;
+  const planCount = new Set(normalizedRows.map((row) => text(row.__plan, ""))).size;
+  const resetFilters = () => { setQuery(""); setStageFilter("all"); setDecisionFilter("all"); };
+
   return (
-    <section className="panel">
-      <LiveTable
-        rows={data.approvals}
-        empty="ยังไม่มีประวัติการอนุมัติ"
-        columns={[
-          ["เวลา", (row) => formatDateTime(row.acted_at)],
-          ["แผน", (row) => text(row.replenishment_plan_id).slice(0, 8)],
-          ["ขั้นตอน", (row) => <Badge>{text(row.approval_stage)}</Badge>],
-          ["ผล", (row) => row.decision],
-          ["บทบาท", (row) => row.actor_role],
-          ["ผู้ทำ", (row) => text(row.actor_id).slice(0, 8)],
-          ["เขต", (row) => row.district_id],
-          ["หมายเหตุ", (row) => row.note],
-        ]}
-      />
-    </section>
+    <div className="stack">
+      <section className="plain-notice info">
+        <i>i</i>
+        <div><strong>ประวัติการอนุมัติ คือ Audit Trail ของแต่ละแผนและแต่ละ Version</strong><p>เรียงจากเหตุการณ์ล่าสุด เปิดดูได้ว่าใครทำอะไร เมื่อใด ที่ขั้นตอนไหน และมีหมายเหตุอะไร โดยไม่รวมรายการที่ยังไม่เคยมีการตัดสินใจ</p></div>
+      </section>
+      <section className="explorer-kpis" aria-label="สรุปประวัติการอนุมัติ">
+        <article><span>เหตุการณ์ทั้งหมด</span><strong>{formatNumber(normalizedRows.length)}</strong><small>บันทึกตรวจสอบ</small></article>
+        <article><span>แผนที่มีประวัติ</span><strong>{formatNumber(planCount)}</strong><small>รวมทุก Version</small></article>
+        <article><span>อนุมัติ / ยืนยัน</span><strong>{formatNumber(approvedCount)}</strong><small>เหตุการณ์สำเร็จ</small></article>
+        <article className={returnedCount ? "danger" : ""}><span>ส่งกลับ / ปฏิเสธ / เปลี่ยน</span><strong>{formatNumber(returnedCount)}</strong><small>ต้องอ่านเหตุผล</small></article>
+      </section>
+      <section className="panel">
+        <header className="explorer-heading">
+          <div><span>APPROVAL AUDIT TRAIL</span><h3>ค้นประวัติว่าใครอนุมัติแผนใด</h3><p>เลือกขั้นตอนและผลการตัดสินใจ แล้วเปิดดูหลักฐานของเหตุการณ์นั้น</p></div>
+          <b aria-live="polite">พบ {formatNumber(filteredRows.length)} จาก {formatNumber(normalizedRows.length)} เหตุการณ์</b>
+        </header>
+        <div className="explorer-toolbar">
+          <label className="explorer-search"><span>ค้นหา</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="เลขแผน, ผู้ดำเนินการ, บทบาท หรือเขต" /></label>
+          <label><span>ขั้นตอน</span><select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}><option value="all">ทุกขั้นตอน</option>{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
+          <label><span>ผลการตัดสินใจ</span><select value={decisionFilter} onChange={(event) => setDecisionFilter(event.target.value)}><option value="all">ทุกผล</option>{decisions.map((decision) => <option key={decision} value={decision}>{decision}</option>)}</select></label>
+          <button type="button" className="btn ghost" onClick={resetFilters}>ล้างตัวกรอง</button>
+        </div>
+        <LiveTable
+          rows={filteredRows}
+          empty="ไม่พบประวัติที่ตรงกับตัวกรอง"
+          columns={[
+            ["วันเวลา", (row) => <span><strong>{formatDateTime(row.__acted_at)}</strong><small>บันทึกในระบบ</small></span>],
+            ["แผน / Version", (row) => <span><strong>{text(row.__plan)}</strong><small>Version {formatNumber(row.__version, 0)}</small></span>],
+            ["ขั้นตอน", (row) => <Badge>{text(row.__stage)}</Badge>],
+            ["ผล", (row) => <Badge>{text(row.__decision)}</Badge>],
+            ["ผู้ดำเนินการ", (row) => <span><strong>{text(row.__actor)}</strong><small>{text(row.__role)}</small></span>],
+            ["เขต", (row) => text(row.district_id, "ทุกเขต / ส่วนกลาง")],
+            ["รายละเอียด", (row) => <button type="button" className="table-action" onClick={() => setSelected(row)}>เปิด Audit Trail</button>],
+          ]}
+        />
+      </section>
+      {selected && (
+        <div className="explorer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
+          <section className="explorer-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-history-title">
+            <header><div><span>เหตุการณ์อนุมัติ</span><h3 id="approval-history-title">{text(selected.__plan)} · Version {formatNumber(selected.__version, 0)}</h3><p>{formatDateTime(selected.__acted_at)}</p></div><button type="button" onClick={() => setSelected(null)} aria-label="ปิดรายละเอียด">×</button></header>
+            <div className="explorer-dialog-body">
+              <aside className="evidence-equation"><span>ผลการดำเนินการ</span><strong>{text(selected.__decision)}</strong><p>ขั้นตอน {text(selected.__stage)} · เขต {text(selected.district_id, "ทุกเขต / ส่วนกลาง")}</p></aside>
+              <dl className="explorer-detail-grid">
+                <div><dt>ผู้ดำเนินการ</dt><dd>{text(selected.__actor)}</dd></div>
+                <div><dt>บทบาท</dt><dd>{text(selected.__role)}</dd></div>
+                <div><dt>รหัสเหตุการณ์</dt><dd>{text(selected.approval_id, text(selected.audit_id))}</dd></div>
+                <div><dt>รหัสแผนในระบบ</dt><dd>{text(selected.replenishment_plan_id)}</dd></div>
+                <div className="wide"><dt>หมายเหตุ / เหตุผล</dt><dd>{text(selected.note, text(selected.reason, "ไม่มีหมายเหตุ"))}</dd></div>
+              </dl>
+            </div>
+            <footer><button type="button" className="btn primary" onClick={() => setSelected(null)}>ปิดรายละเอียด</button></footer>
+          </section>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -5104,22 +5452,40 @@ function TraceView({
   ) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
+  const [districtFilter, setDistrictFilter] = useState("all");
+  const [materialFilter, setMaterialFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [selected, setSelected] = useState<RecordRow | null>(null);
   const [returnRow, setReturnRow] = useState<RecordRow | null>(null);
   const [returnQty, setReturnQty] = useState("");
   const [damaged, setDamaged] = useState(false);
   const [returnReason, setReturnReason] = useState("");
   const canReturn = ["admin", "picker"].includes(role);
-  const rows = data.traceability.filter((row) => {
+  const districts = useMemo(
+    () => [...new Set(data.traceability.map((row) => text(row.district_id, "")))].filter(Boolean).sort(),
+    [data.traceability],
+  );
+  const materials = useMemo(
+    () => [...new Set(data.traceability.map((row) => text(row.material_id, "")))].filter(Boolean).sort(),
+    [data.traceability],
+  );
+  const issueTypes = useMemo(
+    () => [...new Set(data.traceability.map((row) => text(row.issue_type, "")))].filter(Boolean).sort(),
+    [data.traceability],
+  );
+  const rows = useMemo(() => {
     const value = query.trim().toLowerCase();
-    return (
-      !value ||
-      Object.values(row)
-        .map((item) => text(item, ""))
-        .join(" ")
-        .toLowerCase()
-        .includes(value)
-    );
-  });
+    return data.traceability.filter((row) => {
+      const matchesQuery = !value || Object.values(row).map((item) => text(item, "")).join(" ").toLowerCase().includes(value);
+      return matchesQuery &&
+        (districtFilter === "all" || text(row.district_id, "") === districtFilter) &&
+        (materialFilter === "all" || text(row.material_id, "") === materialFilter) &&
+        (typeFilter === "all" || text(row.issue_type, "") === typeFilter);
+    });
+  }, [data.traceability, districtFilter, materialFilter, query, typeFilter]);
+  const totalIssued = rows.reduce((sum, row) => sum + Number(row.issued_qty ?? 0), 0);
+  const huCount = new Set(rows.map((row) => text(row.handling_unit_code, ""))).size;
+  const resetFilters = () => { setQuery(""); setDistrictFilter("all"); setMaterialFilter("all"); setTypeFilter("all"); };
   const submitReturn = async (event: FormEvent) => {
     event.preventDefault();
     if (!returnRow) return;
@@ -5149,55 +5515,57 @@ function TraceView({
   };
   return (
     <div className="stack">
-      <section className="filter-bar">
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="ค้นหา: เลขที่จ่าย / วัสดุ / หน่วยจัดเก็บ / สัญญา / PO / ผู้ขาย"
-          aria-label="ค้นหาการสอบกลับ"
-        />
+      <section className="plain-notice info">
+        <i>i</i>
+        <div><strong>สอบกลับจากรายการจ่าย ไปยัง HU, Lot, PO, สัญญา และผู้ขาย</strong><p>เริ่มค้นจากเลขที่จ่าย เขต หรือรหัสพัสดุ แล้วเปิด “ดูเส้นทาง” เพื่อดูต้นทางของของที่จ่ายออกไป</p></div>
+      </section>
+      <section className="explorer-kpis" aria-label="สรุปการสอบกลับ">
+        <article><span>รายการที่พบ</span><strong>{formatNumber(rows.length)}</strong><small>หลังใช้ตัวกรอง</small></article>
+        <article><span>จำนวนจ่ายรวม</span><strong>{formatNumber(totalIssued, 2)}</strong><small>หน่วยนับพื้นฐาน</small></article>
+        <article><span>เขตปลายทาง</span><strong>{formatNumber(new Set(rows.map((row) => text(row.district_id, ""))).size)}</strong><small>เขต</small></article>
+        <article><span>HU ต้นทาง</span><strong>{formatNumber(huCount)}</strong><small>หน่วยจัดเก็บ</small></article>
       </section>
       <section className="panel">
+        <header className="explorer-heading">
+          <div><span>DISTRIBUTION TRACEABILITY</span><h3>ค้นหาเส้นทางการจ่าย</h3><p>ผลลัพธ์แต่ละแถวเชื่อมรายการจ่ายกับหลักฐาน FIFO และเอกสารจัดซื้อ</p></div>
+          <b aria-live="polite">พบ {formatNumber(rows.length)} จาก {formatNumber(data.traceability.length)} รายการ</b>
+        </header>
+        <div className="explorer-toolbar trace-toolbar">
+          <label className="explorer-search"><span>ค้นหา</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="เลขที่จ่าย, HU, Lot, PO, สัญญา หรือผู้ขาย" aria-label="ค้นหาการสอบกลับ" /></label>
+          <label><span>เขต</span><select value={districtFilter} onChange={(event) => setDistrictFilter(event.target.value)}><option value="all">ทุกเขต</option>{districts.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label><span>พัสดุ</span><select value={materialFilter} onChange={(event) => setMaterialFilter(event.target.value)}><option value="all">ทุกพัสดุ</option>{materials.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label><span>ประเภทการจ่าย</span><select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="all">ทุกประเภท</option>{issueTypes.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <button type="button" className="btn ghost" onClick={resetFilters}>ล้างตัวกรอง</button>
+        </div>
         <LiveTable
           rows={rows}
-          empty="ยังไม่มีการจ่ายสต็อก"
+          empty="ไม่พบรายการจ่ายที่ตรงกับตัวกรอง"
           columns={[
-            ["จ่ายเมื่อ", (row) => formatDateTime(row.occurred_at)],
-            ["เลขที่จ่าย", (row) => row.issue_reference],
-            ["ประเภท", (row) => <Badge>{text(row.issue_type)}</Badge>],
-            ["เขต", (row) => row.district_id],
-            ["วัสดุ", (row) => row.material_id],
-            ["จำนวน", (row) => formatNumber(row.issued_qty, 2)],
-            ["HU", (row) => row.handling_unit_code],
-            ["Lot", (row) => row.lot_code],
-            ["วันรับ", (row) => row.acceptance_date],
-            ["PO / รายการ", (row) => `${text(row.purchase_order)} / ${text(row.line_item)}`],
-            ["สัญญา", (row) => row.contract_number],
-            ["ผู้ขาย", (row) => row.vendor_name],
-            ...(canReturn
-              ? [
-                  [
-                    "รับคืน",
-                    (row: RecordRow) => (
-                      <button
-                        type="button"
-                        className="table-action"
-                        onClick={() => {
-                          setReturnRow(row);
-                          setReturnQty("");
-                          setDamaged(false);
-                          setReturnReason("");
-                        }}
-                      >
-                        รับคืน
-                      </button>
-                    ),
-                  ] as [string, (row: RecordRow) => ReactNode],
-                ]
-              : []),
+            ["วันเวลา / เลขที่จ่าย", (row) => <span><strong>{text(row.issue_reference)}</strong><small>{formatDateTime(row.occurred_at ?? row.issued_at)}</small></span>],
+            ["ปลายทาง", (row) => <span><strong>เขต {text(row.district_id)}</strong><small><Badge>{text(row.issue_type)}</Badge></small></span>],
+            ["พัสดุ / จำนวน", (row) => <span><strong>{text(row.material_id)}</strong><small>{formatNumber(row.issued_qty, 2)} EA</small></span>],
+            ["หลักฐาน FIFO", (row) => <span><strong>{text(row.handling_unit_code)}</strong><small>Lot {text(row.lot_code)}</small></span>],
+            ["เอกสารต้นทาง", (row) => <span><strong>PO {text(row.purchase_order)} / {text(row.line_item)}</strong><small>{text(row.contract_number)} · {text(row.vendor_name)}</small></span>],
+            ["ดำเนินการ", (row) => <div className="table-actions"><button type="button" className="table-action" onClick={() => setSelected(row)}>ดูเส้นทาง</button>{canReturn && <button type="button" className="table-action secondary" onClick={() => { setReturnRow(row); setReturnQty(""); setDamaged(false); setReturnReason(""); }}>รับคืน</button>}</div>],
           ]}
         />
       </section>
+      {selected && (
+        <div className="explorer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
+          <section className="explorer-dialog trace-dialog" role="dialog" aria-modal="true" aria-labelledby="trace-title">
+            <header><div><span>เส้นทางการจ่าย</span><h3 id="trace-title">{text(selected.issue_reference)}</h3><p>จ่ายไปเขต {text(selected.district_id)} เมื่อ {formatDateTime(selected.occurred_at ?? selected.issued_at)}</p></div><button type="button" onClick={() => setSelected(null)} aria-label="ปิดรายละเอียด">×</button></header>
+            <div className="explorer-dialog-body">
+              <ol className="trace-flow">
+                <li><i>1</i><span><small>เอกสารจัดซื้อ</small><strong>PO {text(selected.purchase_order)} / {text(selected.line_item)}</strong><p>{text(selected.contract_number)} · {text(selected.vendor_name)}</p></span></li>
+                <li><i>2</i><span><small>รับเข้าคลัง</small><strong>{text(selected.handling_unit_code)} · Lot {text(selected.lot_code)}</strong><p>วันรับ {text(selected.acceptance_date)}</p></span></li>
+                <li><i>3</i><span><small>จ่ายออกแบบ FIFO</small><strong>{formatNumber(selected.issued_qty, 2)} EA · พัสดุ {text(selected.material_id)}</strong><p>{text(selected.issue_reference)} · {text(selected.issue_type)}</p></span></li>
+                <li><i>4</i><span><small>ปลายทาง</small><strong>เขต {text(selected.district_id)}</strong><p>เชื่อมหลักฐานจากรายการจ่ายถึงเอกสารต้นทางครบถ้วน</p></span></li>
+              </ol>
+            </div>
+            <footer><button type="button" className="btn primary" onClick={() => setSelected(null)}>ปิดรายละเอียด</button></footer>
+          </section>
+        </div>
+      )}
       {returnRow && (
         <form className="pipeline-form compact" onSubmit={submitReturn}>
           <div className="panel-title">
