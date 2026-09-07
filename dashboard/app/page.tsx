@@ -3967,8 +3967,93 @@ function DistrictConfirmationView({
     ["admin", "planner"].includes(role) && planStatus === "pending_planner_approval";
   const canAcademicLock =
     ["admin", "academic"].includes(role) && planStatus === "pending_academic_approval";
+  const fifoReadiness = useMemo(() => {
+    if (!activePlan) return { shortages: [], shortageQty: 0, requiredQty: 0 };
+
+    const requiredByMaterial = new Map<
+      string,
+      { materialId: string; materialName: string; required: number; districts: Set<string> }
+    >();
+    activePlan.rows.forEach((row) => {
+      const materialId = text(row.material_id, text(row.material_code, ""));
+      if (!materialId) return;
+      const quantity = Math.max(
+        0,
+        Number(
+          row.final_qty ??
+            row.confirmed_qty ??
+            row.requested_qty ??
+            row.suggested_qty ??
+            0,
+        ),
+      );
+      if (!Number.isFinite(quantity) || quantity <= 0) return;
+      const current = requiredByMaterial.get(materialId) ?? {
+        materialId,
+        materialName: text(row.material_name, text(row.description, materialId)),
+        required: 0,
+        districts: new Set<string>(),
+      };
+      current.required += quantity;
+      current.districts.add(text(row.district_id, "ไม่ระบุเขต"));
+      requiredByMaterial.set(materialId, current);
+    });
+
+    const availableByMaterial = new Map<string, number>();
+    data.fifo.forEach((row) => {
+      const materialId = text(row.material_id, text(row.material_code, ""));
+      if (!materialId) return;
+      const location = text(
+        row.location_id,
+        text(row.location_code, text(row.storage_location_code, "")),
+      )
+        .toUpperCase()
+        .replaceAll(" ", "");
+      if (
+        location &&
+        !["WH-KT", "2401/0001", "2401-0001", "24010001"].includes(location)
+      ) {
+        return;
+      }
+      const allocatable = Math.max(
+        0,
+        Number(row.allocatable_qty ?? row.available_qty ?? 0),
+      );
+      availableByMaterial.set(
+        materialId,
+        (availableByMaterial.get(materialId) ?? 0) +
+          (Number.isFinite(allocatable) ? allocatable : 0),
+      );
+    });
+
+    const shortages = [...requiredByMaterial.values()]
+      .map((item) => {
+        const available = availableByMaterial.get(item.materialId) ?? 0;
+        return {
+          ...item,
+          available,
+          shortage: Math.max(0, item.required - available),
+        };
+      })
+      .filter((item) => item.shortage > 0)
+      .sort((left, right) => right.shortage - left.shortage);
+
+    return {
+      shortages,
+      shortageQty: shortages.reduce((sum, item) => sum + item.shortage, 0),
+      requiredQty: [...requiredByMaterial.values()].reduce(
+        (sum, item) => sum + item.required,
+        0,
+      ),
+    };
+  }, [activePlan, data.fifo]);
+  const allFifoReady =
+    fifoReadiness.requiredQty > 0 && fifoReadiness.shortages.length === 0;
   const canSubmitApproval =
-    (canPlannerApprove || canAcademicLock) && allDistrictsReady && allChangesReviewed;
+    (canPlannerApprove || canAcademicLock) &&
+    allDistrictsReady &&
+    allChangesReviewed &&
+    (!canAcademicLock || allFifoReady);
   const planStatusLabel: Record<string, string> = {
     draft: "กำลังจัดทำแผน",
     pending_district_confirmation: "รอเขตยืนยัน",
@@ -4173,7 +4258,46 @@ function DistrictConfirmationView({
             <li className={allChangesReviewed ? "passed" : "blocked"}>
               {allChangesReviewed ? "✓" : "!"} คำขอเปลี่ยนที่ยังรอ Planner: {formatNumber(totals.pendingChanges)} รายการ
             </li>
+            {(canAcademicLock || planStatus === "locked") && (
+              <li className={allFifoReady || planStatus === "locked" ? "passed" : "blocked"}>
+                {allFifoReady || planStatus === "locked" ? "✓" : "!"}{" "}
+                FIFO พร้อมจอง:{" "}
+                {allFifoReady || planStatus === "locked"
+                  ? "ครบตามแผน"
+                  : `ขาด ${formatNumber(fifoReadiness.shortageQty, 0)} EA ใน ${formatNumber(fifoReadiness.shortages.length)} พัสดุ`}
+              </li>
+            )}
           </ul>
+          {canAcademicLock && !allFifoReady && (
+            <details className="fifo-lock-blocker" open>
+              <summary>
+                ยัง Lock ไม่ได้ — เปิดดูพัสดุที่ FIFO พร้อมหยิบไม่เพียงพอ
+              </summary>
+              <p>
+                ต้องให้ Planner ลดจำนวนหรือเติม Opening HU/Stock ให้เพียงพอก่อน
+                ระบบจึงจะจอง FIFO และส่งแผนไปจัดรถได้
+              </p>
+              <div>
+                {fifoReadiness.shortages.slice(0, 8).map((item) => (
+                  <span key={item.materialId}>
+                    <strong>{item.materialId}</strong>{" "}
+                    ขาด {formatNumber(item.shortage, 0)} EA
+                    <small>
+                      ต้องใช้ {formatNumber(item.required, 0)} · พร้อมหยิบ{" "}
+                      {formatNumber(item.available, 0)} · เขต{" "}
+                      {[...item.districts].join(", ")}
+                    </small>
+                  </span>
+                ))}
+              </div>
+              {fifoReadiness.shortages.length > 8 && (
+                <small>
+                  และอีก {formatNumber(fifoReadiness.shortages.length - 8)} พัสดุ
+                  — ดูทั้งหมดที่เมนู “FIFO &amp; พาเลท”
+                </small>
+              )}
+            </details>
+          )}
         </div>
         {planStatus === "locked" ? (
           <button type="button" className="btn primary" onClick={onOpenTransport}>
@@ -4199,6 +4323,8 @@ function DistrictConfirmationView({
                   ? "อนุมัติและ Lock → พร้อมจัดรถ"
                   : canPlannerApprove
                     ? "ยืนยันแผน → ส่งให้วิชาการ"
+                    : canAcademicLock && !allFifoReady
+                      ? `FIFO ขาด ${formatNumber(fifoReadiness.shortageQty, 0)} EA`
                     : totals.pending > 0
                       ? `รอเขตอีก ${formatNumber(totals.pending)} รายการ`
                       : totals.pendingChanges > 0
