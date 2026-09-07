@@ -154,13 +154,6 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
-    {
-      label: "หลักฐานสต็อก",
-      items: [
-        ["fifo", "FIFO & พาเลท", "▦"],
-        ["stock", "ข้อมูล Stock", "◫"],
-      ],
-    },
   ],
   picker: [
     {
@@ -168,7 +161,6 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "แผนที่ล็อกแล้ว", "▤"],
-        ["fifo", "FIFO & พาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
@@ -195,8 +187,6 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "แผนการจ่าย", "▤"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
-        ["fifo", "FIFO & พาเลท", "▦"],
-        ["stock", "ข้อมูล Stock", "◫"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
