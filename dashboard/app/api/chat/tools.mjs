@@ -30,7 +30,7 @@ export const CHAT_TOOLS = [
     metrics: { type: "array", maxItems: 6, items: { type: "object", properties: {
       function: { type: "string", enum: ["count", "sum", "avg", "min", "max"] }, column: { type: "string", description: "ชื่อคอลัมน์ หรือ * สำหรับ count ทุกแถว" },
     }, required: ["function", "column"], additionalProperties: false } },
-    order_column: nullableString("คอลัมน์ที่เลือก หรือชื่อผล aggregate เช่น count_rows, sum_quantity"),
+    order_column: nullableString("ระบุเมื่อผู้ใช้ขอเรียงลำดับหรือหาอันดับเชิงตัวเลขเท่านั้น มิฉะนั้น null เพื่อให้ rerank ความเกี่ยวข้อง; ใช้คอลัมน์ที่เลือก หรือชื่อ aggregate เช่น count_rows, sum_quantity"),
     order_direction: { type: "string", enum: ["asc", "desc"] },
     limit: { type: "integer", minimum: 1, maximum: 50 },
     offset: { type: "integer", minimum: 0, maximum: 10000 },

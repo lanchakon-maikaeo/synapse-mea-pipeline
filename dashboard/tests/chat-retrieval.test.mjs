@@ -11,6 +11,7 @@ const sources = [
 const plan = { source_id: 'core.districts', columns: ['district_id', 'district_name_th'], filters: [{ column: 'district_id', operator: 'eq', value: '5501' }], group_by: [], metrics: [], order_column: null, order_direction: 'asc', limit: 10, offset: 0, search: null };
 test('Thai discovery retrieves a relevant source, then model reranks before top-k', async () => {
   assert.equal(retrieveSources('เขต 5501 คือเขตไหน', sources, 1)[0].source_id, 'core.districts');
+  assert.equal(retrieveSources('คำที่ไม่อยู่ในแคตตาล็อก', sources, 1).length, 2);
   const r = await rerank('เขต', sources, 1, async () => call('rank_candidates', { indices: [1] }));
   assert.deepEqual(r.selected, [sources[1]]); assert.equal(r.status, 'model_reranked');
   for (const indices of [[0, 0], [9], [-1], ['1']]) await assert.rejects(rerank('q', sources, 2, async () => call('rank_candidates', { indices })), /rerank_output_invalid/);
@@ -20,6 +21,9 @@ test('reranking does not manufacture records and never changes whole-set aggrega
   let calls = 0;
   const r = await retrieveDatabase({ decision: { name: 'query_database', args: { search: 'PVC' } }, question: 'count', rpc: async () => envelope, generate: async () => { calls++; } });
   assert.deepEqual(r, envelope); assert.equal(calls, 0);
+  const ordered = await retrieveDatabase({ decision: { name: 'query_database', args: { search: 'PVC', order_column: 'weight_per_unit_kg' } }, question: 'heaviest PVC',
+    rpc: async () => ({ ...envelope, aggregation: false }), generate: async () => { calls++; } });
+  assert.equal(ordered.aggregation, false); assert.equal(calls, 0);
   const ranked = await retrieveDatabase({ decision: { name: 'query_database', args: { search: 'เขต', limit: 2 } }, question: 'เขต', topK: 1,
     rpc: async () => ({ status: 'ok', data: [{ district_id: '5502' }, { district_id: '5501' }] }),
     generate: async () => call('rank_candidates', { indices: [1] }) });

@@ -8,7 +8,7 @@ Pipeline: user session → admission → Gemini plans → discover authorized so
 
 The migration snapshots existing relations and columns in `core`, `analytics`, `ops`, `raw`, `staging`, `reference_data`, plus `public.contracts`, `public.user_profiles` and `audit.change_log`. It excludes authentication/vault/platform internals, backup copies, worker capabilities and rate-limit storage. New tables/columns require catalog review; they do not become accessible automatically.
 
-The Test catalog contains 125 sources. Each source was queried with a bounded projection: 57 returned data, 68 were empty, zero failed. Empty sources are not evidence that business events exist. Production coverage is verified separately after applying the migration.
+The Test catalog contains 125 sources. Each source was queried with a bounded projection: 57 returned data, 68 were empty, zero failed. Production also passed all 125 source reads: 97 returned data and 28 were empty. Empty sources are not evidence that business events exist.
 
 Master registers (including names of districts) are available to active users. District facts are filtered to the caller's district; location stock permits that district and central warehouse evidence. Contracts and other reporting sources retain reporting-role restrictions. Raw/import/administration sources are admin-only. The source predicate is applied again inside every query, independently of the model and client arguments. Public schema identity tables are admin-only.
 
@@ -16,7 +16,7 @@ Master registers (including names of districts) are available to active users. D
 
 - Source candidate retrieval tokenizes Thai with `Intl.Segmenter`, expands domain terms, and scores names/descriptions/columns. Gemini reranks candidates by semantic relevance before returning up to `LLM_RETRIEVAL_TOP_K` schemas (default 6, allowed 1–12).
 - `query_database` accepts source, selected columns, typed filters, date ranges, ordering, pagination, text search and grouped count/sum/avg/min/max. Values are SQL literals and identifiers must belong to the frozen catalog. Arbitrary SQL/functions are rejected.
-- Text-search records can be reranked by Gemini to top-k, preserving the actual database objects. Counts and aggregates execute over **all matching permitted rows before output limits** and are never computed from reranked samples.
+- Text-search records can be reranked by Gemini to top-k, preserving the actual database objects. Explicit database sort requests retain SQL order. Counts and aggregates execute over **all matching permitted rows before output limits** and are never computed from reranked samples.
 - The model must discover a source before reading it. Catalog metadata alone cannot satisfy `finish`. Source schemas and query errors can be used for a bounded correction.
 - No embedding corpus is copied from the database in this version. This is lexical retrieval plus model reranking, not vector hybrid search. Structured facts remain live SQL reads.
 - Limits: six reads, twelve paid model calls including reranking, 90-second overall timeout, 50 rows per read, 40,000-character model tool context, six recent messages. Source/row limits and incomplete answers are disclosed.

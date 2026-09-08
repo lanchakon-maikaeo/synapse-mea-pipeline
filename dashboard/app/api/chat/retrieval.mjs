@@ -13,12 +13,14 @@ export function retrieveSources(question, sources, candidateK = 30) {
   const expanded = `${query} ${aliases.filter(([pattern]) => pattern.test(query)).map(([, words]) => words).join(' ')}`;
   const tokens = [...new Set([...segmenter.segment(expanded)].filter(x => x.isWordLike).map(x => x.segment).filter(x => x.length > 1))];
   // ponytail: bounded catalog scan; use indexed retrieval when the catalog reaches thousands of sources.
-  return sources.map(source => {
+  const scored = sources.map(source => {
     const name = source.source_id.toLowerCase();
     const document = `${name} ${source.description} ${Object.keys(source.columns).join(' ')}`.toLowerCase();
     const score = tokens.reduce((sum, token) => sum + (name.includes(token) ? 4 : document.includes(token) ? 1 : 0), 0);
     return { ...source, retrieval_score: score };
-  }).sort((a, b) => b.retrieval_score - a.retrieval_score || a.source_id.localeCompare(b.source_id)).slice(0, candidateK);
+  }).sort((a, b) => b.retrieval_score - a.retrieval_score || a.source_id.localeCompare(b.source_id));
+  // Unknown wording must not drop sources alphabetically before semantic ranking.
+  return scored.slice(0, scored[0]?.retrieval_score > 0 ? candidateK : 150);
 }
 
 export async function rerank(question, candidates, topK, generate) {
@@ -50,7 +52,7 @@ export async function retrieveDatabase({ decision, question, rpc, generate, topK
     return { ...envelope, data: ranked.selected.map(x => candidates.find(s => s.source_id === x.source_id)),
       retrieval: { stage: 'sources', candidate_count: candidates.length, catalog_count: envelope.data.length, top_k: topK, status: ranked.status } };
   }
-  if (decision.args.search && !envelope.aggregation) {
+  if (decision.args.search && !envelope.aggregation && !decision.args.order_column) {
     if (JSON.stringify(envelope.data).length > 40000) throw new Error('retrieval_context_limit');
     const ranked = await rerank(question, envelope.data, Math.min(topK, decision.args.limit ?? topK), generate);
     return { ...envelope, data: ranked.selected,
