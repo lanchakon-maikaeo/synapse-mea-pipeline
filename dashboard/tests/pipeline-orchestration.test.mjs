@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const apiRoute = readFileSync("app/api/[...path]/route.ts", "utf8");
+const supabaseServer = readFileSync("app/api/supabase-server.ts", "utf8");
 const accessRequestRoute = readFileSync("app/api/access-requests/route.ts", "utf8");
 const hook = readFileSync("app/use-synapse-backend.ts", "utf8");
 const openapi = readFileSync("app/m09-openapi.ts", "utf8");
@@ -123,14 +124,14 @@ test("optimization queue OpenAPI declares idempotency and concrete job schemas",
 });
 
 test("same-origin proxy pins a controlled Supabase origin and blocks redirects", () => {
-  assert.match(apiRoute, /function controlledSupabaseOrigin\(\)/);
-  assert.match(apiRoute, /process\.env\.NODE_ENV === "production"/);
-  assert.match(apiRoute, /url\.protocol !== "https:"/);
-  assert.match(apiRoute, /url\.username/);
-  assert.match(apiRoute, /url\.password/);
-  assert.match(apiRoute, /isLoopbackHost\(url\.hostname\)/);
-  assert.match(apiRoute, /SUPABASE_ALLOWED_ORIGIN/);
-  assert.match(apiRoute, /\[a-z0-9\]\{20\}\\\.supabase\\\.co/);
+  assert.match(supabaseServer, /function controlledSupabaseOrigin\(\)/);
+  assert.match(supabaseServer, /process\.env\.NODE_ENV !== "production"/);
+  assert.match(supabaseServer, /url\.protocol !== "https:"/);
+  assert.match(supabaseServer, /url\.username/);
+  assert.match(supabaseServer, /url\.password/);
+  assert.match(supabaseServer, /isLoopbackHost\(url\.hostname\)/);
+  assert.match(supabaseServer, /SUPABASE_ALLOWED_ORIGIN/);
+  assert.match(supabaseServer, /\[a-z0-9\]\{20\}\\\.supabase\\\.co/);
   assert.match(apiRoute, /hasValidSuppliedRequestId\(request\)/);
   assert.match(apiRoute, /A valid X-Request-ID header is required/);
   // Every outbound proxy fetch must block redirects (SSRF guard). Assert the

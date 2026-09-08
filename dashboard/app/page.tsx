@@ -28,6 +28,7 @@ import {
   type VmiInputPayload,
 } from "./use-synapse-backend";
 import FifoPackagingSetupView from "./fifo-packaging-setup";
+import ChatWidget from "./chat-widget";
 import {
   TransportModule,
   transportNavForRole,
@@ -7812,6 +7813,7 @@ export default function Home() {
           {backend.notice}
         </div>
       )}
+      <ChatWidget token={backend.session.access_token} />
     </div>
   );
 }

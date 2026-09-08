@@ -104,7 +104,7 @@ pending_migrations=()
 while IFS= read -r migration_file; do
   migration_name="$(basename "$migration_file")"
   migration_version="${migration_name%%_*}"
-  [[ "$migration_version" =~ ^[0-9]{12}$ ]] || {
+  [[ "$migration_version" =~ ^([0-9]{12}|[0-9]{14})$ ]] || {
     echo "Invalid migration filename: $migration_name" >&2
     exit 4
   }
