@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 type Sheet = { name: string; headers: string[]; rows: string[][] };
 type RecordRow = Record<string, unknown>;
@@ -21,6 +21,12 @@ const packagingDetailHeaders = [
   "BOX_GROSS_WEIGHT_KG", "BOXES_PER_LAYER", "LAYERS", "BOXES_PER_PALLET",
   "UNITS_PER_PALLET", "PALLET_LENGTH_M", "PALLET_WIDTH_M", "LOAD_HEIGHT_M",
   "PALLET_TARE_KG", "MAX_PALLET_GROSS_KG", "CALC_PALLET_GROSS_KG",
+] as const;
+const requiredPackagingDetailHeaders = [
+  "itemlengthcm", "itemwidthcm", "itemheightcm", "itemweightkg",
+  "boxlengthcm", "boxwidthcm", "boxheightcm", "boxtareweightkg",
+  "boxesperlayer", "layers", "palletlengthm", "palletwidthm", "loadheightm",
+  "pallettarekg", "maxpalletgrosskg",
 ] as const;
 const packagingHeaders = [
   "MATERIAL", "MATERIAL_DESCRIPTION", "VENDOR_ALIAS", "CONTRACT_NO", "PURCHASE_ORDER",
@@ -475,6 +481,25 @@ function hydrateImportedOpening(sheets: Sheet[]) {
 
 const fmt = (amount: number) => new Intl.NumberFormat("en-US").format(amount);
 
+function hasCompletePackagingDetails(sheet: Sheet | undefined, row: string[]) {
+  return Boolean(sheet && requiredPackagingDetailHeaders.every((header) => numeric(cell(sheet, row, [header])) > 0));
+}
+
+function isOpeningRowReady(sheet: Sheet | undefined, row: string[]) {
+  if (!sheet) return false;
+  const initial = numeric(cell(sheet, row, ["initialqty"]));
+  const remain = numeric(cell(sheet, row, ["currentremain"]));
+  return Boolean(cell(sheet, row, ["packagetype"])) &&
+    numeric(cell(sheet, row, ["unitsperpackage"])) > 0 &&
+    Boolean(cell(sheet, row, ["physicallocation"])) &&
+    initial > 0 && remain >= 0 && remain <= initial;
+}
+
+function matchesSetupQuery(row: string[], query: string, extras: string[] = []) {
+  if (!query) return true;
+  return [...row, ...extras].join(" ").toLocaleLowerCase("th-TH").includes(query);
+}
+
 type SetupDraft = {
   version: 1;
   savedAt: string;
@@ -514,6 +539,9 @@ export default function FifoPackagingSetupView({
   const [expandedProfile, setExpandedProfile] = useState("");
   const [draftSavedAt, setDraftSavedAt] = useState("");
   const [draftSaveError, setDraftSaveError] = useState("");
+  const [reviewQuery, setReviewQuery] = useState("");
+  const [reviewFilter, setReviewFilter] = useState<"all" | "attention" | "ready">("all");
+  const deferredReviewQuery = useDeferredValue(reviewQuery);
   const materialLookup = useMemo(() => buildMaterialLookup(materialRows), [materialRows]);
 
   useEffect(() => {
@@ -596,28 +624,43 @@ export default function FifoPackagingSetupView({
   const huRows = useMemo(
     () => openingRows.map((row, index) => ({
       row,
+      index,
       huId: (opening && cell(opening, row, ["huid", "handlingunitid"])) || `HU-KT-GOLIVE-${String(index + 1).padStart(6, "0")}`,
     })),
     [opening, openingRows],
   );
-  const packagingDetailsComplete = (row: string[]) => Boolean(packaging && [
-    "itemlengthcm", "itemwidthcm", "itemheightcm", "itemweightkg",
-    "boxlengthcm", "boxwidthcm", "boxheightcm", "boxtareweightkg",
-    "boxesperlayer", "layers", "palletlengthm", "palletwidthm", "loadheightm",
-    "pallettarekg", "maxpalletgrosskg",
-  ].every((header) => numeric(cell(packaging, row, [header])) > 0));
   const packagingValid = Boolean(packagingRows.length && packagingRows.every((row) =>
     packaging && cell(packaging, row, ["packagetype"]) && numeric(cell(packaging, row, ["unitsperpackage"])) > 0,
   ));
-  const openingValid = Boolean(openingRows.length && openingRows.every((row) => {
-    if (!opening) return false;
-    const initial = numeric(cell(opening, row, ["initialqty"]));
-    const remain = numeric(cell(opening, row, ["currentremain"]));
-    return Boolean(cell(opening, row, ["packagetype"])) &&
-      numeric(cell(opening, row, ["unitsperpackage"])) > 0 &&
-      Boolean(cell(opening, row, ["physicallocation"])) &&
-      initial > 0 && remain >= 0 && remain <= initial;
-  }));
+  const openingValid = Boolean(openingRows.length && openingRows.every((row) => isOpeningRowReady(opening, row)));
+  const normalizedReviewQuery = deferredReviewQuery.trim().toLocaleLowerCase("th-TH");
+  const visiblePackagingRows = useMemo(
+    () => packagingRows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => {
+        const basicReady = Boolean(
+          packaging &&
+          cell(packaging, row, ["packagetype"]) &&
+          numeric(cell(packaging, row, ["unitsperpackage"])) > 0,
+        );
+        const ready = basicReady && hasCompletePackagingDetails(packaging, row);
+        const statusMatches = reviewFilter === "all" ||
+          (reviewFilter === "ready" ? ready : !ready);
+        return statusMatches && matchesSetupQuery(row, normalizedReviewQuery);
+      }),
+    [normalizedReviewQuery, packaging, packagingRows, reviewFilter],
+  );
+  const visibleHuRows = useMemo(
+    () => huRows.filter(({ row, huId }) => {
+      const ready = isOpeningRowReady(opening, row);
+      const statusMatches = reviewFilter === "all" ||
+        (reviewFilter === "ready" ? ready : !ready);
+      return statusMatches && matchesSetupQuery(row, normalizedReviewQuery, [huId]);
+    }),
+    [huRows, normalizedReviewQuery, opening, reviewFilter],
+  );
+  const visibleRowCount = tab === "packaging" ? visiblePackagingRows.length : visibleHuRows.length;
+  const totalRowCount = tab === "packaging" ? packagingRows.length : openingRows.length;
 
   const resetWorkflow = () => {
     setConfirmed({ packaging: false, opening: false });
@@ -958,16 +1001,58 @@ export default function FifoPackagingSetupView({
             </b>
           </div>
 
+          <div className="fifo-setup-search" aria-label="ค้นหาและกรองรายการ FIFO Setup">
+            <label className="fifo-setup-search-box">
+              <span>ค้นหารายพัสดุ</span>
+              <input
+                type="search"
+                value={reviewQuery}
+                onChange={(event) => setReviewQuery(event.target.value)}
+                placeholder={tab === "packaging"
+                  ? "รหัส/ชื่อพัสดุ, บริษัท, Contract หรือ PO"
+                  : "รหัส/ชื่อพัสดุ, HU ID, Lot หรือตำแหน่ง"}
+              />
+            </label>
+            <label>
+              <span>สถานะรายการ</span>
+              <select
+                value={reviewFilter}
+                onChange={(event) =>
+                  setReviewFilter(event.target.value as "all" | "attention" | "ready")
+                }
+              >
+                <option value="all">ทุกสถานะ</option>
+                <option value="attention">ต้องกรอก / ตรวจสอบ</option>
+                <option value="ready">พร้อมใช้งาน</option>
+              </select>
+            </label>
+            <div className="fifo-setup-search-result">
+              <strong>{fmt(visibleRowCount)} รายการ</strong>
+              <small>จากทั้งหมด {fmt(totalRowCount)}</small>
+            </div>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={!reviewQuery && reviewFilter === "all"}
+              onClick={() => {
+                setReviewQuery("");
+                setReviewFilter("all");
+              }}
+            >
+              ล้างการค้นหา
+            </button>
+          </div>
+
           <div className="live-table-wrap fifo-setup-table-wrap">
             {tab === "packaging" ? (
               <table className="live-table fifo-setup-table fifo-setup-edit-table">
                 <thead><tr><th>Material / Description</th><th>Vendor / Contract / PO</th><th>Package Type</th><th>Units / Package</th><th>รายละเอียด Packing</th><th>Status</th></tr></thead>
                 <tbody>
-                  {packagingRows.map((row, index) => {
+                  {visiblePackagingRows.map(({ row, index }) => {
                     const type = cell(packaging, row, ["packagetype"]);
                     const units = numeric(cell(packaging, row, ["unitsperpackage"]));
                     const valid = Boolean(type && units > 0);
-                    const detailComplete = packagingDetailsComplete(row);
+                    const detailComplete = hasCompletePackagingDetails(packaging, row);
                     const profileId = `${rowKey(packaging, row)}-${index}`;
                     const expanded = expandedProfile === profileId;
                     return (
@@ -1026,16 +1111,17 @@ export default function FifoPackagingSetupView({
                       </Fragment>
                     );
                   })}
+                  {!visiblePackagingRows.length ? (
+                    <tr><td className="fifo-setup-no-results" colSpan={6}><strong>ไม่พบรายการที่ตรงกับคำค้นหา</strong><small>ลองใช้รหัสพัสดุ ชื่อพัสดุ บริษัท Contract หรือ PO</small></td></tr>
+                  ) : null}
                 </tbody>
               </table>
             ) : (
               <table className="live-table fifo-setup-table fifo-setup-edit-table">
                 <thead><tr><th>Generated HU ID</th><th>Material / Contract / Lot</th><th>Package</th><th>Physical Location</th><th>Initial Qty</th><th>Current Remain</th><th>Status</th></tr></thead>
                 <tbody>
-                  {huRows.map(({ row, huId }, index) => {
-                    const initial = numeric(cell(opening, row, ["initialqty"]));
-                    const remain = numeric(cell(opening, row, ["currentremain"]));
-                    const valid = Boolean(cell(opening, row, ["physicallocation"])) && initial > 0 && remain >= 0 && remain <= initial;
+                  {visibleHuRows.map(({ row, huId, index }) => {
+                    const valid = isOpeningRowReady(opening, row);
                     return (
                       <tr key={huId}>
                         <td><strong>{huId}</strong><small>System generated</small></td>
@@ -1048,6 +1134,9 @@ export default function FifoPackagingSetupView({
                       </tr>
                     );
                   })}
+                  {!visibleHuRows.length ? (
+                    <tr><td className="fifo-setup-no-results" colSpan={7}><strong>ไม่พบรายการที่ตรงกับคำค้นหา</strong><small>ลองใช้รหัสพัสดุ ชื่อพัสดุ HU ID, Lot หรือตำแหน่งจัดเก็บ</small></td></tr>
+                  ) : null}
                 </tbody>
               </table>
             )}
@@ -1055,7 +1144,7 @@ export default function FifoPackagingSetupView({
 
           <footer className="fifo-setup-footer">
             <div>
-              <strong>{fmt(tab === "packaging" ? packagingRows.length : openingRows.length)} records</strong>
+              <strong>แสดง {fmt(visibleRowCount)} จาก {fmt(totalRowCount)} records</strong>
               <small>{tab === "packaging" ? "ข้อมูลสัญญาเป็น Read-only ส่วน Packing ขนาด น้ำหนัก และพาเลทแก้ได้ก่อนยืนยัน" : "Current Remain เริ่มเท่ากับ Initial Qty และระบบจะปรับจากรายการเคลื่อนไหวสต็อกเท่านั้น"}</small>
             </div>
             {tab === "packaging" ? (

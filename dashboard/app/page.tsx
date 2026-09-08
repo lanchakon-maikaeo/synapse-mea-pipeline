@@ -2,6 +2,7 @@
 
 import {
   isValidElement,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -4991,7 +4992,65 @@ function FifoView({
     "OPEN",
   );
   const [reason, setReason] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [stockFilter, setStockFilter] = useState<
+    "all" | "available" | "review" | "empty"
+  >("all");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const canReconcile = role === "admin" || role === "picker";
+  const filteredInventory = useMemo(() => {
+    const normalizedQuery = deferredSearchQuery
+      .trim()
+      .toLocaleLowerCase("th-TH");
+    const materialNames = new Map(
+      data.materials.map((row) => [
+        text(row.material_id),
+        text(
+          row.material_name_th ??
+            row.material_description ??
+            row.description ??
+            row.material_name,
+        ),
+      ]),
+    );
+    const matches = (row: RecordRow) => {
+      const materialId = text(row.material_id);
+      const searchableText = [
+        ...Object.values(row).map((value) => text(value)),
+        materialNames.get(materialId) ?? "",
+      ]
+        .join(" ")
+        .toLocaleLowerCase("th-TH");
+      if (normalizedQuery && !searchableText.includes(normalizedQuery)) {
+        return false;
+      }
+      if (stockFilter === "all") return true;
+      const availableQty = Number(
+        row.allocatable_qty ?? row.available_qty ?? row.quantity_on_hand ?? 0,
+      );
+      if (stockFilter === "available") return availableQty > 0;
+      if (stockFilter === "empty") return availableQty <= 0;
+      const status = `${text(row.opening_status)} ${text(row.traceability_status)}`.toUpperCase();
+      return (
+        status.includes("UNKNOWN") ||
+        status.includes("QUARANTINE") ||
+        status.includes("BLOCK") ||
+        status.includes("REVIEW")
+      );
+    };
+    return {
+      fifo: data.fifo.filter(matches),
+      handlingUnits: data.handlingUnits.filter(matches),
+      warehouseStock: data.warehouseStock.filter(matches),
+    };
+  }, [
+    data.fifo,
+    data.handlingUnits,
+    data.materials,
+    data.warehouseStock,
+    deferredSearchQuery,
+    stockFilter,
+  ]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!selected || reason.trim().length < 3) return;
@@ -5045,6 +5104,52 @@ function FifoView({
           <small>หน่วยนับพื้นฐาน</small>
         </article>
       </section>
+      <section className="fifo-explorer-toolbar" aria-label="ค้นหาและกรองข้อมูล FIFO">
+        <label className="fifo-explorer-search">
+          <span>ค้นหารายพัสดุ</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="รหัส/ชื่อพัสดุ, HU, PO, Lot หรือตำแหน่ง"
+          />
+        </label>
+        <label>
+          <span>สถานะสต็อก</span>
+          <select
+            value={stockFilter}
+            onChange={(event) =>
+              setStockFilter(
+                event.target.value as
+                  | "all"
+                  | "available"
+                  | "review"
+                  | "empty",
+              )
+            }
+          >
+            <option value="all">ทุกสถานะ</option>
+            <option value="available">พร้อมหยิบ</option>
+            <option value="review">ต้องตรวจสอบ</option>
+            <option value="empty">หมด / ไม่มีคงเหลือ</option>
+          </select>
+        </label>
+        <div className="fifo-explorer-result">
+          <strong>{formatNumber(filteredInventory.handlingUnits.length)} HU</strong>
+          <small>{formatNumber(filteredInventory.fifo.length)} รายการในคิว FIFO</small>
+        </div>
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={!searchQuery && stockFilter === "all"}
+          onClick={() => {
+            setSearchQuery("");
+            setStockFilter("all");
+          }}
+        >
+          ล้างการค้นหา
+        </button>
+      </section>
       {data.warehouseStock.length > 0 && (
         <section className="panel">
           <div className="panel-title">
@@ -5067,8 +5172,8 @@ function FifoView({
             </aside>
           )}
           <LiveTable
-            rows={data.warehouseStock.slice(0, 100)}
-            empty="ยังไม่มีข้อมูลสต็อกคลัง"
+            rows={filteredInventory.warehouseStock.slice(0, 100)}
+            empty="ไม่พบสต็อกคลังที่ตรงกับคำค้นหา"
             columns={[
               ["วัสดุ", (row) => row.material_id],
               ["รายละเอียด", (row) => row.material_name],
@@ -5086,10 +5191,11 @@ function FifoView({
             <span>คิว FIFO</span>
             <h3>จ่ายหน่วยที่เปิดก่อน แล้วเรียงตามวันรับ / PO / รายการ</h3>
           </div>
+          <b>{formatNumber(filteredInventory.fifo.length)} รายการ</b>
         </div>
         <LiveTable
-          rows={data.fifo}
-          empty="ไม่มีหน่วยจัดเก็บที่พร้อมจ่าย"
+          rows={filteredInventory.fifo}
+          empty="ไม่พบคิว FIFO ที่ตรงกับคำค้นหา"
           columns={[
             ["ลำดับ", (row) => row.fifo_sequence],
             ["HU", (row) => row.handling_unit_code],
@@ -5110,10 +5216,11 @@ function FifoView({
             <span>หน่วยจัดเก็บทั้งหมด</span>
             <h3>หน่วยที่ถูกบล็อก หมด หรือกักกัน</h3>
           </div>
+          <b>{formatNumber(filteredInventory.handlingUnits.length)} HU</b>
         </div>
         <LiveTable
-          rows={data.handlingUnits}
-          empty="ยังไม่มีหน่วยจัดเก็บ"
+          rows={filteredInventory.handlingUnits}
+          empty="ไม่พบหน่วยจัดเก็บที่ตรงกับคำค้นหา"
           columns={[
             ["HU", (row) => row.handling_unit_code],
             ["วัสดุ", (row) => row.material_id],
