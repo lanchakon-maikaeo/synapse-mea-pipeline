@@ -1,19 +1,20 @@
 import { publicConfig } from "../../lib";
 import { controlledSupabaseOrigin } from "../supabase-server";
 import {
-  bindDistrictScope,
-  buildProviderBody,
-  parseToolDecision,
-  renderToolResult,
+  validateHistory,
 } from "./tools.mjs";
 
+import { runAgent, HARNESS_VERSION } from "./harness.mjs";
+
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 type Scope = { role?: string; district_id?: string | null };
 type Admission = { status?: string; scope?: Scope; warnings?: string[] };
 type ToolDecision = { name: string; args: Record<string, string> };
 type ToolEnvelope = {
   request_id?: string;
+  view?: string;
   tool?: string;
   status?: string;
   data?: unknown[];
@@ -92,20 +93,20 @@ export async function POST(request: Request) {
     return failure(401, "unauthorized", "กรุณาเข้าสู่ระบบอีกครั้ง", requestId);
   }
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declaredLength) && declaredLength > 8_192) {
+  if (Number.isFinite(declaredLength) && declaredLength > 24_576) {
     return failure(413, "payload_too_large", "ข้อความยาวเกินขนาดที่กำหนด", requestId);
   }
 
   let body: unknown;
   try {
     const raw = await request.text();
-    if (raw.length > 8_192) return failure(413, "payload_too_large", "ข้อความยาวเกินขนาดที่กำหนด", requestId);
+    if (raw.length > 24_576) return failure(413, "payload_too_large", "ข้อความยาวเกินขนาดที่กำหนด", requestId);
     body = JSON.parse(raw);
   } catch {
     return failure(422, "invalid_input", "รูปแบบคำขอไม่ถูกต้อง", requestId);
   }
   if (!body || typeof body !== "object" || Array.isArray(body) ||
-      Object.keys(body).some((key) => key !== "message")) {
+      Object.keys(body).some((key) => !["message", "history"].includes(key))) {
     return failure(422, "invalid_input", "คำขอมีข้อมูลที่ระบบไม่รองรับ", requestId);
   }
   const message = typeof (body as { message?: unknown }).message === "string"
@@ -114,12 +115,15 @@ export async function POST(request: Request) {
   if (!message || message.length > 2_000) {
     return failure(422, "invalid_input", "กรุณาพิมพ์คำถามไม่เกิน 2,000 ตัวอักษร", requestId);
   }
+  let history: { role: string; text: string }[];
+  try { history = validateHistory((body as { history?: unknown }).history); }
+  catch { return failure(422, "invalid_input", "ประวัติแชทยาวเกินหรือรูปแบบไม่ถูกต้อง", requestId); }
   const config = providerConfig();
   if (!config) {
     return failure(503, "provider_not_configured", "ยังไม่ได้ตั้งค่า Commercial LLM API", requestId);
   }
 
-  const overall = AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]);
+  const overall = AbortSignal.any([request.signal, AbortSignal.timeout(90_000)]);
   let admission: Admission;
   try {
     admission = await supabaseRpc<Admission>("vmi_chat_admit", { p_request_id: requestId }, authorization, overall);
@@ -132,64 +136,49 @@ export async function POST(request: Request) {
   if (admission.status === "forbidden") return failure(403, "forbidden", "บัญชีนี้ไม่มีสิทธิ์ใช้แชท", requestId);
   if (admission.status !== "ok") return failure(429, "rate_limited", "ใช้งานครบ 10 ครั้งต่อนาที กรุณารอสักครู่", requestId);
 
-  let providerResponse: unknown;
+  let result;
   try {
-    const response = await fetch(config.apiUrl, {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": config.apiKey,
-        "x-goog-api-client": "synapse-mea-poc2/0.1",
-        "Content-Type": "application/json",
+    result = await runAgent({
+      message, history, temperature: config.temperature, scope: admission.scope, signal: overall,
+      generate: async (body: unknown) => {
+        const response = await fetch(config.apiUrl, {
+          method: "POST", headers: { "x-goog-api-key": config.apiKey, "Content-Type": "application/json" },
+          body: JSON.stringify(body), redirect: "error",
+          signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]),
+        });
+        if (!response.ok) {
+          await response.body?.cancel().catch(() => undefined);
+          throw new Error(response.status === 429 ? "provider_rate_limited" : "provider_unavailable");
+        }
+        return response.json();
       },
-      body: JSON.stringify(buildProviderBody(message, config.temperature)),
-      redirect: "error",
-      signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]),
+      read: (decision: ToolDecision) => supabaseRpc<ToolEnvelope>(
+        decision.name === "get_operations_overview" ? "vmi_chat_overview" : "vmi_chat_read", {
+          p_tool: decision.name, p_args: decision.args, p_request_id: requestId,
+        }, authorization, overall),
     });
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
-      return failure(response.status === 429 ? 429 : 503, "provider_unavailable",
-        response.status === 429 ? "LLM ใช้งานครบโควตาชั่วคราว" : "LLM ไม่พร้อมใช้งานชั่วคราว", requestId);
-    }
-    providerResponse = await response.json();
-  } catch {
-    return failure(503, "provider_unavailable", "LLM ไม่พร้อมใช้งานชั่วคราว", requestId);
-  }
-
-  let decision: ToolDecision;
-  try {
-    decision = bindDistrictScope(parseToolDecision(providerResponse), admission.scope) as ToolDecision;
-  } catch {
-    return failure(502, "provider_output_invalid", "LLM ส่งผลลัพธ์ที่ตรวจสอบไม่ได้", requestId);
-  }
-  if (decision.name === "clarify") {
-    return reply({ request_id: requestId, status: "clarify", answer: decision.args.question, model: config.model });
-  }
-  if (decision.name === "unsupported") {
-    return reply({ request_id: requestId, status: "unsupported", answer: decision.args.reason, model: config.model });
-  }
-
-  let envelope: ToolEnvelope;
-  try {
-    envelope = await supabaseRpc<ToolEnvelope>("vmi_chat_read", {
-      p_tool: decision.name,
-      p_args: decision.args,
-      p_request_id: requestId,
-    }, authorization, overall);
   } catch (error) {
-    const code = error instanceof Error ? error.message : "supabase_unavailable";
-    return failure(code === "unauthorized" ? 401 : code === "forbidden" ? 403 : 503,
-      code, "ไม่สามารถอ่านข้อมูล Supabase ได้", requestId);
+    const code = error instanceof Error ? error.message : "agent_unavailable";
+    const status = code === "unauthorized" ? 401 : code === "forbidden" ? 403 : code === "provider_rate_limited" ? 429 : 503;
+    return failure(status, code, "Agent ตรวจข้อมูลไม่สำเร็จ กรุณาลองใหม่ภายหลัง", requestId);
   }
+  // Operational trace excludes prompts, keys, JWTs, tool arguments and business rows.
+  console.info(JSON.stringify({ event: "chat_run", request_id: requestId, harness: HARNESS_VERSION,
+    model: config.model, status: result.status, stop_reason: result.stop_reason, steps: result.trace }));
+  const evidence = result.evidence as ToolEnvelope[];
+  const envelope = evidence[0];
 
   return reply({
     request_id: requestId,
-    status: envelope.status,
-    tool: decision.name,
-    answer: renderToolResult(envelope),
-    data_as_of: envelope.data_as_of,
-    scope: envelope.scope,
-    sources: envelope.sources,
-    warnings: envelope.warnings,
+    status: result.status,
+    tool: envelope?.tool,
+    answer: result.answer,
+    stop_reason: result.stop_reason,
+    steps: result.trace,
+    data_as_of: evidence.map((item) => item.data_as_of),
+    scope: envelope?.scope ?? admission.scope,
+    sources: [...new Set(evidence.flatMap((item) => item.sources ?? []))],
+    warnings: evidence.flatMap((item) => item.warnings ?? []),
     model: config.model,
   });
 }

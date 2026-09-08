@@ -25,10 +25,12 @@ type Message = {
 const examples = [
   "วัสดุ 471050004000 ที่คลังคลองเตยเหลือเท่าไร",
   "เขต 5501 ควรเติมวัสดุ 471050004000 เท่าไร",
-  "สอบกลับ HU POC-HU-5501-001",
+  "คลังไหนสต็อกใกล้หมด",
+  "ควรส่ง SKU อะไรไปคลังไหนก่อน",
 ];
 
 const toolNames: Record<string, string> = {
+  get_operations_overview: "ภาพรวมและลำดับเติมวัสดุ",
   get_stock_status: "สถานะสต็อก",
   get_replenishment_recommendation: "คำแนะนำเติมวัสดุ",
   get_plan_status: "สถานะแผน",
@@ -76,7 +78,7 @@ export default function ChatWidget({ token }: { token: string }) {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, history: messages.filter((item) => item.id !== "welcome" && !item.error).slice(-6).map(({ role, text }) => ({ role, text: text.slice(0, 2000) })) }),
         signal: controller.signal,
       });
       const payload = await response.json().catch(() => ({})) as ChatReply;
