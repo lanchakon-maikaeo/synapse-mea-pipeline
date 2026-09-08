@@ -27,7 +27,7 @@ test('duplicate calls stop instead of repeatedly spending money or querying', as
   assert.equal(r.stop_reason, 'repeated_tool'); assert.equal(r.status, 'partial'); assert.equal(s.reads.length, 1);
 });
 test('hard read budget applies even when the model ignores instructions', async () => {
-  const s = scenario([stock('A'), stock('B'), stock('C'), stock('D')]); const r = await s.run();
+  const s = scenario(Array.from({ length: MAX_READS + 1 }, (_, i) => stock(`SKU-${i}`))); const r = await s.run();
   assert.equal(r.stop_reason, 'step_limit'); assert.equal(s.reads.length, MAX_READS); assert.equal(s.requests.length, MAX_READS + 1);
 });
 test('provider or tool failures after evidence are marked partial', async () => {

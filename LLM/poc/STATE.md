@@ -2,6 +2,8 @@
 
 Updated: 2026-09-08. Branch `dev` uses main Supabase `synapse-01` (`fvdfduuanfrncrwuareb`) with explicit user authorization. Historical P00/P01 Test evidence remains valid for its original fixture scope.
 
+Current extension: [Database Agent v3](../AGENT_PIPELINE.md) adds authorized source discovery, Gemini reranking/top-k, and structured read/aggregate queries across the business catalog. Build/lint and 65 tests pass; 17 new SQL checks pass on Test, with all 125 Test sources successfully queried. v2 details below record the preceding release.
+
 - Harness v2: six read tools, bounded multi-step Gemini feedback, recent history, deterministic evidence answers, explicit partial/finish, safe execution traces.
 - SPAI course and research mappings: [SPAI_APPLICATION.md](../SPAI_APPLICATION.md).
 - Build and 60 dashboard tests pass; 11 overview SQL assertions pass on managed Test (rolled back).

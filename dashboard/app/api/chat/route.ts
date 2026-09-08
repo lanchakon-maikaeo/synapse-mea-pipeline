@@ -5,13 +5,14 @@ import {
 } from "./tools.mjs";
 
 import { runAgent, HARNESS_VERSION } from "./harness.mjs";
+import { retrieveDatabase } from "./retrieval.mjs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 type Scope = { role?: string; district_id?: string | null };
 type Admission = { status?: string; scope?: Scope; warnings?: string[] };
-type ToolDecision = { name: string; args: Record<string, string> };
+type ToolDecision = { name: string; args: Record<string, unknown> };
 type ToolEnvelope = {
   request_id?: string;
   view?: string;
@@ -137,23 +138,33 @@ export async function POST(request: Request) {
   if (admission.status !== "ok") return failure(429, "rate_limited", "ใช้งานครบ 10 ครั้งต่อนาที กรุณารอสักครู่", requestId);
 
   let result;
+  let modelCalls = 0;
+  const topK = Number(process.env.LLM_RETRIEVAL_TOP_K ?? "6");
+  if (!Number.isInteger(topK) || topK < 1 || topK > 12) return failure(503, "retrieval_not_configured", "ค่า retrieval top-k ต้องเป็นจำนวนเต็ม 1–12", requestId);
+  const generate = async (body: unknown) => {
+    if (modelCalls >= 12) throw new Error("model_call_limit");
+    modelCalls++;
+    const response = await fetch(config.apiUrl, {
+      method: "POST", headers: { "x-goog-api-key": config.apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(body), redirect: "error",
+      signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]),
+    });
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error(response.status === 429 ? "provider_rate_limited" : "provider_unavailable");
+    }
+    return response.json();
+  };
   try {
     result = await runAgent({
       message, history, temperature: config.temperature, scope: admission.scope, signal: overall,
-      generate: async (body: unknown) => {
-        const response = await fetch(config.apiUrl, {
-          method: "POST", headers: { "x-goog-api-key": config.apiKey, "Content-Type": "application/json" },
-          body: JSON.stringify(body), redirect: "error",
-          signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]),
-        });
-        if (!response.ok) {
-          await response.body?.cancel().catch(() => undefined);
-          throw new Error(response.status === 429 ? "provider_rate_limited" : "provider_unavailable");
-        }
-        return response.json();
-      },
-      read: (decision: ToolDecision) => supabaseRpc<ToolEnvelope>(
-        decision.name === "get_operations_overview" ? "vmi_chat_overview" : "vmi_chat_read", {
+      generate,
+      read: (decision: ToolDecision) => ["discover_database", "query_database"].includes(decision.name)
+        ? retrieveDatabase({ decision, question: message, generate, topK,
+          rpc: (query: ToolDecision) => supabaseRpc("vmi_chat_database", {
+            p_tool: query.name, p_args: query.args, p_request_id: requestId,
+          }, authorization, overall) })
+        : supabaseRpc<ToolEnvelope>(decision.name === "get_operations_overview" ? "vmi_chat_overview" : "vmi_chat_read", {
           p_tool: decision.name, p_args: decision.args, p_request_id: requestId,
         }, authorization, overall),
     });
@@ -164,7 +175,7 @@ export async function POST(request: Request) {
   }
   // Operational trace excludes prompts, keys, JWTs, tool arguments and business rows.
   console.info(JSON.stringify({ event: "chat_run", request_id: requestId, harness: HARNESS_VERSION,
-    model: config.model, status: result.status, stop_reason: result.stop_reason, steps: result.trace }));
+    model: config.model, model_calls: modelCalls, top_k: topK, status: result.status, stop_reason: result.stop_reason, steps: result.trace }));
   const evidence = result.evidence as ToolEnvelope[];
   const envelope = evidence[0];
 

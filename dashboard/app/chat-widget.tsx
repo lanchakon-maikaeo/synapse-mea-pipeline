@@ -23,6 +23,7 @@ type Message = {
 };
 
 const examples = [
+  "เขต 5501 คือเขตไหน",
   "วัสดุ 471050004000 ที่คลังคลองเตยเหลือเท่าไร",
   "เขต 5501 ควรเติมวัสดุ 471050004000 เท่าไร",
   "คลังไหนสต็อกใกล้หมด",
@@ -30,6 +31,8 @@ const examples = [
 ];
 
 const toolNames: Record<string, string> = {
+  query_database: "ค้นข้อมูลฐานข้อมูล",
+  discover_database: "ค้นแหล่งข้อมูล",
   get_operations_overview: "ภาพรวมและลำดับเติมวัสดุ",
   get_stock_status: "สถานะสต็อก",
   get_replenishment_recommendation: "คำแนะนำเติมวัสดุ",
