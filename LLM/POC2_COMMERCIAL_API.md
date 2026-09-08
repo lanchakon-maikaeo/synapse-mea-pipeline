@@ -1,6 +1,6 @@
 # POC 2 — Web chat ผ่าน Commercial LLM API
 
-วันที่: 8 กันยายน 2026 | สถานะ: Harness v2 implemented — build/59 tests และ Test SQL 11 assertions ผ่าน; live acceptance แยกจาก scripted tests
+วันที่: 8 กันยายน 2026 | สถานะ: Harness v2 implemented — build/60 tests และ Test SQL 11 assertions ผ่าน; live acceptance แยกจาก scripted tests
 
 POC 2 คือทางเลือกของ SYNAPSE VMI chat ที่ใช้ API โมเดลซึ่งผู้ให้บริการดูแล inference ให้ ไม่ต้อง self-host Qwen/vLLM หรือจัดหา GPU เอง ใช้หน้าเว็บ Next.js และ Supabase Auth/Database เดิม เป้าหมายคือผู้ใช้ถามข้อมูลสต็อก การเติมวัสดุ แผน สัญญา และการสอบกลับตามสิทธิ์ของตน
 

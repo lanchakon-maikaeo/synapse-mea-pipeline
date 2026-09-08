@@ -82,6 +82,11 @@ export function parseToolDecision(providerResponse) {
 }
 
 export function validateDecision({ name, args }) {
+  const schema = CHAT_TOOLS.find((tool) => tool.name === name)?.parameters.properties;
+  if (schema && (!exactKeys(args, Object.keys(schema)) || Object.entries(args).some(([key, value]) => {
+    const types = [schema[key].type].flat();
+    return !types.includes(value === null ? "null" : typeof value);
+  }))) throw new Error("provider_tool_arguments_invalid");
   if (name === "finish") {
     if (!exactKeys(args, [])) throw new Error("provider_tool_arguments_invalid");
     return { name, args: {} };

@@ -4,7 +4,7 @@ Updated: 2026-09-08. Branch `dev` uses main Supabase `synapse-01` (`fvdfduuanfrn
 
 - Harness v2: six read tools, bounded multi-step Gemini feedback, recent history, deterministic evidence answers, explicit partial/finish, safe execution traces.
 - SPAI course and research mappings: [SPAI_APPLICATION.md](../SPAI_APPLICATION.md).
-- Build and 59 dashboard tests pass; 11 overview SQL assertions pass on managed Test (rolled back).
+- Build and 60 dashboard tests pass; 11 overview SQL assertions pass on managed Test (rolled back).
 - Main migrations: original read RPCs, admission and operations overview applied. Authenticated-role overview smoke: `ok`, 15 delivery rows, not truncated. This SQL smoke simulates DB JWT claims; it is not an end-to-end browser login test.
 - Deployment and live Gemini smoke evidence will be recorded after verification. P05 held-out accuracy, repeated live trials and cost/latency benchmark remain unmeasured.
 

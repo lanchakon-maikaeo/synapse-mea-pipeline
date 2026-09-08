@@ -31,4 +31,4 @@ Run `npm --prefix dashboard run test:agent`. Scripted provider responses verify 
 
 Live smoke runner: set `CHAT_EVAL_URL` to an accessible deployed/local app and `CHAT_EVAL_TOKEN` to a normal user's session JWT, then run `node dashboard/scripts/eval-agent.mjs`. It checks five real-model task outcomes (discovery, delivery, follow-up, write refusal and clarification), prints no prompts/answers/tokens, and exits nonzero on failure. Run after deployment with a fresh rate-limit window. It does not bypass Vercel protection, measure quantity correctness against independent fixtures, or establish a statistical accuracy score.
 
-Verified 2026-09-08: full Next.js build, lint and 59 tests passed; managed Test overview SQL passed 11 assertions; main DB overview role smoke returned `ok` with 15 delivery rows. SQL role tests do not substitute for live user login and Gemini execution.
+Verified 2026-09-08: full Next.js build, lint and 60 tests passed; managed Test overview SQL passed 11 assertions; main DB overview role smoke returned `ok` with 15 delivery rows. SQL role tests do not substitute for live user login and Gemini execution.

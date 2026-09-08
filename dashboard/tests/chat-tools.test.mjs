@@ -93,3 +93,9 @@ test("history is bounded, rejects injected roles and is forwarded as context", a
   assert.equal(body.contents[1].role, "model");
   assert.deepEqual(validateDecision({ name: "finish", args: {} }), { name: "finish", args: {} });
 });
+
+test("invalid optional argument types cannot silently widen an overview", () => {
+  for (const material_id of [42, {}, []]) {
+    assert.throws(() => validateDecision({ name: "get_operations_overview", args: { view: "risk", material_id } }));
+  }
+});

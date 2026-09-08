@@ -93,14 +93,14 @@ export async function POST(request: Request) {
     return failure(401, "unauthorized", "กรุณาเข้าสู่ระบบอีกครั้ง", requestId);
   }
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declaredLength) && declaredLength > 24_576) {
+  if (Number.isFinite(declaredLength) && declaredLength > 65_536) {
     return failure(413, "payload_too_large", "ข้อความยาวเกินขนาดที่กำหนด", requestId);
   }
 
   let body: unknown;
   try {
     const raw = await request.text();
-    if (raw.length > 24_576) return failure(413, "payload_too_large", "ข้อความยาวเกินขนาดที่กำหนด", requestId);
+    if (new TextEncoder().encode(raw).byteLength > 65_536) return failure(413, "payload_too_large", "ข้อความยาวเกินขนาดที่กำหนด", requestId);
     body = JSON.parse(raw);
   } catch {
     return failure(422, "invalid_input", "รูปแบบคำขอไม่ถูกต้อง", requestId);
