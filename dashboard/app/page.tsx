@@ -708,26 +708,115 @@ function DashboardView({
   role: Role;
   navigate: (view: ViewKey) => void;
 }) {
-  const planIds = new Set(
-    data.replenishment.map((row) => text(row.replenishment_plan_id)),
+  const plans = useMemo(() => {
+    const byId = new Map<string, RecordRow>();
+    data.replenishment.forEach((row) => {
+      const id = text(row.replenishment_plan_id);
+      if (!id) return;
+      const current = byId.get(id);
+      if (!current || text(row.updated_at) > text(current.updated_at)) byId.set(id, row);
+    });
+    return [...byId.values()].sort((left, right) =>
+      `${text(right.week_start_date)}-${Number(right.version_no ?? 0)}-${text(right.updated_at)}`.localeCompare(
+        `${text(left.week_start_date)}-${Number(left.version_no ?? 0)}-${text(left.updated_at)}`,
+      ),
+    );
+  }, [data.replenishment]);
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const effectivePlanId = plans.some(
+    (row) => text(row.replenishment_plan_id) === selectedPlanId,
+  )
+    ? selectedPlanId
+    : text(plans[0]?.replenishment_plan_id);
+  const planRows = data.replenishment.filter(
+    (row) => text(row.replenishment_plan_id) === effectivePlanId,
   );
-  const pendingChanges = data.changeRequests.filter(
-    (row) => row.status === "pending_review",
-  ).length;
-  const allocatable = data.fifo.reduce(
-    (sum, row) => sum + Number(row.allocatable_qty ?? 0),
+  const plan = plans.find(
+    (row) => text(row.replenishment_plan_id) === effectivePlanId,
+  );
+  const weeklyIssues = data.traceability.filter(
+    (row) =>
+      text(row.replenishment_plan_id) === effectivePlanId &&
+      text(row.issue_type).toUpperCase() === "WEEKLY_PLAN",
+  );
+  const plannedQtyFor = (row: RecordRow) =>
+    Number(row.final_qty ?? row.confirmed_qty ?? row.suggested_qty ?? 0);
+  const plannedQty = planRows.reduce((sum, row) => sum + plannedQtyFor(row), 0);
+  const issuedQty = weeklyIssues.reduce(
+    (sum, row) => sum + Number(row.issued_qty ?? 0),
     0,
   );
+  const outstandingQty = Math.max(0, plannedQty - issuedQty);
+  const completionPct = plannedQty > 0 ? Math.min(100, (issuedQty / plannedQty) * 100) : 0;
+  const issuedByItem = weeklyIssues.reduce<Record<string, number>>((totals, row) => {
+    const itemId = text(row.replenishment_item_id);
+    totals[itemId] = (totals[itemId] ?? 0) + Number(row.issued_qty ?? 0);
+    return totals;
+  }, {});
+  const issuedLineCount = planRows.filter(
+    (row) => (issuedByItem[text(row.replenishment_item_id)] ?? 0) > 0,
+  ).length;
+  const completedLineCount = planRows.filter((row) => {
+    const target = plannedQtyFor(row);
+    return target > 0 && (issuedByItem[text(row.replenishment_item_id)] ?? 0) >= target;
+  }).length;
+  const plannedDistricts = new Set(planRows.map((row) => text(row.district_id)).filter(Boolean));
+  const issuedDistricts = new Set(weeklyIssues.map((row) => text(row.district_id)).filter(Boolean));
+  const planChanges = data.changeRequests.filter(
+    (row) => text(row.replenishment_plan_id) === effectivePlanId,
+  );
+  const pendingChanges = planChanges.filter((row) => row.status === "pending_review").length;
+  const changedLines = planRows.filter((row) => {
+    const requested = Number(row.requested_qty ?? row.confirmed_qty ?? 0);
+    const suggested = Number(row.suggested_qty ?? 0);
+    return requested > 0 && requested !== suggested;
+  }).length;
+  const fifoGapLines = planRows.filter(
+    (row) =>
+      plannedQtyFor(row) > 0 &&
+      Number(row.allocated_qty ?? 0) < plannedQtyFor(row),
+  ).length;
   const pendingAdHoc = data.adHocIssues.filter(
     (row) => !["issued", "rejected", "cancelled"].includes(text(row.status)),
   ).length;
-  const materialsCount = data.materials.length;
-  const districtsCount = data.districts.length;
-  const warehouseCount = data.warehouseStock.length;
-  const stockHealthCount = data.stock.length;
-  const contractsCount = data.contracts.length;
-  const hasReferenceData =
-    materialsCount + warehouseCount + stockHealthCount + contractsCount > 0;
+  const weekStart = plan?.week_start_date ? new Date(`${text(plan.week_start_date)}T00:00:00`) : null;
+  const weekDays = Array.from({ length: 5 }, (_, index) => {
+    const date = weekStart ? new Date(weekStart.getTime() + index * 86400000) : null;
+    const key = date ? date.toISOString().slice(0, 10) : "";
+    const rows = weeklyIssues.filter((row) => text(row.occurred_at).slice(0, 10) === key);
+    return {
+      date,
+      qty: rows.reduce((sum, row) => sum + Number(row.issued_qty ?? 0), 0),
+      lines: new Set(rows.map((row) => text(row.replenishment_item_id))).size,
+    };
+  });
+  const weekEnd = weekStart ? new Date(weekStart.getTime() + 5 * 86400000) : null;
+  const dashboardReferenceTime = Date.parse(
+    text(data.operations?.checked_at ?? data.operations?.generated_at ?? plan?.updated_at),
+  );
+  const overdue = Boolean(
+    weekEnd &&
+      Number.isFinite(dashboardReferenceTime) &&
+      dashboardReferenceTime >= weekEnd.getTime() &&
+      completionPct < 100,
+  );
+  const planHealth = completionPct >= 100
+    ? { tone: "good", label: "จ่ายครบตามแผน" }
+    : overdue
+      ? { tone: "danger", label: "เลยกำหนดและยังจ่ายไม่ครบ" }
+      : { tone: "warning", label: "กำลังดำเนินการ" };
+  const varianceRows = planRows
+    .map((row) => {
+      const target = plannedQtyFor(row);
+      const actual = issuedByItem[text(row.replenishment_item_id)] ?? 0;
+      return { row, target, actual, gap: Math.max(0, target - actual) };
+    })
+    .filter((item) => item.gap > 0)
+    .sort((left, right) => right.gap - left.gap)
+    .slice(0, 8);
+  const latestIssues = [...weeklyIssues]
+    .sort((left, right) => text(right.occurred_at).localeCompare(text(left.occurred_at)))
+    .slice(0, 8);
   const nextView: ViewKey =
     role === "picker"
       ? "fifo"
@@ -738,171 +827,130 @@ function DashboardView({
           : "changes";
   return (
     <div className="stack">
-      <section className="executive-hero">
+      <section className="distribution-dashboard-hero">
         <div>
-          <span>ภาพรวมการทำงาน</span>
-          <h2>เชื่อมโยงข้อมูลตั้งแต่ต้นทางจนถึงการจ่ายจริง</h2>
+          <span>WEEKLY DISTRIBUTION CONTROL</span>
+          <h2>สรุปรายการจ่ายตามแผน</h2>
           <p>
-            แผนการจ่าย · เขตยืนยัน · ผู้วางแผน · วิชาการ · FIFO · เคลื่อนไหวสต็อก ·
-            สอบกลับ
+            เทียบยอดตามแผนกับการจ่ายจริงจาก Inventory Movement พร้อมรายการค้างและข้อยกเว้น
           </p>
         </div>
-        <button className="btn light" onClick={() => navigate(nextView)}>
-          เปิดงานที่ต้องดำเนินการ
-        </button>
+        <label>
+          <span>แผนที่กำลังติดตาม</span>
+          <select value={effectivePlanId} onChange={(event) => setSelectedPlanId(event.target.value)}>
+            {plans.length ? plans.map((row) => (
+              <option key={text(row.replenishment_plan_id)} value={text(row.replenishment_plan_id)}>
+                {text(row.plan_number) || text(row.replenishment_plan_id).slice(0, 8)} · V{formatNumber(row.version_no ?? 1)} · {text(row.plan_status)}
+              </option>
+            )) : <option value="">ยังไม่มีแผนการจ่าย</option>}
+          </select>
+        </label>
       </section>
-      <section className="kpis">
-        <article>
-          <div>
-            <span>แผนการจ่าย</span>
-            <i className="dot purple" />
-          </div>
-          <strong>{formatNumber(planIds.size)}</strong>
-          <small>ตามสิทธิ์ของคุณ</small>
-        </article>
-        <article>
-          <div>
-            <span>คำขอรอตรวจ</span>
-            <i className="dot orange" />
-          </div>
-          <strong>{formatNumber(pendingChanges)}</strong>
-          <small>รอผู้วางแผนตรวจ</small>
-        </article>
-        <article>
-          <div>
-            <span>พร้อมจ่าย (FIFO)</span>
-            <i className="dot green" />
-          </div>
-          <strong>{formatNumber(allocatable, 2)}</strong>
-          <small>หน่วยนับพื้นฐานที่สอบกลับได้</small>
-        </article>
-        <article>
-          <div>
-            <span>กรณีพิเศษรอดำเนินการ</span>
-            <i className="dot blue" />
-          </div>
-          <strong>{formatNumber(pendingAdHoc)}</strong>
-          <small>แยกจากแผนรายสัปดาห์</small>
-        </article>
+
+      <section className={`distribution-plan-status ${planHealth.tone}`}>
+        <div>
+          <span>สถานะแผน</span>
+          <strong>{planHealth.label}</strong>
+          <small>
+            {plan
+              ? `${text(plan.plan_number)} · Version ${formatNumber(plan.version_no ?? 1)} · สัปดาห์ ${text(plan.week_start_date)}`
+              : "เลือกแผนเพื่อเริ่มติดตาม"}
+          </small>
+        </div>
+        <div className="distribution-progress-copy">
+          <strong>{formatNumber(completionPct, 1)}%</strong>
+          <span>{formatNumber(issuedQty, 0)} / {formatNumber(plannedQty, 0)} หน่วย</span>
+        </div>
+        <div className="distribution-progress"><i style={{ width: `${completionPct}%` }} /></div>
       </section>
-      <section className="kpis">
+
+      <section className="kpis distribution-kpis">
         <article>
-          <div>
-            <span>รายการวัสดุ</span>
-            <i className="dot purple" />
-          </div>
-          <strong>{formatNumber(materialsCount)}</strong>
-          <small>ข้อมูลจริงจากระบบ</small>
+          <div><span>ปริมาณตามแผน</span><i className="dot purple" /></div>
+          <strong>{formatNumber(plannedQty, 0)}</strong>
+          <small>{formatNumber(planRows.length)} รายการ · {formatNumber(plannedDistricts.size)} เขต</small>
         </article>
         <article>
-          <div>
-            <span>เขต</span>
-            <i className="dot blue" />
-          </div>
-          <strong>{formatNumber(districtsCount)}</strong>
-          <small>ทะเบียนเขตในระบบ</small>
+          <div><span>จ่ายจริงแล้ว</span><i className="dot green" /></div>
+          <strong>{formatNumber(issuedQty, 0)}</strong>
+          <small>{formatNumber(issuedLineCount)} รายการ · {formatNumber(issuedDistricts.size)} เขต</small>
         </article>
         <article>
-          <div>
-            <span>ข้อมูลสต็อกคลัง</span>
-            <i className="dot green" />
-          </div>
-          <strong>{formatNumber(warehouseCount)}</strong>
-          <small>สต็อกจริงคลังคลองเตย</small>
+          <div><span>คงเหลือต้องจ่าย</span><i className="dot orange" /></div>
+          <strong>{formatNumber(outstandingQty, 0)}</strong>
+          <small>{formatNumber(planRows.length - completedLineCount)} รายการยังไม่ครบ</small>
         </article>
         <article>
-          <div>
-            <span>ข้อมูลสุขภาพสต็อก</span>
-            <i className="dot orange" />
-          </div>
-          <strong>{formatNumber(stockHealthCount)}</strong>
-          <small>ความครอบคลุมการวิเคราะห์</small>
+          <div><span>รายการเปลี่ยนจากแผน</span><i className="dot blue" /></div>
+          <strong>{formatNumber(changedLines)}</strong>
+          <small>คำขอรอตรวจ {formatNumber(pendingChanges)} รายการ</small>
         </article>
       </section>
-      {hasReferenceData && (
-        <section className="dashboard-main">
-          <article className="panel">
-            <div className="panel-title">
-              <div>
-                <span>สต็อกคลัง · เรียลไทม์</span>
-                <h3>ข้อมูลสต็อกจริงคลังคลองเตย</h3>
-              </div>
-              <b>{formatNumber(warehouseCount)}</b>
-            </div>
-            <LiveTable
-              rows={data.warehouseStock.slice(0, 6)}
-              empty="ยังไม่มีข้อมูลสต็อกคลัง"
-              columns={[
-                ["วัสดุ", (row) => row.material_id],
-                ["รายละเอียด", (row) => row.material_name],
-                ["จำนวน", (row) => formatNumber(row.quantity_on_hand, 2)],
-                ["หน่วย", (row) => row.unit],
-                ["เวลาข้อมูล", (row) => formatDateTime(row.snapshot_at)],
-              ]}
-            />
-          </article>
-          <article className="panel">
-            <div className="panel-title">
-              <div>
-                <span>สุขภาพสต็อกเขต · เรียลไทม์</span>
-                <h3>สต็อกและ CMP ล่าสุด</h3>
-              </div>
-              <b>{formatNumber(stockHealthCount)}</b>
-            </div>
-            <LiveTable
-              rows={data.stock.slice(0, 6)}
-              empty="ยังไม่มีข้อมูลสต็อกเขต"
-              columns={[
-                ["วัสดุ", (row) => row.material_id],
-                ["เขต", (row) => row.district_id],
-                ["สต็อก", (row) => formatNumber(row.current_stock_qty, 2)],
-                ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
-                ["สถานะ", (row) => <Badge>{text(row.health_band)}</Badge>],
-              ]}
-            />
-          </article>
-        </section>
-      )}
-      <section className="dashboard-main">
+
+      <section className="panel distribution-week-panel">
+        <div className="panel-title">
+          <div><span>ผลจ่ายรายวัน</span><h3>ความคืบหน้าจันทร์–ศุกร์</h3></div>
+          <b>{formatNumber(completedLineCount)}/{formatNumber(planRows.length)} รายการครบ</b>
+        </div>
+        <div className="distribution-week-grid">
+          {weekDays.map((day, index) => (
+            <article key={index}>
+              <span>{["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์"][index]}</span>
+              <small>{day.date ? day.date.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : "—"}</small>
+              <strong>{formatNumber(day.qty, 0)}</strong>
+              <em>หน่วย · {formatNumber(day.lines)} รายการ</em>
+            </article>
+          ))}
+        </div>
+        <p className="distribution-data-note">ยอดรายวันมาจากเวลาบันทึก Inventory Movement จริง ระบบไม่เฉลี่ยแผนรายสัปดาห์เป็นรายวันเอง</p>
+      </section>
+
+      <section className="distribution-exception-grid">
         <article className="panel">
           <div className="panel-title">
-            <div>
-              <span>รายการที่ต้องดู</span>
-              <h3>คำขอที่มีความเสี่ยงสูง</h3>
-            </div>
-            <b className="count">{pendingChanges}</b>
+            <div><span>รายการค้างตามแผน</span><h3>วัสดุที่ยังจ่ายไม่ครบ</h3></div>
+            <b className="count">{varianceRows.length}</b>
           </div>
-          <LiveTable
-            rows={data.changeRequests.slice(0, 6)}
-            empty="ไม่มีคำขอผิดปกติ"
-            columns={[
-              ["วัสดุ", (row) => row.material_id],
-              ["เขต", (row) => row.district_id],
-              ["ขอเบิก", (row) => formatNumber(row.requested_qty, 2)],
-              ["คงคลังหลังจ่าย", (row) => `${formatNumber(row.projected_months_after, 1)} เดือน`],
-              ["ความเสี่ยง", (row) => <Badge>{text(row.risk_level)}</Badge>],
-            ]}
-          />
+          <div className="distribution-variance-list">
+            {varianceRows.length ? varianceRows.map(({ row, target, actual, gap }) => (
+              <article key={text(row.replenishment_item_id)}>
+                <div><strong>{text(row.material_id)}</strong><small>เขต {text(row.district_id)} · {text(row.material_name)}</small></div>
+                <dl><div><dt>แผน</dt><dd>{formatNumber(target, 0)}</dd></div><div><dt>จ่ายแล้ว</dt><dd>{formatNumber(actual, 0)}</dd></div><div className="gap"><dt>ค้าง</dt><dd>{formatNumber(gap, 0)}</dd></div></dl>
+              </article>
+            )) : <p className="empty-copy">ไม่มีรายการค้างในแผนนี้</p>}
+          </div>
         </article>
         <article className="panel">
           <div className="panel-title">
-            <div>
-              <span>ความครอบคลุมการสอบกลับ</span>
-              <h3>การจ่ายที่สอบกลับได้</h3>
-            </div>
-            <b>{formatNumber(data.traceability.length)}</b>
+            <div><span>ข้อยกเว้นที่ต้องจัดการ</span><h3>สิ่งที่ทำให้แผนเสี่ยงไม่สำเร็จ</h3></div>
           </div>
-          <LiveTable
-            rows={data.traceability.slice(0, 6)}
-            empty="ยังไม่มีการจ่ายจริง"
-            columns={[
-              ["เลขที่จ่าย", (row) => row.issue_reference],
-              ["ประเภท", (row) => <Badge>{text(row.issue_type)}</Badge>],
-              ["หน่วยจัดเก็บ", (row) => row.handling_unit_code],
-              ["ผู้ขาย", (row) => row.vendor_name],
-            ]}
-          />
+          <div className="distribution-action-list">
+            <button onClick={() => navigate("fifo")}><span>หลักฐาน FIFO ยังไม่ครบ</span><strong>{formatNumber(fifoGapLines)}</strong><small>เปิดตรวจหน่วยจัดเก็บที่พร้อมจ่าย</small></button>
+            <button onClick={() => navigate("changes")}><span>คำขอเปลี่ยนรอตรวจ</span><strong>{formatNumber(pendingChanges)}</strong><small>ตรวจผลกระทบก่อนจ่าย</small></button>
+            <button onClick={() => navigate("adhoc")}><span>กรณีพิเศษรอดำเนินการ</span><strong>{formatNumber(pendingAdHoc)}</strong><small>แยกออกจากแผนสัปดาห์</small></button>
+            <button onClick={() => navigate(nextView)}><span>เปิดงานที่ต้องดำเนินการ</span><strong>→</strong><small>ไปยังหน้าปฏิบัติงานตามสิทธิ์</small></button>
+          </div>
         </article>
+      </section>
+
+      <section className="panel distribution-latest-issues">
+        <div className="panel-title">
+          <div><span>การจ่ายจริงล่าสุด</span><h3>หลักฐานการเคลื่อนไหวที่สอบกลับได้</h3></div>
+          <b>{formatNumber(weeklyIssues.length)} movements</b>
+        </div>
+        <LiveTable
+          rows={latestIssues}
+          empty="แผนนี้ยังไม่มีการจ่ายจริง"
+          columns={[
+            ["เวลา", (row) => formatDateTime(row.occurred_at)],
+            ["วัสดุ", (row) => row.material_id],
+            ["เขต", (row) => row.district_id],
+            ["จำนวน", (row) => formatNumber(row.issued_qty, 2)],
+            ["HU", (row) => row.handling_unit_code],
+            ["Lot", (row) => row.lot_code],
+            ["ผู้จ่าย", (row) => row.performed_by],
+          ]}
+        />
       </section>
     </div>
   );
@@ -1184,13 +1232,19 @@ function WeeklyPlanView({
             Number(right.fifo_sequence ?? 0),
         )
     : [];
-  let fifoRemaining = focusedRow ? plannerQuantity(focusedRow) : 0;
-  const fifoPreview = focusedFifo.map((row): RecordRow => {
+  const fifoPreviewResult = focusedFifo.reduce<{
+    rows: RecordRow[];
+    remaining: number;
+  }>((state, row) => {
       const allocatable = Math.max(0, Number(row.allocatable_qty ?? 0));
-      const allocated = Math.min(allocatable, fifoRemaining);
-      fifoRemaining -= allocated;
-      return { ...row, preview_allocated_qty: allocated };
-    });
+      const allocated = Math.min(allocatable, state.remaining);
+      return {
+        rows: [...state.rows, { ...row, preview_allocated_qty: allocated }],
+        remaining: state.remaining - allocated,
+      };
+    }, { rows: [], remaining: focusedRow ? plannerQuantity(focusedRow) : 0 });
+  const fifoPreview = fifoPreviewResult.rows;
+  const fifoRemaining = fifoPreviewResult.remaining;
   const districtSummary = (() => {
     const summary = new Map<
       string,
