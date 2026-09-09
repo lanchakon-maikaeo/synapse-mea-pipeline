@@ -63,6 +63,9 @@ export const CHAT_TOOLS = [
     material_id: nullableString("กรอง SKU ถ้าผู้ใช้ระบุ มิฉะนั้น null เพื่อดูทุก SKU"),
     district_id: nullableString("กรองเขต 5501-5518 ถ้าระบุ มิฉะนั้น null เพื่อดูทุกเขตที่มีสิทธิ์"),
   }),
+  fn("conversation", "ตอบคำทักทาย ขอบคุณ ลา หรือถามความสามารถ โดยไม่ค้นฐานข้อมูล ใช้เฉพาะเมื่อไม่มีคำถามข้อมูลธุรกิจร่วมด้วย", {
+    intent: { type: "string", enum: ["greeting", "thanks", "goodbye", "capabilities"] },
+  }),
   fn("finish", "จบการตรวจสอบเมื่อมีผลเครื่องมือเพียงพอแล้ว Server จะแสดงผลที่ตรวจสอบได้ทั้งหมด ไม่ใช้ก่อนอ่านข้อมูล", {}),
   fn("clarify", "ขอข้อมูลที่จำเป็นเพิ่มเมื่อยังไม่มีรหัสหรือขอบเขตที่แน่นอน", {
     question: { type: "string" },
@@ -72,7 +75,13 @@ export const CHAT_TOOLS = [
   }),
 ];
 
-const DB_TOOLS = new Set(CHAT_TOOLS.filter((tool) => !["clarify", "unsupported", "finish"].includes(tool.name)).map((tool) => tool.name));
+export const CONVERSATION_REPLIES = {
+  greeting: "สวัสดีค่ะ ฉันคือ SYNAPSE Agent ช่วยค้นข้อมูลและตอบคำถามเกี่ยวกับงานในระบบได้ วันนี้ต้องการให้ช่วยเรื่องอะไรคะ?",
+  thanks: "ยินดีค่ะ หากต้องการตรวจข้อมูลเพิ่มเติม ถามต่อได้เลยค่ะ",
+  goodbye: "สวัสดีค่ะ ไว้กลับมาคุยกันใหม่นะคะ",
+  capabilities: "ฉันช่วยค้นชื่อเขต วัสดุ สต็อก แผนเติมของ สัญญา ขนส่ง และประวัติในระบบตามสิทธิ์ของคุณ รวมถึงกรอง เรียง และสรุปยอดจากฐานข้อมูลได้ เช่น ‘เขต 5501 คือเขตไหน’ หรือ ‘ทะเบียนวัสดุมีกี่รายการ’ ฉันอ่านข้อมูลและให้คำแนะนำได้ แต่ยังไม่อนุมัติหรือจ่ายของค่ะ",
+};
+const DB_TOOLS = new Set(CHAT_TOOLS.filter((tool) => !["conversation", "clarify", "unsupported", "finish"].includes(tool.name)).map((tool) => tool.name));
 const districtPattern = /^55(0[1-9]|1[0-8])$/;
 const materialPattern = /^[A-Za-z0-9._/-]{1,100}$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -125,6 +134,10 @@ export function validateDecision({ name, args }) {
     if (!Array.isArray(args.metrics) || args.metrics.length > 6 || args.metrics.some(x => !exactKeys(x, ["function", "column"]) ||
       !["count", "sum", "avg", "min", "max"].includes(x.function) || !(identifier.test(x.column) || (x.column === "*" && x.function === "count")))) throw new Error("provider_tool_arguments_invalid");
     return { name, args };
+  }
+  if (name === "conversation") {
+    if (!exactKeys(args, ["intent"]) || !Object.hasOwn(CONVERSATION_REPLIES, args.intent)) throw new Error("provider_tool_arguments_invalid");
+    return { name, args: { intent: args.intent } };
   }
   if (name === "finish") {
     if (!exactKeys(args, [])) throw new Error("provider_tool_arguments_invalid");
@@ -207,6 +220,7 @@ export function buildProviderBody(question, temperature, history = /** @type {{ 
     systemInstruction: { parts: [{ text: [
         "คุณเป็นผู้ช่วยวิเคราะห์งานคลัง SYNAPSE VMI ใช้เครื่องมือเพื่อค้นหลักฐานและเสนอขั้นตอนถัดไป",
         "เลือก function หนึ่งรายการต่อรอบ ใช้ผลเครื่องมือเพื่อเลือกขั้นต่อไปได้ไม่เกิน 6 รอบ จากนั้น finish",
+        "ถ้าผู้ใช้เพียงทักทาย เช่น สวัสดี/hello ขอบคุณ บอกลา หรือถามว่าช่วยอะไรได้ ให้ conversation ด้วย intent ที่ตรง ไม่ต้องค้นฐานข้อมูล ไม่ขอรหัส และไม่ unsupported; ถ้าทักทายพร้อมถามข้อมูล เช่น สวัสดี เขต 5501 คือเขตไหน ให้ตอบคำถามข้อมูลด้วยเครื่องมือตามปกติ",
         "ตอบข้อมูลทุกหมวดที่มีใน database ตามสิทธิ์ รวมชื่อเขต ทะเบียนวัสดุ ประวัติ ช่วงเวลา สถิติ สัญญา พยากรณ์ ขนส่ง และข้อมูลนำเข้า ใช้ discover_database เพื่อหาแหล่งข้อมูลก่อน query_database เสมอ ห้าม finish จาก catalog อย่างเดียว ต้องอ่านข้อมูลจริง",
         "ห้ามเดาชื่อคอลัมน์หรือ source_id ใช้ schema ที่ discover_database คืนมาเท่านั้น ถ้าแหล่งไม่ตรงให้ค้น catalog ใหม่ เมื่อ query invalid_input ให้แก้โดยอิง schema",
         "ยอดรวม จำนวนทั้งหมด ค่าเฉลี่ย ค่าน้อยสุดมากสุด ให้ query_database ด้วย metrics และ group_by เพื่อคำนวณใน DB ทั้งชุด ห้ามรวม/นับจากรายการ top-k หรือหน้าที่ถูกตัด ถ้าหน่วยต่างกันให้ group_by หน่วยด้วย",

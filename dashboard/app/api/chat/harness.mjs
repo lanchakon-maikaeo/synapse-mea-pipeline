@@ -1,4 +1,4 @@
-import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult } from "./tools.mjs";
+import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, CONVERSATION_REPLIES } from "./tools.mjs";
 
 export const HARNESS_VERSION = "v3";
 export const MAX_READS = 6;
@@ -32,6 +32,12 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
     }
     if (decision.name === "finish") {
       if (!evidence.some(x => x.tool !== "discover_database" && ["ok", "no_data"].includes(x.status))) throw new Error("finish_without_evidence");
+      stopReason = "complete";
+      break;
+    }
+    if (decision.name === "conversation") {
+      terminalAnswer = CONVERSATION_REPLIES[decision.args.intent];
+      terminalStatus = "ok";
       stopReason = "complete";
       break;
     }

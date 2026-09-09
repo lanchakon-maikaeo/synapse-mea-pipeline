@@ -22,6 +22,16 @@ test('cannot finish without evidence or execute arbitrary tools', async () => {
   const s = scenario([call('execute_sql', { sql: 'delete from stock' })]);
   await assert.rejects(s.run, /provider_output_invalid/); assert.equal(s.reads.length, 0);
 });
+test('conversation replies require no business reads and cannot carry invented facts', async () => {
+  for (const intent of ['greeting', 'thanks', 'goodbye', 'capabilities']) {
+    const s = scenario([call('conversation', { intent })]);
+    const r = await s.run();
+    assert.equal(r.status, 'ok'); assert.equal(r.stop_reason, 'complete');
+    assert.ok(r.answer.length > 0); assert.equal(s.reads.length, 0);
+  }
+  await assert.rejects(scenario([call('conversation', { intent: 'stock', answer: '999' })]).run, /provider_output_invalid/);
+  await assert.rejects(scenario([call('conversation', { intent: 'stock' })]).run, /provider_output_invalid/);
+});
 test('duplicate calls stop instead of repeatedly spending money or querying', async () => {
   const s = scenario([overview, overview]); const r = await s.run();
   assert.equal(r.stop_reason, 'repeated_tool'); assert.equal(r.status, 'partial'); assert.equal(s.reads.length, 1);
