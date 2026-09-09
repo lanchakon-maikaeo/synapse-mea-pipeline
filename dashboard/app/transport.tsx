@@ -19,14 +19,6 @@ import type {
   RoadGeometry,
   TransportRoadMapProps,
 } from "./transport-road-map";
-import {
-  DIST_GEO,
-  REPLENISHMENT_PLAN,
-  SEED_TRIPS,
-  VEHICLES,
-  planRoute,
-  type Warehouse,
-} from "./transport-data";
 
 const TransportRoadMap = dynamic<TransportRoadMapProps>(
   () =>
@@ -63,9 +55,9 @@ export function transportNavForRole(role: Role) {
 const transportTitles: Record<TransportView, [string, string, string]> = {
   dashboard: ["TRANSPORT", "ภาพรวมการขนส่ง", "สรุปรถ คนขับ และงานที่รอจัดส่งจากแผนจริง"],
   planner: [
-    "ROUTE OPTIMIZER",
-    "วางแผนจัดรถและปรับเส้นทาง",
-    "ตรวจเส้นทางตัวอย่างบนถนนจริง แล้วส่ง locked plan ทั้งชุดให้ OR-Tools + Valhalla สร้าง route plan ที่มีหลักฐาน โดยยังไม่สร้างเที่ยวรถอัตโนมัติ",
+    "TRANSPORT PLANNING",
+    "นำแผนจ่ายมาวางแผนขนส่ง",
+    "เลือกแผนที่อนุมัติแล้ว แยกเขตที่ให้คลังจัดส่งออกจากเขตที่เข้ารับเอง แล้วกระจายงานรายสัปดาห์เป็นรายวัน",
   ],
   map: ["ROAD MAP", "แผนที่เส้นทางการจ่าย", "แผนที่ OSM-derived พร้อม geometry จาก routing engine และสถานะรับรองพิกัด"],
   history: ["TRIP HISTORY", "ประวัติการเดินรถ", "เที่ยวรถที่บันทึกในระบบ พร้อมค่าน้ำมันจริงเทียบประมาณการ"],
@@ -74,6 +66,16 @@ const transportTitles: Record<TransportView, [string, string, string]> = {
 // ---- Normalised transport data ----
 type GeocodeStatus = "candidate" | "verified" | "quarantined";
 type VehicleAvailability = "available" | "unavailable" | "unknown";
+type FulfillmentMode = "delivery" | "pickup" | "unassigned";
+type DeliveryDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
+
+const deliveryDays: Array<{ id: DeliveryDay; short: string; label: string }> = [
+  { id: "monday", short: "จ.", label: "จันทร์" },
+  { id: "tuesday", short: "อ.", label: "อังคาร" },
+  { id: "wednesday", short: "พ.", label: "พุธ" },
+  { id: "thursday", short: "พฤ.", label: "พฤหัสบดี" },
+  { id: "friday", short: "ศ.", label: "ศุกร์" },
+];
 
 type WarehouseRouteReadiness = {
   warehouseCode: string;
@@ -330,7 +332,7 @@ const coordinateNum = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 const str = (v: unknown) => (v == null ? "" : String(v));
-type DataSource = "supabase" | "demo" | "error";
+type DataSource = "supabase" | "error";
 
 function geoStatus(value: unknown): TGeo["verificationStatus"] {
   return value === "verified" || value === "quarantined"
@@ -439,134 +441,6 @@ function emptyData(): TransportData {
     trips: [],
     warehouses: [],
     queue: [],
-    readiness: null,
-  };
-}
-
-const demoDistrictNames: Record<string, string> = {
-  "5501": "เขตนวลจันทร์",
-  "5601": "เขตสามเสน",
-  "5701": "เขตนนทบุรี",
-  "5801": "เขตธนบุรี",
-  "5901": "เขตบางใหญ่",
-  "6001": "เขตลาดกระบัง",
-  "6501": "เขตบางนา",
-  "6601": "เขตวัดเลียบ",
-  "6701": "เขตคลองเตย",
-  "6801": "เขตราษฎร์บูรณะ",
-  "6901": "เขตยานนาวา",
-  "7001": "เขตบางขุนเทียน",
-  "7501": "เขตบางบัวทอง",
-  "7601": "เขตบางกะปิ",
-  "7701": "เขตสมุทรปราการ",
-  "7801": "เขตบางพลี",
-  "7901": "เขตมีนบุรี",
-  "8001": "เขตบางเขน",
-};
-
-const demoWeightByDistrict: Record<string, number> = {
-  "5501": 2_800,
-  "5701": 2_100,
-  "5901": 1_600,
-};
-
-function demoTransportData(): TransportData {
-  const geo: Record<string, TGeo> = {
-    WH: {
-      ref: "WH",
-      name: "คลังกลางคลองเตย",
-      lat: DIST_GEO.WH.lat,
-      lon: DIST_GEO.WH.lon,
-      districtId: null,
-      isWarehouse: true,
-      warehouseCode: "คลองเตย",
-      verificationStatus: "verified",
-      routeEligible: true,
-      sourceReference: "LOCAL DEMO · คลังกลางคลองเตย",
-    },
-  };
-  Object.entries(DIST_GEO).forEach(([ref, point]) => {
-    if (ref === "WH") return;
-    geo[ref] = {
-      ref,
-      name: `${ref} : ${demoDistrictNames[ref] ?? point.name}`,
-      lat: point.lat,
-      lon: point.lon,
-      districtId: ref,
-      isWarehouse: false,
-      warehouseCode: null,
-      verificationStatus: "verified",
-      routeEligible: true,
-      sourceReference: "LOCAL DEMO · พิกัดประกอบการออกแบบ UX",
-    };
-  });
-
-  const vehicles: TVehicle[] = VEHICLES.filter(
-    (vehicle) => vehicle.currentWh === "คลองเตย" && vehicle.active,
-  ).map((vehicle) => ({
-    id: vehicle.id,
-    code: vehicle.code,
-    plate: vehicle.plate,
-    currentWarehouse: "คลองเตย",
-    driver: vehicle.driver,
-    maxWt: 6_000,
-    fuelRate: vehicle.fuelRate,
-    active: true,
-    availability: "available",
-    availabilityEvidence:
-      "LOCAL DEMO · รถ 6 ล้อ · พื้นที่ใช้งานเฉลี่ย 2.45 × 5.20 ม. · ไม่ซ้อนสูง · ไม่มีอุปกรณ์ยก",
-  }));
-
-  const planRows = REPLENISHMENT_PLAN.filter(
-    (line) => line.wh === "คลองเตย",
-  );
-  const grouped = new Map<string, typeof planRows>();
-  planRows.forEach((line) => {
-    grouped.set(line.dist, [...(grouped.get(line.dist) ?? []), line]);
-  });
-  const planId = "11111111-1111-4111-8111-111111111111";
-  const queue: QueueRow[] = [...grouped.entries()].map(([districtRef, rows]) => ({
-    districtRef,
-    districtId: districtRef,
-    districtName: demoDistrictNames[districtRef] ?? districtRef,
-    totalQty: rows.reduce((sum, row) => sum + row.qty, 0),
-    lineCount: rows.length,
-    originLocationId: "demo-location-khlong-toei",
-    originWarehouseId: "demo-warehouse-khlong-toei",
-    originWarehouse: "คลองเตย",
-    originWarehouseGeocodeStatus: "verified",
-    routeEligible: true,
-    planId,
-    planNumber: "WP-DEMO-W30 · Final Plan",
-    estimatedWeightKg: demoWeightByDistrict[districtRef] ?? 1_200,
-    weightComplete: true,
-  }));
-
-  const trips: TTrip[] = SEED_TRIPS.filter(
-    (trip) => trip.wh === "คลองเตย",
-  ).map((trip) => ({
-    id: trip.id,
-    code: trip.id,
-    batch: trip.batch,
-    vehicle: trip.veh,
-    driver: trip.driver,
-    warehouse: trip.wh,
-    route: trip.route,
-    dist: trip.dist,
-    fuel: trip.fuel,
-    fuelActual: trip.fuelAct,
-    date: trip.date,
-    status: trip.status,
-    notes: trip.notes,
-    evidenceStatus: "legacy_illustrative_unverified",
-  }));
-
-  return {
-    geo,
-    vehicles,
-    trips,
-    warehouses: ["คลองเตย"],
-    queue,
     readiness: null,
   };
 }
@@ -682,20 +556,13 @@ async function loadRemote(token: string): Promise<TransportData> {
   };
 }
 
-function useTransportData(token: string | null, role: Role, demoMode = false) {
+function useTransportData(token: string | null, role: Role) {
   const [data, setData] = useState<TransportData>(emptyData);
-  const [source, setSource] = useState<DataSource>(demoMode ? "demo" : "error");
-  const [loading, setLoading] = useState(Boolean(token) && !demoMode);
+  const [source, setSource] = useState<DataSource>("error");
+  const [loading, setLoading] = useState(Boolean(token));
   const [loadError, setLoadError] = useState("");
 
   const reload = useCallback(async () => {
-    if (demoMode) {
-      setData(demoTransportData());
-      setSource("demo");
-      setLoadError("");
-      setLoading(false);
-      return;
-    }
     if (!token) {
       setData(emptyData());
       setSource("error");
@@ -719,7 +586,7 @@ function useTransportData(token: string | null, role: Role, demoMode = false) {
     } finally {
       setLoading(false);
     }
-  }, [demoMode, token]);
+  }, [token]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -733,42 +600,6 @@ function useTransportData(token: string | null, role: Role, demoMode = false) {
       planId: string,
       avoidTolls: boolean,
     ): Promise<RoadOptimizationResult> => {
-      if (source === "demo") {
-        const warehouse: Warehouse = "คลองเตย";
-        const local = planRoute(
-          warehouse,
-          stops.map((stop) => stop.ref),
-        );
-        const orderedStops = local.order
-          .map((ref) => stops.find((stop) => stop.ref === ref))
-          .filter((stop): stop is TGeo => Boolean(stop));
-        return {
-          provider: "osrm",
-          engineMode: "development-demo",
-          profile: "truck-constraints-preview",
-          algorithm: "road-matrix-nearest-neighbour-2opt",
-          objective: "duration",
-          order: local.order,
-          distanceKm: local.totalDist,
-          durationMinutes: local.totalTime,
-          baselineCost: local.totalTime,
-          optimizedCost: local.totalTime,
-          improvementPercent: 0,
-          geometry: {
-            type: "LineString",
-            coordinates: [
-              [depot.lon, depot.lat],
-              ...orderedStops.map(
-                (stop) => [stop.lon, stop.lat] as [number, number],
-              ),
-              [depot.lon, depot.lat],
-            ],
-          },
-          dataVersion: null,
-          dataVersionSource: "unavailable-development",
-          generatedAt: "2026-08-18T00:00:00.000Z",
-        };
-      }
       if (
         source !== "supabase" ||
         !token ||
@@ -969,6 +800,42 @@ function queueGroups(rows: QueueRow[]): QueueGroup[] {
     );
 }
 
+function friendlyPlanName(planNumber: string) {
+  const match = planNumber.match(/^RP-(\d{4})-(\d{1,2})-/i);
+  const version = planNumber.match(/\bV(\d+)\b/i)?.[1] ?? "1";
+  return match
+    ? `แผนจ่ายประจำสัปดาห์ ${Number(match[2])}/${match[1]} · V${version}`
+    : `${planNumber || "แผนจ่ายที่อนุมัติแล้ว"} · V${version}`;
+}
+
+function fulfillmentStorageKey(actorId: string, planId: string) {
+  return `synapse.transport.fulfillment.v1:${actorId}:${planId}`;
+}
+
+function scheduleStorageKey(actorId: string, planId: string) {
+  return `synapse.transport.daily-schedule.v1:${actorId}:${planId}`;
+}
+
+function planWeekDates(planNumber: string) {
+  const match = planNumber.match(/^RP-(\d{4})-(\d{1,2})-/i);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const januaryFourth = new Date(Date.UTC(year, 0, 4));
+  const isoDay = januaryFourth.getUTCDay() || 7;
+  const monday = new Date(januaryFourth);
+  monday.setUTCDate(januaryFourth.getUTCDate() - isoDay + 1 + (week - 1) * 7);
+  const dates = deliveryDays.map((_, index) => {
+    const date = new Date(monday);
+    date.setUTCDate(monday.getUTCDate() + index);
+    return date;
+  });
+  return {
+    dates,
+    range: `${dates[0].toLocaleDateString("th-TH", { day: "numeric", month: "short", timeZone: "UTC" })}–${dates[4].toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`,
+  };
+}
+
 function depotForWarehouse(
   data: TransportData,
   warehouse: string,
@@ -1131,22 +998,18 @@ function SourceTag({
       role={isError ? "alert" : "status"}
       aria-live="polite"
     >
-      <i>{source === "supabase" ? "✓" : source === "demo" ? "D" : "×"}</i>
+      <i>{source === "supabase" ? "✓" : "×"}</i>
       <div>
         <strong>
           {loading
             ? "กำลังโหลดข้อมูลขนส่ง…"
             : source === "supabase"
               ? "เชื่อมต่อข้อมูลจริงแล้ว"
-              : source === "demo"
-                ? "Transport Demo พร้อมทดลองวางแผน"
               : "โหลดข้อมูลขนส่งจริงไม่สำเร็จ — หยุดการวางแผนเพื่อความปลอดภัย"}
         </strong>
         <p>
           {source === "supabase"
             ? "งาน แผน รถ และพิกัดมาจาก transport API; ระบบจะไม่ใช้ข้อมูลสาธิตแทนเมื่อ API ผิดพลาด"
-            : source === "demo"
-              ? "ใช้ Final Plan จำลอง รถ พด.707/708 และข้อมูล 18 เขตเพื่อทดสอบ UX เท่านั้น — ไม่เขียนฐานข้อมูล ไม่สร้างเที่ยวรถ และไม่แตะ Production"
             : error || "ไม่สามารถยืนยันสถานะข้อมูลจาก transport API ได้"}
         </p>
       </div>
@@ -1597,6 +1460,11 @@ function TransportPlanner({
     eligibleGroups[0] ??
     null;
   const [selected, setSelected] = useState<string[]>([]);
+  const [fulfillmentByDistrict, setFulfillmentByDistrict] = useState<Record<string, FulfillmentMode>>({});
+  const [fulfillmentScope, setFulfillmentScope] = useState("");
+  const [deliveryDayByDistrict, setDeliveryDayByDistrict] = useState<Record<string, DeliveryDay>>({});
+  const [scheduleScope, setScheduleScope] = useState("");
+  const [activeDay, setActiveDay] = useState<DeliveryDay>("monday");
   const [preferredVehicleId, setPreferredVehicleId] = useState("");
   const [maxStops, setMaxStops] = useState(6);
   const [avoidTolls, setAvoidTolls] = useState(false);
@@ -1646,6 +1514,29 @@ function TransportPlanner({
     availableVehicles.find((vehicle) => vehicle.id === preferredVehicleId) ??
     availableVehicles[0] ??
     null;
+  const fulfillmentCounts = useMemo(
+    () => groupRows.reduce((counts, row) => {
+      counts[fulfillmentByDistrict[row.districtRef] ?? "unassigned"] += 1;
+      return counts;
+    }, { delivery: 0, pickup: 0, unassigned: 0 }),
+    [fulfillmentByDistrict, groupRows],
+  );
+  const totalLines = useMemo(() => groupRows.reduce((sum, row) => sum + row.lineCount, 0), [groupRows]);
+  const weekDates = useMemo(() => planWeekDates(activeGroup?.planNumber ?? ""), [activeGroup?.planNumber]);
+  const dailySummary = useMemo(() => deliveryDays.map((day) => {
+    const rows = groupRows.filter((row) => deliveryDayByDistrict[row.districtRef] === day.id);
+    return {
+      ...day,
+      rows,
+      delivery: rows.filter((row) => fulfillmentByDistrict[row.districtRef] === "delivery").length,
+      pickup: rows.filter((row) => fulfillmentByDistrict[row.districtRef] === "pickup").length,
+      weightKg: rows.reduce((sum, row) => sum + (row.estimatedWeightKg ?? 0), 0),
+    };
+  }), [deliveryDayByDistrict, fulfillmentByDistrict, groupRows]);
+  const unscheduledCount = useMemo(() => groupRows.filter((row) =>
+    (fulfillmentByDistrict[row.districtRef] ?? "unassigned") !== "unassigned" &&
+    !deliveryDayByDistrict[row.districtRef]
+  ).length, [deliveryDayByDistrict, fulfillmentByDistrict, groupRows]);
   const selectionSignature = JSON.stringify({
     group: activeGroup?.key ?? "",
     warehouse,
@@ -1654,10 +1545,6 @@ function TransportPlanner({
   });
   const roadCurrent =
     roadState.signature === selectionSignature ? roadState.result : null;
-  const demoRoute =
-    source === "demo" && roadCurrent
-      ? planRoute("คลองเตย", roadCurrent.order)
-      : null;
   const previewOrder = roadCurrent?.order ?? selected;
   const depot = depotForWarehouse(data, warehouse);
   const fleet = useMemo(
@@ -1715,13 +1602,20 @@ function TransportPlanner({
       ? "readiness ไม่ส่ง optimization_eligible_plan_ids ที่ตรวจสอบได้ — ปิด queue แบบ fail-closed"
       : !planQueueEligible
         ? `แผน ${activeGroup?.planNumber ?? planId} ไม่อยู่ใน optimization_eligible_plan_ids จึงยังส่งเข้า worker ไม่ได้`
+        : fulfillmentCounts.unassigned > 0
+          ? `ยังไม่ได้ระบุวิธีรับของ ${fulfillmentCounts.unassigned} เขต`
+          : unscheduledCount > 0
+            ? `ยังไม่ได้จัดวันส่งหรือวันรับ ${unscheduledCount} เขต`
+            : fulfillmentCounts.pickup > 0
+              ? `มี ${fulfillmentCounts.pickup} เขตเข้ารับเอง — หยุดไว้เพื่อไม่ส่งเขตเข้ารับเองเข้าเส้นทางรถคลัง`
         : "";
   const queueGatesReady =
     source === "supabase" &&
     data.readiness?.operationalWritesEnabled === true &&
     data.readiness?.routeReady === true &&
     data.readiness?.optimizationWorkerReady === true &&
-    planQueueEligible;
+    planQueueEligible &&
+    !planQueueBlocker;
   const attemptActive =
     jobState.attemptStatus === "queued" ||
     jobState.attemptStatus === "running" ||
@@ -1735,6 +1629,11 @@ function TransportPlanner({
     if (jobState.loading) return;
     setSelectedGroupKey(key);
     setSelected([]);
+    setFulfillmentByDistrict({});
+    setFulfillmentScope("");
+    setDeliveryDayByDistrict({});
+    setScheduleScope("");
+    setActiveDay("monday");
     setPreferredVehicleId("");
     setMsg("");
     setJobState({
@@ -1747,18 +1646,18 @@ function TransportPlanner({
       error: "",
     });
   };
-  const toggle = (id: string) => {
+  const setFulfillmentMode = (id: string, mode: FulfillmentMode) => {
     if (!servable.includes(id)) {
       setMsg("จุดส่งนี้อยู่นอกกลุ่ม plan + warehouse ที่เลือก");
       return;
     }
     const point = data.geo[id];
-    if (
+    if (mode === "delivery" && (
       !point ||
       point.verificationStatus !== "verified" ||
       !point.routeEligible ||
       !hasValidCoordinates(point)
-    ) {
+    )) {
       setMsg(
         point?.verificationStatus === "verified" &&
           !hasValidCoordinates(point)
@@ -1770,15 +1669,95 @@ function TransportPlanner({
       return;
     }
     setMsg("");
-    setSelected((current) =>
-      current.includes(id)
-        ? current.filter((selectedId) => selectedId !== id)
-        : [...current, id],
-    );
+    setFulfillmentByDistrict((current) => ({ ...current, [id]: mode }));
+    if (mode === "unassigned") {
+      setDeliveryDayByDistrict((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+    } else {
+      setDeliveryDayByDistrict((current) => ({ ...current, [id]: current[id] ?? activeDay }));
+    }
+  };
+  const toggle = (id: string) => setFulfillmentMode(
+    id,
+    fulfillmentByDistrict[id] === "delivery" ? "unassigned" : "delivery",
+  );
+  const setAllFulfillment = (mode: Exclude<FulfillmentMode, "unassigned">) => {
+    const next: Record<string, FulfillmentMode> = {};
+    const nextDays: Record<string, DeliveryDay> = {};
+    groupRows.forEach((row, index) => {
+      if (mode === "delivery") {
+        const point = data.geo[row.districtRef];
+        const ready = Boolean(row.routeEligible && point?.verificationStatus === "verified" && point.routeEligible && hasValidCoordinates(point));
+        next[row.districtRef] = ready ? "delivery" : "unassigned";
+      } else {
+        next[row.districtRef] = "pickup";
+      }
+      if (next[row.districtRef] !== "unassigned") nextDays[row.districtRef] = deliveryDays[index % 5].id;
+    });
+    setFulfillmentByDistrict(next);
+    setDeliveryDayByDistrict(nextDays);
+    setMsg("");
+  };
+  const autoDistributeWeek = () => {
+    const rows = groupRows.filter((row) => (fulfillmentByDistrict[row.districtRef] ?? "unassigned") !== "unassigned");
+    if (!rows.length) {
+      setMsg("กรุณาระบุวิธีรับของก่อนกระจายงานลงวัน");
+      return;
+    }
+    const totals = new Map<DeliveryDay, number>(deliveryDays.map((day) => [day.id, 0]));
+    const next: Record<string, DeliveryDay> = {};
+    [...rows].sort((a, b) => (b.estimatedWeightKg ?? b.lineCount) - (a.estimatedWeightKg ?? a.lineCount)).forEach((row) => {
+      const day = deliveryDays.reduce((best, candidate) =>
+        (totals.get(candidate.id) ?? 0) < (totals.get(best.id) ?? 0) ? candidate : best,
+      ).id;
+      next[row.districtRef] = day;
+      totals.set(day, (totals.get(day) ?? 0) + (row.estimatedWeightKg ?? Math.max(1, row.lineCount)));
+    });
+    setDeliveryDayByDistrict(next);
+    setMsg("กระจายงานจันทร์–ศุกร์โดยถ่วงสมดุลน้ำหนักแล้ว สามารถเปลี่ยนวันรายเขตได้");
   };
 
+  useEffect(() => {
+    if (!activeGroup?.key || !activeGroup.planId) return;
+    const fulfillmentKey = fulfillmentStorageKey(actorId, activeGroup.planId);
+    const scheduleKey = scheduleStorageKey(actorId, activeGroup.planId);
+    let fulfillment: Record<string, FulfillmentMode> = {};
+    let schedule: Record<string, DeliveryDay> = {};
+    try { fulfillment = JSON.parse(window.localStorage.getItem(fulfillmentKey) ?? "{}"); } catch { fulfillment = {}; }
+    try { schedule = JSON.parse(window.localStorage.getItem(scheduleKey) ?? "{}"); } catch { schedule = {}; }
+    const nextFulfillment: Record<string, FulfillmentMode> = {};
+    const nextSchedule: Record<string, DeliveryDay> = {};
+    activeGroup.rows.forEach((row) => {
+      const mode = fulfillment[row.districtRef];
+      nextFulfillment[row.districtRef] = ["delivery", "pickup", "unassigned"].includes(mode) ? mode : "unassigned";
+      const day = schedule[row.districtRef];
+      if (deliveryDays.some((item) => item.id === day)) nextSchedule[row.districtRef] = day;
+    });
+    setFulfillmentByDistrict(nextFulfillment);
+    setDeliveryDayByDistrict(nextSchedule);
+    setFulfillmentScope(fulfillmentKey);
+    setScheduleScope(scheduleKey);
+  }, [activeGroup?.key, actorId]);
+
+  useEffect(() => {
+    if (fulfillmentScope) window.localStorage.setItem(fulfillmentScope, JSON.stringify(fulfillmentByDistrict));
+  }, [fulfillmentByDistrict, fulfillmentScope]);
+  useEffect(() => {
+    if (scheduleScope) window.localStorage.setItem(scheduleScope, JSON.stringify(deliveryDayByDistrict));
+  }, [deliveryDayByDistrict, scheduleScope]);
+  useEffect(() => {
+    setSelected(groupRows.filter((row) =>
+      fulfillmentByDistrict[row.districtRef] === "delivery" &&
+      deliveryDayByDistrict[row.districtRef] === activeDay
+    ).map((row) => row.districtRef));
+    setRoadState({ signature: "", result: null, error: "", loading: false });
+  }, [activeDay, deliveryDayByDistrict, fulfillmentByDistrict, groupRows]);
+
   const optimize = async () => {
-    if (source !== "supabase" && source !== "demo") {
+    if (source !== "supabase") {
       setRoadState({
         signature: selectionSignature,
         result: null,
@@ -1788,7 +1767,7 @@ function TransportPlanner({
       });
       return;
     }
-    if (source !== "demo" && !data.readiness?.operationalWritesEnabled) {
+    if (!data.readiness?.operationalWritesEnabled) {
       setRoadState({
         signature: selectionSignature,
         result: null,
@@ -1798,7 +1777,7 @@ function TransportPlanner({
       });
       return;
     }
-    if (source !== "demo" && !data.readiness?.routeReady) {
+    if (!data.readiness?.routeReady) {
       setRoadState({
         signature: selectionSignature,
         result: null,
@@ -2184,12 +2163,12 @@ function TransportPlanner({
     <div className="stack transport-workspace">
       <section className="transport-control-panel" aria-labelledby="route-scope-title">
         <div>
-          <span>ขอบเขตแผนที่ล็อก</span>
-          <h2 id="route-scope-title">เลือกแผนและคลังเป็นกลุ่มเดียว</h2>
-          <p>ระบบไม่อนุญาตให้รวมเขตจากคนละแผนการจ่าย หรือคนละคลังในเที่ยวเดียว</p>
+          <span>ขั้นตอนที่ 1 · เลือกแผน</span>
+          <h2 id="route-scope-title">เลือกแผนจ่ายที่อนุมัติและ Lock แล้ว</h2>
+          <p>หนึ่งงานขนส่งอ้างอิงแผนและ Version เดียว เพื่อให้ตรวจสอบย้อนหลังได้</p>
         </div>
-        <label>
-          Plan + คลัง
+        <label className="transport-plan-picker">
+          แผนที่นำมาวางแผนขนส่ง
           <select
             value={activeGroup?.key ?? ""}
             onChange={(event) => chooseGroup(event.target.value)}
@@ -2204,7 +2183,7 @@ function TransportPlanner({
                 value={group.key}
                 disabled={!group.routeEligible}
               >
-                {group.planNumber} · {group.warehouse || "ไม่พบคลัง"} ·{" "}
+                {friendlyPlanName(group.planNumber)} · {group.warehouse || "ไม่พบคลัง"} ·{" "}
                 {group.rows.length} เขต
                 {group.blocker ? ` · BLOCKED: ${group.blocker}` : ""}
               </option>
@@ -2251,6 +2230,20 @@ function TransportPlanner({
           ขอหลีกเลี่ยงทางเก็บค่าผ่านทาง (เมื่อ engine รองรับ)
         </label>
       </section>
+      {activeGroup && (
+        <section className="transport-selected-plan" aria-label="รายละเอียดแผนที่เลือก">
+          <div>
+            <span>แผนที่เลือก</span>
+            <h3>{friendlyPlanName(activeGroup.planNumber)}</h3>
+            <p>รหัส {activeGroup.planNumber} · ต้นทาง {activeGroup.warehouse} · สถานะ Locked</p>
+          </div>
+          <dl>
+            <div><dt>เขตในแผน</dt><dd>{activeGroup.rows.length}</dd></div>
+            <div><dt>รายการรวม</dt><dd>{formatNumber(totalLines)}</dd></div>
+            <div><dt>Version</dt><dd>{activeGroup.planNumber.match(/\bV\d+\b/i)?.[0] ?? "V1"}</dd></div>
+          </dl>
+        </section>
+      )}
       {groups.some((group) => !group.routeEligible) && (
         <aside className="transport-group-blockers" role="note">
           <strong>กลุ่มที่ถูกหยุดก่อนเลือก</strong>
@@ -2267,18 +2260,34 @@ function TransportPlanner({
         </aside>
       )}
 
-      <section className="panel">
+      <section className="panel transport-fulfillment-panel">
         <div className="panel-title">
           <div>
-            <span>งานในกลุ่มที่เลือกเท่านั้น</span>
-            <h3>
-              {activeGroup
-                ? `${activeGroup.planNumber} · ${activeGroup.warehouse}`
-                : "ยังไม่มี locked plan"}
-            </h3>
+            <span>ขั้นตอนที่ 2 · ระบุวิธีรับของ</span>
+            <h3>แต่ละเขตให้คลังส่ง หรือเข้ารับเอง</h3>
           </div>
-          <b>{selected.length}/{groupRows.length} เขต</b>
+          <div className="transport-bulk-actions">
+            <button type="button" className="btn ghost" onClick={() => setAllFulfillment("delivery")}>ทั้งหมดให้คลังส่ง</button>
+            <button type="button" className="btn ghost" onClick={() => setAllFulfillment("pickup")}>ทั้งหมดเข้ารับเอง</button>
+          </div>
         </div>
+        <div className="transport-fulfillment-summary">
+          <article className="delivery"><span>คลังกลางจัดส่ง</span><strong>{fulfillmentCounts.delivery}</strong><small>นำไปจัดรถและคำนวณเส้นทาง</small></article>
+          <article className="pickup"><span>เขตเข้ารับเอง</span><strong>{fulfillmentCounts.pickup}</strong><small>แยกเป็นรายการนัดรับที่คลัง</small></article>
+          <article className={fulfillmentCounts.unassigned ? "unassigned" : "complete"}><span>ยังไม่ระบุ</span><strong>{fulfillmentCounts.unassigned}</strong><small>ต้องเป็น 0 ก่อนยืนยันงานขนส่ง</small></article>
+        </div>
+        <div className="transport-weekly-heading">
+          <div><span>ขั้นตอนที่ 3 · แผนขนส่งรายสัปดาห์</span><h3>กระจายงานเป็นรายวัน {weekDates?.range ? `· ${weekDates.range}` : ""}</h3><p>กดเลือกวันเพื่อดูและคำนวณเส้นทางเฉพาะวันนั้น การเปลี่ยนวันไม่แก้แผนจ่ายต้นฉบับ</p></div>
+          <button type="button" className="btn primary" onClick={autoDistributeWeek}>ให้ระบบกระจายงานลงวัน</button>
+        </div>
+        <div className="transport-week-board" role="tablist" aria-label="แผนขนส่งรายวัน">
+          {dailySummary.map((day, index) => (
+            <button key={day.id} type="button" role="tab" aria-selected={activeDay === day.id} className={activeDay === day.id ? "active" : ""} onClick={() => setActiveDay(day.id)}>
+              <span>{day.label}</span><small>{weekDates?.dates[index]?.toLocaleDateString("th-TH", { day: "numeric", month: "short", timeZone: "UTC" }) ?? day.short}</small><strong>{day.rows.length} เขต</strong><em>ส่ง {day.delivery} · รับเอง {day.pickup}</em><i>{formatNumber(day.weightKg, 0)} กก.</i>
+            </button>
+          ))}
+        </div>
+        {unscheduledCount > 0 && <p className="transport-schedule-warning">ยังไม่ได้จัดวัน {unscheduledCount} เขต — กด “ให้ระบบกระจายงานลงวัน” หรือเลือกวันในตาราง</p>}
         <div className="live-table-wrap">
           <table className="live-table transport-queue-table">
             <caption className="sr-only">
@@ -2290,7 +2299,8 @@ function TransportPlanner({
                 <th scope="col">รายการ / ปริมาณ</th>
                 <th scope="col">น้ำหนัก</th>
                 <th scope="col">พิกัด</th>
-                <th scope="col">เลือก</th>
+                <th scope="col">วิธีรับของ</th>
+                <th scope="col">วันส่ง / วันรับ</th>
               </tr>
             </thead>
             <tbody>
@@ -2340,22 +2350,17 @@ function TransportPlanner({
                       </span>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="table-action"
-                        aria-pressed={selected.includes(row.districtRef)}
-                        disabled={!routeReady}
-                        onClick={() => toggle(row.districtRef)}
-                      >
-                        {selected.includes(row.districtRef) ? "นำออก" : "เพิ่มจุดส่ง"}
-                      </button>
+                      <select className="transport-fulfillment-select" value={fulfillmentByDistrict[row.districtRef] ?? "unassigned"} onChange={(event) => setFulfillmentMode(row.districtRef, event.target.value as FulfillmentMode)}>
+                        <option value="unassigned">ยังไม่ระบุ</option><option value="delivery" disabled={!routeReady}>คลังกลางจัดส่ง</option><option value="pickup">เขตเข้ารับเอง</option>
+                      </select>
                     </td>
+                    <td><select className="transport-day-select" value={deliveryDayByDistrict[row.districtRef] ?? ""} disabled={(fulfillmentByDistrict[row.districtRef] ?? "unassigned") === "unassigned"} onChange={(event) => setDeliveryDayByDistrict((current) => ({ ...current, [row.districtRef]: event.target.value as DeliveryDay }))}><option value="">เลือกวัน</option>{deliveryDays.map((day) => <option key={day.id} value={day.id}>{day.label}</option>)}</select></td>
                   </tr>
                 );
               })}
               {!groupRows.length && (
                 <tr>
-                  <td colSpan={5}>ไม่พบงาน locked ที่พร้อมเข้ากลุ่มขนส่ง</td>
+                  <td colSpan={6}>ไม่พบงาน locked ที่พร้อมเข้ากลุ่มขนส่ง</td>
                 </tr>
               )}
             </tbody>
@@ -2368,11 +2373,7 @@ function TransportPlanner({
           <div className="panel-title">
             <div>
               <span>พรีวิวเส้นทาง</span>
-              <h3>
-                {source === "demo"
-                  ? "เส้นทางจำลองเพื่อทดสอบการตัดสินใจ"
-                  : "เส้นทางบนถนนจริง"}
-              </h3>
+              <h3>เส้นทางวัน{deliveryDays.find((day) => day.id === activeDay)?.label}บนถนนจริง</h3>
             </div>
             <div className="transport-geo-summary" aria-label="สถานะพิกัด">
               <span className="verified">{geoCounts.verified} verified</span>
@@ -2394,7 +2395,7 @@ function TransportPlanner({
           <div className="panel-title">
             <div>
               <span>ผลการจัดลำดับ</span>
-              <h3>ผลลัพธ์ที่ดีที่สุดที่พบ</h3>
+              <h3>ผลลัพธ์รายวัน · {selected.length} เขตให้คลังจัดส่ง</h3>
             </div>
             <span className={`transport-data-state ${roadIsCanonical ? "verified" : "unverified"}`}>
               {roadIsCanonical ? "canonical preview" : "รอผล canonical"}
@@ -2471,29 +2472,6 @@ function TransportPlanner({
                 </ol>
               </div>
             )}
-            {demoRoute && !fleet.error && (
-              <div className="transport-load-list">
-                <strong>AI Decision Support · เปรียบเทียบวิธีส่ง</strong>
-                <small>
-                  ข้อเสนอเพื่อให้ Planner ตัดสินใจเท่านั้น ไม่อนุมัติและไม่สร้างเที่ยวรถอัตโนมัติ
-                </small>
-                <ol>
-                  <li>
-                    คลังกลางส่ง: {fleet.chunks.length} เที่ยว · ระยะทางประมาณ{" "}
-                    {formatNumber(demoRoute.totalDist, 1)} กม. · น้ำมันประมาณ{" "}
-                    {formatNumber(demoRoute.fuelCost, 2)} บาท · ค่าทางด่วนประมาณ{" "}
-                    {formatNumber(demoRoute.totalToll)} บาท
-                  </li>
-                  <li>
-                    เขตมารับเอง: ลดภาระรถคลังกลาง แต่ต้องนัดหมายรถเขตและบันทึกผู้มารับเป็นรายเขต
-                  </li>
-                  <li>
-                    ก่อน Lock Transport Plan ต้องยืนยัน Pallet/Box, น้ำหนักจริง,
-                    พื้นที่วาง และข้อจำกัดไม่มีอุปกรณ์ยก
-                  </li>
-                </ol>
-              </div>
-            )}
             <div className="transport-actions">
               <button
                 type="button"
@@ -2501,17 +2479,12 @@ function TransportPlanner({
                 disabled={
                   roadState.loading ||
                   !selected.length ||
-                  (source !== "demo" &&
-                    (data.readiness?.operationalWritesEnabled !== true ||
-                      data.readiness?.routeReady !== true))
+                  data.readiness?.operationalWritesEnabled !== true ||
+                  data.readiness?.routeReady !== true
                 }
                 onClick={() => void optimize()}
               >
-                {roadState.loading
-                  ? "กำลังคำนวณ…"
-                  : source === "demo"
-                    ? "ทดลองจัดลำดับเส้นทาง"
-                    : "คำนวณเส้นทางบนถนน"}
+                {roadState.loading ? "กำลังคำนวณ…" : "คำนวณเส้นทางบนถนน"}
               </button>
               <button
                 type="button"
@@ -2658,13 +2631,13 @@ function TransportMap({
       setError("สิทธิ์นี้อ่านข้อมูลขนส่งได้ แต่เรียก road optimizer ไม่ได้");
       return;
     }
-    if (source !== "demo" && !data.readiness?.operationalWritesEnabled) {
+    if (!data.readiness?.operationalWritesEnabled) {
       setError(
         "Operational POST gate ถูกล็อก (production_not_ready) จึงไม่ส่งงานไป routing engine",
       );
       return;
     }
-    if (source !== "demo" && !data.readiness?.routeReady) {
+    if (!data.readiness?.routeReady) {
       setError(
         `Canonical route gate ยังไม่พร้อม: ${readinessText(
           data.readiness?.routeReadinessStatus ?? "unknown_route_readiness",
@@ -2673,7 +2646,7 @@ function TransportMap({
       return;
     }
     if (
-      (source !== "supabase" && source !== "demo") ||
+      source !== "supabase" ||
       !group?.planId ||
       !depot ||
       depot.verificationStatus !== "verified" ||
@@ -2773,18 +2746,13 @@ function TransportMap({
             disabled={
               !picked ||
               loading ||
-              (source !== "supabase" && source !== "demo") ||
-              (source !== "demo" &&
-                (data.readiness?.operationalWritesEnabled !== true ||
-                  data.readiness?.routeReady !== true))
+              source !== "supabase" ||
+              data.readiness?.operationalWritesEnabled !== true ||
+              data.readiness?.routeReady !== true
             }
             onClick={() => void preview()}
           >
-            {loading
-              ? "กำลังคำนวณ…"
-              : source === "demo"
-                ? "ทดลองเส้นทาง"
-                : "ดูเส้นทางถนน"}
+            {loading ? "กำลังคำนวณ…" : "ดูเส้นทางถนน"}
           </button>
         ) : (
           <p className="transport-read-only-note" role="note">
@@ -3045,13 +3013,11 @@ export function TransportModule({
   token,
   role,
   actorId,
-  demoMode = false,
 }: {
   view: TransportView;
   token: string | null;
   role: Role;
   actorId: string;
-  demoMode?: boolean;
 }) {
   const {
     data,
@@ -3063,7 +3029,7 @@ export function TransportModule({
     cancelLegacyTrip,
     queueOptimizationJob,
     readOptimizationJob,
-  } = useTransportData(token, role, demoMode);
+  } = useTransportData(token, role);
   const canMutate = canMutateTransport(role);
   const [eyebrow, title, description] = transportTitles[view];
   return (
@@ -3092,11 +3058,14 @@ export function TransportModule({
           </p>
         </aside>
       )}
-      {source !== "error" && source !== "demo" && (
-        <TransportReadinessPanel
-          readiness={data.readiness}
-          source={source}
-        />
+      {source !== "error" && view === "planner" && (
+        <details className="transport-readiness-disclosure">
+          <summary>ดูสถานะความพร้อมของระบบและ Route Engine</summary>
+          <TransportReadinessPanel readiness={data.readiness} source={source} />
+        </details>
+      )}
+      {source !== "error" && view !== "planner" && (
+        <TransportReadinessPanel readiness={data.readiness} source={source} />
       )}
       {source !== "error" && view === "dashboard" && (
         <TransportDashboard data={data} />
