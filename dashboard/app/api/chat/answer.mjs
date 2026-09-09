@@ -1,9 +1,11 @@
+import { wantsSources } from './tools.mjs';
+
 // Notebook pattern: tool evidence -> write answer -> validate -> deterministic fallback.
 // ponytail: one writer and one reviewer; measure live accuracy before adding repair loops.
 function request(name, properties, instruction, input) {
   return {
     systemInstruction: { parts: [{ text: instruction }, ...(name === 'write_answer' ? [{
-      text: 'ช่อง answer ให้เขียนเฉพาะคำตอบเนื้อหา ไม่ต้องเขียนบรรทัดแหล่งข้อมูลหรือเวลาอ่าน เพราะ server จะเติมจาก evidence_ids ให้เอง; วันที่ทางธุรกิจที่ผู้ใช้ถามยังต้องตอบตามหลักฐาน',
+      text: 'ช่อง answer ให้เขียนเฉพาะคำตอบเนื้อหา ไม่ต้องเขียนบรรทัดแหล่งข้อมูลหรือเวลาอ่าน server จะแสดงแหล่งข้อมูลจาก evidence_ids เฉพาะเมื่อผู้ใช้ขอ; วันที่ทางธุรกิจที่ผู้ใช้ถามยังต้องตอบตามหลักฐาน',
     }] : [])] },
     contents: [{ role: 'user', parts: [{ text: JSON.stringify(input) }] }],
     tools: [{ functionDeclarations: [{ name, description: name, parametersJsonSchema: {
@@ -24,6 +26,7 @@ function args(response, name, keys) {
 }
 
 export async function composeAnswer({ result, question, history = /** @type {{ role: string, text: string }[]} */ ([]), generate, signal }) {
+  const includeSources = wantsSources(question);
   const fallback = (reason) => ({ ...result, answer_mode: 'evidence', answer_validation: reason });
   const evidence = result.evidence.filter(e => e.tool !== 'discover_database');
   // Never rewrite denied/partial/error output into an apparently successful answer.
@@ -50,13 +53,13 @@ export async function composeAnswer({ result, question, history = /** @type {{ r
     }))];
     const notices = [...new Set(result.evidence.flatMap(e => [
       ...(e.scope?.truncated || e.truncated ? ['แสดงข้อมูลเพียงบางส่วน ไม่ใช่ข้อมูลทั้งหมด'] : []),
-      ...(e.retrieval?.status === 'fallback_original_order' ? [e.retrieval.stage === 'sources'
+      ...(includeSources && e.retrieval?.status === 'fallback_original_order' ? [e.retrieval.stage === 'sources'
         ? 'จัดอันดับแหล่งข้อมูลไม่สำเร็จ ใช้ลำดับค้นหาแหล่งข้อมูลเดิม'
         : 'จัดอันดับความเกี่ยวข้องไม่สำเร็จ ใช้ลำดับผลค้นหาเดิม'] : []),
-      ...(e.observed_at ? [`ตรวจข้อมูลเมื่อ ${e.observed_at} (เวลาอ่าน ไม่ใช่วันปรับปรุงข้อมูล)`] : []),
+      ...(includeSources && e.observed_at ? [`ตรวจข้อมูลเมื่อ ${e.observed_at} (เวลาอ่าน ไม่ใช่วันปรับปรุงข้อมูล)`] : []),
       ...(e.warnings ?? []).filter(w => typeof w === 'string'),
     ]))];
-    return { ...result, answer: [draft.answer.trim(), ...(sources.length ? [`แหล่งข้อมูล: ${sources.join(', ')}`] : []), ...notices].join('\n\n'),
+    return { ...result, answer: [draft.answer.trim(), ...(includeSources && sources.length ? [`แหล่งข้อมูล: ${sources.join(', ')}`] : []), ...notices].join('\n\n'),
       answer_mode: 'synthesized', answer_validation: 'accepted' };
   } catch {
     return fallback(signal?.aborted ? 'deadline' : 'unavailable');

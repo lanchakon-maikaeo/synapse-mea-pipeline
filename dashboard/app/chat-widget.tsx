@@ -18,7 +18,6 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   text: string;
-  meta?: string;
   error?: boolean;
 };
 
@@ -30,23 +29,12 @@ const examples = [
   "ควรส่ง SKU อะไรไปคลังไหนก่อน",
 ];
 
-const toolNames: Record<string, string> = {
-  query_database: "ค้นข้อมูลฐานข้อมูล",
-  discover_database: "ค้นแหล่งข้อมูล",
-  get_operations_overview: "ภาพรวมและลำดับเติมวัสดุ",
-  get_stock_status: "สถานะสต็อก",
-  get_replenishment_recommendation: "คำแนะนำเติมวัสดุ",
-  get_plan_status: "สถานะแผน",
-  get_contract_status: "สถานะสัญญา",
-  get_traceability: "การสอบกลับ",
-};
-
 export default function ChatWidget({ token }: { token: string }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { id: "welcome", role: "assistant", text: "สวัสดีค่ะ ถามข้อมูล VMI จาก Supabase ได้เลย ฉันจะแสดงตัวเลขพร้อมหน่วยและวันที่ข้อมูลให้ตรวจสอบ" },
+    { id: "welcome", role: "assistant", text: "สวัสดีค่ะ ถามข้อมูล VMI จาก Supabase ได้เลย" },
   ]);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -86,14 +74,10 @@ export default function ChatWidget({ token }: { token: string }) {
       });
       const payload = await response.json().catch(() => ({})) as ChatReply;
       if (!response.ok) throw new Error(payload.error?.message ?? `Chat request failed (${response.status})`);
-      const source = payload.tool ? toolNames[payload.tool] ?? payload.tool : "Agent";
-      const district = payload.scope?.district_id ? ` · เขต ${payload.scope.district_id}` : "";
-      const model = payload.model ? ` · ${payload.model}` : "";
       setMessages((current) => [...current, {
         id: payload.request_id ?? crypto.randomUUID(),
         role: "assistant",
         text: payload.answer ?? "ไม่พบคำตอบที่ตรวจสอบได้",
-        meta: `${source}${district}${model}`,
       }]);
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -133,7 +117,6 @@ export default function ChatWidget({ token }: { token: string }) {
             {messages.map((message) => (
               <article key={message.id} className={`${message.role} ${message.error ? "error" : ""}`}>
                 <p>{message.text}</p>
-                {message.meta && <small>{message.meta}</small>}
               </article>
             ))}
             {messages.length === 1 && (
@@ -162,7 +145,6 @@ export default function ChatWidget({ token }: { token: string }) {
                     event.currentTarget.form?.requestSubmit();
                   }
                 }}
-                placeholder="เช่น วัสดุ 471050004000 เหลือเท่าไร"
                 rows={1}
                 disabled={busy}
               />

@@ -21,8 +21,7 @@ test('production sequence discovers, reads, finishes, writes and independently c
   const answer = await composeAnswer({ result, question: 'เขต 5501 คือเขตไหน', generate });
   assert.equal(answer.answer_mode, 'synthesized');
   assert.match(answer.answer, /^เขต 5501 คือเขตนวลจันทร์ค่ะ/);
-  assert.match(answer.answer, /core.districts/);
-  assert.match(answer.answer, /เวลาอ่าน ไม่ใช่วันปรับปรุง/);
+  assert.equal(answer.answer, 'เขต 5501 คือเขตนวลจันทร์ค่ะ');
   assert.equal(requests.length, 5);
   const reviewerInput = JSON.parse(requests[4].contents[0].parts[0].text);
   assert.equal(reviewerInput.evidence.length, 1); // No catalog masquerading as facts.
@@ -73,5 +72,16 @@ test('server preserves truncation and warnings even if the writer omits them', a
   ] };
   const r = await composeAnswer({ result, question: 'test', generate: async () => responses.shift() });
   assert.match(r.answer, /ไม่ใช่ข้อมูลทั้งหมด/); assert.match(r.answer, /ข้อมูลยังไม่ครบ/);
-  assert.match(r.answer, /จัดอันดับแหล่งข้อมูลไม่สำเร็จ/);
+  assert.doesNotMatch(r.answer, /จัดอันดับแหล่งข้อมูลไม่สำเร็จ/);
+});
+
+
+test('sources are opt-in for both synthesized and fallback answers', async () => {
+  const responses = [draft, approved];
+  const answer = await composeAnswer({ result: base, question: 'ขอแหล่งข้อมูล', generate: async () => responses.shift() });
+  assert.match(answer.answer, /core.districts/);
+  assert.match(answer.answer, /เวลาอ่าน ไม่ใช่วันปรับปรุง/);
+  const { renderToolResult } = await import('../app/api/chat/tools.mjs');
+  assert.doesNotMatch(renderToolResult(row), /core.districts|ตรวจเมื่อ/);
+  assert.match(renderToolResult(row, true), /core.districts/);
 });

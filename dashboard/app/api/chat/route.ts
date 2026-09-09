@@ -6,6 +6,7 @@ import {
 
 import { runAgent, HARNESS_VERSION } from "./harness.mjs";
 import { retrieveDatabase } from "./retrieval.mjs";
+import { embedText } from "./embedding.mjs";
 import { composeAnswer } from "./answer.mjs";
 
 export const dynamic = "force-dynamic";
@@ -165,7 +166,13 @@ export async function POST(request: Request) {
     result = await runAgent({
       message, history, temperature: config.temperature, scope: admission.scope, signal: overall,
       generate,
-      read: (decision: ToolDecision) => ["discover_database", "query_database"].includes(decision.name)
+      read: async (decision: ToolDecision) => decision.name === "search_knowledge"
+        ? supabaseRpc<ToolEnvelope>("vmi_chat_knowledge", {
+          p_embedding: await embedText({ text: String(decision.args.query), apiKey: config.apiKey,
+            signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]) }),
+          p_limit: topK,
+        }, authorization, overall)
+        : ["discover_database", "query_database"].includes(decision.name)
         ? retrieveDatabase({ decision, question: message, generate, topK,
           rpc: (query: ToolDecision) => supabaseRpc("vmi_chat_database", {
             p_tool: query.name, p_args: query.args, p_request_id: requestId,

@@ -1,4 +1,4 @@
-import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, CONVERSATION_REPLIES } from "./tools.mjs";
+import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, wantsSources, CONVERSATION_REPLIES } from "./tools.mjs";
 
 export const HARNESS_VERSION = "v4";
 export const MAX_READS = 6;
@@ -77,8 +77,8 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   }
   const partial = !["complete", "clarify", "unsupported"].includes(stopReason);
   const answer = [
-    ...evidence.filter(x => x.tool !== "discover_database").map(renderToolResult),
-    ...(evidence.some(x => x.retrieval?.stage === "sources" && x.retrieval.status === "fallback_original_order")
+    ...evidence.filter(x => x.tool !== "discover_database").map(x => renderToolResult(x, wantsSources(message))),
+    ...(wantsSources(message) && evidence.some(x => x.retrieval?.stage === "sources" && x.retrieval.status === "fallback_original_order")
       ? ["จัดอันดับแหล่งข้อมูลไม่สำเร็จ ใช้ลำดับค้นหาแหล่งข้อมูลเดิม"] : []),
     ...(terminalAnswer ? [terminalAnswer] : []),
     ...(partial ? ["ตรวจสอบได้บางส่วน ยังไม่ครบคำถาม กรุณาระบุ SKU/เขตหรือถามต่ออีกครั้ง"] : []),

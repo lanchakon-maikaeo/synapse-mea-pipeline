@@ -17,6 +17,9 @@ const fn = (name, description, properties) => ({
 });
 
 export const CHAT_TOOLS = [
+  fn("search_knowledge", "ค้นความรู้จากเอกสาร คู่มือ และกฎธุรกิจด้วย vector search ใช้สำหรับคำอธิบายขั้นตอนหรือหลักการ; ยอดสต็อก สถานะ และตัวเลขปัจจุบันต้องใช้ database tools", {
+    query: { type: "string", description: "คำถามความรู้หรือขั้นตอนที่ต้องการค้น" },
+  }),
   fn("discover_database", "ค้น catalog ฐานข้อมูลทุกหมวดตามสิทธิ์ แล้ว rerank top-k พร้อม schema คอลัมน์ ใช้ก่อน query_database เมื่อถามชื่อเขต ทะเบียนวัสดุ สัญญา ขนส่ง ประวัติ ยอดรวม หรือข้อมูลอื่นๆ ที่เครื่องมือเฉพาะไม่ครอบคลุม", {
     query: { type: "string", description: "คำถามและคำสำคัญของข้อมูลที่ต้องการค้น ใช้ภาษาไทยได้" },
   }),
@@ -116,7 +119,7 @@ export function validateDecision({ name, args }) {
     const types = [schema[key].type].flat();
     return !types.includes(value === null ? "null" : Array.isArray(value) ? "array" : typeof value) && !(types.includes("integer") && Number.isInteger(value));
   }))) throw new Error("provider_tool_arguments_invalid");
-  if (name === "discover_database") {
+  if (["discover_database", "search_knowledge"].includes(name)) {
     if (typeof args.query !== "string" || !args.query.trim() || args.query.length > 2000) throw new Error("provider_tool_arguments_invalid");
     return { name, args: { query: args.query.trim() } };
   }
@@ -234,6 +237,7 @@ export function buildProviderBody(question, temperature, history = /** @type {{ 
         "คำถามภาพรวม คลังไหนใกล้หมด/สต็อกต่ำ ให้ get_operations_overview view risk; ควรส่ง SKU อะไรไปคลังไหน/แนะนำการเติม/คิวส่ง ให้ view delivery ไม่มีรหัสก็สำรวจทั้งหมดได้",
         "การขอคำแนะนำส่งของเป็นการอ่านข้อมูล ไม่ใช่การสั่งจ่ายจริง; คำสั่งยืนยันจ่ายจริงยัง unsupported",
         "เมื่อมีชื่อเขต ชื่อวัสดุ หรือชื่อผู้ขายแต่ไม่มีรหัส ให้ค้นทะเบียนผ่าน discover_database/query_database ก่อน ถ้าพบหลายรายการที่แยกไม่ได้จึง clarify; ห้ามขอ SKU เมื่อคำถามเป็นเพียงชื่อเขต",
+        "คำถามความรู้ หลักการ กฎ หรือขั้นตอนจากเอกสารให้ search_knowledge; เอกสารไม่ใช่หลักฐานของยอดหรือสถานะปัจจุบัน ถ้าไม่มีผลค้นให้บอกว่าไม่มีหลักฐาน ห้ามสร้างคำตอบเอง",
         "อย่าตอบตัวเลขหรือข้อความเอง เพราะ server จะอ่านฐานข้อมูลและจัดคำตอบ",
       ].join("\n") }] },
     contents: [...history.map(({ role, text }) => ({ role: role === "assistant" ? "model" : "user", parts: [{ text }] })), { role: "user", parts: [{ text: question }] }],
@@ -263,7 +267,11 @@ const date = (value) => {
 };
 const text = (value, fallback = "—") => value === null || value === undefined || value === "" ? fallback : String(value);
 
-export function renderToolResult(envelope) {
+export function wantsSources(question) {
+  return /แหล่งข้อมูล|แหล่งที่มา|อ้างอิง|เอาข้อมูลมาจาก|ข้อมูลมาจาก|ที่มาของ|\b(?:sources?|citations?|references?)\b|where.*(?:data|information).*from/i.test(question);
+}
+
+export function renderToolResult(envelope, includeSources = false) {
   const status = envelope?.status;
   if (status === "no_data") return "ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ";
   if (status === "forbidden") return "บัญชีนี้ไม่มีสิทธิ์อ่านข้อมูลส่วนนี้";
@@ -272,14 +280,17 @@ export function renderToolResult(envelope) {
   const rows = Array.isArray(envelope.data) ? envelope.data : [];
   if (!rows.length) return "ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ";
   const first = rows[0];
+  if (envelope.tool === "search_knowledge") {
+    return rows.map(row => [text(row.content), ...(includeSources ? [`แหล่งข้อมูล: ${text(row.source_id)}`] : [])].join("\n")).join("\n\n");
+  }
   if (envelope.tool === "query_database") {
     const labels = { district_id: "รหัสเขต", district_name_th: "ชื่อเขต", material_id: "SKU", material_name: "ชื่อวัสดุ", unit: "หน่วย", count_rows: "จำนวนรายการ", warehouse_name_th: "ชื่อคลัง" };
     const format = value => value == null ? "ไม่ทราบ" : typeof value === "object" ? JSON.stringify(value) : String(value);
     return [
       ...rows.map(row => Object.entries(row).map(([key, value]) => `${labels[key] ?? key}: ${format(value)}`).join(" · ")),
-      `แหล่งข้อมูล: ${envelope.source_id} · ตรวจเมื่อ ${date(envelope.observed_at)}`,
-      ...(envelope.aggregation ? ["คำนวณจากทุกแถวที่ตรงเงื่อนไขและสิทธิ์ ก่อนจำกัดจำนวนผลลัพธ์"] : []),
-      ...(envelope.retrieval ? [envelope.retrieval.status === "fallback_original_order"
+      ...(includeSources ? [`แหล่งข้อมูล: ${envelope.source_id} · ตรวจเมื่อ ${date(envelope.observed_at)}`] : []),
+      ...(includeSources && envelope.aggregation ? ["คำนวณจากทุกแถวที่ตรงเงื่อนไขและสิทธิ์ ก่อนจำกัดจำนวนผลลัพธ์"] : []),
+      ...(includeSources && envelope.retrieval ? [envelope.retrieval.status === "fallback_original_order"
         ? `จัดอันดับความเกี่ยวข้องไม่สำเร็จ แสดง ${rows.length} รายการตามลำดับเดิมจากผู้สมัคร ${envelope.retrieval.candidate_count} รายการ`
         : `คัดความเกี่ยวข้อง ${rows.length} รายการจากผู้สมัคร ${envelope.retrieval.candidate_count} รายการ`] : []),
       ...(envelope.scope?.truncated ? ["แสดงเพียงบางรายการ ยังไม่ใช่ข้อมูลทั้งหมด กรุณาระบุเงื่อนไขเพิ่มหรือขอหน้าถัดไป"] : []),
