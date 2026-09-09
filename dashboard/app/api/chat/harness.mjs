@@ -1,6 +1,6 @@
 import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, CONVERSATION_REPLIES } from "./tools.mjs";
 
-export const HARNESS_VERSION = "v3";
+export const HARNESS_VERSION = "v4";
 export const MAX_READS = 6;
 
 // Model decisions are proposals. This loop owns execution, budgets and completion.
@@ -78,6 +78,8 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   const partial = !["complete", "clarify", "unsupported"].includes(stopReason);
   const answer = [
     ...evidence.filter(x => x.tool !== "discover_database").map(renderToolResult),
+    ...(evidence.some(x => x.retrieval?.stage === "sources" && x.retrieval.status === "fallback_original_order")
+      ? ["จัดอันดับแหล่งข้อมูลไม่สำเร็จ ใช้ลำดับค้นหาแหล่งข้อมูลเดิม"] : []),
     ...(terminalAnswer ? [terminalAnswer] : []),
     ...(partial ? ["ตรวจสอบได้บางส่วน ยังไม่ครบคำถาม กรุณาระบุ SKU/เขตหรือถามต่ออีกครั้ง"] : []),
   ].join("\n\n");

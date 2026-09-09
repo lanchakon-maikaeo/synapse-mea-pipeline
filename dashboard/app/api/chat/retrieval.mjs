@@ -48,16 +48,27 @@ export async function retrieveDatabase({ decision, question, rpc, generate, topK
   if (decision.name === 'discover_database') {
     const candidates = retrieveSources(decision.args.query, envelope.data);
     // Column schemas are read only after selection; reranking needs names and descriptions.
-    const ranked = await rerank(decision.args.query, candidates.map(({ source_id, description }) => ({ source_id, description })), topK, generate);
+    const ranked = await rankOrFallback(decision.args.query, candidates.map(({ source_id, description }) => ({ source_id, description })), topK, generate);
     return { ...envelope, data: ranked.selected.map(x => candidates.find(s => s.source_id === x.source_id)),
       retrieval: { stage: 'sources', candidate_count: candidates.length, catalog_count: envelope.data.length, top_k: topK, status: ranked.status } };
   }
   if (decision.args.search && !envelope.aggregation && !decision.args.order_column) {
-    if (JSON.stringify(envelope.data).length > 40000) throw new Error('retrieval_context_limit');
-    const ranked = await rerank(question, envelope.data, Math.min(topK, decision.args.limit ?? topK), generate);
+    const ranked = await rankOrFallback(question, envelope.data, Math.min(topK, decision.args.limit ?? topK), generate);
     return { ...envelope, data: ranked.selected,
       retrieval: { stage: 'rows', candidate_count: envelope.data.length, top_k: topK, status: ranked.status },
       scope: { ...envelope.scope, truncated: envelope.scope?.truncated || ranked.selected.length < envelope.data.length } };
   }
   return envelope;
+}
+
+async function rankOrFallback(question, candidates, topK, generate) {
+  try {
+    if (JSON.stringify(candidates).length > 40000) throw Error('retrieval_context_limit');
+    const result = await rerank(question, candidates, topK, generate);
+    if (candidates.length && !result.selected.length) throw Error('empty_rerank');
+    return result;
+  } catch {
+    // The RPC already applied permissions. A ranking outage must not erase its evidence.
+    return { selected: candidates.slice(0, topK), status: 'fallback_original_order' };
+  }
 }

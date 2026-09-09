@@ -1,5 +1,7 @@
 # P02 — Backend tool gateway, validation and deterministic answers
 
+Historical POC 1 card. Current POC 2 uses eight DB read/discovery tools plus conversation/clarify/unsupported/finish. Deterministic rendering is retained as the fallback for the v4 writer/reviewer described in [P06](P06-notebook-production.md). Existing DB/auth contracts remain authoritative.
+
 Depends: P01 done. Outcome: typed tool request → authorized Supabase result, tested without model/GPU.
 
 Read: CONTEXT/STATE, `dashboard/app/api/[...path]/route.ts`, nearest auth/config helpers and one existing `dashboard/tests/*.test.mjs` pattern. Follow callers before extracting any shared helper.

@@ -26,6 +26,7 @@ test("accepts one bounded tool call and binds the signed-in district", () => {
 });
 
 test("rejects extra arguments and ambiguous contract identifiers", () => {
+  assert.throws(() => parseToolDecision({ candidates: [{ content: { parts: [] } }, ...response('finish', {}).candidates] }), /provider_tool_call_invalid/);
   assert.throws(() => validateDecision({
     name: "get_stock_status",
     args: { material_id: "471050004000", scope: "warehouse", district_id: null, actor_id: "forged" },

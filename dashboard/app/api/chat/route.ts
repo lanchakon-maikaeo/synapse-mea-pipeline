@@ -6,6 +6,7 @@ import {
 
 import { runAgent, HARNESS_VERSION } from "./harness.mjs";
 import { retrieveDatabase } from "./retrieval.mjs";
+import { composeAnswer } from "./answer.mjs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -88,6 +89,7 @@ async function supabaseRpc<T>(name: string, body: unknown, authorization: string
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   const requestId = crypto.randomUUID();
   const authorization = request.headers.get("authorization") ?? "";
   if (!/^Bearer\s+\S+$/.test(authorization)) {
@@ -139,10 +141,11 @@ export async function POST(request: Request) {
 
   let result;
   let modelCalls = 0;
+  let totalTokens = 0;
   const topK = Number(process.env.LLM_RETRIEVAL_TOP_K ?? "6");
   if (!Number.isInteger(topK) || topK < 1 || topK > 12) return failure(503, "retrieval_not_configured", "ค่า retrieval top-k ต้องเป็นจำนวนเต็ม 1–12", requestId);
-  const generate = async (body: unknown) => {
-    if (modelCalls >= 12) throw new Error("model_call_limit");
+  const generate = async (body: unknown, limit = 12) => {
+    if (modelCalls >= limit) throw new Error("model_call_limit");
     modelCalls++;
     const response = await fetch(config.apiUrl, {
       method: "POST", headers: { "x-goog-api-key": config.apiKey, "Content-Type": "application/json" },
@@ -153,7 +156,10 @@ export async function POST(request: Request) {
       await response.body?.cancel().catch(() => undefined);
       throw new Error(response.status === 429 ? "provider_rate_limited" : "provider_unavailable");
     }
-    return response.json();
+    const payload = await response.json();
+    const tokens = payload?.usageMetadata?.totalTokenCount;
+    if (Number.isSafeInteger(tokens) && tokens >= 0) totalTokens += tokens;
+    return payload;
   };
   try {
     result = await runAgent({
@@ -168,14 +174,21 @@ export async function POST(request: Request) {
           p_tool: decision.name, p_args: decision.args, p_request_id: requestId,
         }, authorization, overall),
     });
+    // Reserve at most two extra calls for writing/review; same overall deadline.
+    result = await composeAnswer({ result, question: message, history, signal: overall,
+      generate: (body: unknown) => generate(body, 14) });
   } catch (error) {
     const code = error instanceof Error ? error.message : "agent_unavailable";
     const status = code === "unauthorized" ? 401 : code === "forbidden" ? 403 : code === "provider_rate_limited" ? 429 : 503;
+    console.warn(JSON.stringify({ event: "chat_run_failed", request_id: requestId, harness: HARNESS_VERSION,
+      http_status: status, model_calls: modelCalls, total_tokens: totalTokens, duration_ms: Date.now() - startedAt }));
     return failure(status, code, "Agent ตรวจข้อมูลไม่สำเร็จ กรุณาลองใหม่ภายหลัง", requestId);
   }
   // Operational trace excludes prompts, keys, JWTs, tool arguments and business rows.
   console.info(JSON.stringify({ event: "chat_run", request_id: requestId, harness: HARNESS_VERSION,
-    model: config.model, model_calls: modelCalls, top_k: topK, status: result.status, stop_reason: result.stop_reason, steps: result.trace }));
+    model: config.model, model_calls: modelCalls, top_k: topK, status: result.status, stop_reason: result.stop_reason,
+    answer_mode: result.answer_mode, answer_validation: result.answer_validation,
+    total_tokens: totalTokens, duration_ms: Date.now() - startedAt, steps: result.trace }));
   const evidence = result.evidence as ToolEnvelope[];
   const envelope = evidence[0];
 
@@ -184,6 +197,10 @@ export async function POST(request: Request) {
     status: result.status,
     tool: envelope?.tool,
     answer: result.answer,
+    answer_mode: result.answer_mode,
+    answer_validation: result.answer_validation,
+    harness: HARNESS_VERSION,
+    model_calls: modelCalls,
     stop_reason: result.stop_reason,
     steps: result.trace,
     data_as_of: evidence.map((item) => item.data_as_of),

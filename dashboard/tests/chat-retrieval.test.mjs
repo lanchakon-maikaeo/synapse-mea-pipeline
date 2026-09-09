@@ -36,6 +36,17 @@ test('query compiler input rejects identifiers, arbitrary SQL and malformed nest
     assert.throws(() => validateDecision({ name: 'query_database', args }));
   }
 });
+test('optional ranking failure preserves authorized candidates; RPC denial is never bypassed', async () => {
+  for (const generate of [async () => { throw Error('quota'); }, async () => call('rank_candidates', { indices: [] })]) {
+    const r = await retrieveDatabase({ decision: { name: 'query_database', args: { search: 'เขต', limit: 2 } }, question: 'เขต', topK: 1,
+      rpc: async () => ({ status: 'ok', data: [{ district_id: '5501' }, { district_id: '5502' }] }), generate });
+    assert.deepEqual(r.data, [{ district_id: '5501' }]); assert.equal(r.scope.truncated, true);
+    assert.equal(r.retrieval.status, 'fallback_original_order');
+  }
+  const denied = { status: 'forbidden', data: [] };
+  assert.deepEqual(await retrieveDatabase({ decision: {}, rpc: async () => denied, generate: () => assert.fail('denied') }), denied);
+  await assert.rejects(retrieveDatabase({ decision: {}, rpc: async () => { throw Error('unauthorized'); } }), /unauthorized/);
+});
 test('discovery is not an answer: harness must execute the discovered source', async () => {
   const responses = [call('discover_database', { query: 'เขต 5501' }), call('query_database', plan), call('finish', {})];
   const r = await runAgent({ message: 'เขต 5501 คือเขตไหน', temperature: 0, scope: { role: 'admin' },

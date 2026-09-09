@@ -1,5 +1,7 @@
 # P05 — Quality, security, complete PoC handoff
 
+Historical POC 1/Qwen gate. For current Gemini Agent v4, use [P06](P06-notebook-production.md) and STATE. The principles of independently checked values, held-out cases, per-role access tests and measured latency remain applicable; a scripted writer/reviewer test is not live-model accuracy evidence. No new deployment is authorized in the current task.
+
 Depends: P04 done. Outcome: reviewable evidence that the full PoC works on Supabase Test and the real Qwen endpoint.
 
 Read: CONTEXT/STATE, module evidence, actual chat tests and existing `Makefile`/`dashboard/package.json`. Reuse development fixtures and built-in runners; no new evaluation framework unless existing tools cannot cover the required checks.

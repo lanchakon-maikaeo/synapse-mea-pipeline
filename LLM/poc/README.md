@@ -1,5 +1,7 @@
 # SYNAPSE Chat PoC — แผนแยกโมดูลสำหรับ Codex
 
+> **สถานะปัจจุบัน 9 กันยายน 2026:** ใช้ POC 2 / Gemini และ Database Agent v4 ใน production code path ดู [P06 — Notebook → production](P06-notebook-production.md) และ [STATE](STATE.md) งาน v4 อยู่ใน local worktree ยังไม่ push/deploy ส่วนรายละเอียด P00–P05 ด้านล่างเป็นแผน **POC 1 เดิม** ไม่ใช่ข้อจำกัดของ Agent ปัจจุบัน
+
 ชื่ออ้างอิง: **POC 1** — Qwen/vLLM แบบ self-host; ทางเลือกใช้ Commercial LLM API อยู่ใน [POC 2](../POC2_COMMERCIAL_API.md) ทั้งสองแผนมีหน้าแชทในเว็บแอป และใช้ฐานข้อมูล/สิทธิ์/ห้า tools ร่วมกัน ส่วน `P02` ด้านล่างเป็นชื่อโมดูล Backend Tools ไม่ใช่ POC 2
 
 จัดทำ 8 กันยายน 2026 | สถานะ: แผนงาน ยังไม่ได้ implement/deploy

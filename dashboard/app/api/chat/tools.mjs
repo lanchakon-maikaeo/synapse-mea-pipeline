@@ -97,6 +97,7 @@ function exactKeys(value, keys) {
 }
 
 export function parseToolDecision(providerResponse) {
+  if (!Array.isArray(providerResponse?.candidates) || providerResponse.candidates.length !== 1) throw new Error("provider_tool_call_invalid");
   const calls = Array.isArray(providerResponse?.candidates)
     ? providerResponse.candidates.flatMap((candidate) => candidate?.content?.parts ?? [])
       .map((part) => part?.functionCall)
@@ -278,7 +279,9 @@ export function renderToolResult(envelope) {
       ...rows.map(row => Object.entries(row).map(([key, value]) => `${labels[key] ?? key}: ${format(value)}`).join(" · ")),
       `แหล่งข้อมูล: ${envelope.source_id} · ตรวจเมื่อ ${date(envelope.observed_at)}`,
       ...(envelope.aggregation ? ["คำนวณจากทุกแถวที่ตรงเงื่อนไขและสิทธิ์ ก่อนจำกัดจำนวนผลลัพธ์"] : []),
-      ...(envelope.retrieval ? [`คัดความเกี่ยวข้อง ${rows.length} รายการจากผู้สมัคร ${envelope.retrieval.candidate_count} รายการ`] : []),
+      ...(envelope.retrieval ? [envelope.retrieval.status === "fallback_original_order"
+        ? `จัดอันดับความเกี่ยวข้องไม่สำเร็จ แสดง ${rows.length} รายการตามลำดับเดิมจากผู้สมัคร ${envelope.retrieval.candidate_count} รายการ`
+        : `คัดความเกี่ยวข้อง ${rows.length} รายการจากผู้สมัคร ${envelope.retrieval.candidate_count} รายการ`] : []),
       ...(envelope.scope?.truncated ? ["แสดงเพียงบางรายการ ยังไม่ใช่ข้อมูลทั้งหมด กรุณาระบุเงื่อนไขเพิ่มหรือขอหน้าถัดไป"] : []),
     ].join("\n");
   }
