@@ -3018,6 +3018,7 @@ export function TransportModule({
   token: string | null;
   role: Role;
   actorId: string;
+  demoMode?: boolean;
 }) {
   const {
     data,
