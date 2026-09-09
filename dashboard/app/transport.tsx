@@ -742,6 +742,22 @@ type FleetChunk = {
   weightKg: number;
 };
 
+type DistrictRecommendation = {
+  mode: Exclude<FulfillmentMode, "unassigned">;
+  day: DeliveryDay;
+  reason: string;
+};
+
+type TransportRecommendation = {
+  districts: Record<string, DistrictRecommendation>;
+  deliveryCount: number;
+  pickupCount: number;
+  fleetBasis: "verified" | "provisional" | "missing";
+  vehicleCount: number;
+  dailyCapacityKg: number | null;
+  weightComplete: boolean;
+};
+
 function queueGroups(rows: QueueRow[]): QueueGroup[] {
   const groups = new Map<string, QueueGroup>();
   for (const row of rows) {
@@ -833,6 +849,143 @@ function planWeekDates(planNumber: string) {
   return {
     dates,
     range: `${dates[0].toLocaleDateString("th-TH", { day: "numeric", month: "short", timeZone: "UTC" })}–${dates[4].toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`,
+  };
+}
+
+function recommendTransportPlan(
+  rows: QueueRow[],
+  geo: Record<string, TGeo>,
+  vehicles: TVehicle[],
+  warehouse: string,
+  maxStops: number,
+): TransportRecommendation {
+  const activeAtWarehouse = vehicles.filter(
+    (vehicle) => vehicle.active && vehicle.currentWarehouse === warehouse,
+  );
+  const verifiedFleet = activeAtWarehouse.filter(
+    (vehicle) => vehicle.availability === "available",
+  );
+  const planningFleet = verifiedFleet.length ? verifiedFleet : activeAtWarehouse;
+  const fleetBasis: TransportRecommendation["fleetBasis"] = verifiedFleet.length
+    ? "verified"
+    : planningFleet.length
+      ? "provisional"
+      : "missing";
+  const dailyCapacityKg = planningFleet.length
+    ? planningFleet.reduce((sum, vehicle) => sum + Math.max(0, vehicle.maxWt), 0)
+    : null;
+  const maxVehicleWeightKg = planningFleet.reduce(
+    (largest, vehicle) => Math.max(largest, vehicle.maxWt),
+    0,
+  );
+  const dailyStopCapacity = planningFleet.length
+    ? Math.max(1, planningFleet.length * maxStops)
+    : Number.POSITIVE_INFINITY;
+  const loadByDay = new Map<DeliveryDay, { weightKg: number; stops: number }>(
+    deliveryDays.map((day) => [day.id, { weightKg: 0, stops: 0 }]),
+  );
+  const districts: Record<string, DistrictRecommendation> = {};
+  const sortedRows = [...rows].sort(
+    (a, b) =>
+      (b.estimatedWeightKg ?? Math.max(1, b.lineCount)) -
+      (a.estimatedWeightKg ?? Math.max(1, a.lineCount)),
+  );
+
+  const lightestDay = () =>
+    deliveryDays.reduce((best, candidate) => {
+      const bestLoad = loadByDay.get(best.id) ?? { weightKg: 0, stops: 0 };
+      const candidateLoad = loadByDay.get(candidate.id) ?? {
+        weightKg: 0,
+        stops: 0,
+      };
+      return candidateLoad.weightKg < bestLoad.weightKg ||
+        (candidateLoad.weightKg === bestLoad.weightKg &&
+          candidateLoad.stops < bestLoad.stops)
+        ? candidate
+        : best;
+    }).id;
+
+  for (const row of sortedRows) {
+    const point = geo[row.districtRef];
+    const routeReady = Boolean(
+      row.routeEligible &&
+        point?.verificationStatus === "verified" &&
+        point.routeEligible &&
+        hasValidCoordinates(point),
+    );
+    const weightKg = row.estimatedWeightKg ?? Math.max(1, row.lineCount);
+    if (!routeReady) {
+      const day = lightestDay();
+      districts[row.districtRef] = {
+        mode: "pickup",
+        day,
+        reason: "แนะนำให้รับเองชั่วคราว เพราะพิกัดยังไม่พร้อมคำนวณเส้นทาง",
+      };
+      continue;
+    }
+    if (maxVehicleWeightKg > 0 && weightKg > maxVehicleWeightKg) {
+      const day = lightestDay();
+      districts[row.districtRef] = {
+        mode: "pickup",
+        day,
+        reason: `แนะนำให้รับเอง เพราะ ${formatNumber(weightKg, 0)} กก. เกินความจุรถคันเดียว`,
+      };
+      continue;
+    }
+
+    const rankedDays = [...deliveryDays].sort((a, b) => {
+      const aLoad = loadByDay.get(a.id) ?? { weightKg: 0, stops: 0 };
+      const bLoad = loadByDay.get(b.id) ?? { weightKg: 0, stops: 0 };
+      return aLoad.weightKg - bLoad.weightKg || aLoad.stops - bLoad.stops;
+    });
+    const chosenDay = rankedDays.find((day) => {
+      const load = loadByDay.get(day.id) ?? { weightKg: 0, stops: 0 };
+      return (
+        load.stops < dailyStopCapacity &&
+        (dailyCapacityKg == null || load.weightKg + weightKg <= dailyCapacityKg)
+      );
+    });
+    if (!chosenDay) {
+      const day = lightestDay();
+      districts[row.districtRef] = {
+        mode: "pickup",
+        day,
+        reason: "แนะนำให้รับเอง เพราะความจุรถรวมของสัปดาห์ไม่พอ",
+      };
+      continue;
+    }
+
+    const currentLoad = loadByDay.get(chosenDay.id) ?? {
+      weightKg: 0,
+      stops: 0,
+    };
+    loadByDay.set(chosenDay.id, {
+      weightKg: currentLoad.weightKg + weightKg,
+      stops: currentLoad.stops + 1,
+    });
+    districts[row.districtRef] = {
+      mode: "delivery",
+      day: chosenDay.id,
+      reason:
+        fleetBasis === "verified"
+          ? "คลังส่งได้ตามพิกัด น้ำหนัก และความจุรถที่ยืนยันแล้ว"
+          : fleetBasis === "provisional"
+            ? "คลังส่งได้เบื้องต้น แต่ Planner ต้องยืนยันรถพร้อมใช้งาน"
+            : "คลังส่งได้ตามพิกัดและน้ำหนัก แต่ยังต้องระบุรถก่อนจัดเส้นทางจริง",
+    };
+  }
+
+  const recommendations = Object.values(districts);
+  return {
+    districts,
+    deliveryCount: recommendations.filter((item) => item.mode === "delivery").length,
+    pickupCount: recommendations.filter((item) => item.mode === "pickup").length,
+    fleetBasis,
+    vehicleCount: planningFleet.length,
+    dailyCapacityKg,
+    weightComplete: rows.every(
+      (row) => row.weightComplete && row.estimatedWeightKg != null,
+    ),
   };
 }
 
@@ -1500,6 +1653,17 @@ function TransportPlanner({
     () => groupRows.map((row) => row.districtRef),
     [groupRows],
   );
+  const systemRecommendation = useMemo(
+    () =>
+      recommendTransportPlan(
+        groupRows,
+        data.geo,
+        data.vehicles,
+        warehouse,
+        maxStops,
+      ),
+    [data.geo, data.vehicles, groupRows, maxStops, warehouse],
+  );
   const availableVehicles = useMemo(
     () =>
       data.vehicles.filter(
@@ -1537,6 +1701,23 @@ function TransportPlanner({
     (fulfillmentByDistrict[row.districtRef] ?? "unassigned") !== "unassigned" &&
     !deliveryDayByDistrict[row.districtRef]
   ).length, [deliveryDayByDistrict, fulfillmentByDistrict, groupRows]);
+  const plannerOverrideCount = useMemo(
+    () =>
+      groupRows.filter((row) => {
+        const suggestion = systemRecommendation.districts[row.districtRef];
+        return Boolean(
+          suggestion &&
+            (fulfillmentByDistrict[row.districtRef] !== suggestion.mode ||
+              deliveryDayByDistrict[row.districtRef] !== suggestion.day),
+        );
+      }).length,
+    [
+      deliveryDayByDistrict,
+      fulfillmentByDistrict,
+      groupRows,
+      systemRecommendation.districts,
+    ],
+  );
   const selectionSignature = JSON.stringify({
     group: activeGroup?.key ?? "",
     warehouse,
@@ -1701,6 +1882,22 @@ function TransportPlanner({
     setDeliveryDayByDistrict(nextDays);
     setMsg("");
   };
+  const applySystemRecommendation = useCallback(() => {
+    const nextFulfillment: Record<string, FulfillmentMode> = {};
+    const nextDays: Record<string, DeliveryDay> = {};
+    for (const row of groupRows) {
+      const suggestion = systemRecommendation.districts[row.districtRef];
+      if (!suggestion) continue;
+      nextFulfillment[row.districtRef] = suggestion.mode;
+      nextDays[row.districtRef] = suggestion.day;
+    }
+    setFulfillmentByDistrict(nextFulfillment);
+    setDeliveryDayByDistrict(nextDays);
+    setActiveDay("monday");
+    setMsg(
+      `ระบบจัดแผนตั้งต้นแล้ว: คลังส่ง ${systemRecommendation.deliveryCount} เขต · รับเอง ${systemRecommendation.pickupCount} เขต — Planner ปรับแก้ได้`,
+    );
+  }, [groupRows, systemRecommendation]);
   const autoDistributeWeek = () => {
     const rows = groupRows.filter((row) => (fulfillmentByDistrict[row.districtRef] ?? "unassigned") !== "unassigned");
     if (!rows.length) {
@@ -1731,16 +1928,23 @@ function TransportPlanner({
     const nextFulfillment: Record<string, FulfillmentMode> = {};
     const nextSchedule: Record<string, DeliveryDay> = {};
     activeGroup.rows.forEach((row) => {
+      const suggestion = systemRecommendation.districts[row.districtRef];
       const mode = fulfillment[row.districtRef];
-      nextFulfillment[row.districtRef] = ["delivery", "pickup", "unassigned"].includes(mode) ? mode : "unassigned";
+      nextFulfillment[row.districtRef] = ["delivery", "pickup"].includes(mode)
+        ? mode
+        : suggestion?.mode ?? "unassigned";
       const day = schedule[row.districtRef];
-      if (deliveryDays.some((item) => item.id === day)) nextSchedule[row.districtRef] = day;
+      if (deliveryDays.some((item) => item.id === day)) {
+        nextSchedule[row.districtRef] = day;
+      } else if (suggestion) {
+        nextSchedule[row.districtRef] = suggestion.day;
+      }
     });
     setFulfillmentByDistrict(nextFulfillment);
     setDeliveryDayByDistrict(nextSchedule);
     setFulfillmentScope(fulfillmentKey);
     setScheduleScope(scheduleKey);
-  }, [activeGroup?.key, actorId]);
+  }, [activeGroup, actorId, systemRecommendation.districts]);
 
   useEffect(() => {
     if (fulfillmentScope) window.localStorage.setItem(fulfillmentScope, JSON.stringify(fulfillmentByDistrict));
@@ -2271,6 +2475,38 @@ function TransportPlanner({
             <button type="button" className="btn ghost" onClick={() => setAllFulfillment("pickup")}>ทั้งหมดเข้ารับเอง</button>
           </div>
         </div>
+        <aside className="transport-ai-plan" aria-label="แผนตั้งต้นที่ระบบแนะนำ">
+          <div className="transport-ai-mark" aria-hidden="true">AI</div>
+          <div className="transport-ai-copy">
+            <span>ระบบช่วยจัดแผนอัตโนมัติ · EDITABLE DRAFT</span>
+            <h3>ระบบจัดค่าเริ่มต้นให้ Planner แล้ว</h3>
+            <p>
+              พิจารณาพิกัด น้ำหนัก ความจุรถ จำนวนจุดต่อเที่ยว และกระจายน้ำหนักจันทร์–ศุกร์
+              โดยยังไม่แก้แผนจ่ายต้นฉบับ Planner เปลี่ยนวิธีรับของหรือวันได้ทุกเขต
+            </p>
+          </div>
+          <dl>
+            <div><dt>คลังส่ง</dt><dd>{systemRecommendation.deliveryCount} เขต</dd></div>
+            <div><dt>รับเอง</dt><dd>{systemRecommendation.pickupCount} เขต</dd></div>
+            <div><dt>รถที่ใช้คำนวณ</dt><dd>{systemRecommendation.vehicleCount || "รอยืนยัน"}</dd></div>
+            <div><dt>Planner ปรับจากคำแนะนำ</dt><dd>{plannerOverrideCount} เขต</dd></div>
+          </dl>
+          <div className="transport-ai-actions">
+            <span className={`transport-ai-confidence ${systemRecommendation.fleetBasis}`}>
+              {systemRecommendation.fleetBasis === "verified"
+                ? `ใช้รถพร้อมงาน ${systemRecommendation.vehicleCount} คัน · ${formatNumber(systemRecommendation.dailyCapacityKg ?? 0)} กก./วัน`
+                : systemRecommendation.fleetBasis === "provisional"
+                  ? `ใช้ทะเบียนรถ active ${systemRecommendation.vehicleCount} คันชั่วคราว · ต้องยืนยัน availability`
+                  : "ยังไม่มีรถในคลัง · แนะนำวันและวิธีรับของแบบชั่วคราว"}
+            </span>
+            {!systemRecommendation.weightComplete && (
+              <small>บางเขตยังไม่มีน้ำหนักครบ ระบบใช้จำนวนรายการเป็นค่าประมาณ</small>
+            )}
+            <button type="button" className="btn primary" onClick={applySystemRecommendation}>
+              ให้ระบบจัดแผนแนะนำใหม่
+            </button>
+          </div>
+        </aside>
         <div className="transport-fulfillment-summary">
           <article className="delivery"><span>คลังกลางจัดส่ง</span><strong>{fulfillmentCounts.delivery}</strong><small>นำไปจัดรถและคำนวณเส้นทาง</small></article>
           <article className="pickup"><span>เขตเข้ารับเอง</span><strong>{fulfillmentCounts.pickup}</strong><small>แยกเป็นรายการนัดรับที่คลัง</small></article>
@@ -2299,6 +2535,7 @@ function TransportPlanner({
                 <th scope="col">รายการ / ปริมาณ</th>
                 <th scope="col">น้ำหนัก</th>
                 <th scope="col">พิกัด</th>
+                <th scope="col">ระบบแนะนำ</th>
                 <th scope="col">วิธีรับของ</th>
                 <th scope="col">วันส่ง / วันรับ</th>
               </tr>
@@ -2315,6 +2552,13 @@ function TransportPlanner({
                   coordinateReady;
                 const weightReady =
                   row.weightComplete && row.estimatedWeightKg != null;
+                const recommendation =
+                  systemRecommendation.districts[row.districtRef];
+                const plannerOverrode = Boolean(
+                  recommendation &&
+                    (fulfillmentByDistrict[row.districtRef] !== recommendation.mode ||
+                      deliveryDayByDistrict[row.districtRef] !== recommendation.day),
+                );
                 return (
                   <tr key={`${activeGroup?.key}:${row.districtRef}`}>
                     <td>
@@ -2350,6 +2594,20 @@ function TransportPlanner({
                       </span>
                     </td>
                     <td>
+                      {recommendation ? (
+                        <span className={`transport-ai-row ${plannerOverrode ? "overridden" : recommendation.mode}`}>
+                          <strong>
+                            {plannerOverrode
+                              ? "Planner ปรับแล้ว"
+                              : recommendation.mode === "delivery"
+                                ? "แนะนำ: คลังส่ง"
+                                : "แนะนำ: รับเอง"}
+                          </strong>
+                          <small>{recommendation.reason}</small>
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td>
                       <select className="transport-fulfillment-select" value={fulfillmentByDistrict[row.districtRef] ?? "unassigned"} onChange={(event) => setFulfillmentMode(row.districtRef, event.target.value as FulfillmentMode)}>
                         <option value="unassigned">ยังไม่ระบุ</option><option value="delivery" disabled={!routeReady}>คลังกลางจัดส่ง</option><option value="pickup">เขตเข้ารับเอง</option>
                       </select>
@@ -2360,7 +2618,7 @@ function TransportPlanner({
               })}
               {!groupRows.length && (
                 <tr>
-                  <td colSpan={6}>ไม่พบงาน locked ที่พร้อมเข้ากลุ่มขนส่ง</td>
+                  <td colSpan={7}>ไม่พบงาน locked ที่พร้อมเข้ากลุ่มขนส่ง</td>
                 </tr>
               )}
             </tbody>
