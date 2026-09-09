@@ -741,13 +741,6 @@ function DashboardView({
   );
   const plannedQtyFor = (row: RecordRow) =>
     Number(row.final_qty ?? row.confirmed_qty ?? row.suggested_qty ?? 0);
-  const plannedQty = planRows.reduce((sum, row) => sum + plannedQtyFor(row), 0);
-  const issuedQty = weeklyIssues.reduce(
-    (sum, row) => sum + Number(row.issued_qty ?? 0),
-    0,
-  );
-  const outstandingQty = Math.max(0, plannedQty - issuedQty);
-  const completionPct = plannedQty > 0 ? Math.min(100, (issuedQty / plannedQty) * 100) : 0;
   const issuedByItem = weeklyIssues.reduce<Record<string, number>>((totals, row) => {
     const itemId = text(row.replenishment_item_id);
     totals[itemId] = (totals[itemId] ?? 0) + Number(row.issued_qty ?? 0);
@@ -760,6 +753,10 @@ function DashboardView({
     const target = plannedQtyFor(row);
     return target > 0 && (issuedByItem[text(row.replenishment_item_id)] ?? 0) >= target;
   }).length;
+  const remainingLineCount = Math.max(0, planRows.length - completedLineCount);
+  const completionPct = planRows.length > 0
+    ? Math.min(100, (completedLineCount / planRows.length) * 100)
+    : 0;
   const plannedDistricts = new Set(planRows.map((row) => text(row.district_id)).filter(Boolean));
   const issuedDistricts = new Set(weeklyIssues.map((row) => text(row.district_id)).filter(Boolean));
   const planChanges = data.changeRequests.filter(
@@ -786,7 +783,6 @@ function DashboardView({
     const rows = weeklyIssues.filter((row) => text(row.occurred_at).slice(0, 10) === key);
     return {
       date,
-      qty: rows.reduce((sum, row) => sum + Number(row.issued_qty ?? 0), 0),
       lines: new Set(rows.map((row) => text(row.replenishment_item_id))).size,
     };
   });
@@ -832,7 +828,7 @@ function DashboardView({
           <span>WEEKLY DISTRIBUTION CONTROL</span>
           <h2>สรุปรายการจ่ายตามแผน</h2>
           <p>
-            เทียบยอดตามแผนกับการจ่ายจริงจาก Inventory Movement พร้อมรายการค้างและข้อยกเว้น
+            เทียบจำนวนรายการตามแผนกับรายการที่จ่ายจริงจาก Inventory Movement พร้อมรายการค้างและข้อยกเว้น
           </p>
         </div>
         <label>
@@ -859,31 +855,31 @@ function DashboardView({
         </div>
         <div className="distribution-progress-copy">
           <strong>{formatNumber(completionPct, 1)}%</strong>
-          <span>{formatNumber(issuedQty, 0)} / {formatNumber(plannedQty, 0)} หน่วย</span>
+          <span>{formatNumber(completedLineCount)} / {formatNumber(planRows.length)} รายการจ่ายครบ</span>
         </div>
         <div className="distribution-progress"><i style={{ width: `${completionPct}%` }} /></div>
       </section>
 
       <section className="kpis distribution-kpis">
         <article>
-          <div><span>ปริมาณตามแผน</span><i className="dot purple" /></div>
-          <strong>{formatNumber(plannedQty, 0)}</strong>
-          <small>{formatNumber(planRows.length)} รายการ · {formatNumber(plannedDistricts.size)} เขต</small>
+          <div><span>รายการตามแผน</span><i className="dot purple" /></div>
+          <strong>{formatNumber(planRows.length)}</strong>
+          <small>{formatNumber(plannedDistricts.size)} เขต</small>
         </article>
         <article>
-          <div><span>จ่ายจริงแล้ว</span><i className="dot green" /></div>
-          <strong>{formatNumber(issuedQty, 0)}</strong>
-          <small>{formatNumber(issuedLineCount)} รายการ · {formatNumber(issuedDistricts.size)} เขต</small>
+          <div><span>เริ่มจ่ายแล้ว</span><i className="dot blue" /></div>
+          <strong>{formatNumber(issuedLineCount)}</strong>
+          <small>{formatNumber(issuedDistricts.size)} เขตมี Inventory Movement</small>
         </article>
         <article>
-          <div><span>คงเหลือต้องจ่าย</span><i className="dot orange" /></div>
-          <strong>{formatNumber(outstandingQty, 0)}</strong>
-          <small>{formatNumber(planRows.length - completedLineCount)} รายการยังไม่ครบ</small>
+          <div><span>จ่ายครบแล้ว</span><i className="dot green" /></div>
+          <strong>{formatNumber(completedLineCount)}</strong>
+          <small>จำนวนรายการที่จ่ายครบตามจำนวนของตนเอง</small>
         </article>
         <article>
-          <div><span>รายการเปลี่ยนจากแผน</span><i className="dot blue" /></div>
-          <strong>{formatNumber(changedLines)}</strong>
-          <small>คำขอรอตรวจ {formatNumber(pendingChanges)} รายการ</small>
+          <div><span>รายการคงเหลือ</span><i className="dot orange" /></div>
+          <strong>{formatNumber(remainingLineCount)}</strong>
+          <small>ยังไม่จ่ายหรือจ่ายไม่ครบ</small>
         </article>
       </section>
 
@@ -897,12 +893,12 @@ function DashboardView({
             <article key={index}>
               <span>{["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์"][index]}</span>
               <small>{day.date ? day.date.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : "—"}</small>
-              <strong>{formatNumber(day.qty, 0)}</strong>
-              <em>หน่วย · {formatNumber(day.lines)} รายการ</em>
+              <strong>{formatNumber(day.lines)}</strong>
+              <em>รายการที่มีการจ่ายจริงในวันนี้</em>
             </article>
           ))}
         </div>
-        <p className="distribution-data-note">ยอดรายวันมาจากเวลาบันทึก Inventory Movement จริง ระบบไม่เฉลี่ยแผนรายสัปดาห์เป็นรายวันเอง</p>
+        <p className="distribution-data-note">จำนวนรายวันนับรายการที่มี Inventory Movement จริง โดยไม่นำหน่วยของวัสดุต่างชนิดมารวมกัน</p>
       </section>
 
       <section className="distribution-exception-grid">
@@ -926,6 +922,7 @@ function DashboardView({
           </div>
           <div className="distribution-action-list">
             <button onClick={() => navigate("fifo")}><span>หลักฐาน FIFO ยังไม่ครบ</span><strong>{formatNumber(fifoGapLines)}</strong><small>เปิดตรวจหน่วยจัดเก็บที่พร้อมจ่าย</small></button>
+            <button onClick={() => navigate("weekly")}><span>รายการเปลี่ยนจากแผน</span><strong>{formatNumber(changedLines)}</strong><small>จำนวนรายการที่เขตขอต่างจากระบบเสนอ</small></button>
             <button onClick={() => navigate("changes")}><span>คำขอเปลี่ยนรอตรวจ</span><strong>{formatNumber(pendingChanges)}</strong><small>ตรวจผลกระทบก่อนจ่าย</small></button>
             <button onClick={() => navigate("adhoc")}><span>กรณีพิเศษรอดำเนินการ</span><strong>{formatNumber(pendingAdHoc)}</strong><small>แยกออกจากแผนสัปดาห์</small></button>
             <button onClick={() => navigate(nextView)}><span>เปิดงานที่ต้องดำเนินการ</span><strong>→</strong><small>ไปยังหน้าปฏิบัติงานตามสิทธิ์</small></button>
