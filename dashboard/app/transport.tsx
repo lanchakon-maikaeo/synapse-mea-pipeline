@@ -1348,68 +1348,228 @@ function tripHasStatus(trip: TTrip, raw: string, translated: string) {
   return trip.status === raw || trip.status.includes(translated);
 }
 
-function TransportDashboard({ data }: { data: TransportData }) {
+function TransportDashboard({ data, actorId }: { data: TransportData; actorId: string }) {
+  const groups = useMemo(() => queueGroups(data.queue), [data.queue]);
   const planned = data.trips.filter((trip) =>
     tripHasStatus(trip, "planned", "วางแผน"),
+  );
+  const dispatched = data.trips.filter((trip) =>
+    tripHasStatus(trip, "dispatched", "ออกรถแล้ว"),
   );
   const done = data.trips.filter((trip) =>
     tripHasStatus(trip, "completed", "ส่งครบ"),
   );
-  const activeVeh = data.vehicles.filter((v) => v.active).length;
-  const availabilityKnown = data.vehicles.some(
-    (vehicle) => vehicle.availability !== "unknown",
+  const cancelled = data.trips.filter((trip) =>
+    tripHasStatus(trip, "cancelled", "ยกเลิก"),
   );
+  const activeVeh = data.vehicles.filter((v) => v.active).length;
   const availableVeh = data.vehicles.filter(
     (vehicle) => vehicle.availability === "available",
   ).length;
-  const pending = data.queue.length;
+  const unavailableVeh = data.vehicles.filter(
+    (vehicle) => vehicle.availability === "unavailable",
+  ).length;
+  const unknownVeh = data.vehicles.filter(
+    (vehicle) => vehicle.availability === "unknown",
+  ).length;
+  const assignments = useMemo(() => {
+    const next: Array<{
+      row: QueueRow;
+      mode: FulfillmentMode;
+      day: DeliveryDay;
+      overridden: boolean;
+    }> = [];
+    groups.forEach((group) => {
+      if (!group.planId) return;
+      const recommendation = recommendTransportPlan(
+        group.rows,
+        data.geo,
+        data.vehicles,
+        group.warehouse,
+        6,
+      );
+      let savedModes: Record<string, FulfillmentMode> = {};
+      let savedDays: Record<string, DeliveryDay> = {};
+      try {
+        if (typeof window === "undefined") throw new Error("storage unavailable");
+        savedModes = JSON.parse(
+          window.localStorage.getItem(fulfillmentStorageKey(actorId, group.planId)) ?? "{}",
+        );
+      } catch {
+        savedModes = {};
+      }
+      try {
+        if (typeof window === "undefined") throw new Error("storage unavailable");
+        savedDays = JSON.parse(
+          window.localStorage.getItem(scheduleStorageKey(actorId, group.planId)) ?? "{}",
+        );
+      } catch {
+        savedDays = {};
+      }
+      group.rows.forEach((row) => {
+        const suggestion = recommendation.districts[row.districtRef];
+        const savedMode = savedModes[row.districtRef];
+        const savedDay = savedDays[row.districtRef];
+        const mode = ["delivery", "pickup"].includes(savedMode)
+          ? savedMode
+          : suggestion?.mode ?? "unassigned";
+        const day = deliveryDays.some((item) => item.id === savedDay)
+          ? savedDay
+          : suggestion?.day ?? "monday";
+        next.push({
+          row,
+          mode,
+          day,
+          overridden: Boolean(
+            suggestion &&
+              ((["delivery", "pickup"].includes(savedMode) && savedMode !== suggestion.mode) ||
+                (deliveryDays.some((item) => item.id === savedDay) && savedDay !== suggestion.day)),
+          ),
+        });
+      });
+    });
+    return next;
+  }, [actorId, data.geo, data.vehicles, groups]);
+
+  const deliveryCount = assignments.filter((item) => item.mode === "delivery").length;
+  const pickupCount = assignments.filter((item) => item.mode === "pickup").length;
+  const unassignedCount = assignments.filter((item) => item.mode === "unassigned").length;
+  const overrideCount = assignments.filter((item) => item.overridden).length;
+  const weekDates = planWeekDates(groups[0]?.planNumber ?? "");
+  const weeklyDays = deliveryDays.map((day, index) => {
+    const rows = assignments.filter((item) => item.day === day.id && item.mode !== "unassigned");
+    return {
+      ...day,
+      date: weekDates?.dates[index] ?? null,
+      delivery: rows.filter((item) => item.mode === "delivery").length,
+      pickup: rows.filter((item) => item.mode === "pickup").length,
+      weightKg: rows.reduce((sum, item) => sum + (item.row.estimatedWeightKg ?? 0), 0),
+    };
+  });
+  const estimatedFuel = [...planned, ...dispatched].reduce((sum, trip) => sum + trip.fuel, 0);
+  const actualFuel = done.reduce((sum, trip) => sum + (trip.fuelActual ?? 0), 0);
+  const planNumbers = [...new Set(groups.map((group) => group.planNumber).filter(Boolean))];
   return (
     <div className="stack">
-      <section className="kpis">
+      <section className="transport-overview-hero">
+        <div>
+          <span>WEEKLY TRANSPORT CONTROL</span>
+          <h2>ภาพรวมแผนเดินรถรายสัปดาห์</h2>
+          <p>
+            {planNumbers.length
+              ? `อ้างอิง ${planNumbers.join(", ")} · แสดงค่าที่ระบบแนะนำและค่าล่าสุดที่ Planner ปรับ`
+              : "ยังไม่มี locked plan สำหรับจัดรถ"}
+          </p>
+        </div>
+        <strong>{deliveryCount + pickupCount}/{assignments.length} เขตจัดวิธีรับแล้ว</strong>
+      </section>
+
+      <section className="kpis transport-overview-kpis">
         <article>
           <div>
-            <span>รถ active ในทะเบียน</span>
-            <i className="dot blue" />
-          </div>
-          <strong>{formatNumber(activeVeh)}</strong>
-          <small>
-            พร้อมออกงาน:{" "}
-            {availabilityKnown ? formatNumber(availableVeh) : "ไม่ทราบ"}
-          </small>
-        </article>
-        <article>
-          <div>
-            <span>เที่ยวรอออก</span>
-            <i className="dot orange" />
-          </div>
-          <strong>{formatNumber(planned.length)}</strong>
-          <small>สถานะ วางแผน</small>
-        </article>
-        <article>
-          <div>
-            <span>เขตรอจัดส่ง</span>
-            <i className="dot purple" />
-          </div>
-          <strong>{formatNumber(pending)}</strong>
-          <small>จาก locked dispatch queue จริง</small>
-        </article>
-        <article>
-          <div>
-            <span>ส่งครบสะสม</span>
+            <span>คลังกลางไปส่ง</span>
             <i className="dot green" />
           </div>
-          <strong>{formatNumber(done.length)}</strong>
-          <small>ประวัติเที่ยวรถ</small>
+          <strong>{formatNumber(deliveryCount)}</strong>
+          <small>เขตในแผนสัปดาห์นี้</small>
+        </article>
+        <article>
+          <div>
+            <span>เขตมารับเอง</span>
+            <i className="dot blue" />
+          </div>
+          <strong>{formatNumber(pickupCount)}</strong>
+          <small>นัดรับที่คลังตามวันในแผน</small>
+        </article>
+        <article>
+          <div>
+            <span>Planner เปลี่ยนจากคำแนะนำ</span>
+            <i className="dot orange" />
+          </div>
+          <strong>{formatNumber(overrideCount)}</strong>
+          <small>เปลี่ยนวิธีรับหรือเปลี่ยนวัน</small>
+        </article>
+        <article>
+          <div>
+            <span>ยังต้องจัด</span>
+            <i className="dot purple" />
+          </div>
+          <strong>{formatNumber(unassignedCount)}</strong>
+          <small>ยังไม่ระบุส่งหรือรับเอง</small>
+        </article>
+      </section>
+
+      <section className="panel transport-weekly-overview">
+        <div className="panel-title">
+          <div>
+            <span>แผนจันทร์–ศุกร์</span>
+            <h3>งานออกจากคลังกลางและงานเขตมารับเอง แยกรายวัน</h3>
+          </div>
+          <b>{formatNumber(assignments.length)} เขต</b>
+        </div>
+        <div className="transport-week-board overview">
+          {weeklyDays.map((day) => (
+            <article key={day.id}>
+              <span>{day.label}</span>
+              <small>
+                {day.date
+                  ? day.date.toLocaleDateString("th-TH", { day: "numeric", month: "short", timeZone: "UTC" })
+                  : day.short}
+              </small>
+              <strong>{day.delivery + day.pickup} เขต</strong>
+              <em>คลังส่ง {day.delivery} · รับเอง {day.pickup}</em>
+              <i>{formatNumber(day.weightKg, 0)} กก.</i>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="transport-operations-grid">
+        <article className="panel transport-cost-card">
+          <div className="panel-title">
+            <div><span>ค่าใช้จ่าย</span><h3>ค่าน้ำมันและค่าทางด่วน</h3></div>
+          </div>
+          <dl>
+            <div><dt>ค่าน้ำมันประมาณการ</dt><dd>{estimatedFuel > 0 ? `${formatNumber(estimatedFuel, 2)} บาท` : "ยังไม่คำนวณ"}</dd><small>จากเที่ยวที่วางแผน/ออกรถ</small></div>
+            <div><dt>ค่าน้ำมันจริง</dt><dd>{actualFuel > 0 ? `${formatNumber(actualFuel, 2)} บาท` : "ยังไม่มีการบันทึก"}</dd><small>จากเที่ยวที่ส่งครบ</small></div>
+            <div className="unavailable"><dt>ค่าทางด่วนรวม</dt><dd>ยังคำนวณไม่ได้</dd><small>รอตาราง tariff ที่อนุมัติ ไม่แสดง 0 แทนข้อมูลที่ขาด</small></div>
+          </dl>
+        </article>
+        <article className="panel transport-operation-card">
+          <div className="panel-title">
+            <div><span>การดำเนินงานตามแผน</span><h3>ติดตามเที่ยวและการเปลี่ยนแผน</h3></div>
+          </div>
+          <dl>
+            <div><dt>รอออก</dt><dd>{planned.length}</dd></div>
+            <div><dt>กำลังดำเนินงาน</dt><dd>{dispatched.length}</dd></div>
+            <div><dt>ส่งครบ</dt><dd>{done.length}</dd></div>
+            <div><dt>Planner เปลี่ยนแผน</dt><dd>{overrideCount}</dd></div>
+          </dl>
+        </article>
+        <article className="panel transport-operation-card additional">
+          <div className="panel-title">
+            <div><span>การดำเนินงานเพิ่มเติม</span><h3>งานนอกแผนและสิ่งที่ต้องติดตาม</h3></div>
+          </div>
+          <ul>
+            <li><span>เที่ยวถูกยกเลิก</span><strong>{cancelled.length}</strong></li>
+            <li><span>เขตยังไม่ระบุวิธีรับ</span><strong>{unassignedCount}</strong></li>
+            <li><span>รถยังไม่ยืนยันความพร้อม</span><strong>{unknownVeh}</strong></li>
+          </ul>
         </article>
       </section>
 
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>รถขนส่ง</span>
-            <h3>ทะเบียนรถและหลักฐาน availability</h3>
+            <span>รายงานสภาพสถานะรถ</span>
+            <h3>รถพร้อมใช้ ไม่พร้อมใช้ และรอยืนยัน</h3>
           </div>
-          <b>{availabilityKnown ? `${availableVeh} พร้อม` : "ยังไม่ทราบความพร้อม"}</b>
+          <div className="transport-vehicle-summary">
+            <span className="ready">พร้อม {availableVeh}</span>
+            <span className="blocked">ไม่พร้อม {unavailableVeh}</span>
+            <span className="waiting">รอยืนยัน {unknownVeh}</span>
+            <span>Active {activeVeh}</span>
+          </div>
         </div>
         <div className="live-table-wrap">
           <table className="live-table">
@@ -1421,7 +1581,7 @@ function TransportDashboard({ data }: { data: TransportData }) {
                 <th>คนขับ</th>
                 <th>น้ำหนักบรรทุก</th>
                 <th>อัตราน้ำมัน</th>
-                <th>Availability</th>
+                <th>สถานะรถ</th>
               </tr>
             </thead>
             <tbody>
@@ -1452,7 +1612,7 @@ function TransportDashboard({ data }: { data: TransportData }) {
                         ? "พร้อมตามหลักฐาน"
                         : v.availability === "unavailable"
                           ? "ไม่พร้อม"
-                          : "ไม่ทราบ—active ≠ available"}
+                          : "รอยืนยันความพร้อม"}
                     </span>
                     {v.availabilityEvidence && (
                       <small>{v.availabilityEvidence}</small>
@@ -3323,11 +3483,11 @@ export function TransportModule({
           <TransportReadinessPanel readiness={data.readiness} source={source} />
         </details>
       )}
-      {source !== "error" && view !== "planner" && (
+      {source !== "error" && view === "map" && (
         <TransportReadinessPanel readiness={data.readiness} source={source} />
       )}
       {source !== "error" && view === "dashboard" && (
-        <TransportDashboard data={data} />
+        <TransportDashboard data={data} actorId={actorId} />
       )}
       {source !== "error" && view === "planner" && canMutate && (
         <TransportPlanner
