@@ -77,7 +77,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       label: "ข้อมูล & ควบคุม",
       items: [
         ["recommendations", "หลักฐานปริมาณ", "✦"],
-        ["advisory", "Intelligence (advisory)", "◈"],
+        ["advisory", "เฝ้าระวังของค้าง", "◈"],
         ["stock", "ข้อมูล Stock", "◫"],
         ["input", "อัปเดต Stock", "↻"],
         ["data", "ข้อมูล SAP / คุณภาพ", "▥"],
@@ -95,7 +95,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
-        ["advisory", "Intelligence (advisory)", "◈"],
+        ["advisory", "เฝ้าระวังของค้าง", "◈"],
       ],
     },
     {
@@ -2321,18 +2321,37 @@ function RecommendationView({ data }: { data: DashboardData }) {
 // (demand volatility / forecast history is not exposed to the browser).
 type AdvisoryLevel = "critical" | "warning" | "watch" | "none";
 
-const ADVISORY_ORDER: Record<AdvisoryLevel, number> = {
-  critical: 0,
-  warning: 1,
-  watch: 2,
-  none: 3,
-};
-
 const ADVISORY_STYLE: Record<AdvisoryLevel, { bg: string; fg: string; label: string }> = {
   critical: { bg: "#fee4e2", fg: "#b42318", label: "Critical" },
   warning: { bg: "#fef0c7", fg: "#b54708", label: "Warning" },
   watch: { bg: "#d1e9ff", fg: "#175cd3", label: "Watch" },
   none: { bg: "#dcfae6", fg: "#067647", label: "OK" },
+};
+
+const ADVISORY_COPY: Record<
+  AdvisoryLevel,
+  { title: string; description: string; action: string }
+> = {
+  critical: {
+    title: "ต้องดำเนินการทันที",
+    description: "ของค้างรุนแรงหรือไม่มีการใช้",
+    action: "ตรวจสอบสต็อกและเสนอแนวทางจัดการ",
+  },
+  warning: {
+    title: "ควรวางแผนแก้ไข",
+    description: "คงคลังเกินเกณฑ์ 6 เดือน",
+    action: "ทบทวนแผนจ่ายและปริมาณคงเหลือ",
+  },
+  watch: {
+    title: "เฝ้าดูแนวโน้ม",
+    description: "เริ่มเข้าใกล้เกณฑ์ของค้าง",
+    action: "ติดตามรอบถัดไป ยังไม่ต้องดำเนินการ",
+  },
+  none: {
+    title: "อยู่ในเกณฑ์ปกติ",
+    description: "ยังไม่พบสัญญาณของค้าง",
+    action: "ไม่ต้องดำเนินการ",
+  },
 };
 
 function advisoryFor(row: RecordRow): { level: AdvisoryLevel; reason: string } {
@@ -2382,12 +2401,36 @@ function IntelligenceAdvisoryView({ data }: { data: DashboardData }) {
     },
     { critical: 0, warning: 0, watch: 0, none: 0 } as Record<AdvisoryLevel, number>,
   );
-  const flagged = scored
-    .filter(({ advisory }) => advisory.level !== "none")
-    .sort((a, b) => ADVISORY_ORDER[a.advisory.level] - ADVISORY_ORDER[b.advisory.level])
-    .map(({ row, advisory }) => ({ ...row, __level: advisory.level, __reason: advisory.reason }));
+  const [selectedLevel, setSelectedLevel] = useState<AdvisoryLevel>(() => {
+    if (counts.critical) return "critical";
+    if (counts.warning) return "warning";
+    if (counts.watch) return "watch";
+    return "none";
+  });
+  const [query, setQuery] = useState("");
+  const grouped = scored.reduce(
+    (acc, { row, advisory }) => {
+      acc[advisory.level].push({
+        ...row,
+        __level: advisory.level,
+        __reason: advisory.reason,
+      });
+      return acc;
+    },
+    { critical: [], warning: [], watch: [], none: [] } as Record<AdvisoryLevel, RecordRow[]>,
+  );
+  const normalizedQuery = query.trim().toLowerCase();
+  const selectedRows = grouped[selectedLevel].filter((row) => {
+    if (!normalizedQuery) return true;
+    return [row.material_id, row.material_name, row.district_id, row.district_name_th]
+      .map((value) => text(value).toLowerCase())
+      .some((value) => value.includes(normalizedQuery));
+  });
+  const visibleRows = selectedRows.slice(0, normalizedQuery ? 50 : 20);
+  const flaggedCount = counts.critical + counts.warning + counts.watch;
+  const selectedCopy = ADVISORY_COPY[selectedLevel];
   return (
-    <div className="stack">
+    <div className="stack advisory-page">
       <section className="recommend-banner">
         <div>
           <span>การเฝ้าระวัง</span>
@@ -2399,35 +2442,80 @@ function IntelligenceAdvisoryView({ data }: { data: DashboardData }) {
           </p>
         </div>
         <div>
-          <strong>{formatNumber(flagged.length)}</strong>
-          <small>ต้องเฝ้าระวัง / {formatNumber(scored.length)} records</small>
+          <strong>{formatNumber(flaggedCount)}</strong>
+          <small>ต้องเฝ้าระวัง จากทั้งหมด {formatNumber(scored.length)} รายการ</small>
         </div>
       </section>
-      <section
-        className="panel"
-        style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}
-      >
+      <section className="advisory-summary" aria-label="สรุปความเสี่ยง">
         {(["critical", "warning", "watch", "none"] as AdvisoryLevel[]).map((level) => (
-          <div key={level} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <RiskBadge level={level} />
+          <button
+            className={`advisory-summary-card ${level} ${selectedLevel === level ? "active" : ""}`}
+            key={level}
+            type="button"
+            aria-pressed={selectedLevel === level}
+            onClick={() => setSelectedLevel(level)}
+          >
+            <span><RiskBadge level={level} /> เลือกดู</span>
             <strong>{formatNumber(counts[level])}</strong>
-          </div>
+            <h3>{ADVISORY_COPY[level].title}</h3>
+            <p>{ADVISORY_COPY[level].description}</p>
+            <small>{ADVISORY_COPY[level].action}</small>
+          </button>
         ))}
       </section>
-      <section className="panel">
-        <LiveTable
-          rows={flagged}
-          empty="ไม่มีรายการที่ต้องเฝ้าระวัง — หรือยังไม่มีหลักฐานปริมาณ"
-          columns={[
-            ["วัสดุ", (row) => row.material_id],
-            ["เขต", (row) => row.district_id],
-            ["สต็อก", (row) => formatNumber(row.current_stock_qty, 2)],
-            ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
-            ["เดือน", (row) => formatNumber(row.months_available, 1)],
-            ["ความเสี่ยง", (row) => <RiskBadge level={row.__level as AdvisoryLevel} />],
-            ["สัญญาณ", (row) => text(row.__reason)],
-          ]}
-        />
+      <section className={`panel advisory-detail ${selectedLevel}`}>
+        <header className="advisory-detail-head">
+          <div>
+            <RiskBadge level={selectedLevel} />
+            <h3>{selectedCopy.title}</h3>
+            <p>{selectedCopy.action}</p>
+          </div>
+          <strong>{formatNumber(selectedRows.length)} รายการ</strong>
+        </header>
+        <div className="advisory-search">
+          <label>
+            <span>⌕</span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="ค้นหารหัส/ชื่อพัสดุ หรือเขต"
+              aria-label="ค้นหารายการเฝ้าระวัง"
+            />
+          </label>
+          {query ? <button type="button" onClick={() => setQuery("")}>ล้างการค้นหา</button> : null}
+        </div>
+        {visibleRows.length ? (
+          <div className="advisory-item-grid">
+            {visibleRows.map((row, index) => (
+              <article key={`${text(row.material_id)}-${text(row.district_id)}-${index}`}>
+                <div>
+                  <strong>{text(row.material_id)}</strong>
+                  <span>เขต {text(row.district_id)} · {text(row.district_name_th)}</span>
+                </div>
+                <p>{text(row.material_name) || "ไม่มีชื่อพัสดุ"}</p>
+                <dl>
+                  <div><dt>สต็อก</dt><dd>{formatNumber(row.current_stock_qty, 2)}</dd></div>
+                  <div><dt>CMP / เดือน</dt><dd>{formatNumber(row.cmp_monthly, 2)}</dd></div>
+                  <div><dt>คงคลัง</dt><dd>{formatNumber(row.months_available, 1)} เดือน</dd></div>
+                </dl>
+                <footer>{text(row.__reason)}</footer>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="advisory-empty">
+            <i>✓</i>
+            <div>
+              <h3>{query ? "ไม่พบรายการที่ค้นหา" : `ไม่มีรายการกลุ่ม “${selectedCopy.title}”`}</h3>
+              <p>{query ? "ลองค้นหาด้วยรหัสพัสดุหรือเลขเขตอีกครั้ง" : "สถานะนี้ไม่มีงานที่ต้องเปิดตรวจสอบ"}</p>
+            </div>
+          </div>
+        )}
+        {selectedRows.length > visibleRows.length ? (
+          <p className="advisory-more">
+            แสดง {formatNumber(visibleRows.length)} จาก {formatNumber(selectedRows.length)} รายการ — ใช้ช่องค้นหาเพื่อหารายการที่ต้องการ
+          </p>
+        ) : null}
       </section>
     </div>
   );
