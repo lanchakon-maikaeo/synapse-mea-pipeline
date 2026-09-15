@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   trigger:
-    if: github.actor == 'lanchakon-maikaeo' || github.event_name == 'workflow_dispatch'
+    if: github.actor == 'Naraya2026' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
