@@ -2657,6 +2657,30 @@ function ApprovalView({ data }: { data: DashboardData }) {
   );
 }
 
+function exportCsv(
+  filename: string,
+  headers: string[],
+  rowsToExport: Array<Array<unknown>>,
+) {
+  const encodeCell = (value: unknown) => {
+    const raw = text(value);
+    const spreadsheetSafe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+    return `"${spreadsheetSafe.replace(/"/g, '""')}"`;
+  };
+  const csv = [headers, ...rowsToExport]
+    .map((row) => row.map(encodeCell).join(","))
+    .join("\r\n");
+  const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(href);
+}
+
 function FifoView({
   actionBusy,
   data,
@@ -2677,7 +2701,28 @@ function FifoView({
     "OPEN",
   );
   const [reason, setReason] = useState("");
+  const [query, setQuery] = useState("");
   const canReconcile = role === "admin" || role === "picker";
+  const normalizedQuery = query.trim().toLowerCase();
+  const matchesQuery = (row: RecordRow, fields: string[]) =>
+    !normalizedQuery ||
+    fields.some((field) => text(row[field]).toLowerCase().includes(normalizedQuery));
+  const filteredWarehouseStock = data.warehouseStock.filter((row) =>
+    matchesQuery(row, ["material_id", "material_name", "unit", "location_name_th", "snapshot_at"]),
+  );
+  const filteredFifo = data.fifo.filter((row) =>
+    matchesQuery(row, [
+      "fifo_sequence", "handling_unit_code", "opening_status", "material_id",
+      "acceptance_date", "purchase_order", "line_item", "lot_code",
+    ]),
+  );
+  const filteredHandlingUnits = data.handlingUnits.filter((row) =>
+    matchesQuery(row, [
+      "handling_unit_code", "material_id", "opening_status",
+      "traceability_status", "acceptance_date",
+    ]),
+  );
+  const exportDate = new Date().toISOString().slice(0, 10);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!selected || reason.trim().length < 3) return;
@@ -2731,6 +2776,32 @@ function FifoView({
           <small>หน่วยนับพื้นฐาน</small>
         </article>
       </section>
+      <section className="fifo-search-bar">
+        <label>
+          <span>⌕</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="ค้นหารหัส/ชื่อพัสดุ, HU, PO, Lot, สถานที่ หรือสถานะ"
+            aria-label="ค้นหาข้อมูล FIFO และสต็อก"
+          />
+        </label>
+        <div>
+          <strong>
+            พบ {formatNumber(
+              filteredWarehouseStock.length + filteredFifo.length + filteredHandlingUnits.length,
+            )} รายการ
+          </strong>
+          <small>
+            สต็อก {formatNumber(filteredWarehouseStock.length)} · FIFO {formatNumber(filteredFifo.length)} · HU {formatNumber(filteredHandlingUnits.length)}
+          </small>
+        </div>
+        {query ? (
+          <button className="btn light" type="button" onClick={() => setQuery("")}>
+            ล้างการค้นหา
+          </button>
+        ) : null}
+      </section>
       {data.warehouseStock.length > 0 && (
         <section className="panel">
           <div className="panel-title">
@@ -2738,7 +2809,26 @@ function FifoView({
               <span>ข้อมูลสต็อกคลังจริง</span>
               <h3>สต็อกที่รอลงทะเบียนหน่วยจัดเก็บ</h3>
             </div>
-            <b>{formatNumber(data.warehouseStock.length)}</b>
+            <div className="panel-title-actions">
+              <b>{formatNumber(filteredWarehouseStock.length)} รายการ</b>
+              <button
+                className="btn light"
+                type="button"
+                disabled={!filteredWarehouseStock.length}
+                onClick={() =>
+                  exportCsv(
+                    `warehouse-stock-${exportDate}.csv`,
+                    ["รหัสพัสดุ", "รายละเอียด", "จำนวน", "หน่วย", "สถานที่", "เวลาข้อมูล"],
+                    filteredWarehouseStock.map((row) => [
+                      row.material_id, row.material_name, row.quantity_on_hand,
+                      row.unit, row.location_name_th, row.snapshot_at,
+                    ]),
+                  )
+                }
+              >
+                ⇩ Export CSV
+              </button>
+            </div>
           </div>
           {!data.handlingUnits.length && (
             <aside className="plain-notice warning">
@@ -2753,8 +2843,8 @@ function FifoView({
             </aside>
           )}
           <LiveTable
-            rows={data.warehouseStock.slice(0, 100)}
-            empty="ยังไม่มีข้อมูลสต็อกคลัง"
+            rows={filteredWarehouseStock.slice(0, 100)}
+            empty={query ? "ไม่พบข้อมูลสต็อกที่ตรงกับคำค้นหา" : "ยังไม่มีข้อมูลสต็อกคลัง"}
             columns={[
               ["วัสดุ", (row) => row.material_id],
               ["รายละเอียด", (row) => row.material_name],
@@ -2772,10 +2862,32 @@ function FifoView({
             <span>คิว FIFO</span>
             <h3>จ่ายหน่วยที่เปิดก่อน แล้วเรียงตามวันรับ / PO / รายการ</h3>
           </div>
+          <div className="panel-title-actions">
+            <b>{formatNumber(filteredFifo.length)} รายการ</b>
+            <button
+              className="btn light"
+              type="button"
+              disabled={!filteredFifo.length}
+              onClick={() =>
+                exportCsv(
+                  `fifo-queue-${exportDate}.csv`,
+                  ["ลำดับ", "HU", "สถานะ", "รหัสพัสดุ", "พร้อมจ่าย", "จอง", "คงเหลือ", "วันรับ", "PO", "รายการ", "Lot"],
+                  filteredFifo.map((row) => [
+                    row.fifo_sequence, row.handling_unit_code, row.opening_status,
+                    row.material_id, row.available_qty, row.reserved_qty,
+                    row.allocatable_qty, row.acceptance_date, row.purchase_order,
+                    row.line_item, row.lot_code,
+                  ]),
+                )
+              }
+            >
+              ⇩ Export CSV
+            </button>
+          </div>
         </div>
         <LiveTable
-          rows={data.fifo}
-          empty="ไม่มีหน่วยจัดเก็บที่พร้อมจ่าย"
+          rows={filteredFifo}
+          empty={query ? "ไม่พบคิว FIFO ที่ตรงกับคำค้นหา" : "ไม่มีหน่วยจัดเก็บที่พร้อมจ่าย"}
           columns={[
             ["ลำดับ", (row) => row.fifo_sequence],
             ["HU", (row) => row.handling_unit_code],
@@ -2796,10 +2908,30 @@ function FifoView({
             <span>หน่วยจัดเก็บทั้งหมด</span>
             <h3>หน่วยที่ถูกบล็อก หมด หรือกักกัน</h3>
           </div>
+          <div className="panel-title-actions">
+            <b>{formatNumber(filteredHandlingUnits.length)} รายการ</b>
+            <button
+              className="btn light"
+              type="button"
+              disabled={!filteredHandlingUnits.length}
+              onClick={() =>
+                exportCsv(
+                  `handling-units-${exportDate}.csv`,
+                  ["HU", "รหัสพัสดุ", "สถานะ", "สถานะสอบกลับ", "พร้อมจ่าย", "วันรับ"],
+                  filteredHandlingUnits.map((row) => [
+                    row.handling_unit_code, row.material_id, row.opening_status,
+                    row.traceability_status, row.available_qty, row.acceptance_date,
+                  ]),
+                )
+              }
+            >
+              ⇩ Export CSV
+            </button>
+          </div>
         </div>
         <LiveTable
-          rows={data.handlingUnits}
-          empty="ยังไม่มีหน่วยจัดเก็บ"
+          rows={filteredHandlingUnits}
+          empty={query ? "ไม่พบหน่วยจัดเก็บที่ตรงกับคำค้นหา" : "ยังไม่มีหน่วยจัดเก็บ"}
           columns={[
             ["HU", (row) => row.handling_unit_code],
             ["วัสดุ", (row) => row.material_id],
