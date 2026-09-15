@@ -20,9 +20,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          # Vercel Hobby accepts private-repository deployments only when the
-          # commit author matches the GitHub identity connected to the owner.
-          git config user.name 'Naraya2026'
-          git config user.email 'Synapse.mea@gmail.com'
+          git config user.name 'Lanchakon Maikaeo'
+          git config user.email 'lanchakon.career@gmail.com'
           git commit --allow-empty -m 'chore: trigger production deploy'
           git push origin HEAD:main
