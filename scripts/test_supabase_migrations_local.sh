@@ -22,10 +22,12 @@ docker run -d --name "$container" --network "$network" \
   postgres:17-bookworm >/dev/null
 
 for _ in {1..60}; do
-  docker exec "$container" pg_isready -U postgres -d synapse >/dev/null 2>&1 && break
+  docker exec "$container" psql -U postgres -d synapse --tuples-only --no-align \
+    --command='select 1' >/dev/null 2>&1 && break
   sleep 1
 done
-docker exec "$container" pg_isready -U postgres -d synapse >/dev/null
+docker exec "$container" psql -U postgres -d synapse --tuples-only --no-align \
+  --command='select 1' >/dev/null
 
 docker exec -i "$container" psql -U postgres -d synapse --set=ON_ERROR_STOP=1 <<'SQL' >/dev/null
 create role anon nologin;

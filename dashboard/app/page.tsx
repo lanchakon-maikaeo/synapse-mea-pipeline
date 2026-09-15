@@ -4012,7 +4012,7 @@ function ReleaseView() {
       <section className="acceptance-grid">
         {[
           ["ลำดับการอัปเดตฐานข้อมูลครบถ้วน", "โครงสร้าง"],
-          ["เชื่อมต่อ API ภายในโดเมนเดียว 48 เส้นทาง", "API"],
+          ["เชื่อมต่อ API ภายในโดเมนเดียว 50 เส้นทาง", "API"],
           ["เขต → ผู้วางแผน → วิชาการ → ล็อก", "การอนุมัติ"],
           ["หน่วยที่เปิด → วันรับ → PO → รายการ", "FIFO"],
           ["การจ่ายจริงรายสัปดาห์ + กรณีพิเศษ", "การจ่าย"],
@@ -4225,12 +4225,12 @@ export default function Home() {
                   setModule("warehouse");
                 }}
               >
-                <option value="planner">Planner คลังคลองเตย</option>
-                <option value="district">District User 5501</option>
+                <option value="planner">ผู้วางแผนคลังคลองเตย</option>
+                <option value="district">ผู้ใช้งานเขต 5501</option>
                 <option value="academic">นักวิชาการ</option>
-                <option value="picker">Warehouse Picker</option>
-                <option value="viewer">Viewer / ผู้บริหาร</option>
-                <option value="admin">Admin</option>
+                <option value="picker">เจ้าหน้าที่คลัง</option>
+                <option value="viewer">ผู้บริหาร / ผู้ดูข้อมูล</option>
+                <option value="admin">ผู้จัดการระบบ</option>
               </select>
             </label>
           </aside>

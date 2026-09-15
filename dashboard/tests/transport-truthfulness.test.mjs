@@ -16,15 +16,12 @@ const [transport, roadMap, page, workerCanary, workerClient] = await Promise.all
 
 test("transport UI uses the live zero-state and readiness contract", () => {
   assert.match(transport, /apiRequest<Row>\("\/v1\/transport\/readiness"/);
-  assert.match(transport, /const pending = data\.queue\.length;/);
   assert.match(
     transport,
-    /if \(demoMode\) \{[\s\S]{0,200}setData\(demoTransportData\(\)\)[\s\S]{0,200}return;/,
+    /if \(!token\) \{[\s\S]{0,200}setData\(emptyData\(\)\)[\s\S]{0,200}setSource\("error"\)/,
   );
-  assert.match(
-    transport,
-    /if \(!token\) \{[\s\S]{0,200}setData\(emptyData\(\)\)[\s\S]{0,200}return;/,
-  );
+  assert.match(transport, /type DataSource = "supabase" \| "error"/);
+  assert.doesNotMatch(transport, /demoTransportData|source === "demo"/);
   for (const readinessKey of [
     "operational_writes_enabled",
     "route_readiness_status",
@@ -108,15 +105,14 @@ test("vehicle activity is not promoted to operational availability", () => {
     transport,
     /vehicle\.availability === "available"[\s\S]*vehicle\.currentWarehouse === warehouse/,
   );
-  assert.match(transport, /is_active อย่างเดียวไม่ยืนยันว่ารถพร้อมออกงาน/);
-  assert.match(transport, /ไม่ทราบ—active ≠ available/);
+  assert.match(transport, /availabilityEvidence/);
   assert.match(transport, /Weight-only split preview/);
   assert.match(transport, /ยังไม่ใช่ OR-Tools fleet solve/);
   assert.match(
     transport,
     /\(rawStatus === "available" \|\| row\.is_available === true\) &&[\s\S]*evidence/,
   );
-  assert.doesNotMatch(transport, /<span>รถพร้อมใช้งาน<\/span>/);
+  assert.match(transport, /"พร้อมตามหลักฐาน"/);
 });
 
 test("dispatch groups retain canonical origin gates and block ineligible rows", () => {
@@ -158,10 +154,8 @@ test("map and optimization remain real-road-only", () => {
   assert.match(transport, /"\/v1\/transport\/optimize"/);
   assert.match(transport, /Boolean\(result\.dataVersion\)/);
   assert.match(transport, /sourceChecksumSha256/);
-  assert.match(
-    transport,
-    /if \(source === "demo"\) \{[\s\S]{0,300}planRoute\(/,
-  );
+  assert.match(transport, /source !== "supabase"/);
+  assert.doesNotMatch(transport, /source === "demo"/);
   assert.doesNotMatch(transport, /\bkmDist\b|\bROUTES\b/);
   assert.match(
     roadMap,
