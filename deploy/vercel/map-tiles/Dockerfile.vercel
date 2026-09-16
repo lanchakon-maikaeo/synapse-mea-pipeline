@@ -6,11 +6,10 @@ RUN apk add --no-cache ca-certificates curl tar \
       https://github.com/protomaps/go-pmtiles/releases/download/v1.30.1/go-pmtiles_1.30.1_Linux_x86_64.tar.gz \
     && echo "23a2a2222f658320b539ccd06ac3b9b3b803ecbdd39a6cb5249d2ce2e16e38ae  /tmp/pmtiles.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/pmtiles.tar.gz -C /usr/local/bin pmtiles \
-    && mkdir -p /tiles \
-    && curl --fail --silent --show-error --location \
-      -o /tiles/bmr.pmtiles \
-      https://github.com/lanchakon-maikaeo/synapse-mea-pipeline/releases/download/map-tiles-bmr-20260915/bmr-20260915.pmtiles \
-    && echo "e7ba2e62b8661e4f32e0dca7c1b4c7bb7a878fdfcae2a5b20379ac17ef3d7e45  /tiles/bmr.pmtiles" | sha256sum -c - \
+    && mkdir -p /tiles
+
+COPY bmr-20260915.pmtiles /tiles/bmr.pmtiles
+RUN echo "e7ba2e62b8661e4f32e0dca7c1b4c7bb7a878fdfcae2a5b20379ac17ef3d7e45  /tiles/bmr.pmtiles" | sha256sum -c - \
     && pmtiles verify /tiles/bmr.pmtiles \
     && pmtiles show /tiles/bmr.pmtiles > /tmp/bmr-metadata.txt \
     && grep -Fx "pmtiles spec version: 3" /tmp/bmr-metadata.txt \
