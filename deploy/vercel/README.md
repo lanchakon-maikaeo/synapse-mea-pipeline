@@ -73,10 +73,10 @@ NEXT_PUBLIC_MAP_TILE_URL=https://synapse-map-tiles.vercel.app/bmr.pmtiles
 NEXT_PUBLIC_MAP_ATTRIBUTION=&copy; OpenStreetMap contributors &middot; Protomaps
 ```
 
-The basemap is the bounded vector extract originally built from the pinned
-Protomaps 2026-07-26 daily build. New images seed from the canonical production
-artifact and require SHA-256
-`fb3bd695cbd8e7efdfe3415a058c7fa1599274c2bedd8100b1124e8c47858881`,
+The basemap is the bounded vector extract built from the Protomaps 2026-09-15
+daily build. New images seed from the immutable GitHub release asset and require
+SHA-256
+`e7ba2e62b8661e4f32e0dca7c1b4c7bb7a878fdfcae2a5b20379ac17ef3d7e45`,
 so an upstream daily-build expiry or unexpected artifact change fails closed.
 The image also verifies the archive structure and exact dataset metadata; the
 service computes the deployed artifact SHA-256 for its health response and ETag,

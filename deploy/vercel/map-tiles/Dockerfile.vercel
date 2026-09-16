@@ -9,15 +9,15 @@ RUN apk add --no-cache ca-certificates curl tar \
     && mkdir -p /tiles \
     && curl --fail --silent --show-error --location \
       -o /tiles/bmr.pmtiles \
-      https://synapse-map-tiles.vercel.app/bmr.pmtiles \
-    && echo "fb3bd695cbd8e7efdfe3415a058c7fa1599274c2bedd8100b1124e8c47858881  /tiles/bmr.pmtiles" | sha256sum -c - \
+      https://github.com/lanchakon-maikaeo/synapse-mea-pipeline/releases/download/map-tiles-bmr-20260915/bmr-20260915.pmtiles \
+    && echo "e7ba2e62b8661e4f32e0dca7c1b4c7bb7a878fdfcae2a5b20379ac17ef3d7e45  /tiles/bmr.pmtiles" | sha256sum -c - \
     && pmtiles verify /tiles/bmr.pmtiles \
     && pmtiles show /tiles/bmr.pmtiles > /tmp/bmr-metadata.txt \
     && grep -Fx "pmtiles spec version: 3" /tmp/bmr-metadata.txt \
     && grep -Fx "tile type: mvt" /tmp/bmr-metadata.txt \
     && grep -Fx "bounds: (long: 100.200000, lat: 13.400000) (long: 101.000000, lat: 14.100000)" /tmp/bmr-metadata.txt \
     && grep -Fx "max zoom: 15" /tmp/bmr-metadata.txt \
-    && grep -Fx "planetiler:osm:osmosisreplicationtime 2026-07-26T04:00:00Z" /tmp/bmr-metadata.txt
+    && grep -Fx "planetiler:osm:osmosisreplicationtime 2026-09-15T04:00:00Z" /tmp/bmr-metadata.txt
 
 FROM golang:1.24.6-alpine3.22@sha256:c8c5f95d64aa79b6547f3b626eb84b16a7ce18a139e3e9ca19a8c078b85ba80d AS server-build
 WORKDIR /src

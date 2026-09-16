@@ -49,7 +49,7 @@ func main() {
 		if request.URL.Path == "/health" {
 			jsonResponse(writer, http.StatusOK, map[string]any{
 				"status":  "ok",
-				"dataset": "protomaps-bmr-20260726",
+				"dataset": "protomaps-bmr-20260915",
 				"bytes":   info.Size(),
 				"sha256":  tileDigest,
 			})
@@ -83,7 +83,7 @@ func main() {
 			return
 		}
 		defer requestTile.Close()
-		http.ServeContent(writer, request, "bmr.pmtiles", time.Unix(1785037484, 0), requestTile)
+		http.ServeContent(writer, request, "bmr.pmtiles", time.Unix(1789444800, 0), requestTile)
 	})
 
 	rawPort := os.Getenv("PORT")
