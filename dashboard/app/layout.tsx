@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
+import "./template.css";
 import "./globals.css";
 import "./meridian.css";
 

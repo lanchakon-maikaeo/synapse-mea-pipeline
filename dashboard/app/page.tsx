@@ -11,6 +11,29 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import {
+  AlertTriangle,
+  BarChart3,
+  Bell,
+  Boxes,
+  ClipboardList,
+  FileClock,
+  FileSearch,
+  LayoutDashboard,
+  LogOut,
+  MapPinned,
+  Menu,
+  PackageSearch,
+  Radar,
+  RefreshCw,
+  Search,
+  Settings,
+  ShieldCheck,
+  Truck,
+  Upload,
+  Warehouse,
+  type LucideIcon,
+} from "lucide-react";
 import { formatDateTime, formatNumber, type Role } from "./lib";
 import {
   parseVmiHistory,
@@ -34,9 +57,12 @@ import {
   transportNavForRole,
   type TransportView,
 } from "./transport";
+import { OperationsTemplate, PlansTemplate, WarehousesTemplate } from "./template-views";
 
 type ViewKey =
   | "dashboard"
+  | "shipments"
+  | "warehouses"
   | "weekly"
   | "district_confirmations"
   | "recommendations"
@@ -67,15 +93,6 @@ const roleNameTh: Record<Role, string> = {
   picker: "เจ้าหน้าที่คลัง",
   district: "เจ้าหน้าที่เขต",
   viewer: "ผู้บริหาร / ผู้ดูข้อมูล",
-};
-
-const roleNameEn: Record<Role, string> = {
-  admin: "Admin",
-  planner: "Planner",
-  academic: "Academic Approver",
-  picker: "Warehouse Staff",
-  district: "District User",
-  viewer: "Viewer",
 };
 
 const navByRole: Record<Role, NavGroup[]> = {
@@ -201,6 +218,8 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "ภาพรวมงานคลังพัสดุ",
     "ข้อมูลล่าสุดจากระบบตามสิทธิ์ของคุณ",
   ],
+  shipments: ["งานจ่ายพัสดุ", "ติดตามแผนการจ่าย", "รายการแผนตามสิทธิ์ผู้ใช้"],
+  warehouses: ["คลังและสต็อก", "คลังและสต็อก", "ข้อมูลคลังและวัสดุจากระบบ"],
   weekly: [
     "แผนการจ่าย",
     "แผนการจ่ายรายสัปดาห์",
@@ -731,18 +750,17 @@ function Login({
   );
 }
 
+const viewIcons: Partial<Record<ViewKey, LucideIcon>> = {
+  weekly: ClipboardList, district_confirmations: ShieldCheck, recommendations: BarChart3,
+  advisory: AlertTriangle, changes: AlertTriangle, approvals: FileClock,
+  fifo: Boxes, receiving: Warehouse, adhoc: PackageSearch, trace: FileSearch,
+  stock: Boxes, data: BarChart3, import: Upload, fifo_setup: Settings,
+  input: RefreshCw, operations: Radar, release: ShieldCheck,
+};
+
 function Sidebar({
-  active,
-  role,
-  open,
-  navigate,
-  close,
-  snapshot,
-  demoMode,
-  moduleKey,
-  setModule,
-  transportView,
-  setTransportView,
+  active, role, open, navigate, close, snapshot, demoMode, moduleKey,
+  setModule, transportView, setTransportView,
 }: {
   active: ViewKey;
   role: Role;
@@ -756,81 +774,56 @@ function Sidebar({
   transportView: TransportView;
   setTransportView: (value: TransportView) => void;
 }) {
+  const primary = [
+    { key: "dashboard", label: "ภาพรวม", icon: LayoutDashboard },
+    { key: "shipments", label: "งานจ่ายพัสดุ", icon: PackageSearch },
+    { key: "transport", label: "รถและเส้นทาง", icon: Truck },
+    { key: "warehouses", label: role === "district" ? "Stock เขต" : "คลังและสต็อก", icon: Warehouse },
+  ] as const;
+  const choosePrimary = (key: (typeof primary)[number]["key"]) => {
+    if (key === "transport") {
+      setModule("transport");
+      setTransportView("dashboard");
+    } else {
+      setModule("warehouse");
+      navigate(key === "warehouses" && role === "district" ? "stock" : key);
+    }
+    close();
+  };
   return (
     <>
-      <button
-        className={`scrim ${open ? "show" : ""}`}
-        onClick={close}
-        aria-label="Close menu"
-      />
-      <aside className={`sidebar ${open ? "open" : ""}`}>
-        <div className="brand">
-          <span>MEA</span>
-          <div>
-            <strong>MEA Synapse</strong>
-            <small>คลังพัสดุและขนส่ง</small>
-          </div>
+      {open && <button type="button" className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={close} aria-label="ปิดเมนู" />}
+      <aside className={`z-50 w-64 shrink-0 flex-col border-r border-border bg-card ${open ? "fixed inset-y-0 left-0 flex shadow-2xl" : "hidden md:sticky md:top-0 md:flex md:h-screen"}`}>
+        <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border px-5">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Radar className="size-5" /></div>
+          <div className="leading-tight"><p className="text-sm font-semibold tracking-tight">MEA Synapse</p><p className="text-[11px] text-muted-foreground">Smart Logistics</p></div>
         </div>
-        <div className="user-scope">
-          <i>{roleNameTh[role].charAt(0)}</i>
-          <div>
-            <small>บทบาทของคุณ</small>
-            <strong>{roleNameTh[role]}</strong>
-          </div>
-        </div>
-        <div className="module-switch" role="group" aria-label="พื้นที่ทำงาน">
-          <button type="button" aria-pressed={moduleKey === "warehouse"} onClick={() => setModule("warehouse")}>คลังพัสดุ</button>
-          <button type="button" aria-pressed={moduleKey === "transport"} onClick={() => setModule("transport")}>ระบบขนส่ง</button>
-        </div>
-        <nav>
-          {moduleKey === "warehouse"
-            ? navByRole[role].map((group) => (
-                <section key={group.label}>
-                  <p>{group.label}</p>
-                  {group.items.map(([key, label, icon]) => (
-                    <button
-                      type="button"
-                      key={key}
-                      className={`${active === key ? "active" : ""} ${
-                        key === "import" ? "import-nav-button" : ""
-                      }`}
-                      aria-current={active === key ? "page" : undefined}
-                      onClick={() => {
-                        navigate(key);
-                        close();
-                      }}
-                    >
-                      <i>{icon}</i>
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </section>
-              ))
-            : (
-                <section>
-                  <p>ระบบขนส่ง</p>
-                  {transportNavForRole(role).map(([key, label, icon]) => (
-                    <button
-                      type="button"
-                      key={key}
-                      className={transportView === key ? "active" : ""}
-                      aria-current={transportView === key ? "page" : undefined}
-                      onClick={() => {
-                        setTransportView(key);
-                        close();
-                      }}
-                    >
-                      <i>{icon}</i>
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </section>
-              )}
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label="เมนูหลัก">
+          <p className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Operations</p>
+          {primary.map(({ key, label, icon: Icon }) => {
+            const selected = key === "transport" ? moduleKey === "transport" : moduleKey === "warehouse" && (active === key || (key === "warehouses" && role === "district" && active === "stock"));
+            return <button type="button" key={key} aria-current={selected ? "page" : undefined} onClick={() => choosePrimary(key)} className={`flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${selected ? "bg-primary text-primary-foreground" : "text-foreground/80 hover:bg-muted"}`}><Icon className="size-4 shrink-0" />{label}</button>;
+          })}
+          {navByRole[role].map((group) => (
+            <div key={group.label}>
+              <p className="px-3 pb-1 pt-5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{group.label}</p>
+              {group.items.filter(([key]) => key !== "dashboard").map(([key, label]) => {
+                const Icon = viewIcons[key] ?? PackageSearch;
+                const selected = moduleKey === "warehouse" && active === key;
+                return <button type="button" key={key} aria-current={selected ? "page" : undefined} onClick={() => { setModule("warehouse"); navigate(key); close(); }} className={`flex min-h-9 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${selected ? "bg-accent text-primary font-medium" : "text-foreground/70 hover:bg-muted"}`}><Icon className="size-4 shrink-0" />{label}</button>;
+              })}
+            </div>
+          ))}
+          <p className="px-3 pb-1 pt-5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">ระบบขนส่ง</p>
+          {transportNavForRole(role).map(([key, label]) => {
+            const Icon = key === "map" ? MapPinned : key === "history" ? FileClock : key === "planner" ? ClipboardList : Truck;
+            const selected = moduleKey === "transport" && transportView === key;
+            return <button type="button" key={key} aria-current={selected ? "page" : undefined} onClick={() => { setModule("transport"); setTransportView(key); close(); }} className={`flex min-h-9 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors ${selected ? "bg-accent text-primary font-medium" : "text-foreground/70 hover:bg-muted"}`}><Icon className="size-4 shrink-0" />{label}</button>;
+          })}
         </nav>
-        <div className="release-badge">
-          <small>ข้อมูลล่าสุด</small>
-          <strong>{snapshot}</strong>
-          <span>{demoMode ? "ข้อมูลตัวอย่างในเครื่อง" : "ข้อมูลจากระบบงาน"}</span>
+        <div className="m-3 shrink-0 rounded-lg border border-border bg-background p-3">
+          <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-primary" /><p className="text-xs font-medium">ข้อมูลล่าสุดในระบบ</p></div>
+          <p className="mt-1 text-[11px] text-muted-foreground">{snapshot} · {demoMode ? "ข้อมูลตัวอย่างในเครื่อง" : "ข้อมูลตามสิทธิ์ของคุณ"}</p>
         </div>
       </aside>
     </>
@@ -838,18 +831,11 @@ function Sidebar({
 }
 
 function Header({
-  title,
-  role,
-  districtId,
-  loading,
-  openMenu,
-  logout,
-  navigate,
-  refresh,
-  snapshot,
+  role, displayName, districtId, loading, openMenu, logout, navigate, refresh,
+  snapshot, alertCount, activePrimary, onPrimary,
 }: {
-  title: string;
   role: Role;
+  displayName: string;
   districtId: string | null;
   loading: boolean;
   openMenu: () => void;
@@ -857,6 +843,9 @@ function Header({
   navigate: (view: ViewKey) => void;
   refresh: () => void;
   snapshot: string;
+  alertCount: number;
+  activePrimary: "dashboard" | "shipments" | "transport" | "warehouses" | "other";
+  onPrimary: (key: "dashboard" | "shipments" | "transport" | "warehouses") => void;
 }) {
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -872,297 +861,33 @@ function Header({
   }, []);
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const value = query.trim().toLowerCase();
+    const term = query.trim().toLowerCase();
     const target: ViewKey =
-      value.includes("trace") || value.includes("สอบกลับ")
-        ? "trace"
-        : value.includes("pallet") || value.includes("fifo")
-          ? "fifo"
-          : value.includes("ad-hoc") || value.includes("ฉุกเฉิน")
-            ? "adhoc"
-            : value.includes("stock")
-              ? "stock"
-              : value.includes("request") || value.includes("คำขอ")
-                ? "changes"
-                : "weekly";
+      term.includes("trace") || term.includes("สอบกลับ") ? "trace" :
+      term.includes("fifo") || term.includes("พาเลท") ? "fifo" :
+      term.includes("stock") || term.includes("คลัง") ? "stock" :
+      term.includes("request") || term.includes("คำขอ") ? "changes" : "weekly";
     navigate(target);
     setQuery("");
   };
   return (
-    <header className="topbar">
-      <button className="menu" onClick={openMenu} aria-label="Open menu">
-        ☰
-      </button>
-      <div className="breadcrumb">
-        <span>MEA Synapse</span>
-        <i>/</i>
-        <strong>{title}</strong>
-      </div>
-      <div className="header-actions">
-        <form className="global-search" onSubmit={submit}>
-          <button type="submit" aria-label="Search">
-            ⌕
-          </button>
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="ค้นหาเมนู"
-          />
-          <kbd>Ctrl K</kbd>
-        </form>
-        <button
-          type="button"
-          className="last-sync live-sync"
-          onClick={refresh}
-          disabled={loading}
-        >
-          <i /> {loading ? "กำลังซิงก์…" : snapshot}
-        </button>
-        <div className="identity-chip" title="สิทธิ์กำหนดจากบัญชีผู้ใช้งาน">
-          <i>{roleNameTh[role].charAt(0)}</i>
-          <span>
-            <small>Signed in as</small>
-            <strong>
-              {roleNameEn[role]} · {roleNameTh[role]}
-              {districtId ? ` ${districtId}` : ""}
-            </strong>
-          </span>
+    <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
+      <div className="flex h-16 items-center gap-3 px-4 md:px-6">
+        <button type="button" onClick={openMenu} className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-card md:hidden" aria-label="เปิดเมนู"><Menu className="size-4" /></button>
+        <div className="flex items-center gap-2 md:hidden"><span className="flex size-8 items-center justify-center rounded-lg bg-primary text-white"><Radar className="size-4" /></span><span className="text-sm font-semibold">MEA Synapse</span></div>
+        <form onSubmit={submit} className="relative hidden max-w-md flex-1 md:block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาเมนู เช่น Stock, FIFO, คำขอ…" aria-label="ค้นหาเมนู" className="h-9 w-full rounded-md border border-border bg-card pl-9 pr-3 text-sm" /></form>
+        <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={refresh} disabled={loading} title="โหลดข้อมูลล่าสุด" className="hidden items-center gap-2 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted sm:flex"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /><span className="max-w-32 truncate">{loading ? "กำลังโหลด…" : snapshot}</span></button>
+          {(role === "admin" || role === "planner") && <button type="button" onClick={() => navigate("operations")} className="relative flex size-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground" aria-label={`แจ้งเตือน ${alertCount} รายการ`}><Bell className="size-4" />{alertCount > 0 && <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] text-white">{Math.min(alertCount, 9)}</span>}</button>}
+          <details className="relative"><summary className="flex cursor-pointer list-none items-center gap-2 rounded-md border border-border bg-card py-1 pl-1 pr-2.5"><span className="flex size-7 items-center justify-center rounded-full bg-accent text-xs font-semibold text-primary">{displayName.charAt(0) || roleNameTh[role].charAt(0)}</span><span className="hidden max-w-36 truncate text-sm font-medium sm:block">{displayName}</span></summary><div className="absolute right-0 mt-2 w-52 rounded-lg border border-border bg-card p-2 shadow-xl"><p className="px-2 py-2 text-xs text-muted-foreground">{roleNameTh[role]}{districtId ? ` · ${districtId}` : ""}</p><button type="button" onClick={logout} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted"><LogOut className="size-4" />ออกจากระบบ</button></div></details>
         </div>
-        <button type="button" className="btn ghost logout" onClick={logout}>
-          ออกจากระบบ
-        </button>
       </div>
+      <nav className="flex gap-1 overflow-x-auto px-3 pb-2 md:hidden" aria-label="หน้าหลักบนมือถือ">
+        {([["dashboard", "ภาพรวม"], ["shipments", "งานจ่าย"], ["transport", "ขนส่ง"], ["warehouses", "คลัง"]] as const).map(([key, label]) =>
+          <button type="button" key={key} aria-current={activePrimary === key ? "page" : undefined} onClick={() => onPrimary(key)} className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium ${activePrimary === key ? "bg-primary text-white" : "text-muted-foreground"}`}>{label}</button>
+        )}
+      </nav>
     </header>
-  );
-}
-
-function DashboardView({
-  data,
-  role,
-  navigate,
-  demoMode,
-}: {
-  data: DashboardData;
-  role: Role;
-  navigate: (view: ViewKey) => void;
-  demoMode: boolean;
-}) {
-  const sourceLabel = demoMode ? "ข้อมูลตัวอย่างในเครื่อง" : "ข้อมูลจากระบบ";
-  const planIds = new Set(
-    data.replenishment.map((row) => text(row.replenishment_plan_id)),
-  );
-  const pendingChanges = data.changeRequests.filter(
-    (row) => row.status === "pending_review",
-  ).length;
-  const allocatable = data.fifo.reduce(
-    (sum, row) => sum + Number(row.allocatable_qty ?? 0),
-    0,
-  );
-  const pendingAdHoc = data.adHocIssues.filter(
-    (row) => !["issued", "rejected", "cancelled"].includes(text(row.status)),
-  ).length;
-  const materialsCount = data.materials.length;
-  const districtsCount = data.districts.length;
-  const warehouseCount = data.warehouseStock.length;
-  const stockHealthCount = data.stock.length;
-  const contractsCount = data.contracts.length;
-  const hasReferenceData =
-    materialsCount + warehouseCount + stockHealthCount + contractsCount > 0;
-  const nextView: ViewKey =
-    role === "picker"
-      ? "fifo"
-      : role === "district"
-        ? "weekly"
-        : role === "academic"
-          ? "weekly"
-          : "changes";
-  return (
-    <div className="stack">
-      <section className="executive-hero">
-        <div>
-          <span>ภาพรวมการทำงาน</span>
-          <h2>เชื่อมโยงข้อมูลตั้งแต่ต้นทางจนถึงการจ่ายจริง</h2>
-          <p>
-            แผนการจ่าย · เขตยืนยัน · ผู้วางแผน · วิชาการ · FIFO · เคลื่อนไหวสต็อก ·
-            สอบกลับ
-          </p>
-        </div>
-        <button className="btn light" onClick={() => navigate(nextView)}>
-          เปิดงานที่ต้องดำเนินการ
-        </button>
-      </section>
-      <section className="kpis">
-        <article>
-          <div>
-            <span>แผนการจ่าย</span>
-            <i className="dot purple" />
-          </div>
-          <strong>{formatNumber(planIds.size)}</strong>
-          <small>ตามสิทธิ์ของคุณ</small>
-        </article>
-        <article>
-          <div>
-            <span>คำขอรอตรวจ</span>
-            <i className="dot orange" />
-          </div>
-          <strong>{formatNumber(pendingChanges)}</strong>
-          <small>รอผู้วางแผนตรวจ</small>
-        </article>
-        <article>
-          <div>
-            <span>พร้อมจ่าย (FIFO)</span>
-            <i className="dot green" />
-          </div>
-          <strong>{formatNumber(allocatable, 2)}</strong>
-          <small>หน่วยนับพื้นฐานที่สอบกลับได้</small>
-        </article>
-        <article>
-          <div>
-            <span>กรณีพิเศษรอดำเนินการ</span>
-            <i className="dot blue" />
-          </div>
-          <strong>{formatNumber(pendingAdHoc)}</strong>
-          <small>แยกจากแผนรายสัปดาห์</small>
-        </article>
-      </section>
-      <section className="kpis">
-        <article>
-          <div>
-            <span>รายการวัสดุ</span>
-            <i className="dot purple" />
-          </div>
-          <strong>{formatNumber(materialsCount)}</strong>
-          <small>{sourceLabel}</small>
-        </article>
-        <article>
-          <div>
-            <span>เขต</span>
-            <i className="dot blue" />
-          </div>
-          <strong>{formatNumber(districtsCount)}</strong>
-          <small>ทะเบียนเขตในระบบ</small>
-        </article>
-        <article>
-          <div>
-            <span>ข้อมูลสต็อกคลัง</span>
-            <i className="dot green" />
-          </div>
-          <strong>{formatNumber(warehouseCount)}</strong>
-          <small>{demoMode ? "สต็อกตัวอย่าง" : "สต็อกคลังคลองเตย"}</small>
-        </article>
-        <article>
-          <div>
-            <span>ข้อมูลสุขภาพสต็อก</span>
-            <i className="dot orange" />
-          </div>
-          <strong>{formatNumber(stockHealthCount)}</strong>
-          <small>ความครอบคลุมการวิเคราะห์</small>
-        </article>
-      </section>
-      {hasReferenceData && (
-        <section className="dashboard-main">
-          <article className="panel">
-            <div className="panel-title">
-              <div>
-                <span>สต็อกคลัง · ล่าสุด</span>
-                <h3>ข้อมูลสต็อกคลังคลองเตย</h3>
-              </div>
-              <b>{formatNumber(warehouseCount)}</b>
-            </div>
-            <LiveTable
-              rows={data.warehouseStock.slice(0, 6)}
-              empty="ยังไม่มีข้อมูลสต็อกคลัง"
-              columns={[
-                ["วัสดุ", (row) => row.material_id],
-                ["รายละเอียด", (row) => row.material_name],
-                ["จำนวน", (row) => formatNumber(row.quantity_on_hand, 2)],
-                ["หน่วย", (row) => row.unit],
-                ["เวลาข้อมูล", (row) => formatDateTime(row.snapshot_at)],
-              ]}
-            />
-          </article>
-          <article className="panel">
-            <div className="panel-title">
-              <div>
-                <span>สุขภาพสต็อกเขต · ล่าสุด</span>
-                <h3>สต็อกและ CMP ล่าสุด</h3>
-              </div>
-              <b>{formatNumber(stockHealthCount)}</b>
-            </div>
-            <LiveTable
-              rows={data.stock.slice(0, 6)}
-              empty="ยังไม่มีข้อมูลสต็อกเขต"
-              columns={[
-                ["วัสดุ", (row) => row.material_id],
-                ["เขต", (row) => row.district_id],
-                ["สต็อก", (row) => formatNumber(row.current_stock_qty, 2)],
-                ["CMP", (row) => formatNumber(row.cmp_monthly, 2)],
-                ["สถานะ", (row) => <Badge>{text(row.health_band)}</Badge>],
-              ]}
-            />
-          </article>
-        </section>
-      )}
-      <section className="workflow">
-        {[
-          ["1", "เขต", "ยืนยัน / ปฏิเสธ / ขอแก้"],
-          ["2", "ผู้วางแผน", "ตรวจและอนุมัติ"],
-          ["3", "วิชาการ", "เกิน 9 เดือน ต้องมีหลักฐาน + ล็อก"],
-          ["4", "เจ้าหน้าที่คลัง", "จ่ายแบบ FIFO + บันทึกเคลื่อนไหว"],
-        ].map(([step, name, note], index) => (
-          <div className="workflow-step done" key={name}>
-            <span>{step}</span>
-            <div>
-              <strong>{name}</strong>
-              <small>{note}</small>
-            </div>
-            {index < 3 && <i />}
-          </div>
-        ))}
-      </section>
-      <section className="dashboard-main">
-        <article className="panel">
-          <div className="panel-title">
-            <div>
-              <span>รายการที่ต้องดู</span>
-              <h3>คำขอที่มีความเสี่ยงสูง</h3>
-            </div>
-            <b className="count">{pendingChanges}</b>
-          </div>
-          <LiveTable
-            rows={data.changeRequests.slice(0, 6)}
-            empty="ไม่มีคำขอผิดปกติ"
-            columns={[
-              ["วัสดุ", (row) => row.material_id],
-              ["เขต", (row) => row.district_id],
-              ["ขอเบิก", (row) => formatNumber(row.requested_qty, 2)],
-              ["คงคลังหลังจ่าย", (row) => `${formatNumber(row.projected_months_after, 1)} เดือน`],
-              ["ความเสี่ยง", (row) => <Badge>{text(row.risk_level)}</Badge>],
-            ]}
-          />
-        </article>
-        <article className="panel">
-          <div className="panel-title">
-            <div>
-              <span>ความครอบคลุมการสอบกลับ</span>
-              <h3>การจ่ายที่สอบกลับได้</h3>
-            </div>
-            <b>{formatNumber(data.traceability.length)}</b>
-          </div>
-          <LiveTable
-            rows={data.traceability.slice(0, 6)}
-            empty="ยังไม่มีการจ่ายจริง"
-            columns={[
-              ["เลขที่จ่าย", (row) => row.issue_reference],
-              ["ประเภท", (row) => <Badge>{text(row.issue_type)}</Badge>],
-              ["หน่วยจัดเก็บ", (row) => row.handling_unit_code],
-              ["ผู้ขาย", (row) => row.vendor_name],
-            ]}
-          />
-        </article>
-      </section>
-    </div>
   );
 }
 
@@ -7508,16 +7233,20 @@ function PageContent({
   backend,
   navigate,
   onOpenTransport,
+  onOpenTransportMap,
 }: {
   view: ViewKey;
   role: Role;
   backend: ReturnType<typeof useSynapseBackend>;
   navigate: (view: ViewKey) => void;
   onOpenTransport: () => void;
+  onOpenTransportMap: () => void;
 }) {
   if (view === "dashboard") {
-    return <DashboardView data={backend.data} role={role} navigate={navigate} demoMode={backend.demoMode} />;
+    return <OperationsTemplate data={backend.data} role={role} districtId={backend.identity?.district_id ?? null} demoMode={backend.demoMode} open={navigate} openTransport={onOpenTransportMap} />;
   }
+  if (view === "shipments") return <PlansTemplate data={backend.data} role={role} districtId={backend.identity?.district_id ?? null} open={navigate} />;
+  if (view === "warehouses") return <WarehousesTemplate data={backend.data} role={role} open={navigate} />;
   if (view === "weekly") {
     return (
       <WeeklyPlanView
@@ -7664,6 +7393,8 @@ export default function Home() {
   const allowedViews = new Set(
     navByRole[role].flatMap((group) => group.items.map(([key]) => key)),
   );
+  allowedViews.add("shipments");
+  if (role !== "district") allowedViews.add("warehouses");
   const activeView = allowedViews.has(view) ? view : "dashboard";
   const allowedTransportViews = new Set(
     transportNavForRole(role).map(([transportKey]) => transportKey),
@@ -7673,9 +7404,19 @@ export default function Home() {
     : "dashboard";
   const [eyebrow, title, description] = titles[activeView];
   const snapshot = latestSnapshot(backend.data);
+  const activePrimary = moduleKey === "transport" ? "transport" : role === "district" && activeView === "stock" ? "warehouses" : activeView === "dashboard" || activeView === "shipments" || activeView === "warehouses" ? activeView : "other";
+  const choosePrimary = (key: "dashboard" | "shipments" | "transport" | "warehouses") => {
+    if (key === "transport") {
+      setModule("transport");
+      setTransportView("dashboard");
+    } else {
+      setModule("warehouse");
+      setView(key === "warehouses" && role === "district" ? "stock" : key);
+    }
+  };
 
   return (
-    <div className="app">
+    <div className="meridian-app flex min-h-screen">
       <a className="skip" href="#content">
         ข้ามไปเนื้อหาหลัก
       </a>
@@ -7692,7 +7433,7 @@ export default function Home() {
         transportView={activeTransportView}
         setTransportView={setTransportView}
       />
-      <div className="shell">
+      <div className="flex min-w-0 flex-1 flex-col">
         {backend.demoMode && (
           <aside className="demo-mode-bar" aria-label="Local demo role switcher">
             <div>
@@ -7720,17 +7461,21 @@ export default function Home() {
           </aside>
         )}
         <Header
-          title={moduleKey === "transport" ? "ระบบขนส่ง" : title}
           role={role}
+          displayName={text(backend.identity.display_name, roleNameTh[role])}
           districtId={backend.identity.district_id}
           loading={backend.loading}
           openMenu={() => setMenuOpen(true)}
           logout={() => void backend.signOut()}
-          navigate={setView}
+          navigate={(target) => { setModule("warehouse"); setView(allowedViews.has(target) ? target : "dashboard"); }}
           refresh={() => void backend.refresh()}
           snapshot={snapshot}
+          alertCount={backend.data.alerts.length}
+          activePrimary={activePrimary}
+          onPrimary={choosePrimary}
         />
         <main id="content" className="content">
+          <div className="mx-auto w-full max-w-7xl space-y-6">
           {moduleKey === "transport" ? (
             <TransportModule
               view={activeTransportView}
@@ -7741,13 +7486,13 @@ export default function Home() {
             />
           ) : (
             <>
-              <header className="page-head user-page-head">
+              {!["dashboard", "shipments", "warehouses"].includes(activeView) && <header className="page-head user-page-head">
                 <div>
                   <span>{eyebrow}</span>
                   <h1>{title}</h1>
                   <p>{description}</p>
                 </div>
-              </header>
+              </header>}
               {backend.error && (
                 <aside className="runtime-message error" role="alert">
                   <i>!</i>
@@ -7787,9 +7532,14 @@ export default function Home() {
                   setTransportView("planner");
                   setModule("transport");
                 }}
+                onOpenTransportMap={() => {
+                  setTransportView("map");
+                  setModule("transport");
+                }}
               />
             </>
           )}
+          </div>
         </main>
       </div>
       {backend.notice && (

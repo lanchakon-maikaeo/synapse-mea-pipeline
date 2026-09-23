@@ -1333,121 +1333,78 @@ function tripHasStatus(trip: TTrip, raw: string, translated: string) {
 }
 
 function TransportDashboard({ data }: { data: TransportData }) {
-  const planned = data.trips.filter((trip) =>
-    tripHasStatus(trip, "planned", "วางแผน"),
-  );
-  const done = data.trips.filter((trip) =>
-    tripHasStatus(trip, "completed", "ส่งครบ"),
-  );
-  const activeVeh = data.vehicles.filter((v) => v.active).length;
-  const availabilityKnown = data.vehicles.some(
-    (vehicle) => vehicle.availability !== "unknown",
-  );
-  const availableVeh = data.vehicles.filter(
-    (vehicle) => vehicle.availability === "available",
-  ).length;
-  const pending = data.queue.length;
+  const [selectedId, setSelectedId] = useState("");
+  const selected = data.vehicles.find((vehicle) => vehicle.id === selectedId) ?? data.vehicles[0] ?? null;
+  const planned = data.trips.filter((trip) => tripHasStatus(trip, "planned", "วางแผน"));
+  const done = data.trips.filter((trip) => tripHasStatus(trip, "completed", "ส่งครบ"));
+  const availabilityKnown = data.vehicles.some((vehicle) => vehicle.availability !== "unknown");
+  const available = data.vehicles.filter((vehicle) => vehicle.availability === "available").length;
+  const points = Object.values(data.geo).filter((point) => point.verificationStatus === "verified" && hasValidCoordinates(point)).map((point) => ({
+    id: point.ref, name: point.name, lat: point.lat, lon: point.lon,
+    isDepot: point.isWarehouse, verificationStatus: point.verificationStatus,
+    routeEligible: point.routeEligible,
+  }));
   return (
-    <div className="stack">
-      <section className="kpis">
-        <article>
-          <div>
-            <span>รถ active ในทะเบียน</span>
-            <i className="dot blue" />
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ["รถ active ในทะเบียน", data.vehicles.filter((vehicle) => vehicle.active).length, availabilityKnown ? `พร้อมตามหลักฐาน ${available}` : "ยังไม่ทราบ availability"],
+          ["เที่ยวรอออก", planned.length, "สถานะวางแผน"],
+          ["เขตรอจัดส่ง", data.queue.length, "จาก dispatch queue"],
+          ["ส่งครบสะสม", done.length, "จากประวัติเที่ยวรถ"],
+        ].map(([label, count, note]) => (
+          <section key={label} className="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <p className="mt-2 text-3xl font-semibold tabular-nums">{formatNumber(count)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{note}</p>
+          </section>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-sm xl:col-span-2">
+          <h2 className="text-base font-semibold">แผนที่จุดบริการ</h2>
+          <p className="mt-1 text-xs text-muted-foreground">พิกัดคลังและเขตจากระบบ · ไม่มีข้อมูลตำแหน่งรถสด</p>
+          <div className="mt-4 overflow-hidden rounded-lg border border-border bg-background">
+            <TransportRoadMap points={points} />
           </div>
-          <strong>{formatNumber(activeVeh)}</strong>
-          <small>
-            พร้อมออกงาน:{" "}
-            {availabilityKnown ? formatNumber(availableVeh) : "ไม่ทราบ"}
-          </small>
-        </article>
-        <article>
-          <div>
-            <span>เที่ยวรอออก</span>
-            <i className="dot orange" />
+        </section>
+        <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          {selected ? <>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div><h2 className="text-base font-semibold">{selected.code}</h2><p className="mt-1 text-xs text-muted-foreground">{selected.plate}</p></div>
+              <span className={`transport-data-state ${selected.availability === "available" ? "verified" : selected.availability === "unavailable" ? "quarantined" : "unverified"}`}>
+                {selected.availability === "available" ? "พร้อมตามหลักฐาน" : selected.availability === "unavailable" ? "ไม่พร้อม" : "ยังไม่ทราบ"}
+              </span>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              {[
+                ["คนขับ", selected.driver],
+                ["คลังประจำ", selected.currentWarehouse],
+                ["น้ำหนักบรรทุก", `${formatNumber(selected.maxWt)} กก.`],
+                ["อัตราน้ำมัน", `${selected.fuelRate} กม./ล.`],
+              ].map(([label, value]) => <div key={label} className="rounded-lg border border-border bg-background p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-medium">{value}</p></div>)}
+            </div>
+            {selected.availabilityEvidence && <p className="mt-4 rounded-lg border border-border bg-background p-3 text-xs text-muted-foreground">{selected.availabilityEvidence}</p>}
+          </> : <p className="text-sm text-muted-foreground">ยังไม่มีรถในทะเบียน</p>}
+        </section>
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="p-5"><h2 className="text-base font-semibold">ทะเบียนรถ</h2><p className="mt-1 text-xs text-muted-foreground">เลือกคันรถเพื่อดูรายละเอียดและหลักฐาน</p></div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-y border-border bg-muted/40 text-xs text-muted-foreground"><tr><th className="px-5 py-3">รถ</th><th className="px-3 py-3">คนขับ</th><th className="px-3 py-3">สถานะ</th><th className="px-5 py-3 text-right">บรรทุกสูงสุด</th></tr></thead>
+              <tbody>{data.vehicles.map((vehicle) => <tr key={vehicle.id} onClick={() => setSelectedId(vehicle.id)} data-selected={selected?.id === vehicle.id} className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40 data-[selected=true]:bg-accent/30"><td className="px-5 py-3"><strong className="block font-medium">{vehicle.code}</strong><span className="text-xs text-muted-foreground">{vehicle.plate}</span></td><td className="px-3 py-3">{vehicle.driver}</td><td className="px-3 py-3"><span className={`transport-data-state ${vehicle.availability === "available" ? "verified" : vehicle.availability === "unavailable" ? "quarantined" : "unverified"}`}>{vehicle.availability === "available" ? "พร้อม" : vehicle.availability === "unavailable" ? "ไม่พร้อม" : "ไม่ทราบ"}</span></td><td className="px-5 py-3 text-right tabular-nums">{formatNumber(vehicle.maxWt)} กก.</td></tr>)}</tbody>
+            </table>
+            {!data.vehicles.length && <p className="p-6 text-center text-sm text-muted-foreground">ยังไม่มีข้อมูลรถ</p>}
           </div>
-          <strong>{formatNumber(planned.length)}</strong>
-          <small>สถานะ วางแผน</small>
-        </article>
-        <article>
-          <div>
-            <span>เขตรอจัดส่ง</span>
-            <i className="dot purple" />
-          </div>
-          <strong>{formatNumber(pending)}</strong>
-          <small>จาก locked dispatch queue จริง</small>
-        </article>
-        <article>
-          <div>
-            <span>ส่งครบสะสม</span>
-            <i className="dot green" />
-          </div>
-          <strong>{formatNumber(done.length)}</strong>
-          <small>ประวัติเที่ยวรถ</small>
-        </article>
-      </section>
-
-      <section className="panel">
-        <div className="panel-title">
-          <div>
-            <span>รถขนส่ง</span>
-            <h3>ทะเบียนรถและหลักฐาน availability</h3>
-          </div>
-          <b>{availabilityKnown ? `${availableVeh} พร้อม` : "ยังไม่ทราบความพร้อม"}</b>
-        </div>
-        <div className="live-table-wrap">
-          <table className="live-table">
-            <thead>
-              <tr>
-                <th>รหัสรถ</th>
-                <th>ทะเบียน</th>
-                <th>คลังประจำ</th>
-                <th>คนขับ</th>
-                <th>น้ำหนักบรรทุก</th>
-                <th>อัตราน้ำมัน</th>
-                <th>Availability</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.vehicles.map((v) => (
-                <tr key={v.id}>
-                  <td>
-                    <span>
-                      <strong>{v.code}</strong>
-                      <small>{v.id}</small>
-                    </span>
-                  </td>
-                  <td>{v.plate}</td>
-                  <td>{v.currentWarehouse}</td>
-                  <td>{v.driver}</td>
-                  <td>{formatNumber(v.maxWt)} กก.</td>
-                  <td>{v.fuelRate} กม./ล.</td>
-                  <td>
-                    <span
-                      className={`transport-data-state ${
-                        v.availability === "available"
-                          ? "verified"
-                          : v.availability === "unavailable"
-                            ? "quarantined"
-                            : "unverified"
-                      }`}
-                    >
-                      {v.availability === "available"
-                        ? "พร้อมตามหลักฐาน"
-                        : v.availability === "unavailable"
-                          ? "ไม่พร้อม"
-                          : "ไม่ทราบ—active ≠ available"}
-                    </span>
-                    {v.availabilityEvidence && (
-                      <small>{v.availabilityEvidence}</small>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+        </section>
+        <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="text-base font-semibold">เที่ยวรถในระบบ</h2>
+          <p className="mt-1 text-xs text-muted-foreground">สถานะจากประวัติเที่ยวรถจริง</p>
+          <div className="mt-4 space-y-3">{data.trips.slice(0, 6).map((trip) => <div key={trip.id} className="rounded-lg border border-border bg-background p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">{trip.code}</strong><span className="text-xs font-medium text-primary">{trip.status}</span></div><p className="mt-1 text-xs text-muted-foreground">{trip.vehicle} · {trip.warehouse} · {trip.route.length} จุดส่ง</p><p className="mt-2 text-xs text-muted-foreground">{trip.dist > 0 ? `${formatNumber(trip.dist, 1)} กม.` : "ยังไม่มีระยะทางที่ยืนยัน"}</p></div>)}{!data.trips.length && <p className="text-sm text-muted-foreground">ยังไม่มีเที่ยวรถที่บันทึกในระบบ</p>}</div>
+        </section>
+      </div>
     </div>
   );
 }

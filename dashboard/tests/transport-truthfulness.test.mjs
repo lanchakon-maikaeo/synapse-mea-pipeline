@@ -16,7 +16,7 @@ const [transport, roadMap, page, workerCanary, workerClient] = await Promise.all
 
 test("transport UI uses the live zero-state and readiness contract", () => {
   assert.match(transport, /apiRequest<Row>\("\/v1\/transport\/readiness"/);
-  assert.match(transport, /const pending = data\.queue\.length;/);
+  assert.match(transport, /\["เขตรอจัดส่ง", data\.queue\.length, "จาก dispatch queue"\]/);
   assert.match(
     transport,
     /if \(demoMode\) \{[\s\S]{0,200}setData\(demoTransportData\(\)\)[\s\S]{0,200}return;/,
@@ -109,7 +109,7 @@ test("vehicle activity is not promoted to operational availability", () => {
     /vehicle\.availability === "available"[\s\S]*vehicle\.currentWarehouse === warehouse/,
   );
   assert.match(transport, /is_active อย่างเดียวไม่ยืนยันว่ารถพร้อมออกงาน/);
-  assert.match(transport, /ไม่ทราบ—active ≠ available/);
+  assert.match(transport, /\["รถ active ในทะเบียน", data\.vehicles\.filter\(\(vehicle\) => vehicle\.active\)\.length, availabilityKnown \? `พร้อมตามหลักฐาน \$\{available\}` : "ยังไม่ทราบ availability"\]/);
   assert.match(transport, /Weight-only split preview/);
   assert.match(transport, /ยังไม่ใช่ OR-Tools fleet solve/);
   assert.match(
