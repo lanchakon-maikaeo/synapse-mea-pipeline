@@ -7,7 +7,7 @@ const root = new URL("../", import.meta.url);
 test("renders the MEA Synapse operational workspace in Thai", async () => {
   const html = await readFile(new URL(".next/server/app/index.html", root), "utf8");
   assert.match(html, /MEA Synapse/);
-  assert.match(html, /งานคลังพัสดุ/);
+  assert.match(html, /คลังพัสดุและขนส่ง/);
   assert.match(html, /เข้าสู่ระบบ MEA Synapse/);
   assert.match(html, /ชื่อผู้ใช้หรืออีเมล/);
   assert.match(html, /รหัสผ่าน/);
@@ -60,6 +60,6 @@ test("keeps the UI aligned with the frozen production operations scope", async (
     "Approve & Lock",
   ]) assert.match(page, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(page, /Administrator/);
-  assert.match(layout, /MEA Synapse — Warehouse Operations/);
+  assert.match(layout, /MEA Synapse — Smart Logistics/);
   assert.doesNotMatch(page, /Queue Forecast Run|สร้าง Route job|SYNAPSE AI ASSISTANT/);
 });

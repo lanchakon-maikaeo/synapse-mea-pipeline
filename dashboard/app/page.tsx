@@ -199,7 +199,7 @@ const titles: Record<ViewKey, [string, string, string]> = {
   dashboard: [
     "ภาพรวม",
     "ภาพรวมงานคลังพัสดุ",
-    "สถานะงานตามสิทธิ์ของคุณ อัปเดตแบบเรียลไทม์",
+    "ข้อมูลล่าสุดจากระบบตามสิทธิ์ของคุณ",
   ],
   weekly: [
     "แผนการจ่าย",
@@ -632,30 +632,30 @@ function Login({
           <b>MEA</b>
           <span>
             <strong>MEA Synapse</strong>
-            <small>งานคลังพัสดุ</small>
+            <small>คลังพัสดุและขนส่ง</small>
           </span>
         </div>
         <div className="login-copy">
-          <span>ระบบบริหารงานคลังพัสดุ</span>
+          <span>ระบบคลังพัสดุและขนส่ง</span>
           <h1>
-            จัดการสต็อกได้
+            บริหารคลังพัสดุ
             <br />
-            สอบกลับได้ทุกขั้นตอน
+            และการขนส่งในที่เดียว
           </h1>
           <p>
-            วางแผนการจ่ายรายสัปดาห์ ยืนยันโดยเขต อนุมัติตามลำดับ จ่ายแบบ FIFO
-            จ่ายกรณีพิเศษ และสอบกลับได้ครบในที่เดียว
+            วางแผนการจ่าย ยืนยันตามบทบาท จ่ายแบบ FIFO และวางแผนเส้นทาง
+            จากข้อมูลที่ตรวจสอบย้อนกลับได้
           </p>
         </div>
         <div className="login-metrics">
           <span>
-            <strong>2401</strong> คลังคลองเตย
+            <strong>Stock</strong> ตรวจสอบข้อมูลคลัง
           </span>
           <span>
-            <strong>0001</strong> ที่จัดเก็บ
+            <strong>FIFO</strong> จ่ายพัสดุแบบสอบกลับได้
           </span>
           <span>
-            <strong>18</strong> เขต
+            <strong>Route</strong> วางแผนจากข้อมูลจริง
           </span>
         </div>
       </section>
@@ -738,6 +738,7 @@ function Sidebar({
   navigate,
   close,
   snapshot,
+  demoMode,
   moduleKey,
   setModule,
   transportView,
@@ -749,32 +750,12 @@ function Sidebar({
   navigate: (view: ViewKey) => void;
   close: () => void;
   snapshot: string;
+  demoMode: boolean;
   moduleKey: "warehouse" | "transport";
   setModule: (value: "warehouse" | "transport") => void;
   transportView: TransportView;
   setTransportView: (value: TransportView) => void;
 }) {
-  const switchBtn = (key: "warehouse" | "transport", label: string) => (
-    <button
-      type="button"
-      aria-pressed={moduleKey === key}
-      onClick={() => setModule(key)}
-      style={{
-        flex: 1,
-        padding: "8px 6px",
-        fontSize: 12,
-        fontWeight: 600,
-        borderRadius: 8,
-        border: "1px solid rgba(255,255,255,.15)",
-        background:
-          moduleKey === key ? "#E3670A" : "rgba(255,255,255,.06)",
-        color: moduleKey === key ? "#fff" : "rgba(255,255,255,.7)",
-        cursor: "pointer",
-      }}
-    >
-      {label}
-    </button>
-  );
   return (
     <>
       <button
@@ -787,7 +768,7 @@ function Sidebar({
           <span>MEA</span>
           <div>
             <strong>MEA Synapse</strong>
-            <small>งานคลังพัสดุ</small>
+            <small>คลังพัสดุและขนส่ง</small>
           </div>
         </div>
         <div className="user-scope">
@@ -797,9 +778,9 @@ function Sidebar({
             <strong>{roleNameTh[role]}</strong>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6, padding: "0 12px 6px" }}>
-          {switchBtn("warehouse", "คลังพัสดุ")}
-          {switchBtn("transport", "ระบบขนส่ง")}
+        <div className="module-switch" role="group" aria-label="พื้นที่ทำงาน">
+          <button type="button" aria-pressed={moduleKey === "warehouse"} onClick={() => setModule("warehouse")}>คลังพัสดุ</button>
+          <button type="button" aria-pressed={moduleKey === "transport"} onClick={() => setModule("transport")}>ระบบขนส่ง</button>
         </div>
         <nav>
           {moduleKey === "warehouse"
@@ -849,7 +830,7 @@ function Sidebar({
         <div className="release-badge">
           <small>ข้อมูลล่าสุด</small>
           <strong>{snapshot}</strong>
-          <span>ข้อมูลจริงจากระบบงาน</span>
+          <span>{demoMode ? "ข้อมูลตัวอย่างในเครื่อง" : "ข้อมูลจากระบบงาน"}</span>
         </div>
       </aside>
     </>
@@ -960,11 +941,14 @@ function DashboardView({
   data,
   role,
   navigate,
+  demoMode,
 }: {
   data: DashboardData;
   role: Role;
   navigate: (view: ViewKey) => void;
+  demoMode: boolean;
 }) {
+  const sourceLabel = demoMode ? "ข้อมูลตัวอย่างในเครื่อง" : "ข้อมูลจากระบบ";
   const planIds = new Set(
     data.replenishment.map((row) => text(row.replenishment_plan_id)),
   );
@@ -1049,7 +1033,7 @@ function DashboardView({
             <i className="dot purple" />
           </div>
           <strong>{formatNumber(materialsCount)}</strong>
-          <small>ข้อมูลจริงจากระบบ</small>
+          <small>{sourceLabel}</small>
         </article>
         <article>
           <div>
@@ -1065,7 +1049,7 @@ function DashboardView({
             <i className="dot green" />
           </div>
           <strong>{formatNumber(warehouseCount)}</strong>
-          <small>สต็อกจริงคลังคลองเตย</small>
+          <small>{demoMode ? "สต็อกตัวอย่าง" : "สต็อกคลังคลองเตย"}</small>
         </article>
         <article>
           <div>
@@ -1081,8 +1065,8 @@ function DashboardView({
           <article className="panel">
             <div className="panel-title">
               <div>
-                <span>สต็อกคลัง · เรียลไทม์</span>
-                <h3>ข้อมูลสต็อกจริงคลังคลองเตย</h3>
+                <span>สต็อกคลัง · ล่าสุด</span>
+                <h3>ข้อมูลสต็อกคลังคลองเตย</h3>
               </div>
               <b>{formatNumber(warehouseCount)}</b>
             </div>
@@ -1101,7 +1085,7 @@ function DashboardView({
           <article className="panel">
             <div className="panel-title">
               <div>
-                <span>สุขภาพสต็อกเขต · เรียลไทม์</span>
+                <span>สุขภาพสต็อกเขต · ล่าสุด</span>
                 <h3>สต็อกและ CMP ล่าสุด</h3>
               </div>
               <b>{formatNumber(stockHealthCount)}</b>
@@ -7532,7 +7516,7 @@ function PageContent({
   onOpenTransport: () => void;
 }) {
   if (view === "dashboard") {
-    return <DashboardView data={backend.data} role={role} navigate={navigate} />;
+    return <DashboardView data={backend.data} role={role} navigate={navigate} demoMode={backend.demoMode} />;
   }
   if (view === "weekly") {
     return (
@@ -7702,6 +7686,7 @@ export default function Home() {
         navigate={setView}
         close={() => setMenuOpen(false)}
         snapshot={snapshot}
+        demoMode={backend.demoMode}
         moduleKey={moduleKey}
         setModule={setModule}
         transportView={activeTransportView}

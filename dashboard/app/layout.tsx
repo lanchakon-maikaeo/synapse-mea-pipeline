@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
+import "./meridian.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -8,10 +9,10 @@ export const metadata: Metadata = {
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000",
   ),
-  title: "MEA Synapse — Warehouse Operations",
+  title: "MEA Synapse — Smart Logistics",
   description: "Verified inventory, replenishment and road-aware smart logistics for MEA warehouse operations.",
   openGraph: {
-    title: "MEA Synapse — Warehouse Operations",
+    title: "MEA Synapse — Smart Logistics",
     description: "A verified-data workspace for inventory, replenishment and road-aware smart logistics.",
     images: [{ url: "/og.png", width: 1662, height: 946, alt: "MEA Synapse Warehouse Operations" }],
   },
