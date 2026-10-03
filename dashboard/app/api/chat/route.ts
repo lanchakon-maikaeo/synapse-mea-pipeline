@@ -133,7 +133,7 @@ export async function POST(request: Request) {
     });
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
-      throw new Error(providerErrorCode(response.status));
+      throw new Error(providerErrorCode(response.status, `provider_http_${response.status}`));
     }
     const payload = openRouterResponse(await response.json());
     const tokens = payload?.usageMetadata?.totalTokenCount;
@@ -166,6 +166,7 @@ export async function POST(request: Request) {
     const code = error instanceof Error ? error.message : "agent_unavailable";
     const status = code === "unauthorized" ? 401 : code === "forbidden" ? 403 : code === "provider_rate_limited" ? 429 : 503;
     console.warn(JSON.stringify({ event: "chat_run_failed", request_id: requestId, harness: HARNESS_VERSION,
+      error_code: /^[a-z_0-9]{1,80}$/.test(code) ? code : "agent_unavailable",
       http_status: status, model_calls: modelCalls, total_tokens: totalTokens, duration_ms: Date.now() - startedAt }));
     const message = code === "provider_billing_required"
       ? "บริการ AI ยังใช้งานไม่ได้ กรุณาให้ผู้ดูแลระบบตรวจ billing และโควตาของผู้ให้บริการ"
