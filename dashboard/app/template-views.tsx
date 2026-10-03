@@ -964,7 +964,7 @@ export function WarehousesTemplate({
         <Card className="p-5">
           <h2 className="font-semibold">การดำเนินงานคลัง</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            เปิดหน้าทำงานที่ผูกกับ API และสิทธิ์จริง
+            เปิดหน้าดำเนินการตามสิทธิ์ของคุณ
           </p>
           <div className="mt-5 grid gap-3">
             {["admin", "planner"].includes(role) && (

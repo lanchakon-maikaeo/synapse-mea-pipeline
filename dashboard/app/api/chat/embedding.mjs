@@ -2,6 +2,10 @@
 export const EMBEDDING_MODEL = 'gemini-embedding-001';
 export const EMBEDDING_DIMENSIONS = 768;
 
+export function providerErrorCode(status, fallback = 'provider_unavailable') {
+  return status === 402 ? 'provider_billing_required' : status === 429 ? 'provider_rate_limited' : fallback;
+}
+
 export async function embedText({ text, apiKey, taskType = 'RETRIEVAL_QUERY', signal, fetcher = fetch }) {
   if (typeof text !== 'string' || !text.trim() || text.length > 8000 || !apiKey ||
       !['RETRIEVAL_QUERY', 'RETRIEVAL_DOCUMENT'].includes(taskType)) throw Error('embedding_input_invalid');
@@ -13,7 +17,7 @@ export async function embedText({ text, apiKey, taskType = 'RETRIEVAL_QUERY', si
   });
   if (!response.ok) {
     await response.body?.cancel().catch(() => undefined);
-    throw Error('embedding_unavailable');
+    throw Error(providerErrorCode(response.status, 'embedding_unavailable'));
   }
   const values = (await response.json())?.embedding?.values;
   if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSIONS ||

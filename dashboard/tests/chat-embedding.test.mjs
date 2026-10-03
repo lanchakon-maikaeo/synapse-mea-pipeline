@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { embedText } from '../app/api/chat/embedding.mjs';
+import { embedText, providerErrorCode } from '../app/api/chat/embedding.mjs';
 import { runAgent } from '../app/api/chat/harness.mjs';
 
 const vector = Array(768).fill(0); vector[0] = 2;
@@ -19,7 +19,10 @@ test('malformed vectors and provider failures cannot become knowledge evidence',
   for (const values of [[], [1], Array(768).fill(0), Array(768).fill('1')]) {
     await assert.rejects(embedText({ text: 'test', apiKey: 'test', fetcher: async () => Response.json({ embedding: { values } }) }), /embedding_output_invalid/);
   }
-  await assert.rejects(embedText({ text: 'test', apiKey: 'test', fetcher: async () => new Response('', { status: 429 }) }), /embedding_unavailable/);
+  for (const [status, code] of [[402, 'provider_billing_required'], [429, 'provider_rate_limited'], [503, 'embedding_unavailable']]) {
+    assert.equal(providerErrorCode(status), status === 503 ? 'provider_unavailable' : code);
+    await assert.rejects(embedText({ text: 'test', apiKey: 'test', fetcher: async () => new Response('', { status }) }), error => error.message === code);
+  }
 });
 test('knowledge search runs through the existing harness and hides sources by default', async () => {
   for (const question of ['กฎเติมวัสดุ', 'ขอแหล่งข้อมูลกฎเติมวัสดุ']) {

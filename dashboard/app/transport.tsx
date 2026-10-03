@@ -1347,9 +1347,9 @@ function TransportDashboard({ data }: { data: TransportData }) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          ["รถที่เปิดใช้งานในทะเบียน", data.vehicles.filter((vehicle) => vehicle.active).length, availabilityKnown ? `ยืนยันว่าพร้อม ${available}` : "ยังไม่ทราบ availability"],
+          ["รถที่เปิดใช้งานในทะเบียน", data.vehicles.filter((vehicle) => vehicle.active).length, availabilityKnown ? `ยืนยันว่าพร้อม ${available}` : "ยังไม่มีข้อมูลยืนยันความพร้อม"],
           ["เที่ยวรอออก", planned.length, "สถานะวางแผน"],
-          ["เขตรอจัดส่ง", data.queue.length, "จาก dispatch queue"],
+          ["เขตรอจัดส่ง", data.queue.length, "จากคิวจัดส่ง"],
           ["ส่งครบสะสม", done.length, "จากประวัติเที่ยวรถ"],
         ].map(([label, count, note]) => (
           <section key={label} className="rounded-xl border border-border bg-card p-5 shadow-sm">

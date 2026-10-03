@@ -6,7 +6,7 @@ import {
 
 import { runAgent, HARNESS_VERSION } from "./harness.mjs";
 import { retrieveDatabase } from "./retrieval.mjs";
-import { embedText } from "./embedding.mjs";
+import { embedText, providerErrorCode } from "./embedding.mjs";
 import { composeAnswer } from "./answer.mjs";
 
 export const dynamic = "force-dynamic";
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
     });
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
-      throw new Error(response.status === 429 ? "provider_rate_limited" : "provider_unavailable");
+      throw new Error(providerErrorCode(response.status));
     }
     const payload = await response.json();
     const tokens = payload?.usageMetadata?.totalTokenCount;
@@ -189,7 +189,12 @@ export async function POST(request: Request) {
     const status = code === "unauthorized" ? 401 : code === "forbidden" ? 403 : code === "provider_rate_limited" ? 429 : 503;
     console.warn(JSON.stringify({ event: "chat_run_failed", request_id: requestId, harness: HARNESS_VERSION,
       http_status: status, model_calls: modelCalls, total_tokens: totalTokens, duration_ms: Date.now() - startedAt }));
-    return failure(status, code, "ค้นและตรวจข้อมูลไม่สำเร็จ กรุณาลองใหม่ภายหลัง", requestId);
+    const message = code === "provider_billing_required"
+      ? "บริการ AI ยังใช้งานไม่ได้ กรุณาให้ผู้ดูแลระบบตรวจ billing และโควตาของผู้ให้บริการ"
+      : code === "provider_rate_limited"
+        ? "บริการ AI ใช้งานเกินโควตาชั่วคราว กรุณาลองใหม่ภายหลัง"
+        : "ค้นและตรวจข้อมูลไม่สำเร็จ กรุณาลองใหม่ภายหลัง";
+    return failure(status, code, message, requestId);
   }
   // Operational trace excludes prompts, keys, JWTs, tool arguments and business rows.
   console.info(JSON.stringify({ event: "chat_run", request_id: requestId, harness: HARNESS_VERSION,
