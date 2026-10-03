@@ -32,6 +32,13 @@ test('a Google key or a response from a different embedding model cannot enter t
   await assert.rejects(embedText({ text: 'test', apiKey: 'sk-or-test', fetcher: async () =>
     Response.json({ model: 'other-model', data: [{ index: 0, embedding: vector }] }) }), /embedding_output_invalid/);
 });
+test('verified BGE-M3 provider names normalize into the same corpus', async () => {
+  for (const model of ['BAAI/bge-m3', 'parasail-bge-m3']) {
+    const result = await embedText({ text: 'test', apiKey: 'sk-or-test', fetcher: async () =>
+      Response.json({ model, data: [{ index: 0, embedding: vector }] }) });
+    assert.equal(result.length, 1024); assert.equal(result[0], 1);
+  }
+});
 test('knowledge search runs through the existing harness and hides sources by default', async () => {
   for (const question of ['กฎเติมวัสดุ', 'ขอแหล่งข้อมูลกฎเติมวัสดุ']) {
     const calls = [{name:'search_knowledge',args:{query:'กฎเติมวัสดุ'}},{name:'finish',args:{}}];

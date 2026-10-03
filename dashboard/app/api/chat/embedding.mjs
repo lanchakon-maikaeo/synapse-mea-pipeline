@@ -24,7 +24,8 @@ export async function embedText({ text, apiKey, taskType = 'RETRIEVAL_QUERY', si
     response_model: typeof payload?.model === 'string' && /^[a-zA-Z0-9/_.:-]{1,120}$/.test(payload.model) ? payload.model : 'unknown',
     vector_dimensions: Array.isArray(payload?.data?.[0]?.embedding) ? payload.data[0].embedding.length : null,
   } });
-  if (payload?.model !== EMBEDDING_MODEL || !Array.isArray(payload.data) || payload.data.length !== 1 ||
+  // OpenRouter can return the provider's model name instead of its routing slug.
+  if (!['baai/bge-m3', 'BAAI/bge-m3', 'parasail-bge-m3'].includes(payload?.model) || !Array.isArray(payload?.data) || payload.data.length !== 1 ||
       payload.data[0]?.index !== 0) throw invalidOutput('response_shape');
   const values = payload.data[0].embedding;
   if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSIONS ||
