@@ -35,7 +35,7 @@ export function openRouterRequest(body) {
   return {
     model: CHAT_MODEL, messages,
     tools: body.tools.flatMap(tool => tool.functionDeclarations).map(fn => ({ type: 'function',
-      function: { name: fn.name, description: fn.description, parameters: fn.parametersJsonSchema } })),
+      function: { name: fn.name, description: fn.description, parameters: fn.parametersJsonSchema, strict: true } })),
     tool_choice: 'required', parallel_tool_calls: false,
     // OpenRouter omits parallel_tool_calls from GPT-4o-mini endpoint metadata.
     // Requiring every parameter filters out its tool-capable endpoint (404).

@@ -32,6 +32,7 @@ test('OpenRouter runs the existing read loop and evidence-checked answer with ma
     assert.notEqual(request.provider?.require_parameters, true);
     const [name, args] = calls.shift();
     assert.ok(request.tools.some(tool => tool.function.name === name));
+    assert.ok(request.tools.every(tool => tool.function.strict === true));
     return openRouterResponse(response(name, args, `call-${requests.length}`));
   };
   const result = await runAgent({ message: 'คลังไหนใกล้หมด', history: [{ role: 'assistant', text: 'สอบถามได้เลย' }],

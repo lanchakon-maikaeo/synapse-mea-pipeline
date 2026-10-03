@@ -1,4 +1,4 @@
-import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, wantsSources, CONVERSATION_REPLIES } from "./tools.mjs";
+import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, wantsSources, CONVERSATION_REPLIES, CHAT_TOOLS } from "./tools.mjs";
 
 export const HARNESS_VERSION = "v4";
 export const MAX_READS = 6;
@@ -25,8 +25,14 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
     }
     let decision;
     try { decision = bindDistrictScope(parseToolDecision(response), scope); }
-    catch {
-      if (!evidence.length) throw new Error("provider_output_invalid");
+    catch (error) {
+      if (!evidence.length) {
+        const proposedName = response?.candidates?.[0]?.content?.parts?.find(p => p.functionCall)?.functionCall?.name;
+        throw new Error("provider_output_invalid", { cause: {
+          validation_code: ["provider_tool_call_invalid", "provider_tool_arguments_invalid", "provider_tool_not_allowed"].includes(error.message) ? error.message : "invalid_decision",
+          tool: CHAT_TOOLS.some(t => t.name === proposedName) ? proposedName : "unknown_tool",
+        } });
+      }
       stopReason = "invalid_decision";
       break;
     }
