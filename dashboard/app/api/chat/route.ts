@@ -8,6 +8,7 @@ import { runAgent, HARNESS_VERSION } from "./harness.mjs";
 import { retrieveDatabase } from "./retrieval.mjs";
 import { embedText, providerErrorCode } from "./embedding.mjs";
 import { composeAnswer } from "./answer.mjs";
+import { CHAT_API_URL, CHAT_MODEL, openRouterRequest, openRouterResponse } from "./openrouter.mjs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -44,26 +45,15 @@ function failure(status: number, code: string, message: string, requestId: strin
 }
 
 function providerConfig() {
-  const apiKey = process.env.LLM_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim() || "";
-  const model = process.env.LLM_MODEL?.trim() || "gemini-3.5-flash-lite";
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim() || "";
   const rawTemperature = process.env.LLM_TEMPERATURE?.trim() || "0";
   const rawTimeout = process.env.LLM_TIMEOUT_MS?.trim() || "30000";
   const temperature = Number(rawTemperature);
   const timeoutMs = Number(rawTimeout);
-  let apiUrl: URL;
-  try {
-    apiUrl = new URL(process.env.LLM_API_URL?.trim() || "https://generativelanguage.googleapis.com/v1beta/");
-  } catch {
-    return null;
-  }
-  const secureUrl = apiUrl.protocol === "https:" ||
-    (process.env.NODE_ENV !== "production" && ["localhost", "127.0.0.1", "::1"].includes(apiUrl.hostname));
-  if (!apiKey || !/^gemini-[A-Za-z0-9._-]{1,100}$/.test(model) || !secureUrl ||
-      apiUrl.username || apiUrl.password || !Number.isFinite(temperature) ||
+  if (!apiKey || !Number.isFinite(temperature) ||
       temperature < 0 || temperature > 2 || !Number.isInteger(timeoutMs) ||
       timeoutMs < 1_000 || timeoutMs > 40_000) return null;
-  apiUrl.pathname = `${apiUrl.pathname.replace(/\/?$/, "/")}models/${model}:generateContent`;
-  return { apiKey, model, temperature, timeoutMs, apiUrl: apiUrl.toString() };
+  return { apiKey, model: CHAT_MODEL, temperature, timeoutMs, apiUrl: CHAT_API_URL };
 }
 
 async function supabaseRpc<T>(name: string, body: unknown, authorization: string, signal: AbortSignal): Promise<T> {
@@ -149,15 +139,15 @@ export async function POST(request: Request) {
     if (modelCalls >= limit) throw new Error("model_call_limit");
     modelCalls++;
     const response = await fetch(config.apiUrl, {
-      method: "POST", headers: { "x-goog-api-key": config.apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify(body), redirect: "error",
+      method: "POST", headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(openRouterRequest(body)), redirect: "error",
       signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]),
     });
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
       throw new Error(providerErrorCode(response.status));
     }
-    const payload = await response.json();
+    const payload = openRouterResponse(await response.json());
     const tokens = payload?.usageMetadata?.totalTokenCount;
     if (Number.isSafeInteger(tokens) && tokens >= 0) totalTokens += tokens;
     return payload;
@@ -168,7 +158,7 @@ export async function POST(request: Request) {
       generate,
       read: async (decision: ToolDecision) => decision.name === "search_knowledge"
         ? supabaseRpc<ToolEnvelope>("vmi_chat_knowledge", {
-          p_embedding: await embedText({ text: String(decision.args.query), apiKey: config.apiKey,
+          p_embedding: await embedText({ text: String(decision.args.query), apiKey: process.env.GEMINI_API_KEY?.trim(),
             signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]) }),
           p_limit: topK,
         }, authorization, overall)
