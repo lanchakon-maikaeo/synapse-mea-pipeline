@@ -6,6 +6,7 @@ export const MAX_READS = 6;
 // Model decisions are proposals. This loop owns execution, budgets and completion.
 export async function runAgent({ message, history = /** @type {{ role: string, text: string }[]} */ ([]), temperature, scope, signal, generate, read }) {
   const body = buildProviderBody(message, temperature, history);
+  const declarations = body.tools[0].functionDeclarations;
   const evidence = [];
   const trace = [];
   const seen = new Set();
@@ -14,6 +15,14 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   let terminalAnswer;
   let terminalStatus;
   for (let step = 0; step <= MAX_READS; step++) {
+    const canFinish = evidence.some(x => x.tool !== "discover_database" && ["ok", "no_data"].includes(x.status));
+    body.tools[0].functionDeclarations = declarations
+      .filter(fn => (fn.name !== "query_database" || discovered.size > 0) && (fn.name !== "finish" || canFinish))
+      .map(fn => fn.name === "query_database" ? { ...fn, parametersJsonSchema: {
+        ...fn.parametersJsonSchema, properties: { ...fn.parametersJsonSchema.properties,
+          source_id: { type: "string", enum: [...discovered] },
+        },
+      } } : fn);
     let response;
     try {
       signal?.throwIfAborted();

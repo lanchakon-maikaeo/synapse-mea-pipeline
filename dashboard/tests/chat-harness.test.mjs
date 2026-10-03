@@ -22,6 +22,21 @@ test('cannot finish without evidence or execute arbitrary tools', async () => {
   const s = scenario([call('execute_sql', { sql: 'delete from stock' })]);
   await assert.rejects(s.run, /provider_output_invalid/); assert.equal(s.reads.length, 0);
 });
+test('query tools are offered only after discovery and source IDs are bounded to its result', async () => {
+  const query = { source_id: 'public.districts', columns: ['district_id', 'district_name'], filters: [],
+    group_by: [], metrics: [], order_column: null, order_direction: 'asc', limit: 1, offset: 0, search: '5501' };
+  const s = scenario([call('discover_database', { query: 'เขต 5501' }), call('query_database', query), call('finish')],
+    async d => d.name === 'discover_database'
+      ? { tool: d.name, status: 'ok', data: [{ source_id: 'public.districts' }] }
+      : { tool: d.name, status: 'ok', data: [{ district_id: '5501', district_name: 'บางเขน' }] });
+  const r = await s.run();
+  const tools = index => s.requests[index].tools[0].functionDeclarations;
+  assert.ok(!tools(0).some(fn => ['query_database', 'finish'].includes(fn.name)));
+  assert.deepEqual(tools(1).find(fn => fn.name === 'query_database').parametersJsonSchema.properties.source_id.enum, ['public.districts']);
+  assert.ok(!tools(1).some(fn => fn.name === 'finish'));
+  assert.ok(tools(2).some(fn => fn.name === 'finish'));
+  assert.equal(r.stop_reason, 'complete');
+});
 test('conversation replies require no business reads and cannot carry invented facts', async () => {
   for (const intent of ['greeting', 'thanks', 'goodbye', 'capabilities']) {
     const s = scenario([call('conversation', { intent })]);
