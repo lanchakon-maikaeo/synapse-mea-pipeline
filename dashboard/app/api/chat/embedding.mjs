@@ -19,12 +19,17 @@ export async function embedText({ text, apiKey, taskType = 'RETRIEVAL_QUERY', si
     throw Error(providerErrorCode(response.status, 'embedding_unavailable'));
   }
   const payload = await response.json();
+  const invalidOutput = reason => new Error('embedding_output_invalid', { cause: {
+    embedding_validation: reason,
+    response_model: typeof payload?.model === 'string' && /^[a-zA-Z0-9/_.:-]{1,120}$/.test(payload.model) ? payload.model : 'unknown',
+    vector_dimensions: Array.isArray(payload?.data?.[0]?.embedding) ? payload.data[0].embedding.length : null,
+  } });
   if (payload?.model !== EMBEDDING_MODEL || !Array.isArray(payload.data) || payload.data.length !== 1 ||
-      payload.data[0]?.index !== 0) throw Error('embedding_output_invalid');
+      payload.data[0]?.index !== 0) throw invalidOutput('response_shape');
   const values = payload.data[0].embedding;
   if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSIONS ||
-      values.some(value => typeof value !== 'number' || !Number.isFinite(value))) throw Error('embedding_output_invalid');
+      values.some(value => typeof value !== 'number' || !Number.isFinite(value))) throw invalidOutput('vector_shape');
   const norm = Math.hypot(...values);
-  if (!Number.isFinite(norm) || !norm) throw Error('embedding_output_invalid');
+  if (!Number.isFinite(norm) || !norm) throw invalidOutput('vector_norm');
   return values.map(value => value / norm);
 }

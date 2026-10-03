@@ -166,10 +166,14 @@ export async function POST(request: Request) {
     const code = error instanceof Error ? error.message : "agent_unavailable";
     const validation = code === "provider_output_invalid" && error instanceof Error
       ? error.cause as { validation_code?: string; tool?: string } | undefined : undefined;
+    const embedding = code === "embedding_output_invalid" && error instanceof Error
+      ? error.cause as { embedding_validation?: string; response_model?: string; vector_dimensions?: number } | undefined : undefined;
     const status = code === "unauthorized" ? 401 : code === "forbidden" ? 403 : code === "provider_rate_limited" ? 429 : 503;
     console.warn(JSON.stringify({ event: "chat_run_failed", request_id: requestId, harness: HARNESS_VERSION,
       error_code: /^[a-z_0-9]{1,80}$/.test(code) ? code : "agent_unavailable",
       validation_code: validation?.validation_code, decision_tool: validation?.tool,
+      embedding_validation: embedding?.embedding_validation, embedding_response_model: embedding?.response_model,
+      embedding_dimensions: embedding?.vector_dimensions,
       http_status: status, model_calls: modelCalls, total_tokens: totalTokens, duration_ms: Date.now() - startedAt }));
     const message = code === "provider_billing_required"
       ? "บริการ AI ยังใช้งานไม่ได้ กรุณาให้ผู้ดูแลระบบตรวจ billing และโควตาของผู้ให้บริการ"
