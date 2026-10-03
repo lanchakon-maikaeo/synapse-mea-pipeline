@@ -145,8 +145,8 @@ export async function POST(request: Request) {
       message, history, temperature: config.temperature, scope: admission.scope, signal: overall,
       generate,
       read: async (decision: ToolDecision) => decision.name === "search_knowledge"
-        ? supabaseRpc<ToolEnvelope>("vmi_chat_knowledge", {
-          p_embedding: await embedText({ text: String(decision.args.query), apiKey: process.env.GEMINI_API_KEY?.trim(),
+        ? supabaseRpc<ToolEnvelope>("vmi_chat_knowledge_bge_m3", {
+          p_embedding: await embedText({ text: String(decision.args.query), apiKey: config.apiKey,
             signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]) }),
           p_limit: topK,
         }, authorization, overall)

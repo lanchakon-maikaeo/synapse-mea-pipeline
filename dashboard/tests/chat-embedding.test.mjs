@@ -3,26 +3,34 @@ import assert from 'node:assert/strict';
 import { embedText, providerErrorCode } from '../app/api/chat/embedding.mjs';
 import { runAgent } from '../app/api/chat/harness.mjs';
 
-const vector = Array(768).fill(0); vector[0] = 2;
-test('embedding request uses the document/query task, fixed dimensions and normalizes vectors', async () => {
+const vector = Array(1024).fill(0); vector[0] = 2;
+test('BGE-M3 uses the same OpenRouter encoding for documents and questions and normalizes 1024 dimensions', async () => {
   for (const taskType of ['RETRIEVAL_DOCUMENT', 'RETRIEVAL_QUERY']) {
-    const result = await embedText({ text: 'หลักการเติมวัสดุ', apiKey: 'test', taskType, fetcher: async (url, init) => {
-      assert.match(url, /gemini-embedding-001:embedContent$/);
+    const result = await embedText({ text: 'หลักการเติมวัสดุ', apiKey: 'sk-or-test', taskType, fetcher: async (url, init) => {
+      assert.equal(url, 'https://openrouter.ai/api/v1/embeddings');
+      assert.equal(init.headers.Authorization, 'Bearer sk-or-test');
       const body = JSON.parse(init.body);
-      assert.equal(body.taskType, taskType); assert.equal(body.outputDimensionality, 768);
-      return Response.json({ embedding: { values: vector } });
+      assert.equal(body.model, 'baai/bge-m3'); assert.equal(body.input, 'หลักการเติมวัสดุ');
+      assert.equal(body.encoding_format, 'float'); assert.equal(body.dimensions, undefined);
+      assert.equal(body.taskType, undefined);
+      return Response.json({ model: 'baai/bge-m3', data: [{ index: 0, embedding: vector }] });
     } });
-    assert.equal(result[0], 1); assert.equal(result.length, 768);
+    assert.equal(result[0], 1); assert.equal(result.length, 1024);
   }
 });
 test('malformed vectors and provider failures cannot become knowledge evidence', async () => {
-  for (const values of [[], [1], Array(768).fill(0), Array(768).fill('1')]) {
-    await assert.rejects(embedText({ text: 'test', apiKey: 'test', fetcher: async () => Response.json({ embedding: { values } }) }), /embedding_output_invalid/);
+  for (const values of [[], [1], Array(768).fill(1), Array(1024).fill(0), Array(1024).fill('1'), Array(1024).fill(1e308)]) {
+    await assert.rejects(embedText({ text: 'test', apiKey: 'sk-or-test', fetcher: async () => Response.json({ model: 'baai/bge-m3', data: [{ index: 0, embedding: values }] }) }), /embedding_output_invalid/);
   }
   for (const [status, code] of [[402, 'provider_billing_required'], [429, 'provider_rate_limited'], [503, 'embedding_unavailable']]) {
     assert.equal(providerErrorCode(status), status === 503 ? 'provider_unavailable' : code);
-    await assert.rejects(embedText({ text: 'test', apiKey: 'test', fetcher: async () => new Response('', { status }) }), error => error.message === code);
+    await assert.rejects(embedText({ text: 'test', apiKey: 'sk-or-test', fetcher: async () => new Response('', { status }) }), error => error.message === code);
   }
+});
+test('a Google key or a response from a different embedding model cannot enter the BGE corpus', async () => {
+  await assert.rejects(embedText({ text: 'test', apiKey: 'AIza-google-key', fetcher: async () => assert.fail('must not call provider') }), /embedding_input_invalid/);
+  await assert.rejects(embedText({ text: 'test', apiKey: 'sk-or-test', fetcher: async () =>
+    Response.json({ model: 'other-model', data: [{ index: 0, embedding: vector }] }) }), /embedding_output_invalid/);
 });
 test('knowledge search runs through the existing harness and hides sources by default', async () => {
   for (const question of ['กฎเติมวัสดุ', 'ขอแหล่งข้อมูลกฎเติมวัสดุ']) {
