@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CHAT_API_URL, CHAT_MODEL, providerConfig, openRouterRequest, openRouterResponse } from '../app/api/chat/openrouter.mjs';
+import { CHAT_API_URL, providerConfig, openRouterRequest, openRouterResponse } from '../app/api/chat/openrouter.mjs';
 import { runAgent } from '../app/api/chat/harness.mjs';
 import { composeAnswer } from '../app/api/chat/answer.mjs';
 import { parseToolDecision } from '../app/api/chat/tools.mjs';
@@ -13,12 +13,15 @@ test('LLM_API_KEY selects GPT-4o-mini through OpenRouter without sending Google 
   const config = providerConfig({ LLM_API_KEY: ' sk-or-test ' });
   assert.equal(config.apiKey, 'sk-or-test'); assert.equal(config.model, 'openai/gpt-4o-mini');
   assert.equal(config.apiUrl, CHAT_API_URL);
-  for (const env of [{}, { LLM_API_KEY: 'AIza-google-key' }, { LLM_API_KEY: 'sk-or-test', LLM_TIMEOUT_MS: 'bad' }]) {
+  assert.equal(providerConfig({ LLM_API_KEY: 'sk-or-test', LLM_MODEL: '  ' }).model, config.model);
+  for (const env of [{}, { LLM_API_KEY: 'AIza-google-key' }, { LLM_API_KEY: 'sk-or-test', LLM_TIMEOUT_MS: 'bad' },
+    { LLM_API_KEY: 'sk-or-test', LLM_MODEL: 'gpt-4o-mini' }, { LLM_API_KEY: 'sk-or-test', LLM_MODEL: 'openai/gpt mini' }]) {
     assert.equal(providerConfig(env), null);
   }
 });
 
 test('OpenRouter runs the existing read loop and evidence-checked answer with matched tool IDs', async () => {
+  const config = providerConfig({ LLM_API_KEY: 'sk-or-test', LLM_MODEL: ' openai/gpt-4o ' });
   const calls = [
     ['get_operations_overview', { view: 'risk', material_id: null, district_id: null }],
     ['finish', {}], ['write_answer', { answer: 'ยังไม่พบข้อมูลสต็อกที่ต้องเฝ้าระวัง', evidence_ids: [1] }],
@@ -26,8 +29,8 @@ test('OpenRouter runs the existing read loop and evidence-checked answer with ma
   ];
   const requests = [];
   const generate = async body => {
-    const request = openRouterRequest(body); requests.push(request);
-    assert.equal(request.model, CHAT_MODEL); assert.equal(request.tool_choice, 'required');
+    const request = openRouterRequest(body, config.model); requests.push(request);
+    assert.equal(request.model, 'openai/gpt-4o'); assert.equal(request.tool_choice, 'required');
     assert.equal(request.parallel_tool_calls, false);
     assert.notEqual(request.provider?.require_parameters, true);
     const [name, args] = calls.shift();

@@ -1,6 +1,8 @@
 # Chat knowledge retrieval
 
-Chat generation, tool selection, reranking and answer review use `openai/gpt-4o-mini` through `https://openrouter.ai/api/v1/chat/completions`. Set the OpenRouter key as `LLM_API_KEY`, a server-only Vercel Secret for Production and Preview. Google API keys are rejected for chat. The adapter retains the existing validated tool contract and passes tool call IDs back with their results. It rejects parallel calls, truncated results and malformed arguments.
+Chat generation, tool selection, reranking and answer review all use `LLM_MODEL` through `https://openrouter.ai/api/v1/chat/completions`. It defaults to `openai/gpt-4o-mini` when unset or blank. Use an OpenRouter `provider/model` ID that supports tool calling. Set the OpenRouter key as server-only `LLM_API_KEY`. Google API keys are rejected for chat. The adapter retains the existing validated tool contract and passes tool call IDs back with their results. It rejects parallel calls, truncated results and malformed arguments.
+
+For dev, edit `LLM_MODEL` in Vercel project `mea-synapse-production` → Settings → Environment Variables, scoped to Preview / branch `dev`. Keep `LLM_API_KEY` in that same scope. Redeploy after changing an env value, or push a commit to `dev`; the existing GitHub integration automatically creates a Preview deployment. Production remains on `main`. Changing `LLM_MODEL` does not change the BGE-M3 embedding model or its corpus dimensions.
 
 Do not set `provider.require_parameters: true` for this request: GPT-4o-mini endpoint metadata does not list `parallel_tool_calls`, so that filter can exclude every endpoint and return HTTP 404. The request still sends `parallel_tool_calls: false`, and the adapter rejects multiple calls before executing any tool.
 

@@ -128,7 +128,7 @@ export async function POST(request: Request) {
     modelCalls++;
     const response = await fetch(config.apiUrl, {
       method: "POST", headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(openRouterRequest(body)), redirect: "error",
+      body: JSON.stringify(openRouterRequest(body, config.model)), redirect: "error",
       signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]),
     });
     if (!response.ok) {
