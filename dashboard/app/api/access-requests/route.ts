@@ -117,7 +117,7 @@ export async function POST(request: Request) {
     return error(
       503,
       "access_request_unavailable",
-      "ระบบรับคำขอยังไม่ได้เชื่อมต่อ กรุณาติดต่อ Admin",
+      "ระบบรับคำขอยังไม่ได้เชื่อมต่อ กรุณาติดต่อผู้ดูแลระบบ",
       id,
     );
   }
@@ -151,7 +151,7 @@ export async function POST(request: Request) {
     return error(
       503,
       "access_request_unavailable",
-      "ระบบรับคำขอยังไม่พร้อมใช้งาน กรุณาติดต่อ Admin",
+      "ระบบรับคำขอยังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแลระบบ",
       id,
     );
   }
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
       unavailable ? 503 : 400,
       unavailable ? "access_request_not_deployed" : "access_request_rejected",
       unavailable
-        ? "ระบบรับคำขอยังไม่พร้อมใช้งาน กรุณาติดต่อ Admin"
+        ? "ระบบรับคำขอยังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแลระบบ"
         : validationMessage ?? "ไม่สามารถบันทึกคำขอได้",
       id,
     );

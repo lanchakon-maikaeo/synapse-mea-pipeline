@@ -43,23 +43,23 @@ test("keeps the UI aligned with the frozen production operations scope", async (
     "useSynapseBackend",
     "backend.createReplenishmentRun",
     "backend.respondReplenishment",
-    "Build Plan",
+    "สร้างแผน",
     "ค้นหาและจัดเรียงรายการแผน",
-    "Stock คลังกลาง",
-    "AI Suggestion",
-    "AI + FIFO",
-    "สัญญาทั้งหมดเรียงเก่า",
+    "สต็อกคลังกลาง",
+    "AI แนะนำ",
+    "คำแนะนำและ FIFO",
+    "เรียงสัญญาจากเก่าไปใหม่",
     "ดูสรุปแผนทั้งหมด",
     "เลือกเข้าแผน",
-    "FIFO + PACKING PICK PLAN",
-    "Full Pallet",
+    "แผนหยิบ FIFO และรูปแบบบรรจุ",
+    "พาเลทเต็ม",
     "Box",
     "Crate",
     "เขตยืนยันเป็นรายรายการ",
-    "Planner ตรวจการเปลี่ยน",
-    "Approve & Lock",
+    "ผู้วางแผนตรวจคำขอเปลี่ยน",
+    "อนุมัติและล็อกแผน",
   ]) assert.match(page, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(page, /Administrator/);
-  assert.match(layout, /MEA Synapse — Smart Logistics/);
+  assert.match(layout, /MEA Synapse \| คลังพัสดุและขนส่ง/);
   assert.doesNotMatch(page, /Queue Forecast Run|สร้าง Route job|SYNAPSE AI ASSISTANT/);
 });

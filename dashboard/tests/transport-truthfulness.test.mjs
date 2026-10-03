@@ -53,16 +53,16 @@ test("governed optimizer queues the full locked plan and tracks its job", () => 
   );
   assert.match(transport, /"X-Request-ID": idempotencyKey/);
   assert.match(transport, /matrix_source: "valhalla"/);
-  assert.match(transport, /ส่งแผนเต็มเข้า OR-Tools \+ Valhalla/);
-  assert.match(transport, /จุดที่เลือกบนแผนที่มีผลเฉพาะ heuristic preview/);
-  assert.match(transport, /route-plan → trip activation ยังถูกล็อก/);
+  assert.match(transport, /ส่งแผนทั้งชุดให้ OR-Tools \+ Valhalla คำนวณ/);
+  assert.match(transport, /จุดที่เลือกบนแผนที่ใช้ทดลองจัดลำดับเท่านั้น งานคำนวณจริงใช้แผนทั้งชุด/);
+  assert.match(transport, /ขณะนี้ยังไม่เปิดให้สร้างเที่ยวรถจากแผน/);
   assert.match(transport, /optimizationWorkerReady === true/);
   assert.match(transport, /optimization_eligible_plan_ids/);
   assert.match(
     transport,
     /optimizationEligiblePlanIds\.includes\(planId\)/,
   );
-  assert.match(transport, /Plan-level queue gate/);
+  assert.match(transport, /ผลตรวจแผนก่อนส่งคำนวณ/);
 });
 
 test("optimization attempts resume per actor and plan without duplicate queueing", () => {
@@ -73,12 +73,12 @@ test("optimization attempts resume per actor and plan without duplicate queueing
     transport,
     /optimizationSessionKey\(actorId, attempt\.planId\)/,
   );
-  assert.match(transport, /Reusing the persisted request ID/);
+  assert.match(transport, /ดำเนินงานเดิมต่อด้วยรหัสคำขอเดิม/);
   assert.match(transport, /attemptActive \|\| attemptSucceeded/);
   assert.match(transport, /resumeInterruptedSubmission/);
   assert.match(transport, /attemptCanRestart[\s\S]*crypto\.randomUUID\(\)/);
-  assert.match(transport, /Route plan สำเร็จแล้ว · immutable/);
-  assert.match(transport, /failed\/cancelled/);
+  assert.match(transport, /คำนวณแผนเส้นทางแล้ว ผลลัพธ์แก้ไขไม่ได้/);
+  assert.match(transport, /เริ่มคำขอใหม่ได้เมื่องานเดิมล้มเหลวหรือถูกยกเลิกแล้ว/);
   assert.doesNotMatch(
     transport,
     /sessionStorage\.setItem\([\s\S]{0,300}(access_token|Authorization|token)/,
@@ -97,7 +97,7 @@ test("transport affordances follow backend role rules", () => {
   assert.match(transport, /canMutate && \(/);
   assert.match(transport, /canMutate \? \([\s\S]*ดูเส้นทางถนน/);
   assert.match(transport, /อ่านอย่างเดียวตามสิทธิ์/);
-  assert.match(transport, /dispatch queue และ trips ถูกจำกัดเขตจาก backend/);
+  assert.match(transport, /ระบบแสดงคิวจัดส่งและเที่ยวรถเฉพาะเขตที่คุณมีสิทธิ์เข้าถึง/);
   assert.match(page, /transportNavForRole\(role\)/);
   assert.match(page, /role=\{role\}/);
   assert.match(page, /actorId=\{backend\.identity\.user_id\}/);
@@ -108,10 +108,10 @@ test("vehicle activity is not promoted to operational availability", () => {
     transport,
     /vehicle\.availability === "available"[\s\S]*vehicle\.currentWarehouse === warehouse/,
   );
-  assert.match(transport, /is_active อย่างเดียวไม่ยืนยันว่ารถพร้อมออกงาน/);
-  assert.match(transport, /\["รถ active ในทะเบียน", data\.vehicles\.filter\(\(vehicle\) => vehicle\.active\)\.length, availabilityKnown \? `พร้อมตามหลักฐาน \$\{available\}` : "ยังไม่ทราบ availability"\]/);
-  assert.match(transport, /Weight-only split preview/);
-  assert.match(transport, /ยังไม่ใช่ OR-Tools fleet solve/);
+  assert.match(transport, /การมีสถานะใช้งานในทะเบียน \(is_active\) ยังไม่ยืนยันความพร้อมของรถ/);
+  assert.match(transport, /\["รถ active ในทะเบียน", data\.vehicles\.filter\(\(vehicle\) => vehicle\.active\)\.length, availabilityKnown \? `ยืนยันว่าพร้อม \$\{available\}` : "ยังไม่ทราบ availability"\]/);
+  assert.match(transport, /ทดลองแบ่งเที่ยวตามน้ำหนักได้/);
+  assert.match(transport, /การแบ่งเที่ยวนี้ยังไม่ได้ใช้ OR-Tools/);
   assert.match(
     transport,
     /\(rawStatus === "available" \|\| row\.is_available === true\) &&[\s\S]*evidence/,
@@ -143,12 +143,12 @@ test("geocode labels match the backend status enum", () => {
     /verificationStatus: "quarantined" \| "candidate" \| "verified"/,
   );
   assert.match(roadMap, /verificationStatus === "candidate"/);
-  assert.match(roadMap, /พิกัด candidate รอการตรวจสอบ/);
+  assert.match(roadMap, /พิกัดเบื้องต้น รอตรวจสอบ/);
 });
 
 test("legacy trip history cannot advance operational state", () => {
-  assert.match(transport, /legacy illustrative \/ unverified/);
-  assert.match(transport, /ไม่มี operational continuation/);
+  assert.match(transport, /ประวัติเดิมชุดนี้ใช้เพื่ออ้างอิง ยังไม่มีหลักฐานเส้นทางที่ยืนยันแล้ว/);
+  assert.match(transport, /ยังเปลี่ยนเป็นออกรถหรือส่งครบไม่ได้/);
   assert.match(transport, /JSON\.stringify\(\{ status: "cancelled" \}\)/);
   assert.doesNotMatch(transport, /JSON\.stringify\(\{ status: "dispatched" \}\)/);
   assert.doesNotMatch(transport, /JSON\.stringify\(\{ status: "completed" \}\)/);
@@ -165,7 +165,7 @@ test("map and optimization remain real-road-only", () => {
   assert.doesNotMatch(transport, /\bkmDist\b|\bROUTES\b/);
   assert.match(
     roadMap,
-    /ยังไม่มีเส้นถนน — แสดงเฉพาะหมุดที่ยืนยันแล้ว/,
+    /ยังไม่มีเส้นทางถนน แสดงเฉพาะหมุดที่ยืนยันแล้ว/,
   );
   assert.doesNotMatch(roadMap, /draftPositions|dashArray/);
   assert.match(

@@ -124,7 +124,7 @@ async function setupWorkbookBlob(sheets: Sheet[]) {
   const { strToU8, zipSync } = await import("fflate");
   const packaging = sheets.find((sheet) => sheet.name === "PACKAGING_PROFILE");
   const opening = sheets.find((sheet) => sheet.name === "OPENING_HANDLING_UNITS");
-  if (!packaging || !opening) throw new Error("ยังไม่มีข้อมูลสำหรับ Export Setup Workbook");
+  if (!packaging || !opening) throw new Error("ยังไม่มีข้อมูลสำหรับดาวน์โหลดไฟล์ตั้งต้น");
   const files: Record<string, Uint8Array> = {
     "[Content_Types].xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`),
     "_rels/.rels": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`),
@@ -566,7 +566,7 @@ export default function FifoPackagingSetupView({
           setSupabaseSynced(saved?.supabaseSynced === true);
         }
       } catch {
-        setDraftSaveError("อ่าน Draft ที่บันทึกไว้ไม่สำเร็จ กรุณา Import Workbook สำรองอีกครั้ง");
+        setDraftSaveError("อ่านฉบับร่างที่บันทึกไว้ไม่สำเร็จ กรุณานำเข้าไฟล์สำรองอีกครั้ง");
       } finally {
         draftHydratedRef.current = true;
       }
@@ -594,7 +594,7 @@ export default function FifoPackagingSetupView({
         setDraftSavedAt(savedAt);
         setDraftSaveError("");
       } catch {
-        setDraftSaveError("บันทึก Draft ไม่สำเร็จ กรุณากด Export Setup Workbook เพื่อสำรองข้อมูล");
+        setDraftSaveError("บันทึกฉบับร่างไม่สำเร็จ กรุณาดาวน์โหลดไฟล์ตั้งต้นเพื่อสำรองข้อมูล");
       }
     }, 250);
     return () => window.clearTimeout(timer);
@@ -673,7 +673,7 @@ export default function FifoPackagingSetupView({
 
   const createFromContracts = () => {
     if (!sourceRows.length) {
-      setError("ยังไม่พบรายการ Material จากข้อมูลรวมสัญญา กรุณา Publish Contract & Delivery Lot ก่อน");
+      setError("ยังไม่พบพัสดุในข้อมูลรวมสัญญา กรุณาเผยแพร่ข้อมูลสัญญาและงวดส่งมอบก่อน");
       return;
     }
     resetWorkflow();
@@ -851,12 +851,12 @@ export default function FifoPackagingSetupView({
     if (onPublishOpening) {
       const saved = await onPublishOpening(profiles, handlingUnits, sourceLabel);
       if (!saved) {
-        setError("Publish ยังไม่สำเร็จ: กรุณาติดตั้ง Migration M16b ใน Supabase Production แล้วกด Publish ซ้ำ — Draft ที่กรอกไว้ยังถูกบันทึกอยู่");
+        setError("เผยแพร่ข้อมูลไม่สำเร็จ กรุณาให้ผู้ดูแลระบบติดตั้ง Migration M16b ใน Supabase Production แล้วลองอีกครั้ง ฉบับร่างที่กรอกไว้ยังอยู่");
         setBusy(false);
         return;
       }
     } else {
-      setError("ยังไม่ได้เชื่อม API สำหรับ Publish Opening ลง Supabase");
+      setError("ยังไม่ได้เชื่อมต่อบริการบันทึกข้อมูลหน่วยจัดเก็บตั้งต้นลง Supabase");
       setBusy(false);
       return;
     }
@@ -909,54 +909,54 @@ export default function FifoPackagingSetupView({
 
       <section className="fifo-setup-hero">
         <div>
-          <span>FIFO FOUNDATION · ADMIN WORKSPACE</span>
-          <h2>FIFO, Packaging &amp; Opening Setup</h2>
-          <p>ดึงข้อมูลสัญญาให้อัตโนมัติ แล้วกรอกเฉพาะรูปแบบ Packing ตำแหน่งจัดเก็บ และยอดตั้งต้น</p>
+          <span>เตรียมข้อมูล FIFO</span>
+          <h2>ตั้งค่าบรรจุภัณฑ์และหน่วยจัดเก็บตั้งต้น</h2>
+          <p>ระบบดึงข้อมูลสัญญาให้ กรอกรูปแบบบรรจุ ตำแหน่งจัดเก็บ และยอดตั้งต้นเพิ่มเติม</p>
         </div>
         <aside>
-          <small>Current scope</small>
+          <small>คลังที่ใช้งาน</small>
           <strong>คลังคลองเตย · Plant 2401 / SLoc 0001</strong>
           <span>ออกแบบให้ขยายสู่คลังบางพลีและเมืองใหม่ได้</span>
         </aside>
       </section>
 
       <section className="fifo-setup-explainer">
-        <article><b className="fifo-setup-badge system">SYSTEM</b><strong>ดึงจากรวมสัญญา</strong><p>Material, Description, Vendor, Contract, PO, งวดส่งมอบ และวันที่ตรวจรับ</p></article>
-        <article><b className="fifo-setup-badge admin">ADMIN</b><strong>ตรวจข้อมูล Packing</strong><p>ขนาดสินค้า/กล่อง น้ำหนัก จำนวนต่อกล่อง การวางพาเลท ตำแหน่ง และยอดตั้งต้น</p></article>
-        <article><b className="fifo-setup-badge auto">AUTO</b><strong>ระบบคำนวณให้</strong><p>กล่องและชิ้นต่อพาเลท น้ำหนักรวม Current Remain, Handling Unit ID และทะเบียน Opening</p></article>
+        <article><b className="fifo-setup-badge system">SYSTEM</b><strong>ดึงจากรวมสัญญา</strong><p>รหัสและชื่อพัสดุ ผู้ขาย สัญญา PO งวดส่งมอบ และวันที่ตรวจรับ</p></article>
+        <article><b className="fifo-setup-badge admin">ADMIN</b><strong>ตรวจรูปแบบบรรจุ</strong><p>ขนาดสินค้า/กล่อง น้ำหนัก จำนวนต่อกล่อง การวางพาเลท ตำแหน่ง และยอดตั้งต้น</p></article>
+        <article><b className="fifo-setup-badge auto">AUTO</b><strong>ระบบคำนวณให้</strong><p>จำนวนกล่องและชิ้นต่อพาเลท น้ำหนักรวม ยอดคงเหลือ รหัสหน่วยจัดเก็บ และทะเบียนตั้งต้น</p></article>
       </section>
 
       <section className="fifo-setup-lifecycle">
         <article>
           <b>ครั้งเดียวตอนเริ่มระบบ</b>
-          <strong>Export → กรอก Excel → Import กลับ → Publish Opening</strong>
-          <p>ใช้ตั้งยอดคงเหลือและตำแหน่งของของเดิมในคลังก่อน Go-live ไม่ต้องกรอกชุดเดิมซ้ำทุกครั้ง</p>
+          <strong>ดาวน์โหลดไฟล์ กรอกข้อมูลใน Excel แล้วนำกลับมายืนยัน</strong>
+          <p>ตั้งยอดคงเหลือและตำแหน่งของพัสดุเดิมก่อนเริ่มใช้งาน กรอกข้อมูลชุดนี้เพียงครั้งเดียว</p>
         </article>
         <article>
-          <b>หลัง Go-live</b>
-          <strong>รับของตามสัญญา → ระบบสร้าง HU/FIFO ต่อเนื่อง</strong>
-          <p>ข้อมูล Material และสัญญามาจาก Import รวมสัญญา ส่วน Packing เดิมนำกลับมาใช้ได้ และถามเพิ่มเฉพาะรูปแบบใหม่</p>
+          <b>หลังเริ่มใช้งาน</b>
+          <strong>รับพัสดุตามสัญญา แล้วระบบสร้างหน่วยจัดเก็บและคิว FIFO</strong>
+          <p>ระบบใช้ข้อมูลพัสดุและสัญญาที่นำเข้า ใช้รูปแบบบรรจุเดิมซ้ำได้ และกรอกเพิ่มเฉพาะรูปแบบใหม่</p>
         </article>
       </section>
 
       <section className="panel fifo-setup-workflow">
         <div className="panel-title fifo-setup-workflow-head">
-          <div><span>AUTOMATIC OPENING WORKFLOW</span><h3>ดึงข้อมูลรวมสัญญา → เติม Packing → ตรวจยอด → Publish</h3></div>
+          <div><span>ขั้นตอนตั้งยอดเริ่มต้น</span><h3>ดึงข้อมูลสัญญา กรอกรูปแบบบรรจุ ตรวจยอด แล้วเผยแพร่</h3></div>
           <div className="fifo-setup-workflow-actions">
             {sourceLabel ? <small>{sourceLabel}</small> : null}
             {draftSaveError
               ? <small className="fifo-setup-error">{draftSaveError}</small>
               : draftSavedAt
-                ? <small>บันทึก Draft อัตโนมัติ {new Date(draftSavedAt).toLocaleTimeString("th-TH")}</small>
+                ? <small>บันทึกฉบับร่างแล้วเมื่อ {new Date(draftSavedAt).toLocaleTimeString("th-TH")}</small>
                 : null}
             <button className="btn primary" type="button" onClick={createFromContracts} disabled={!sourceRows.length || busy}>
               ดึงข้อมูลจากรวมสัญญา ({fmt(sourceRows.length)})
             </button>
             <button className="btn secondary" type="button" onClick={exportSetupWorkbook} disabled={!packaging || !opening || busy}>
-              Export Setup Workbook
+              ดาวน์โหลดไฟล์ตั้งต้น
             </button>
             <button className="btn secondary" type="button" onClick={() => inputRef.current?.click()} disabled={busy}>
-              {busy ? "กำลังอ่านไฟล์..." : "Import ไฟล์ที่กรอกแล้ว"}
+              {busy ? "กำลังอ่านไฟล์…" : "นำเข้าไฟล์ที่กรอกแล้ว"}
             </button>
           </div>
         </div>
@@ -978,11 +978,11 @@ export default function FifoPackagingSetupView({
       {!packaging || !opening ? (
         <section className="panel fifo-setup-empty">
           <i>↻</i>
-          <h3>เริ่มจากข้อมูล “รวมสัญญา” ที่ Publish แล้ว</h3>
-          <p>ระบบพบ {fmt(sourceRows.length)} รายการที่พร้อมตั้งต้น โดยไม่ต้องกรอก Material, บริษัท, Contract และ PO ซ้ำ</p>
+          <h3>เริ่มจากข้อมูลรวมสัญญาที่เผยแพร่แล้ว</h3>
+          <p>ระบบพบ {fmt(sourceRows.length)} รายการสำหรับตั้งต้น โดยไม่ต้องกรอกรหัสพัสดุ บริษัท สัญญา และ PO ซ้ำ</p>
           <div className="fifo-setup-workflow-actions">
             <button className="btn primary" type="button" onClick={createFromContracts} disabled={!sourceRows.length}>ดึงข้อมูลอัตโนมัติ</button>
-            <a className="btn secondary" href={setupTemplateUrl} download>ดาวน์โหลด Template เปล่า</a>
+            <a className="btn secondary" href={setupTemplateUrl} download>ดาวน์โหลดแบบฟอร์มเปล่า</a>
           </div>
         </section>
       ) : (
@@ -994,7 +994,7 @@ export default function FifoPackagingSetupView({
           <div className="fifo-setup-review-head">
             <div>
               <span>{tab === "packaging" ? "PACKAGING MASTER" : "OPENING INVENTORY"}</span>
-              <h3>{tab === "packaging" ? "ตรวจ Packing ขนาด น้ำหนัก และความจุต่อพาเลทแยกตามพัสดุ/บริษัท" : "กรอกเฉพาะตำแหน่งกับยอดตั้งต้น ระบบเติมยอดคงเหลือให้"}</h3>
+              <h3>{tab === "packaging" ? "ตรวจรูปแบบบรรจุ ขนาด น้ำหนัก และความจุต่อพาเลทของแต่ละพัสดุและบริษัท" : "กรอกเฉพาะตำแหน่งกับยอดตั้งต้น ระบบเติมยอดคงเหลือให้"}</h3>
             </div>
             <b className={`fifo-setup-status ${(tab === "packaging" ? packagingValid : openingValid) ? "good" : "bad"}`}>
               {(tab === "packaging" ? packagingValid : openingValid) ? "พร้อมยืนยัน" : "กรอกช่องสีเหลืองให้ครบ"}
@@ -1046,7 +1046,7 @@ export default function FifoPackagingSetupView({
           <div className="live-table-wrap fifo-setup-table-wrap">
             {tab === "packaging" ? (
               <table className="live-table fifo-setup-table fifo-setup-edit-table">
-                <thead><tr><th>Material / Description</th><th>Vendor / Contract / PO</th><th>Package Type</th><th>Units / Package</th><th>รายละเอียด Packing</th><th>Status</th></tr></thead>
+                <thead><tr><th>รหัส / ชื่อพัสดุ</th><th>ผู้ขาย / สัญญา / PO</th><th>ประเภทบรรจุ</th><th>จำนวนต่อหน่วยบรรจุ</th><th>รายละเอียดบรรจุภัณฑ์</th><th>Status</th></tr></thead>
                 <tbody>
                   {visiblePackagingRows.map(({ row, index }) => {
                     const type = cell(packaging, row, ["packagetype"]);
@@ -1061,28 +1061,28 @@ export default function FifoPackagingSetupView({
                           <td><strong>{cell(packaging, row, ["material"]) || "—"}</strong><small>{cell(packaging, row, ["materialdescription"]) || "—"}</small></td>
                           <td><strong>{cell(packaging, row, ["vendoralias"]) || "ไม่พบชื่อบริษัท"}</strong><small>{[cell(packaging, row, ["contractno"]), cell(packaging, row, ["purchaseorder"])].filter(Boolean).join(" · ") || "—"}</small></td>
                           <td>
-                            <select aria-label="Package Type" value={type} onChange={(event) => updateCell("PACKAGING_PROFILE", row, "PACKAGE_TYPE", event.target.value)}>
-                              <option value="">เลือก Packing</option>
+                            <select aria-label="ประเภทบรรจุ" value={type} onChange={(event) => updateCell("PACKAGING_PROFILE", row, "PACKAGE_TYPE", event.target.value)}>
+                              <option value="">เลือกรูปแบบบรรจุ</option>
                               {packageTypes.map((option) => <option key={option} value={option}>{option}</option>)}
                             </select>
                           </td>
                           <td><input aria-label="Units per package" type="number" min="0.000001" step="any" value={cell(packaging, row, ["unitsperpackage"])} onChange={(event) => updateCell("PACKAGING_PROFILE", row, "UNITS_PER_PACKAGE", event.target.value)} /></td>
                           <td>
                             <button className={`fifo-setup-detail-toggle ${detailComplete ? "complete" : ""}`} type="button" onClick={() => setExpandedProfile(expanded ? "" : profileId)}>
-                              {expanded ? "ซ่อนรายละเอียด" : detailComplete ? "ดูรายละเอียด Packing" : "กรอกรายละเอียด Packing"}
+                              {expanded ? "ซ่อนรายละเอียด" : detailComplete ? "ดูรายละเอียดบรรจุภัณฑ์" : "กรอกรายละเอียดบรรจุภัณฑ์"}
                             </button>
                             <small>{detailComplete
                               ? `${fmt(numeric(cell(packaging, row, ["boxesperpallet"])))} กล่อง · ${fmt(numeric(cell(packaging, row, ["unitsperpallet"])))} หน่วย/พาเลท`
                               : "ยังไม่มีขนาดและน้ำหนัก"}</small>
                           </td>
-                          <td><b className={`fifo-setup-status ${valid && detailComplete ? "good" : valid ? "warning" : "bad"}`}>{!valid ? "กรอก Packing" : detailComplete ? "ครบ" : "รอตรวจรายละเอียด"}</b></td>
+                          <td><b className={`fifo-setup-status ${valid && detailComplete ? "good" : valid ? "warning" : "bad"}`}>{!valid ? "กรอกรูปแบบบรรจุ" : detailComplete ? "ครบ" : "รอตรวจรายละเอียด"}</b></td>
                         </tr>
                         {expanded ? (
                           <tr className="fifo-setup-detail-row">
                             <td colSpan={6}>
                               <div className="fifo-setup-detail-head">
-                                <div><b>รายละเอียด Packing</b><span>{cell(packaging, row, ["material"])} · {cell(packaging, row, ["vendoralias"]) || "SUP-UNKNOWN"}</span></div>
-                                <em>{cell(packaging, row, ["assumptionstatus"]) === "TEMPORARY_ESTIMATE" ? "ค่าประมาณชั่วคราว—ต้องยืนยันกับผู้ขาย/หน้างาน" : "ข้อมูล Packaging Master"}</em>
+                                <div><b>รายละเอียดบรรจุภัณฑ์</b><span>{cell(packaging, row, ["material"])} · {cell(packaging, row, ["vendoralias"]) || "SUP-UNKNOWN"}</span></div>
+                                <em>{cell(packaging, row, ["assumptionstatus"]) === "TEMPORARY_ESTIMATE" ? "ค่าประมาณ ต้องตรวจยืนยันกับผู้ขายหรือหน้างาน" : "ข้อมูลมาตรฐานบรรจุภัณฑ์"}</em>
                               </div>
                               <div className="fifo-setup-calculated">
                                 <article><span>น้ำหนักรวม/กล่อง</span><strong>{fmt(numeric(cell(packaging, row, ["boxgrossweightkg"])))} กก.</strong></article>
@@ -1118,17 +1118,17 @@ export default function FifoPackagingSetupView({
               </table>
             ) : (
               <table className="live-table fifo-setup-table fifo-setup-edit-table">
-                <thead><tr><th>Generated HU ID</th><th>Material / Contract / Lot</th><th>Package</th><th>Physical Location</th><th>Initial Qty</th><th>Current Remain</th><th>Status</th></tr></thead>
+                <thead><tr><th>รหัสหน่วยจัดเก็บ</th><th>พัสดุ / สัญญา / ล็อต</th><th>Package</th><th>ตำแหน่งจัดเก็บ</th><th>ยอดตั้งต้น</th><th>ยอดคงเหลือ</th><th>Status</th></tr></thead>
                 <tbody>
                   {visibleHuRows.map(({ row, huId, index }) => {
                     const valid = isOpeningRowReady(opening, row);
                     return (
                       <tr key={huId}>
-                        <td><strong>{huId}</strong><small>System generated</small></td>
+                        <td><strong>{huId}</strong><small>ระบบสร้างให้</small></td>
                         <td><strong>{cell(opening, row, ["material"]) || "—"}</strong><small>{[cell(opening, row, ["contractno"]), cell(opening, row, ["deliveryinstallment", "receiptlot"])].filter(Boolean).join(" · ") || "—"}</small></td>
                         <td><strong>{cell(opening, row, ["packagetype"]) || "—"}</strong><small>{fmt(numeric(cell(opening, row, ["unitsperpackage"])))} หน่วย</small></td>
-                        <td><input aria-label="Physical location" placeholder="เช่น A-01-01" value={cell(opening, row, ["physicallocation"])} onChange={(event) => updateCell("OPENING_HANDLING_UNITS", row, "PHYSICAL_LOCATION", event.target.value)} /></td>
-                        <td><input aria-label="Initial quantity" type="number" min="0.000001" step="any" value={cell(opening, row, ["initialqty"])} onChange={(event) => updateOpeningInitial(row, event.target.value)} /></td>
+                        <td><input aria-label="ตำแหน่งจัดเก็บ" placeholder="เช่น A-01-01" value={cell(opening, row, ["physicallocation"])} onChange={(event) => updateCell("OPENING_HANDLING_UNITS", row, "PHYSICAL_LOCATION", event.target.value)} /></td>
+                        <td><input aria-label="จำนวนเริ่มต้น" type="number" min="0.000001" step="any" value={cell(opening, row, ["initialqty"])} onChange={(event) => updateOpeningInitial(row, event.target.value)} /></td>
                         <td><input aria-label="Current remain" type="number" min="0" step="any" value={cell(opening, row, ["currentremain"])} readOnly aria-readonly="true" title="ระบบคำนวณจากยอดตั้งต้นและรายการเคลื่อนไหวสต็อก" /></td>
                         <td><b className={`fifo-setup-status ${valid ? "good" : "bad"}`}>{valid ? "Valid" : `แถว ${index + 1}`}</b></td>
                       </tr>
@@ -1145,14 +1145,14 @@ export default function FifoPackagingSetupView({
           <footer className="fifo-setup-footer">
             <div>
               <strong>แสดง {fmt(visibleRowCount)} จาก {fmt(totalRowCount)} records</strong>
-              <small>{tab === "packaging" ? "ข้อมูลสัญญาเป็น Read-only ส่วน Packing ขนาด น้ำหนัก และพาเลทแก้ได้ก่อนยืนยัน" : "Current Remain เริ่มเท่ากับ Initial Qty และระบบจะปรับจากรายการเคลื่อนไหวสต็อกเท่านั้น"}</small>
+              <small>{tab === "packaging" ? "ข้อมูลสัญญาแก้ไขไม่ได้ ส่วนรูปแบบบรรจุ ขนาด น้ำหนัก และพาเลทแก้ได้ก่อนยืนยัน" : "ยอดคงเหลือเริ่มเท่ากับยอดตั้งต้น จากนั้นระบบปรับตามการเคลื่อนไหวสต็อกเท่านั้น"}</small>
             </div>
             {tab === "packaging" ? (
-              <button className="btn primary" type="button" disabled={!packagingValid} onClick={confirmPackaging}>Confirm Packaging →</button>
+              <button className="btn primary" type="button" disabled={!packagingValid} onClick={confirmPackaging}>ยืนยันบรรจุภัณฑ์</button>
             ) : (
               <div className="fifo-setup-footer-actions">
-                <button className="btn secondary" type="button" onClick={fillOpeningDummy}>เติม Dummy สำหรับทดสอบ</button>
-                <button className="btn primary" type="button" disabled={!openingValid} onClick={() => setConfirmed((current) => ({ ...current, opening: true }))}>Confirm Opening HU</button>
+                <button className="btn secondary" type="button" onClick={fillOpeningDummy}>เติมข้อมูลตัวอย่างสำหรับทดสอบ</button>
+                <button className="btn primary" type="button" disabled={!openingValid} onClick={() => setConfirmed((current) => ({ ...current, opening: true }))}>ยืนยันหน่วยจัดเก็บตั้งต้น</button>
               </div>
             )}
           </footer>
@@ -1161,11 +1161,11 @@ export default function FifoPackagingSetupView({
 
       {confirmed.opening ? (
         <section className="panel fifo-setup-publish">
-          <div><span>RECONCILE &amp; PUBLISH</span><h3>ตรวจความพร้อมก่อนใช้เป็นหลักฐาน FIFO</h3><p>ตรวจยอดรวมกับ Stock คลังคลองเตยก่อน Publish และ Export ทะเบียน HU ไปตรวจหน้างานได้</p></div>
+          <div><span>ตรวจยอดและเผยแพร่</span><h3>ตรวจความพร้อมก่อนใช้เป็นหลักฐาน FIFO</h3><p>ตรวจยอดรวมกับสต็อกคลังคลองเตยก่อนเผยแพร่ ดาวน์โหลดทะเบียนหน่วยจัดเก็บไปตรวจหน้างานได้</p></div>
           <div className="fifo-setup-publish-actions">
-            <button className="btn secondary" type="button" onClick={exportRegister}>Export HU Register</button>
-            <button className="btn secondary" type="button" disabled={reconciled} onClick={() => setReconciled(true)}>{reconciled ? "✓ Reconciled" : "Run Reconcile"}</button>
-            <button className="btn primary" type="button" disabled={!reconciled || supabaseSynced || busy} onClick={publish}>{supabaseSynced ? "✓ Opening Published to Supabase" : busy ? "กำลังบันทึก Supabase..." : publishedAt ? "Sync Opening to Supabase" : "Publish FIFO Opening Snapshot"}</button>
+            <button className="btn secondary" type="button" onClick={exportRegister}>ดาวน์โหลดทะเบียนหน่วยจัดเก็บ</button>
+            <button className="btn secondary" type="button" disabled={reconciled} onClick={() => setReconciled(true)}>{reconciled ? "กระทบยอดแล้ว" : "ยืนยันการกระทบยอด"}</button>
+            <button className="btn primary" type="button" disabled={!reconciled || supabaseSynced || busy} onClick={publish}>{supabaseSynced ? "บันทึกยอดตั้งต้นแล้ว" : busy ? "กำลังบันทึกข้อมูล…" : publishedAt ? "บันทึกยอดตั้งต้นในระบบ" : "บันทึกยอดตั้งต้น FIFO"}</button>
           </div>
           {error ? (
             <div className="fifo-setup-error" role="alert">
@@ -1174,7 +1174,7 @@ export default function FifoPackagingSetupView({
               <a href={supabaseSqlEditorUrl} target="_blank" rel="noreferrer">2. เปิด Supabase SQL Editor</a>
             </div>
           ) : null}
-          {supabaseSynced && publishedAt ? <div className="fifo-setup-notice"><b>Supabase พร้อมใช้ในหน้าคำนวณการจ่าย</b><span>{new Date(publishedAt).toLocaleString("th-TH")} · {fmt(packagingRows.length)} Profiles · {fmt(huRows.length)} HU</span></div> : publishedAt ? <div className="fifo-setup-error">Snapshot เดิมอยู่เฉพาะ Local Preview — กด Sync Opening to Supabase เพื่อให้หน้าคำนวณการจ่ายนำไปใช้</div> : null}
+          {supabaseSynced && publishedAt ? <div className="fifo-setup-notice"><b>ข้อมูลใน Supabase พร้อมใช้คำนวณการจ่าย</b><span>{new Date(publishedAt).toLocaleString("th-TH")} · {fmt(packagingRows.length)} Profiles · {fmt(huRows.length)} HU</span></div> : publishedAt ? <div className="fifo-setup-error">ข้อมูลชุดเดิมอยู่ในเครื่องเท่านั้น กดบันทึกหน่วยจัดเก็บตั้งต้นลง Supabase เพื่อใช้คำนวณการจ่าย</div> : null}
         </section>
       ) : null}
     </div>

@@ -61,14 +61,14 @@ export function transportNavForRole(role: Role) {
 }
 
 const transportTitles: Record<TransportView, [string, string, string]> = {
-  dashboard: ["TRANSPORT", "ภาพรวมการขนส่ง", "สรุปรถ คนขับ และงานที่รอจัดส่งจากแผนจริง"],
+  dashboard: ["การขนส่ง", "ภาพรวมการขนส่ง", "ดูรถ คนขับ และงานที่รอจัดส่ง"],
   planner: [
-    "ROUTE OPTIMIZER",
+    "จัดเส้นทาง",
     "วางแผนจัดรถและปรับเส้นทาง",
-    "ตรวจเส้นทางตัวอย่างบนถนนจริง แล้วส่ง locked plan ทั้งชุดให้ OR-Tools + Valhalla สร้าง route plan ที่มีหลักฐาน โดยยังไม่สร้างเที่ยวรถอัตโนมัติ",
+    "ทดลองจัดลำดับจุดส่งบนถนน แล้วส่งแผนที่ล็อกแล้วทั้งชุดให้ OR-Tools + Valhalla คำนวณแผนเส้นทาง ขั้นตอนนี้ยังไม่สร้างเที่ยวรถ",
   ],
-  map: ["ROAD MAP", "แผนที่เส้นทางการจ่าย", "แผนที่ OSM-derived พร้อม geometry จาก routing engine และสถานะรับรองพิกัด"],
-  history: ["TRIP HISTORY", "ประวัติการเดินรถ", "เที่ยวรถที่บันทึกในระบบ พร้อมค่าน้ำมันจริงเทียบประมาณการ"],
+  map: ["แผนที่เส้นทาง", "แผนที่เส้นทางการจ่าย", "ดูเส้นทางถนนจากข้อมูล OSM และสถานะการยืนยันพิกัด"],
+  history: ["ประวัติเที่ยวรถ", "ประวัติการเดินรถ", "เที่ยวรถที่บันทึกในระบบ พร้อมค่าน้ำมันจริงเทียบประมาณการ"],
 };
 
 // ---- Normalised transport data ----
@@ -306,7 +306,7 @@ function assertJobMatchesPlan(
     !status ||
     job.matrix_source !== "valhalla"
   ) {
-    throw new Error("สถานะ optimizer ไม่ตรงกับ plan/job ที่ร้องขอ");
+    throw new Error("ผลคำนวณไม่ตรงกับแผนหรืองานที่ร้องขอ");
   }
   return status;
 }
@@ -699,7 +699,7 @@ function useTransportData(token: string | null, role: Role, demoMode = false) {
     if (!token) {
       setData(emptyData());
       setSource("error");
-      setLoadError("ต้องยืนยันตัวตนก่อนเข้าถึงข้อมูลขนส่งจริง");
+      setLoadError("กรุณาเข้าสู่ระบบเพื่อดูข้อมูลขนส่ง");
       return;
     }
     setLoading(true);
@@ -775,7 +775,7 @@ function useTransportData(token: string | null, role: Role, demoMode = false) {
         !canMutateTransport(role)
       ) {
         throw new Error(
-          "Road optimizer ใช้ได้เฉพาะ admin/planner ที่เชื่อมต่อข้อมูลจริง",
+          "ผู้ดูแลระบบและผู้วางแผนที่เข้าสู่ระบบแล้วเท่านั้นที่คำนวณเส้นทางได้",
         );
       }
       return apiRequest<RoadOptimizationResult>(
@@ -806,7 +806,7 @@ function useTransportData(token: string | null, role: Role, demoMode = false) {
         !canMutateTransport(role)
       ) {
         throw new Error(
-          "ยกเลิกเที่ยวรถได้เฉพาะ admin/planner ที่ยืนยันตัวตนแล้ว",
+          "ผู้ดูแลระบบและผู้วางแผนที่เข้าสู่ระบบแล้วเท่านั้นที่ยกเลิกเที่ยวรถได้",
         );
       }
       await apiRequest<Row>(
@@ -830,7 +830,7 @@ function useTransportData(token: string | null, role: Role, demoMode = false) {
         !canMutateTransport(role)
       ) {
         throw new Error(
-          "ส่งงาน optimize ได้เฉพาะ admin/planner ที่ยืนยันตัวตนแล้ว",
+          "ผู้ดูแลระบบและผู้วางแผนที่เข้าสู่ระบบแล้วเท่านั้นที่ส่งแผนไปคำนวณได้",
         );
       }
       return apiRequest<RouteOptimizationJob>(
@@ -857,7 +857,7 @@ function useTransportData(token: string | null, role: Role, demoMode = false) {
         !canMutateTransport(role)
       ) {
         throw new Error(
-          "อ่านสถานะงาน optimize ได้เฉพาะ admin/planner ที่ยืนยันตัวตนแล้ว",
+          "ผู้ดูแลระบบและผู้วางแผนที่เข้าสู่ระบบแล้วเท่านั้นที่ดูสถานะงานคำนวณได้",
         );
       }
       return apiRequest<RouteOptimizationJob>(
@@ -950,10 +950,10 @@ function queueGroups(rows: QueueRow[]): QueueGroup[] {
             : !blocked.originWarehouseId
               ? "ไม่มี origin_warehouse_id"
               : !blocked.originWarehouse
-                ? "ไม่มี transport warehouse mapping"
+                ? "ยังไม่ได้เชื่อมรหัสคลังกับระบบขนส่ง"
                 : blocked.originWarehouseGeocodeStatus !== "verified"
                   ? `พิกัดคลังเป็น ${blocked.originWarehouseGeocodeStatus}`
-                  : `จุด ${blocked.districtRef} มี route_eligible=false`;
+                  : `จุด ${blocked.districtRef} ยังจัดเส้นทางไม่ได้ (route_eligible=false)`;
       }
       return {
         ...group,
@@ -1063,7 +1063,7 @@ function allocateFleet(
       chunks: [],
       totalWeightKg: 0,
       error:
-        "ยังไม่มีหลักฐาน availability ของรถที่คลังนี้; is_active อย่างเดียวไม่ยืนยันว่ารถพร้อมออกงาน",
+        "ยังไม่มีข้อมูลยืนยันว่ารถของคลังนี้พร้อมออกงาน การมีสถานะใช้งานในทะเบียน (is_active) ยังไม่ยืนยันความพร้อมของรถ",
     };
   }
 
@@ -1137,17 +1137,17 @@ function SourceTag({
           {loading
             ? "กำลังโหลดข้อมูลขนส่ง…"
             : source === "supabase"
-              ? "เชื่อมต่อข้อมูลจริงแล้ว"
+              ? "โหลดข้อมูลขนส่งแล้ว"
               : source === "demo"
-                ? "Transport Demo พร้อมทดลองวางแผน"
-              : "โหลดข้อมูลขนส่งจริงไม่สำเร็จ — หยุดการวางแผนเพื่อความปลอดภัย"}
+                ? "พร้อมทดลองวางแผนด้วยข้อมูลตัวอย่าง"
+              : "โหลดข้อมูลขนส่งไม่สำเร็จ จึงยังวางแผนไม่ได้"}
         </strong>
         <p>
           {source === "supabase"
-            ? "งาน แผน รถ และพิกัดมาจาก transport API; ระบบจะไม่ใช้ข้อมูลสาธิตแทนเมื่อ API ผิดพลาด"
+            ? "ใช้ข้อมูลแผน รถ และพิกัดจากระบบขนส่ง หากโหลดไม่ได้ ระบบจะหยุดการวางแผน"
             : source === "demo"
-              ? "ใช้ Final Plan จำลอง รถ พด.707/708 และข้อมูล 18 เขตเพื่อทดสอบ UX เท่านั้น — ไม่เขียนฐานข้อมูล ไม่สร้างเที่ยวรถ และไม่แตะ Production"
-            : error || "ไม่สามารถยืนยันสถานะข้อมูลจาก transport API ได้"}
+              ? "ทดลองด้วยแผนจำลอง รถ พด.707/708 และข้อมูล 18 เขต ข้อมูลนี้ใช้ทดสอบเท่านั้น ไม่บันทึกลงฐานข้อมูลจริงหรือสร้างเที่ยวรถ"
+            : error || "ยังตรวจสถานะข้อมูลขนส่งไม่ได้"}
         </p>
       </div>
       {isError && (
@@ -1162,32 +1162,32 @@ function SourceTag({
 function readinessText(status: string) {
   return (
     {
-      ready: "ผ่าน gate",
+      ready: "ผ่านการตรวจ",
       blocked_no_verified_district_geocodes:
-        "ยังไม่มีพิกัดเขตที่ verified",
-      blocked_no_verified_depot_geocode: "ยังไม่มีพิกัดคลังที่ verified",
+        "ยังไม่มีพิกัดเขตที่ยืนยันแล้ว",
+      blocked_no_verified_depot_geocode: "ยังไม่มีพิกัดคลังที่ยืนยันแล้ว",
       blocked_verified_depot_missing_canonical_origin:
-        "คลัง verified แต่ยังไม่มี canonical origin",
+        "พิกัดคลังยืนยันแล้ว แต่ยังไม่เชื่อมกับรหัสคลังต้นทางหลัก",
       blocked_status_contract_mismatch:
-        "worker ยังไม่ตรงกับ status contract",
+        "บริการคำนวณส่งสถานะไม่ตรงกับรูปแบบที่ระบบรองรับ",
       blocked_road_route_evidence_contract_missing:
-        "ยังไม่มี contract บันทึกหลักฐานเส้นทางถนน",
+        "ระบบยังไม่รองรับการบันทึกหลักฐานเส้นทางถนน",
       blocked_operational_writes_locked:
-        "Operational POST gate ยังล็อกอยู่",
+        "ยังไม่เปิดให้คำนวณหรือเปลี่ยนสถานะงาน",
       blocked_route_master_data_not_ready:
         "ข้อมูลหลักสำหรับจัดเส้นทางยังไม่ครบ",
       blocked_no_exact_locked_plan_with_verified_depot_and_fleet:
-        "ยังไม่มี locked plan ที่พิกัด คลัง บรรจุภัณฑ์ และรถผ่านครบทั้งแผน",
+        "ยังไม่มีแผนที่ล็อกแล้วและผ่านการตรวจพิกัด คลัง บรรจุภัณฑ์ และรถครบทั้งแผน",
       blocked_no_recent_optimization_worker_heartbeat:
-        "ไม่พบ heartbeat ล่าสุดจาก OR-Tools + Valhalla worker",
+        "ยังไม่ได้รับสัญญาณการทำงานล่าสุดจากบริการ OR-Tools + Valhalla",
       ready_valhalla_exact_locked_plan_queue:
-        "พร้อมรับ locked plan ทั้งชุดเข้า Valhalla + OR-Tools queue",
+        "พร้อมส่งแผนที่ล็อกแล้วทั้งชุดให้ Valhalla + OR-Tools คำนวณ",
       blocked_route_plan_to_trip_activation_not_configured:
-        "สร้าง route plan พร้อมหลักฐานได้ แต่ยังไม่เปิดแปลงเป็นเที่ยวรถ",
-      unknown_route_readiness: "readiness API ไม่ส่งสถานะ route",
-      unknown_worker_readiness: "readiness API ไม่ส่งสถานะ worker",
+        "สร้างแผนเส้นทางพร้อมหลักฐานได้แล้ว ยังไม่เปิดให้สร้างเที่ยวรถจากแผน",
+      unknown_route_readiness: "ระบบยังไม่ส่งสถานะความพร้อมของเส้นทาง",
+      unknown_worker_readiness: "ระบบยังไม่ส่งสถานะบริการคำนวณ",
       unknown_persistence_readiness:
-        "readiness API ไม่ส่งสถานะ persistence",
+        "ระบบยังไม่ส่งสถานะการบันทึกเที่ยวรถ",
     }[status] ?? status
   );
 }
@@ -1210,11 +1210,10 @@ function TransportReadinessPanel({
             <span>ความพร้อมใช้งาน</span>
             <h3 id="transport-readiness-title">ยังไม่ยืนยันความพร้อม</h3>
           </div>
-          <span className="transport-data-state unverified">blocked</span>
+          <span className="transport-data-state unverified">ยังไม่พร้อม</span>
         </div>
         <p>
-          ไม่มีผลจาก <code>/v1/transport/readiness</code> จึงถือว่า route
-          engine, worker, depot และ persistence ยังไม่พร้อม
+          ไม่มีผลจาก <code>/v1/transport/readiness</code> จึงยังไม่เปิดให้คำนวณเส้นทาง ใช้คลังต้นทาง หรือบันทึกเที่ยวรถ
         </p>
       </section>
     );
@@ -1223,42 +1222,42 @@ function TransportReadinessPanel({
   const items = [
     {
       key: "operational-writes",
-      label: "Operational POST gate",
+      label: "การคำนวณและเปลี่ยนสถานะงาน",
       state: readiness.operationalWritesEnabled ? "ready" : "blocked",
       detail: readiness.operationalWritesEnabled
-        ? "environment control อนุญาต POST"
-        : "environment control ล็อกทั้ง routing work และ status mutation",
+        ? "เปิดให้คำนวณและเปลี่ยนสถานะงานแล้ว"
+        : "ยังไม่เปิดให้คำนวณเส้นทางหรือเปลี่ยนสถานะงาน",
       status: readiness.operationalWritesEnabled
         ? "operational_writes_enabled"
         : "production_not_ready",
     },
     {
       key: "canonical-route-gate",
-      label: "Canonical route gate + depot",
+      label: "ข้อมูลเส้นทางและคลังต้นทาง",
       state: readiness.routeReady ? "ready" : "blocked",
       detail: readinessText(readiness.routeReadinessStatus),
       status: readiness.routeReadinessStatus,
     },
     {
       key: "road-engine-runtime",
-      label: "Road engine runtime",
+      label: "บริการคำนวณเส้นทางถนน",
       state: "unknown",
       detail:
-        "readiness contract ยังไม่ attest engine config; ยืนยันได้เมื่อ /optimize คืน geometry จริง",
+        "ยังไม่ยืนยันการตั้งค่าบริการ ต้องคำนวณสำเร็จและได้รับแนวเส้นทางถนนก่อน",
       status: "not_attested_by_transport_readiness",
     },
     {
       key: "optimization-worker",
-      label: "OR-Tools + Valhalla worker",
+      label: "บริการคำนวณแผนด้วย OR-Tools + Valhalla",
       state: readiness.optimizationWorkerReady ? "ready" : "blocked",
       detail: `${readinessText(
         readiness.optimizationWorkerStatus,
-      )}; direct /optimize preview เป็นคนละ execution path`,
+      )} การทดลองเส้นทางแยกจากงานคำนวณแผนทั้งชุด`,
       status: readiness.optimizationWorkerStatus,
     },
     {
       key: "trip-persistence",
-      label: "Trip + road-evidence persistence",
+      label: "การบันทึกเที่ยวรถและหลักฐานเส้นทาง",
       state: readiness.tripPersistenceReady ? "ready" : "blocked",
       detail: readinessText(readiness.tripPersistenceStatus),
       status: readiness.tripPersistenceStatus,
@@ -1272,15 +1271,15 @@ function TransportReadinessPanel({
     >
       <div className="panel-title">
         <div>
-          <span>PRODUCTION READINESS</span>
-          <h3 id="transport-readiness-title">สถานะ gate จากระบบจริง</h3>
+          <span>ความพร้อมใช้งาน</span>
+          <h3 id="transport-readiness-title">ผลตรวจความพร้อมของระบบขนส่ง</h3>
         </div>
         <span
           className={`transport-data-state ${
             readiness.routeReady ? "verified" : "quarantined"
           }`}
         >
-          {readiness.routeReady ? "route gate ready" : "route gate blocked"}
+          {readiness.routeReady ? "พร้อมจัดเส้นทาง" : "ยังจัดเส้นทางไม่ได้"}
         </span>
       </div>
       <div className="transport-readiness-grid">
@@ -1315,12 +1314,12 @@ function TransportReadinessPanel({
                 ? "พร้อม"
                 : depot.geocodeStatus !== "verified"
                   ? `พิกัด ${depot.geocodeStatus}`
-                  : "ไม่มี canonical origin"}
+                  : "ยังไม่เชื่อมกับคลังต้นทางหลัก"}
             </span>
           ))
         ) : (
           <span className="transport-data-state unverified">
-            ไม่พบ depot readiness
+            ยังไม่มีผลตรวจความพร้อมของคลัง
           </span>
         )}
       </div>
@@ -1348,7 +1347,7 @@ function TransportDashboard({ data }: { data: TransportData }) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          ["รถ active ในทะเบียน", data.vehicles.filter((vehicle) => vehicle.active).length, availabilityKnown ? `พร้อมตามหลักฐาน ${available}` : "ยังไม่ทราบ availability"],
+          ["รถที่เปิดใช้งานในทะเบียน", data.vehicles.filter((vehicle) => vehicle.active).length, availabilityKnown ? `ยืนยันว่าพร้อม ${available}` : "ยังไม่ทราบ availability"],
           ["เที่ยวรอออก", planned.length, "สถานะวางแผน"],
           ["เขตรอจัดส่ง", data.queue.length, "จาก dispatch queue"],
           ["ส่งครบสะสม", done.length, "จากประวัติเที่ยวรถ"],
@@ -1373,7 +1372,7 @@ function TransportDashboard({ data }: { data: TransportData }) {
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div><h2 className="text-base font-semibold">{selected.code}</h2><p className="mt-1 text-xs text-muted-foreground">{selected.plate}</p></div>
               <span className={`transport-data-state ${selected.availability === "available" ? "verified" : selected.availability === "unavailable" ? "quarantined" : "unverified"}`}>
-                {selected.availability === "available" ? "พร้อมตามหลักฐาน" : selected.availability === "unavailable" ? "ไม่พร้อม" : "ยังไม่ทราบ"}
+                {selected.availability === "available" ? "ยืนยันว่าพร้อม" : selected.availability === "unavailable" ? "ไม่พร้อม" : "ยังไม่ทราบ"}
               </span>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3">
@@ -1480,42 +1479,42 @@ function RoadEvidence({ result }: { result: CanonicalRoadResult }) {
   return (
     <dl className="transport-road-evidence" aria-label="หลักฐานผลคำนวณเส้นทาง">
       <div>
-        <dt>Objective</dt>
+        <dt>เกณฑ์คำนวณ</dt>
         <dd>
           {result.objective === "duration" ? "เวลา" : "ระยะทาง"} · cost เป็น{" "}
           {costUnit}
         </dd>
       </div>
       <div>
-        <dt>Baseline → best found</dt>
+        <dt>ลำดับเดิมเทียบกับลำดับที่ดีที่สุดที่พบ</dt>
         <dd>
           {formatNumber(result.baselineCost, 1)} →{" "}
           {formatNumber(result.optimizedCost, 1)} {costUnit}
         </dd>
       </div>
       <div>
-        <dt>Generated / data version</dt>
+        <dt>เวลาคำนวณ / เวอร์ชันข้อมูล</dt>
         <dd>
           {formatDateTime(result.generatedAt)} ·{" "}
-          {result.dataVersion || "engine ไม่ส่ง data version"} ·{" "}
+          {result.dataVersion || "บริการไม่ได้ส่งเวอร์ชันข้อมูล"} ·{" "}
           {result.dataVersionSource}
         </dd>
       </div>
       <div>
-        <dt>Coordinate provenance</dt>
+        <dt>ที่มาของพิกัด</dt>
         <dd>
           คลัง:{" "}
           {result.coordinateProvenance?.depot?.sourceReference ||
-            "ไม่พบ source reference"}
+            "ไม่พบแหล่งอ้างอิง"}
           {" · "}
           จุดส่ง:{" "}
           {stopSources.length
             ? stopSources.join(", ")
-            : "ไม่พบ source reference"}
+            : "ไม่พบแหล่งอ้างอิง"}
         </dd>
       </div>
       <div>
-        <dt>Engine / algorithm</dt>
+        <dt>บริการ / วิธีคำนวณ</dt>
         <dd>
           {result.provider}/{result.profile} · {result.engineMode} ·{" "}
           {result.algorithm}
@@ -1667,11 +1666,11 @@ function TransportPlanner({
       data.readiness?.optimizationEligiblePlanIds.includes(planId),
   );
   const planQueueBlocker = !planId
-    ? "ยังไม่ได้เลือก locked plan"
+    ? "ยังไม่ได้เลือกแผนที่ล็อกแล้ว"
     : !planEligibilityAttested
-      ? "readiness ไม่ส่ง optimization_eligible_plan_ids ที่ตรวจสอบได้ — ปิด queue แบบ fail-closed"
+      ? "ยังตรวจไม่ได้ว่าแผนใดพร้อมคำนวณ ระบบจึงยังไม่รับงาน"
       : !planQueueEligible
-        ? `แผน ${activeGroup?.planNumber ?? planId} ไม่อยู่ใน optimization_eligible_plan_ids จึงยังส่งเข้า worker ไม่ได้`
+        ? `แผน ${activeGroup?.planNumber ?? planId} ไม่อยู่ในรายการแผนที่พร้อมคำนวณ จึงยังส่งงานไม่ได้`
         : "";
   const queueGatesReady =
     source === "supabase" &&
@@ -1706,7 +1705,7 @@ function TransportPlanner({
   };
   const toggle = (id: string) => {
     if (!servable.includes(id)) {
-      setMsg("จุดส่งนี้อยู่นอกกลุ่ม plan + warehouse ที่เลือก");
+      setMsg("จุดส่งนี้อยู่นอกแผนและคลังที่เลือก");
       return;
     }
     const point = data.geo[id];
@@ -1719,10 +1718,10 @@ function TransportPlanner({
       setMsg(
         point?.verificationStatus === "verified" &&
           !hasValidCoordinates(point)
-          ? `พิกัด ${id} มีสถานะ verified แต่ค่า latitude/longitude ไม่ครบ`
+          ? `พิกัด ${id} ยืนยันแล้ว แต่ข้อมูลละติจูดหรือลองจิจูดไม่ครบ`
           : point?.verificationStatus === "verified"
-          ? `พิกัด ${id} ยืนยันแล้ว แต่ยังไม่พร้อมจัดเส้นทางเพราะไม่มี canonical mapping`
-          : `พิกัด ${id} ยังไม่ผ่านการรับรอง จึงไม่สามารถส่งเข้า road optimizer`,
+          ? `พิกัด ${id} ยืนยันแล้ว แต่ยังไม่เชื่อมกับรหัสสถานที่หลัก จึงจัดเส้นทางไม่ได้`
+          : `พิกัด ${id} ยังไม่ผ่านการยืนยัน จึงยังคำนวณเส้นทางไม่ได้`,
       );
       return;
     }
@@ -1740,7 +1739,7 @@ function TransportPlanner({
         signature: selectionSignature,
         result: null,
         error:
-          "Transport API ยังไม่พร้อม จึงไม่เรียก road optimizer และไม่ใช้เส้นตรงแทนผลถนนจริง",
+          "ข้อมูลขนส่งยังไม่พร้อม จึงยังคำนวณเส้นทางถนนไม่ได้",
         loading: false,
       });
       return;
@@ -1750,7 +1749,7 @@ function TransportPlanner({
         signature: selectionSignature,
         result: null,
         error:
-          "Operational POST gate ถูกล็อก (production_not_ready) จึงไม่ส่งงานไป routing engine",
+          "ยังไม่เปิดให้คำนวณเส้นทาง (production_not_ready)",
         loading: false,
       });
       return;
@@ -1759,7 +1758,7 @@ function TransportPlanner({
       setRoadState({
         signature: selectionSignature,
         result: null,
-        error: `Canonical route gate ยังไม่พร้อม: ${readinessText(
+        error: `ข้อมูลเส้นทางหลักยังไม่พร้อม: ${readinessText(
           data.readiness?.routeReadinessStatus ?? "unknown_route_readiness",
         )}`,
         loading: false,
@@ -1770,7 +1769,7 @@ function TransportPlanner({
       setRoadState({
         signature: selectionSignature,
         result: null,
-        error: "ต้องเลือก locked replenishment plan ที่มีรหัสถูกต้อง",
+        error: "กรุณาเลือกแผนการจ่ายที่ล็อกแล้วและมีรหัสแผนถูกต้อง",
         loading: false,
       });
       return;
@@ -1784,7 +1783,7 @@ function TransportPlanner({
       setRoadState({
         signature: selectionSignature,
         result: null,
-        error: `คลัง ${warehouse || "ที่เลือก"} อาจมีพิกัด verified แต่ยังไม่พร้อมจัดเส้นทาง เพราะไม่มี canonical warehouse/origin mapping`,
+        error: `คลัง ${warehouse || "ที่เลือก"} อาจยืนยันพิกัดแล้ว แต่ยังไม่เชื่อมกับรหัสคลังและต้นทางหลัก จึงจัดเส้นทางไม่ได้`,
         loading: false,
       });
       return;
@@ -1803,7 +1802,7 @@ function TransportPlanner({
       setRoadState({
         signature: selectionSignature,
         result: null,
-        error: "เลือกอย่างน้อย 1 จุด และทุกจุดต้องมีพิกัด verified",
+        error: "เลือกอย่างน้อย 1 จุด โดยทุกจุดต้องมีพิกัดที่ยืนยันแล้ว",
         loading: false,
       });
       return;
@@ -1829,7 +1828,7 @@ function TransportPlanner({
         !Number.isFinite(result.distanceKm) ||
         !Number.isFinite(result.durationMinutes)
       ) {
-        throw new Error("Routing engine ส่งผลลัพธ์ไม่ครบหรือจุดส่งไม่ตรงกับคำขอ");
+        throw new Error("ผลคำนวณไม่ครบ หรือจุดส่งไม่ตรงกับที่เลือก");
       }
       setRoadState({
         signature: selectionSignature,
@@ -1854,7 +1853,7 @@ function TransportPlanner({
     if (!activeGroup || !planId) {
       setJobState((current) => ({
         ...current,
-        error: "ต้องเลือก locked replenishment plan ก่อนส่งเข้า optimizer",
+        error: "กรุณาเลือกแผนการจ่ายที่ล็อกแล้วก่อนส่งไปคำนวณ",
       }));
       return;
     }
@@ -1865,7 +1864,7 @@ function TransportPlanner({
         ...current,
         error: planQueueBlocker
           ? planQueueBlocker
-          : "ยังส่งงานไม่ได้: ต้องผ่าน operational, canonical route และ worker readiness ทุก gate",
+          : "ยังส่งงานไม่ได้ ต้องเปิดสิทธิ์บันทึก ตรวจข้อมูลเส้นทางหลัก และยืนยันความพร้อมของบริการคำนวณให้ครบก่อน",
       }));
       return;
     }
@@ -1873,15 +1872,15 @@ function TransportPlanner({
       setJobState((current) => ({
         ...current,
         error: attemptSucceeded
-          ? "งานที่สำเร็จแล้วเป็น immutable; ไม่สร้างความพยายามซ้ำสำหรับ plan เดิม"
-          : "มีคำขอของ plan นี้กำลังทำงานอยู่; ระบบจะติดตามงานเดิมแทนการ queue ซ้ำ",
+          ? "แผนนี้คำนวณสำเร็จแล้ว ผลลัพธ์แก้ไขไม่ได้และจะไม่ส่งงานซ้ำ"
+          : "แผนนี้กำลังคำนวณ ระบบจะติดตามงานเดิมต่อ",
       }));
       return;
     }
     if (
       attemptCanRestart &&
       !window.confirm(
-        `งานเดิมเป็น ${jobState.attemptStatus} ยืนยันเริ่มความพยายามใหม่ด้วย X-Request-ID ใหม่หรือไม่?`,
+        `งานเดิมเป็น ${jobState.attemptStatus} ต้องการเริ่มคำนวณใหม่โดยใช้รหัสคำขอ (X-Request-ID) ใหม่หรือไม่?`,
       )
     ) {
       return;
@@ -1942,7 +1941,7 @@ function TransportPlanner({
         error:
           error instanceof Error
             ? error.message
-            : "ส่ง locked plan เข้า optimizer ไม่สำเร็จ",
+            : "ส่งแผนที่ล็อกแล้วไปคำนวณไม่สำเร็จ",
       });
     }
   };
@@ -1985,7 +1984,7 @@ function TransportPlanner({
             route_job_id: stored.routeJobId,
             job_id: "",
             replenishment_plan_id: planId,
-            algorithm_version: "กำลังรีเฟรชจาก governed queue",
+            algorithm_version: "กำลังอัปเดตสถานะงาน",
             matrix_source: "valhalla",
             status: stored.status,
           }
@@ -2017,8 +2016,8 @@ function TransportPlanner({
               ...current,
               loading: false,
               error: planQueueBlocker
-                ? `เก็บคำขอเดิมไว้แล้ว แต่ยัง resume ไม่ได้: ${planQueueBlocker}`
-                : "เก็บคำขอเดิมไว้แล้ว และจะ resume เมื่อ queue readiness พร้อม",
+                ? `บันทึกคำขอเดิมไว้แล้ว แต่ยังทำต่อไม่ได้: ${planQueueBlocker}`
+                : "บันทึกคำขอเดิมไว้แล้ว ระบบจะทำต่อเมื่อบริการพร้อม",
             }));
           }
           return;
@@ -2055,8 +2054,8 @@ function TransportPlanner({
             loading: false,
             error:
               error instanceof Error
-                ? `resume งานไม่สำเร็จ: ${error.message}`
-                : "resume งาน optimize ไม่สำเร็จ",
+                ? `ดำเนินงานเดิมต่อไม่สำเร็จ: ${error.message}`
+                : "ดำเนินงานคำนวณเดิมต่อไม่สำเร็จ",
           }));
         }
       }
@@ -2091,7 +2090,7 @@ function TransportPlanner({
       void onReadJob(routeJobId)
         .then((job) => {
           if (!planId || !activeGroup?.key) {
-            throw new Error("plan scope หายไประหว่างติดตามงาน");
+            throw new Error("ไม่พบแผนที่กำลังติดตาม");
           }
           const status = assertJobMatchesPlan(job, planId, routeJobId);
           writeOptimizationAttempt(actorId, {
@@ -2117,7 +2116,7 @@ function TransportPlanner({
                   error:
                     error instanceof Error
                       ? `อ่านสถานะงานไม่สำเร็จ: ${error.message}`
-                      : "อ่านสถานะงาน optimize ไม่สำเร็จ",
+                      : "อ่านสถานะงานคำนวณไม่สำเร็จ",
                 }
               : current,
           );
@@ -2146,14 +2145,14 @@ function TransportPlanner({
           <p>ระบบไม่อนุญาตให้รวมเขตจากคนละแผนการจ่าย หรือคนละคลังในเที่ยวเดียว</p>
         </div>
         <label>
-          Plan + คลัง
+          แผนและคลัง
           <select
             value={activeGroup?.key ?? ""}
             onChange={(event) => chooseGroup(event.target.value)}
             disabled={!eligibleGroups.length || jobState.loading}
           >
             {!eligibleGroups.length && (
-              <option value="">ไม่มี locked plan ที่ผ่าน route gate</option>
+              <option value="">ยังไม่มีแผนที่ล็อกแล้วและพร้อมจัดเส้นทาง</option>
             )}
             {groups.map((group) => (
               <option
@@ -2176,7 +2175,7 @@ function TransportPlanner({
             disabled={!availableVehicles.length}
           >
             {!availableVehicles.length && (
-              <option value="">ยังไม่มีหลักฐาน availability</option>
+              <option value="">ยังไม่มีข้อมูลยืนยันความพร้อมของรถ</option>
             )}
             {availableVehicles.map((vehicle) => (
               <option key={vehicle.id} value={vehicle.id}>
@@ -2205,7 +2204,7 @@ function TransportPlanner({
             checked={avoidTolls}
             onChange={(event) => setAvoidTolls(event.target.checked)}
           />
-          ขอหลีกเลี่ยงทางเก็บค่าผ่านทาง (เมื่อ engine รองรับ)
+          หลีกเลี่ยงทางเก็บค่าผ่านทาง หากบริการคำนวณรองรับ
         </label>
       </section>
       {groups.some((group) => !group.routeEligible) && (
@@ -2231,7 +2230,7 @@ function TransportPlanner({
             <h3>
               {activeGroup
                 ? `${activeGroup.planNumber} · ${activeGroup.warehouse}`
-                : "ยังไม่มี locked plan"}
+                : "ยังไม่มีแผนที่ล็อกแล้ว"}
             </h3>
           </div>
           <b>{selected.length}/{groupRows.length} เขต</b>
@@ -2239,7 +2238,7 @@ function TransportPlanner({
         <div className="live-table-wrap">
           <table className="live-table transport-queue-table">
             <caption className="sr-only">
-              จุดส่งใน replenishment plan และคลังที่เลือก
+              จุดส่งในแผนการจ่ายและคลังที่เลือก
             </caption>
             <thead>
               <tr>
@@ -2286,13 +2285,13 @@ function TransportPlanner({
                     <td>
                       <span className={`transport-data-state ${routeReady ? "verified" : "quarantined"}`}>
                         {routeReady
-                          ? "พิกัด verified · พร้อมจัดเส้นทาง"
+                          ? "พิกัดยืนยันแล้ว พร้อมจัดเส้นทาง"
                           : !row.routeEligible
-                            ? "route_eligible=false จาก dispatch queue"
+                            ? "คิวจัดส่งระบุว่ายังจัดเส้นทางไม่ได้ (route_eligible=false)"
                           : verified && !coordinateReady
-                            ? "พิกัด verified · latitude/longitude ไม่ครบ"
+                            ? "พิกัดยืนยันแล้ว แต่ละติจูดหรือลองจิจูดไม่ครบ"
                           : verified
-                            ? "พิกัด verified · ยังไม่มี canonical mapping"
+                            ? "พิกัดยืนยันแล้ว แต่ยังไม่เชื่อมกับรหัสสถานที่หลัก"
                             : point?.verificationStatus ?? "ไม่พบพิกัด"}
                       </span>
                     </td>
@@ -2312,7 +2311,7 @@ function TransportPlanner({
               })}
               {!groupRows.length && (
                 <tr>
-                  <td colSpan={5}>ไม่พบงาน locked ที่พร้อมเข้ากลุ่มขนส่ง</td>
+                  <td colSpan={5}>ยังไม่มีงานจากแผนที่ล็อกแล้วและพร้อมจัดส่ง</td>
                 </tr>
               )}
             </tbody>
@@ -2354,7 +2353,7 @@ function TransportPlanner({
               <h3>ผลลัพธ์ที่ดีที่สุดที่พบ</h3>
             </div>
             <span className={`transport-data-state ${roadIsCanonical ? "verified" : "unverified"}`}>
-              {roadIsCanonical ? "canonical preview" : "รอผล canonical"}
+              {roadIsCanonical ? "canonical preview" : "รอผลจากข้อมูลเส้นทางหลัก"}
             </span>
           </div>
           <div className="transport-result-grid">
@@ -2371,12 +2370,12 @@ function TransportPlanner({
             <article>
               <span>ดีขึ้นจากลำดับเดิม</span>
               <strong>{roadCurrent ? `${formatNumber(roadCurrent.improvementPercent, 1)}%` : "—"}</strong>
-              <small>heuristic ไม่รับประกันคำตอบ optimal</small>
+              <small>ผลนี้เป็นลำดับที่ดีที่สุดที่วิธีคำนวณพบ อาจมีลำดับอื่นที่ดีกว่า</small>
             </article>
             <article className="toll-unavailable">
               <span>ค่าผ่านทาง</span>
               <strong>ยังไม่คำนวณ</strong>
-              <small>รอ tariff ที่อนุมัติ</small>
+              <small>รออัตราค่าผ่านทางที่อนุมัติแล้ว</small>
             </article>
           </div>
           <div className="transport-route-copy">
@@ -2392,7 +2391,7 @@ function TransportPlanner({
                 ? `${roadCurrent.provider}/${roadCurrent.profile} · ${
                     roadCurrent.engineMode === "configured"
                       ? "configured"
-                      : "development demo (ห้ามบันทึก production)"
+                      : "ข้อมูลทดสอบ ห้ามบันทึกลงระบบจริง"
                   }`
                 : "ยังไม่มีผลลัพธ์"}
             </p>
@@ -2410,12 +2409,11 @@ function TransportPlanner({
             {!fleet.error && fleet.chunks.length > 0 && (
               <div className="transport-load-list">
                 <strong>
-                  Weight-only split preview: แบ่งได้ {fleet.chunks.length} เที่ยว ·{" "}
+                  ทดลองแบ่งเที่ยวตามน้ำหนักได้ {fleet.chunks.length} เที่ยว ·{" "}
                   {formatNumber(fleet.totalWeightKg, 1)} กก.
                 </strong>
                 <small>
-                  ยังไม่ใช่ OR-Tools fleet solve และยังไม่รวม volume, pallet,
-                  time window หรือกะรถ
+                  การแบ่งเที่ยวนี้ยังไม่ได้ใช้ OR-Tools และยังไม่รวมปริมาตร พาเลท ช่วงเวลาส่ง หรือกะรถ
                 </small>
                 <ol>
                   {fleet.chunks.map((trip) => (
@@ -2430,9 +2428,9 @@ function TransportPlanner({
             )}
             {demoRoute && !fleet.error && (
               <div className="transport-load-list">
-                <strong>AI Decision Support · เปรียบเทียบวิธีส่ง</strong>
+                <strong>เปรียบเทียบวิธีจัดส่ง</strong>
                 <small>
-                  ข้อเสนอเพื่อให้ Planner ตัดสินใจเท่านั้น ไม่อนุมัติและไม่สร้างเที่ยวรถอัตโนมัติ
+                  ใช้ประกอบการตัดสินใจของผู้วางแผน ระบบไม่อนุมัติหรือสร้างเที่ยวรถให้อัตโนมัติ
                 </small>
                 <ol>
                   <li>
@@ -2445,8 +2443,7 @@ function TransportPlanner({
                     เขตมารับเอง: ลดภาระรถคลังกลาง แต่ต้องนัดหมายรถเขตและบันทึกผู้มารับเป็นรายเขต
                   </li>
                   <li>
-                    ก่อน Lock Transport Plan ต้องยืนยัน Pallet/Box, น้ำหนักจริง,
-                    พื้นที่วาง และข้อจำกัดไม่มีอุปกรณ์ยก
+                    ก่อนล็อกแผนขนส่ง ต้องยืนยันพาเลทหรือกล่อง น้ำหนักจริง พื้นที่วาง และข้อจำกัดเรื่องไม่มีอุปกรณ์ยก
                   </li>
                 </ol>
               </div>
@@ -2484,38 +2481,35 @@ function TransportPlanner({
                 onClick={() => void queueJob()}
               >
                 {jobState.loading
-                  ? "กำลัง resume/ส่งเข้า optimizer…"
+                  ? "กำลังส่งหรือดำเนินงานคำนวณต่อ…"
                   : attemptSucceeded
-                    ? "Route plan สำเร็จแล้ว · immutable"
+                    ? "คำนวณแผนเส้นทางแล้ว ผลลัพธ์แก้ไขไม่ได้"
                     : attemptCanRestart
-                      ? "เริ่มความพยายามใหม่ด้วย Request ID ใหม่"
+                      ? "เริ่มคำนวณใหม่ด้วยรหัสคำขอใหม่"
                       : jobState.attemptStatus === "submitting"
-                        ? "ดำเนินคำขอเดิมต่อด้วย Request ID เดิม"
+                        ? "ดำเนินงานเดิมต่อด้วยรหัสคำขอเดิม"
                         : attemptActive
                           ? "กำลังติดตามงานเดิม"
-                          : "ส่งแผนเต็มเข้า OR-Tools + Valhalla"}
+                          : "ส่งแผนทั้งชุดให้ OR-Tools + Valhalla คำนวณ"}
               </button>
             </div>
             <p id="transport-queue-hint" className="transport-queue-hint">
-              ปุ่มนี้ส่ง locked plan ทั้งชุดของ {activeGroup?.planNumber ?? "แผนที่เลือก"}
-              เข้า governed queue; จุดที่เลือกบนแผนที่มีผลเฉพาะ heuristic preview
-              และไม่เปลี่ยนขอบเขตงานจริง
+              ส่งแผนที่ล็อกแล้วทั้งชุดของ {activeGroup?.planNumber ?? "แผนที่เลือก"}
+              ไปคำนวณ จุดที่เลือกบนแผนที่ใช้ทดลองจัดลำดับเท่านั้น งานคำนวณจริงใช้แผนทั้งชุด
             </p>
             <p id="transport-save-hint" className="transport-save-hint">
-              เมื่อสำเร็จ ระบบจะสร้าง route plan พร้อม Valhalla road evidence
-              เท่านั้น; route-plan → trip activation ยังถูกล็อกและไม่มีการสร้างเที่ยวรถอัตโนมัติ
+              เมื่อคำนวณสำเร็จ ระบบจะสร้างแผนเส้นทางพร้อมหลักฐานถนนจาก Valhalla ขณะนี้ยังไม่เปิดให้สร้างเที่ยวรถจากแผน
             </p>
             {planId && planQueueBlocker && (
               <p className="transport-inline-error" role="note">
-                Plan-level queue gate: {planQueueBlocker}
+                ผลตรวจแผนก่อนส่งคำนวณ: {planQueueBlocker}
               </p>
             )}
             {jobState.requestId && !jobState.job && (
               <aside className="transport-job-status submitting" role="status">
-                <strong>เก็บคำขอของ plan นี้ไว้ใน session แล้ว</strong>
+                <strong>บันทึกคำขอของแผนนี้ไว้ในรอบการใช้งานแล้ว</strong>
                 <p>
-                  ระบบจะ reuse X-Request-ID เดิมเพื่อ resume เท่านั้น
-                  และจะไม่สร้างคำขอใหม่จนกว่างานเดิมจะเป็น failed/cancelled
+                  ระบบจะใช้รหัสคำขอ (X-Request-ID) เดิมเพื่อดำเนินงานต่อ เริ่มคำขอใหม่ได้เมื่องานเดิมล้มเหลวหรือถูกยกเลิกแล้ว
                 </p>
                 <code>{jobState.requestId}</code>
               </aside>
@@ -2535,13 +2529,13 @@ function TransportPlanner({
                 <code>{jobState.job.route_job_id}</code>
                 <p>
                   {jobState.attemptStatus === "succeeded"
-                    ? `สร้าง route plan ${jobState.job.route_plan_id ?? "แล้ว"} — ผลสำเร็จนี้ immutable และรอ review/activation`
+                    ? `สร้างแผนเส้นทาง ${jobState.job.route_plan_id ?? "แล้ว"} ผลลัพธ์แก้ไขไม่ได้ และรอตรวจสอบก่อนเปิดใช้งาน`
                     : jobState.attemptStatus === "failed"
                       ? jobState.job.error?.message ??
-                        "งานล้มเหลว; ตรวจ audited worker logs แล้วจึงกดเริ่มใหม่ด้วย Request ID ใหม่"
+                        "งานล้มเหลว กรุณาตรวจบันทึกของบริการคำนวณก่อนเริ่มใหม่ด้วยรหัสคำขอใหม่"
                       : jobState.attemptStatus === "cancelled"
-                        ? "งานถูกยกเลิก; เริ่มใหม่ได้ด้วย Request ID ใหม่เท่านั้น"
-                        : "ระบบกำลังติดตามสถานะจาก governed queue ทุก 3 วินาที"}
+                        ? "งานถูกยกเลิก เริ่มใหม่ได้ด้วยรหัสคำขอใหม่เท่านั้น"
+                        : "ระบบอัปเดตสถานะงานทุก 3 วินาที"}
                 </p>
               </aside>
             )}
@@ -2603,7 +2597,7 @@ function TransportMap({
 
   const choosePoint = (id: string) => {
     if (!group?.rows.some((row) => row.districtRef === id)) {
-      setError("จุดนี้อยู่นอก plan + warehouse ที่เลือก");
+      setError("จุดนี้อยู่นอกแผนและคลังที่เลือก");
       return;
     }
     setPicked(id);
@@ -2612,18 +2606,18 @@ function TransportMap({
   };
   const preview = async () => {
     if (!canMutate) {
-      setError("สิทธิ์นี้อ่านข้อมูลขนส่งได้ แต่เรียก road optimizer ไม่ได้");
+      setError("คุณดูข้อมูลขนส่งได้ แต่ไม่มีสิทธิ์คำนวณเส้นทาง");
       return;
     }
     if (source !== "demo" && !data.readiness?.operationalWritesEnabled) {
       setError(
-        "Operational POST gate ถูกล็อก (production_not_ready) จึงไม่ส่งงานไป routing engine",
+        "ยังไม่เปิดให้คำนวณเส้นทาง (production_not_ready)",
       );
       return;
     }
     if (source !== "demo" && !data.readiness?.routeReady) {
       setError(
-        `Canonical route gate ยังไม่พร้อม: ${readinessText(
+        `ข้อมูลเส้นทางหลักยังไม่พร้อม: ${readinessText(
           data.readiness?.routeReadinessStatus ?? "unknown_route_readiness",
         )}`,
       );
@@ -2641,7 +2635,7 @@ function TransportMap({
       !pickedGeo.routeEligible ||
       !hasValidCoordinates(pickedGeo)
     ) {
-      setError("ต้องใช้ locked plan และพิกัด verified จากระบบจริงก่อนคำนวณถนน");
+      setError("ต้องเลือกแผนที่ล็อกแล้วและพิกัดที่ยืนยันแล้วก่อนคำนวณเส้นทางถนน");
       return;
     }
     setLoading(true);
@@ -2673,7 +2667,7 @@ function TransportMap({
     <div className="stack transport-workspace">
       <section className="filter-bar transport-map-controls">
         <label>
-          Plan + คลัง
+          แผนและคลัง
           <select
             value={group?.key ?? ""}
             onChange={(event) => {
@@ -2685,7 +2679,7 @@ function TransportMap({
             disabled={!eligibleGroups.length}
           >
             {!eligibleGroups.length && (
-              <option value="">ไม่มี locked plan ที่ผ่าน route gate</option>
+              <option value="">ยังไม่มีแผนที่ล็อกแล้วและพร้อมจัดเส้นทาง</option>
             )}
             {groups.map((option) => (
               <option
@@ -2745,7 +2739,7 @@ function TransportMap({
           </button>
         ) : (
           <p className="transport-read-only-note" role="note">
-            โหมดอ่านอย่างเดียว · การคำนวณใหม่ใช้ได้เฉพาะ Admin/Planner
+            คุณดูข้อมูลได้ ผู้ดูแลระบบและผู้วางแผนเท่านั้นที่คำนวณเส้นทางใหม่ได้
           </p>
         )}
       </section>
@@ -2810,7 +2804,7 @@ function TransportMap({
             <article className="toll-unavailable">
               <span>ค่าผ่านทาง</span>
               <strong>ยังไม่คำนวณ</strong>
-              <small>รอ tariff ที่อนุมัติ</small>
+              <small>รออัตราค่าผ่านทางที่อนุมัติแล้ว</small>
             </article>
           </section>
           {road && <RoadEvidence result={road} />}
@@ -2850,7 +2844,7 @@ function TransportHistory({
     }
     if (
       !window.confirm(
-        `ยืนยันยกเลิกเที่ยว ${trip.code}? การยกเลิกจะถูกบันทึกเป็นสถานะ operational จริง`,
+        `ยืนยันยกเลิกเที่ยว ${trip.code} หรือไม่? ระบบจะบันทึกสถานะยกเลิกในเที่ยวรถจริง`,
       )
     ) {
       return;
@@ -2873,12 +2867,9 @@ function TransportHistory({
   return (
     <div className="stack">
       <aside className="transport-history-warning" role="note">
-        <strong>ประวัติชุดนี้เป็น legacy illustrative / unverified</strong>
+        <strong>ประวัติเดิมชุดนี้ใช้เพื่ออ้างอิง ยังไม่มีหลักฐานเส้นทางที่ยืนยันแล้ว</strong>
         <p>
-          Trip-summary contract ปัจจุบันยังไม่มีหลักฐานเส้นทางถนนที่ยืนยันได้
-          ระยะทาง เวลา และค่าใช้จ่ายจึงใช้เพื่ออ้างอิงเท่านั้น
-          ระบบปิดการเดินหน้าสถานะ dispatch/completed และอนุญาตเฉพาะ
-          “ยกเลิก” สำหรับเที่ยวที่ยังไม่สิ้นสุดโดย Admin/Planner เท่านั้น
+          ประวัติเที่ยวรถยังไม่มีหลักฐานเส้นทางถนนที่ยืนยันได้ ระยะทาง เวลา และค่าใช้จ่ายจึงใช้เพื่ออ้างอิงเท่านั้น ยังเปลี่ยนสถานะเป็นออกรถหรือส่งครบไม่ได้ ผู้ดูแลระบบและผู้วางแผนยกเลิกได้เฉพาะเที่ยวที่ยังไม่สิ้นสุด
         </p>
       </aside>
       <section className="filter-bar">
@@ -2908,7 +2899,7 @@ function TransportHistory({
                 <th>ค่าน้ำมัน (ประมาณ/จริง)</th>
                 <th>วันที่</th>
                 <th>สถานะ</th>
-                <th>หลักฐาน / Action</th>
+                <th>หลักฐาน / การดำเนินการ</th>
               </tr>
             </thead>
             <tbody>
@@ -2926,7 +2917,7 @@ function TransportHistory({
                   <td>{t.route.join(" → ")}</td>
                   <td>
                     {formatNumber(t.dist, 1)} กม.
-                    <small>legacy · ไม่ใช่ road evidence</small>
+                    <small>ข้อมูลเดิม ยังไม่มีหลักฐานเส้นทางถนน</small>
                   </td>
                   <td>
                     {formatNumber(t.fuel, 2)}
@@ -2938,7 +2929,7 @@ function TransportHistory({
                   </td>
                   <td>
                     <span className="transport-data-state unverified">
-                      illustrative / unverified
+                      ข้อมูลอ้างอิง ยังไม่ยืนยัน
                     </span>
                     {(tripHasStatus(t, "planned", "วางแผน") ||
                       tripHasStatus(t, "dispatched", "ออกรถแล้ว")) &&
@@ -2954,7 +2945,7 @@ function TransportHistory({
                         }
                         title={
                           data.readiness?.operationalWritesEnabled === true
-                            ? "ยกเลิกเที่ยว legacy"
+                            ? "ยกเลิกเที่ยวจากประวัติเดิม"
                             : "Operational POST gate ถูกล็อก"
                         }
                         onClick={() => void cancelTrip(t)}
@@ -2963,12 +2954,12 @@ function TransportHistory({
                           ? "กำลังยกเลิก…"
                           : data.readiness?.operationalWritesEnabled === true
                             ? "ยกเลิกเที่ยว"
-                            : "ยกเลิกถูกล็อก"}
+                            : "ยังยกเลิกไม่ได้"}
                       </button>
                     ) : (
                       <small>
                         {canMutate
-                          ? "ไม่มี operational continuation"
+                          ? "ยังเปลี่ยนเป็นออกรถหรือส่งครบไม่ได้"
                           : "อ่านอย่างเดียวตามสิทธิ์"}
                       </small>
                     )}
@@ -3044,8 +3035,8 @@ export function TransportModule({
           <p>
             สิทธิ์ {role} อ่านภาพรวม แผนที่ และประวัติได้เท่านั้น
             {role === "district"
-              ? " โดย dispatch queue และ trips ถูกจำกัดเขตจาก backend"
-              : " โดยไม่มี affordance ที่ส่ง POST ไปยัง optimizer หรือเที่ยวรถ"}
+              ? " ระบบแสดงคิวจัดส่งและเที่ยวรถเฉพาะเขตที่คุณมีสิทธิ์เข้าถึง"
+              : " บทบาทนี้ไม่มีสิทธิ์ส่งแผนไปคำนวณหรือเปลี่ยนสถานะเที่ยวรถ"}
           </p>
         </aside>
       )}
@@ -3072,7 +3063,7 @@ export function TransportModule({
         <aside className="runtime-message warning" role="status">
           <i>!</i>
           <div>
-            <strong>ไม่มีสิทธิ์วางแผนหรือ queue งานขนส่ง</strong>
+            <strong>คุณไม่มีสิทธิ์วางแผนหรือส่งงานขนส่งไปคำนวณ</strong>
             <p>กลับไปยังภาพรวม แผนที่ หรือประวัติแบบอ่านอย่างเดียว</p>
           </div>
         </aside>

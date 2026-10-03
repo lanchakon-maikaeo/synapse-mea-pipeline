@@ -124,7 +124,7 @@ export async function POST(request: Request) {
   catch { return failure(422, "invalid_input", "ประวัติแชทยาวเกินหรือรูปแบบไม่ถูกต้อง", requestId); }
   const config = providerConfig();
   if (!config) {
-    return failure(503, "provider_not_configured", "ยังไม่ได้ตั้งค่า Commercial LLM API", requestId);
+    return failure(503, "provider_not_configured", "ยังไม่ได้ตั้งค่าบริการแชท", requestId);
   }
 
   const overall = AbortSignal.any([request.signal, AbortSignal.timeout(90_000)]);
@@ -189,7 +189,7 @@ export async function POST(request: Request) {
     const status = code === "unauthorized" ? 401 : code === "forbidden" ? 403 : code === "provider_rate_limited" ? 429 : 503;
     console.warn(JSON.stringify({ event: "chat_run_failed", request_id: requestId, harness: HARNESS_VERSION,
       http_status: status, model_calls: modelCalls, total_tokens: totalTokens, duration_ms: Date.now() - startedAt }));
-    return failure(status, code, "Agent ตรวจข้อมูลไม่สำเร็จ กรุณาลองใหม่ภายหลัง", requestId);
+    return failure(status, code, "ค้นและตรวจข้อมูลไม่สำเร็จ กรุณาลองใหม่ภายหลัง", requestId);
   }
   // Operational trace excludes prompts, keys, JWTs, tool arguments and business rows.
   console.info(JSON.stringify({ event: "chat_run", request_id: requestId, harness: HARNESS_VERSION,

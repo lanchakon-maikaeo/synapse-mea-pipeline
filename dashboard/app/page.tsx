@@ -117,19 +117,19 @@ const navByRole: Record<Role, NavGroup[]> = {
     {
       label: "คลังสินค้า",
       items: [
-        ["fifo", "FIFO & พาเลท", "▦"],
+        ["fifo", "FIFO และพาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
     {
-      label: "ข้อมูล & ควบคุม",
+      label: "ข้อมูลและการควบคุม",
       items: [
         ["recommendations", "หลักฐานปริมาณ", "✦"],
-        ["advisory", "Intelligence (advisory)", "◈"],
-        ["stock", "ข้อมูล Stock", "◫"],
-        ["input", "อัปเดต Stock", "↻"],
+        ["advisory", "คำแนะนำการวางแผน", "◈"],
+        ["stock", "ข้อมูลสต็อก", "◫"],
+        ["input", "อัปเดตสต็อก", "↻"],
         ["data", "ข้อมูล SAP / คุณภาพ", "▥"],
         ["operations", "ศูนย์ควบคุม", "⚙"],
         ["release", "ขอบเขตรุ่น", "◉"],
@@ -146,17 +146,17 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
-        ["advisory", "Intelligence (advisory)", "◈"],
+        ["advisory", "คำแนะนำการวางแผน", "◈"],
       ],
     },
     {
       label: "คลังสินค้า",
       items: [
-        ["fifo", "FIFO & พาเลท", "▦"],
+        ["fifo", "FIFO และพาเลท", "▦"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
-        ["stock", "ข้อมูล Stock", "◫"],
-        ["input", "อัปเดต Stock", "↻"],
+        ["stock", "ข้อมูลสต็อก", "◫"],
+        ["input", "อัปเดตสต็อก", "↻"],
       ],
     },
   ],
@@ -194,7 +194,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["weekly", "ยืนยันรายการพัสดุ", "✓"],
         ["changes", "คำขอเปลี่ยนของฉัน", "!"],
         ["adhoc", "ขอจ่ายกรณีพิเศษ", "↗"],
-        ["stock", "Stock เขต", "◫"],
+        ["stock", "สต็อกเขต", "◫"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
@@ -223,7 +223,7 @@ const titles: Record<ViewKey, [string, string, string]> = {
   weekly: [
     "แผนการจ่าย",
     "แผนการจ่ายรายสัปดาห์",
-    "ขั้นตอน: เขต → ผู้วางแผน → วิชาการ → ล็อก → จ่ายแบบ FIFO",
+    "เขตยืนยันรายการ แล้วส่งให้ผู้วางแผนและวิชาการอนุมัติก่อนล็อกแผนและจ่ายแบบ FIFO",
   ],
   district_confirmations: [
     "DISTRICT REVIEW",
@@ -233,7 +233,7 @@ const titles: Record<ViewKey, [string, string, string]> = {
   recommendations: [
     "หลักฐานปริมาณ",
     "หลักฐานการคำนวณปริมาณ",
-    "คำนวณจากข้อมูลจริงตามเกณฑ์ ไม่มีการสร้างตัวเลขเองหรืออนุมัติอัตโนมัติ",
+    "ดูข้อมูลและเกณฑ์ที่ใช้คำนวณจำนวนแนะนำ การอนุมัติยังเป็นหน้าที่ของผู้รับผิดชอบ",
   ],
   advisory: [
     "การเฝ้าระวัง",
@@ -272,23 +272,23 @@ const titles: Record<ViewKey, [string, string, string]> = {
   ],
   stock: [
     "ข้อมูลสต็อก",
-    "สุขภาพสต็อก",
+    "สถานะสต็อก",
     "นับเฉพาะของพร้อมใช้ หากไม่มีข้อมูลจะแสดงเป็น 0 พร้อมหมายเหตุ",
   ],
   data: [
     "ข้อมูลต้นทาง",
     "สัญญาและคุณภาพข้อมูล",
-    "ลำดับที่มาของข้อมูลจากต้นทางถึงระบบ พร้อมหลักฐานคุณภาพ",
+    "ดูแหล่งที่มาของข้อมูลและผลการตรวจคุณภาพ",
   ],
   import: [
     "Data Import",
     "นำเข้าและประมวลผลข้อมูล",
-    "ตรวจสอบ แปลง และเตรียมข้อมูลจาก SAP ให้พร้อมใช้งานในแต่ละ Module",
+    "นำเข้าข้อมูล SAP แล้วตรวจและประมวลผลให้พร้อมใช้ในแต่ละส่วนของระบบ",
   ],
   fifo_setup: [
     "FIFO Setup",
     "FIFO, Packaging & Opening Setup",
-    "ตรวจ Packing เริ่มต้นหน่วยขนถ่าย กระทบยอด และ Publish หลักฐาน FIFO ก่อนเริ่มใช้งานจริง",
+    "ตรวจรูปแบบบรรจุ ลงทะเบียนหน่วยจัดเก็บ และกระทบยอดก่อนยืนยันข้อมูล FIFO เพื่อเริ่มใช้งาน",
   ],
   input: [
     "อัปเดตสต็อก",
@@ -298,7 +298,7 @@ const titles: Record<ViewKey, [string, string, string]> = {
   operations: [
     "ศูนย์ควบคุม",
     "ศูนย์ควบคุมการทำงาน",
-    "สุขภาพระบบ การแจ้งเตือน การสำรองข้อมูล และหลักฐานการติดตั้ง",
+    "ตรวจสถานะระบบ การแจ้งเตือน การสำรองข้อมูล และบันทึกการติดตั้ง",
   ],
   release: [
     "ขอบเขตระบบ",
@@ -500,9 +500,9 @@ function RequestAccessDialog({ close }: { close: () => void }) {
       >
         <header>
           <div>
-            <span>REQUEST ACCESS</span>
+            <span>ขอสิทธิ์เข้าใช้งาน</span>
             <h2 id="access-request-title">ขอสิทธิ์เข้าใช้งาน</h2>
-            <p>Admin จะตรวจสอบข้อมูลและกำหนดบทบาทก่อนสร้างบัญชี</p>
+            <p>ผู้ดูแลระบบจะตรวจคำขอและกำหนดสิทธิ์ก่อนสร้างบัญชี</p>
           </div>
           <button type="button" onClick={close} aria-label="ปิดแบบฟอร์ม">
             ×
@@ -516,17 +516,17 @@ function RequestAccessDialog({ close }: { close: () => void }) {
               เลขอ้างอิง <strong>{reference}</strong>
             </p>
             <small>
-              บัญชียังไม่ถูกสร้างจนกว่า Admin จะตรวจสอบและอนุมัติ
+              ผู้ดูแลระบบจะสร้างบัญชีให้เมื่ออนุมัติคำขอแล้ว
             </small>
             <button type="button" className="btn primary" onClick={close}>
-              กลับหน้า Login
+              กลับไปเข้าสู่ระบบ
             </button>
           </div>
         ) : (
           <form onSubmit={submit} className="access-request-form">
             <div className="access-request-grid">
               <label>
-                ชื่อ–นามสกุล
+                ชื่อและนามสกุล
                 <input
                   value={form.fullName}
                   onChange={(event) => update("fullName", event.target.value)}
@@ -578,15 +578,15 @@ function RequestAccessDialog({ close }: { close: () => void }) {
                     )
                   }
                 >
-                  <option value="district">District User · ผู้ใช้งานเขต</option>
-                  <option value="planner">Planner · ผู้วางแผน</option>
+                  <option value="district">เจ้าหน้าที่เขต</option>
+                  <option value="planner">ผู้วางแผน</option>
                   <option value="academic">
-                    Academic Approver · นักวิชาการ
+                    เจ้าหน้าที่วิชาการ
                   </option>
                   <option value="picker">
-                    Warehouse Staff · เจ้าหน้าที่คลัง
+                    เจ้าหน้าที่คลัง
                   </option>
-                  <option value="viewer">Viewer · ผู้บริหาร/ผู้ดูข้อมูล</option>
+                  <option value="viewer">ผู้บริหาร / ผู้ดูข้อมูล</option>
                 </select>
               </label>
               <label className="access-request-wide">
@@ -604,7 +604,7 @@ function RequestAccessDialog({ close }: { close: () => void }) {
             <div className="access-request-note">
               <i>i</i>
               <p>
-                บทบาทที่เลือกเป็นเพียงคำขอเท่านั้น สิทธิ์จริงและพื้นที่รับผิดชอบจะถูกกำหนดโดย Admin
+                เลือกบทบาทที่ต้องการขอ ผู้ดูแลระบบจะตรวจและกำหนดสิทธิ์กับพื้นที่รับผิดชอบให้
               </p>
             </div>
             {error && (
@@ -617,7 +617,7 @@ function RequestAccessDialog({ close }: { close: () => void }) {
                 ยกเลิก
               </button>
               <button type="submit" className="btn primary" disabled={busy}>
-                {busy ? "กำลังส่งคำขอ…" : "ส่งคำขอให้ Admin"}
+                {busy ? "กำลังส่งคำขอ…" : "ส่งคำขอ"}
               </button>
             </footer>
           </form>
@@ -685,7 +685,7 @@ function Login({
           </span>
           <div className="login-heading">
             <h2>เข้าสู่ระบบ MEA Synapse</h2>
-            <p>ระบบจะกำหนดสิทธิ์และพื้นที่รับผิดชอบให้คุณโดยอัตโนมัติ</p>
+            <p>เข้าสู่ระบบเพื่อดูงานตามสิทธิ์และพื้นที่ที่รับผิดชอบ</p>
           </div>
           <label>
             ชื่อผู้ใช้หรืออีเมล
@@ -734,7 +734,7 @@ function Login({
             onClick={() => setShowAccessRequest(true)}
           >
             <span>ยังไม่มีบัญชี?</span>
-            <strong>Request Access · ขอสิทธิ์เข้าใช้งาน</strong>
+            <strong>ขอสิทธิ์เข้าใช้งาน</strong>
           </button>
           <div className="login-assurance">
             <span>กำหนดสิทธิ์ตามบทบาท</span>
@@ -778,7 +778,7 @@ function Sidebar({
     { key: "dashboard", label: "ภาพรวม", icon: LayoutDashboard },
     { key: "shipments", label: "งานจ่ายพัสดุ", icon: PackageSearch },
     { key: "transport", label: "รถและเส้นทาง", icon: Truck },
-    { key: "warehouses", label: role === "district" ? "Stock เขต" : "คลังและสต็อก", icon: Warehouse },
+    { key: "warehouses", label: role === "district" ? "สต็อกเขต" : "คลังและสต็อก", icon: Warehouse },
   ] as const;
   const choosePrimary = (key: (typeof primary)[number]["key"]) => {
     if (key === "transport") {
@@ -1405,7 +1405,7 @@ function WeeklyPlanView({
         "District",
         "Material",
         "Material Name",
-        "Final Qty",
+        "จำนวนที่อนุมัติ",
         "FIFO Sequence",
         "Contract",
         "PO",
@@ -1414,7 +1414,7 @@ function WeeklyPlanView({
         "Installment",
         "Handling Unit",
         "Packing",
-        "Pick Qty",
+        "จำนวนหยิบ",
         "Remain After Pick",
         "Status",
       ],
@@ -1518,11 +1518,11 @@ function WeeklyPlanView({
       return;
     }
     if (requester.trim().length < 2) {
-      setResponseError("ไม่พบชื่อผู้ใช้งาน กรุณาออกจากระบบแล้วเข้าสู่ระบบอีกครั้ง");
+      setResponseError("ไม่พบชื่อผู้ใช้ กรุณาเข้าสู่ระบบใหม่");
       return;
     }
     if (decision !== "confirm" && reason.trim().length < 3) {
-      setResponseError("กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษรสำหรับ Change หรือ Reject");
+      setResponseError("กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษรเมื่อขอเปลี่ยนจำนวนหรือปฏิเสธรายการ");
       return;
     }
     setResponseError("");
@@ -1814,9 +1814,9 @@ function WeeklyPlanView({
     <div className="stack">
       <section className="workflow planner-workflow" aria-label="ขั้นตอนแผนการจ่าย">
         {[
-          { step: "1", name: "Build Plan", note: "เลือกพัสดุ · กำหนดจำนวน · ดู AI + FIFO", go: 0 },
-          { step: "2", name: "District Review", note: "สรุปแผน · เขตยืนยันรายรายการ · Planner ตรวจการเปลี่ยน", go: 2 },
-          { step: "3", name: "Approve & Lock", note: "Planner → วิชาการ → Lock FIFO", go: 5 },
+          { step: "1", name: "สร้างแผน", note: "เลือกพัสดุ กำหนดจำนวน แล้วตรวจคำแนะนำและ FIFO", go: 0 },
+          { step: "2", name: "เขตตรวจรายการ", note: "ตรวจสรุปแผน ส่งให้เขตยืนยันรายรายการ แล้วให้ผู้วางแผนตรวจคำขอเปลี่ยน", go: 2 },
+          { step: "3", name: "อนุมัติและล็อกแผน", note: "ผู้วางแผนและวิชาการอนุมัติ แล้วล็อกแผนเพื่อจอง FIFO", go: 5 },
         ].map((phase, index) => (
           <button
             type="button"
@@ -1857,7 +1857,7 @@ function WeeklyPlanView({
           <article key={String(label)}>
             <span>{label}</span>
             <strong>{formatNumber(value)}</strong>
-            <small>ข้อมูลจริงจากระบบ</small>
+            <small>ข้อมูลจากระบบ</small>
           </article>
         ))}
       </section>
@@ -1865,7 +1865,7 @@ function WeeklyPlanView({
       {(workflowStep === 0 || workflowStep === 1) && (
         <>
           <section className="planner-preview-note">
-            <strong>Candidate Source</strong>
+            <strong>รายการที่เข้าเกณฑ์</strong>
             <span>
               รายเขตแสดงเฉพาะพัสดุที่ต้องเติม · รายพัสดุแสดงครบทั้ง 18 เขต
               พร้อมสถานะต้องเติม/ไม่ต้องเติม · กรอก Planner Qty แล้วเลือก
@@ -1981,7 +1981,7 @@ function WeeklyPlanView({
                   </strong>
                   <small>
                     {draftSaveMessage ||
-                      "เลือกรายการและ Qty ของเขตนี้ แล้วกดบันทึกเพื่อไปทำเขตถัดไป"}
+                      "เลือกรายการและระบุจำนวนของเขตนี้ แล้วบันทึกเพื่อทำเขตถัดไป"}
                   </small>
                 </div>
                 <div className="planner-saved-districts">
@@ -2015,7 +2015,7 @@ function WeeklyPlanView({
               </section>
               <div className="panel-title">
                 <div>
-                  <span>PLANNER WORKSPACE</span>
+                  <span>จัดทำแผนการจ่าย</span>
                   <h3>กรอกจำนวน → เลือกเข้าแผน → ยืนยันรายการที่เลือก</h3>
                 </div>
                 <b>
@@ -2054,7 +2054,7 @@ function WeeklyPlanView({
                       }));
                     }}
                   >
-                    เลือกทุกแถวที่มี Qty
+                    เลือกทุกแถวที่ระบุจำนวนแล้ว
                   </button>
                   <button
                     type="button"
@@ -2097,14 +2097,14 @@ function WeeklyPlanView({
                         <th>สถานะการเติม</th>
                         <th>การไฟฟ้าเขต</th>
                         <th>พัสดุ</th>
-                        <th>Stock คลังกลาง</th>
-                        <th>Stock เขต</th>
+                        <th>สต็อกคลังกลาง</th>
+                        <th>สต็อกเขต</th>
                         <th>CMP</th>
                         <th>MIN</th>
                         <th>MAX</th>
                         <th>เหลือ (เดือน)</th>
-                        <th>AI Suggestion</th>
-                        <th>Planner Qty</th>
+                        <th>AI แนะนำ</th>
+                        <th>จำนวนที่ผู้วางแผนกำหนด</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2151,7 +2151,7 @@ function WeeklyPlanView({
                                     ? "เลือกแล้ว"
                                     : quantity > 0
                                       ? "เลือก"
-                                      : "ใส่ Qty ก่อน"}
+                                      : "ระบุจำนวนก่อน"}
                                 </span>
                               </label>
                             </td>
@@ -2232,7 +2232,7 @@ function WeeklyPlanView({
                       ? "เลือกหรือพิมพ์พัสดุเพื่อดูครบทั้ง 18 เขต"
                       : "เขตนี้ยังไม่มีพัสดุที่เข้าเกณฑ์เติม"}
                   </h3>
-                  <p>Planner สามารถสลับวิธีค้นหาได้โดยข้อมูลในแผนไม่หาย</p>
+                  <p>ผู้วางแผนสามารถสลับวิธีค้นหาได้โดยข้อมูลในแผนไม่หาย</p>
                 </article>
               )}
             </article>
@@ -2240,7 +2240,7 @@ function WeeklyPlanView({
             <aside className="panel planner-evidence">
               <div className="panel-title">
                 <div>
-                  <span>AI + FIFO EVIDENCE</span>
+                  <span>คำแนะนำและข้อมูล FIFO</span>
                   <h3>
                     {focusedRow
                       ? `${text(focusedRow.material_id)} · ${text(
@@ -2256,12 +2256,12 @@ function WeeklyPlanView({
               {focusedRow ? (
                 <div className="evidence-body">
                   <div className="suggestion-card">
-                    <span>AI / Rule Suggestion</span>
+                    <span>คำแนะนำจาก AI / เกณฑ์การจ่าย</span>
                     <strong>{formatNumber(focusedRow.suggested_qty, 0)}</strong>
                     <small>
                       {text(
                         focusedRecommendation?.method,
-                        "ยังไม่มีผล AI จากประวัติ — ใช้ Business Rule",
+                        "ยังไม่มีคำแนะนำ AI จากประวัติ ระบบจึงใช้เกณฑ์การจ่าย",
                       )}
                     </small>
                     <Badge>
@@ -2273,11 +2273,11 @@ function WeeklyPlanView({
                   </div>
                   <dl className="evidence-metrics">
                     <div>
-                      <dt>Stock คลังคลองเตย</dt>
+                      <dt>สต็อกคลังคลองเตย</dt>
                       <dd>{formatNumber(warehouseQuantity(focusedRow), 0)}</dd>
                     </div>
                     <div>
-                      <dt>Stock เขต</dt>
+                      <dt>สต็อกเขต</dt>
                       <dd>{formatNumber(focusedRow.current_stock_qty, 0)}</dd>
                     </div>
                     <div>
@@ -2289,15 +2289,15 @@ function WeeklyPlanView({
                       <dd>{formatNumber(focusedRow.months_available, 1)}M</dd>
                     </div>
                     <div>
-                      <dt>MIN Fill · 4M</dt>
+                      <dt>เติมขั้นต่ำ 4 เดือน</dt>
                       <dd>{formatNumber(focusedRow.min_fill_qty, 0)}</dd>
                     </div>
                     <div>
-                      <dt>MAX Fill · 6M</dt>
+                      <dt>เติมสูงสุด 6 เดือน</dt>
                       <dd>{formatNumber(focusedRow.max_fill_qty, 0)}</dd>
                     </div>
                     <div>
-                      <dt>Planner Qty</dt>
+                      <dt>จำนวนที่ผู้วางแผนกำหนด</dt>
                       <dd>{formatNumber(plannerQuantity(focusedRow), 0)}</dd>
                     </div>
                   </dl>
@@ -2306,7 +2306,7 @@ function WeeklyPlanView({
                     <p>
                       CMP: {text(focusedEvidence.cmp_formula, "รอหลักฐาน")} ·
                       Trigger ≤ {text(focusedEvidence.trigger_months, "3.5")}M ·
-                      Target {text(focusedEvidence.min_months, "4")}–{text(
+                      กรอบ {text(focusedEvidence.min_months, "4")} ถึง {text(
                         focusedEvidence.max_months,
                         "6",
                       )}M
@@ -2315,10 +2315,9 @@ function WeeklyPlanView({
                   <div className="fifo-preview">
                     <header>
                       <div>
-                        <span>FIFO + PACKING PICK PLAN</span>
+                        <span>แผนหยิบ FIFO และรูปแบบบรรจุ</span>
                         <strong>
-                          สัญญาทั้งหมดเรียงเก่า → ใหม่ พร้อม Full Pallet / Box /
-                          Crate / หน่วยย่อย
+                          เรียงสัญญาจากเก่าไปใหม่ พร้อมจำนวนหยิบเป็นพาเลทเต็ม กล่อง ลัง และหน่วยย่อย
                         </strong>
                       </div>
                       <b>
@@ -2354,7 +2353,7 @@ function WeeklyPlanView({
                               <b className="pick-mark">
                                 {plannedPick > 0
                                   ? `✓ ${packingText(row, plannedPick)}`
-                                  : "— ไม่หยิบ"}
+                                  : "ไม่หยิบ"}
                               </b>
                               <small>
                                 พร้อมหยิบ {packingText(
@@ -2370,8 +2369,7 @@ function WeeklyPlanView({
                               {plannedPick > 0 &&
                                 plannedPick < Number(row.allocatable_qty ?? 0) && (
                                   <small className="packing-opened">
-                                    เปิด {packagingLabel(row)} แล้ว ต้องเก็บ Remain
-                                    ใน HU เดิม
+                                    เปิด {packagingLabel(row)} แล้ว ให้บันทึกยอดคงเหลือในหน่วยจัดเก็บเดิม
                                   </small>
                                 )}
                             </div>
@@ -2390,12 +2388,10 @@ function WeeklyPlanView({
                         ไฟล์รวมสัญญา: Material, PO/สัญญา, งวดส่งมอบ และวันผ่านตรวจรับ
                       </li>
                       <li>
-                        ข้อมูลรับเข้าคลัง/HU: Receipt Lot, Pallet/Box ID, ประเภทบรรจุ,
-                        จำนวนต่อหน่วย และยอดพร้อมหยิบ
+                        ข้อมูลรับเข้าคลัง: ล็อต รหัสพาเลทหรือกล่อง ประเภทบรรจุ จำนวนต่อหน่วย และยอดพร้อมหยิบ
                       </li>
                       <li>
-                        เมื่อผูกสองส่วนนี้แล้ว ระบบจึงเรียงวันผ่านตรวจรับเก่า → ใหม่
-                        และคำนวณ Remain ได้
+                        เมื่อเชื่อมข้อมูลครบ ระบบจะเรียงตามวันผ่านตรวจรับจากเก่าไปใหม่และคำนวณยอดคงเหลือ
                       </li>
                     </ul>
                   </div>
@@ -2410,7 +2406,7 @@ function WeeklyPlanView({
               ) : (
                 <div className="evidence-empty">
                   <strong>ยังไม่ได้เลือกรายการ</strong>
-                  <p>กด “ดู AI + FIFO” จากรายการทางซ้าย</p>
+                  <p>เลือกดูคำแนะนำและ FIFO จากรายการทางซ้าย</p>
                 </div>
               )}
             </aside>
@@ -2419,7 +2415,7 @@ function WeeklyPlanView({
             <div>
               <strong>{formatNumber(selectedRows.length)} รายการที่เลือก</strong>
               <small>
-                ตรวจ Planner Qty และ Packing/FIFO ก่อนยืนยันเป็น Draft Plan
+                ตรวจจำนวนจ่าย รูปแบบบรรจุ และ FIFO ก่อนยืนยันแผนร่าง
               </small>
             </div>
             <button
@@ -2438,8 +2434,8 @@ function WeeklyPlanView({
         <section className="panel">
           <div className="panel-title">
             <div>
-              <span>DRAFT PLAN CONFIRMATION</span>
-              <h3>สรุป Draft Plan แยกตามเขต — ตรวจทานทั้งหมดก่อนส่งให้เขต</h3>
+              <span>ตรวจแผนร่าง</span>
+              <h3>ตรวจสรุปแผนร่างของแต่ละเขตก่อนส่งให้เขตยืนยัน</h3>
             </div>
             <b>{formatNumber(districtSummary.length)} เขต</b>
           </div>
@@ -2509,12 +2505,12 @@ function WeeklyPlanView({
                     </span>
                   ),
                 ],
-                ["Stock คลังกลาง", (row) => formatNumber(warehouseQuantity(row), 0)],
-                ["Stock เขต", (row) => formatNumber(row.current_stock_qty, 0)],
+                ["สต็อกคลังกลาง", (row) => formatNumber(warehouseQuantity(row), 0)],
+                ["สต็อกเขต", (row) => formatNumber(row.current_stock_qty, 0)],
                 ["MIN", (row) => formatNumber(row.min_fill_qty, 0)],
                 ["MAX", (row) => formatNumber(row.max_fill_qty, 0)],
                 ["✦ AI Suggestion", (row) => formatNumber(row.suggested_qty, 0)],
-                ["Planner Qty", (row) => formatNumber(plannerQuantity(row), 0)],
+                ["จำนวนที่ผู้วางแผนกำหนด", (row) => formatNumber(plannerQuantity(row), 0)],
                 [
                   "สถานะ",
                   (row) => (
@@ -2555,7 +2551,7 @@ function WeeklyPlanView({
               className="btn ghost"
               onClick={() => setWorkflowStep(0)}
             >
-              ← กลับไปแก้รายการ
+              กลับไปแก้รายการ
             </button>
             <button
               type="button"
@@ -2563,7 +2559,7 @@ function WeeklyPlanView({
               disabled={!selectedRows.length}
               onClick={() => setWorkflowStep(3)}
             >
-              ยืนยัน Draft Plan และส่งให้เขตตรวจทีละรายการ →
+              ยืนยันแผนร่างและส่งให้เขตตรวจรายรายการ
             </button>
           </div>
         </section>
@@ -2574,7 +2570,7 @@ function WeeklyPlanView({
           <header className="district-inbox-hero">
             <div className="district-inbox-icon" aria-hidden="true">!</div>
             <div>
-              <span>DISTRICT INBOX · งานเข้าจากคลังกลาง</span>
+              <span>แผนที่คลังกลางส่งให้เขต</span>
               <h2 id="district-inbox-title">
                 {districtPendingTotal > 0
                   ? `มี ${formatNumber(districtPendingTotal)} รายการใหม่รอการยืนยัน`
@@ -2665,7 +2661,7 @@ function WeeklyPlanView({
                       empty="ชุดนี้ไม่มีรายการค้างยืนยัน"
                       columns={[
                         ["พัสดุ", (row) => <span><strong>{text(row.material_id)}</strong><small>{text(row.material_name)}</small></span>],
-                        ["Planner Qty", (row) => formatNumber(plannerQuantity(row), 0)],
+                        ["จำนวนที่ผู้วางแผนกำหนด", (row) => formatNumber(plannerQuantity(row), 0)],
                         ["หลังจ่าย", (row) => `${formatNumber(row.projected_months_after, 1)}M`],
                         ["สถานะ", (row) => <Badge>{districtStatusLabel(row)}</Badge>],
                         ["ดำเนินการ", (row) => (
@@ -2675,7 +2671,7 @@ function WeeklyPlanView({
                             disabled={!canRespond || actionBusy}
                             onClick={() => openResponse(row)}
                           >
-                            Confirm / Change / Defer / Reject
+                            ยืนยัน / ขอเปลี่ยน / เลื่อนรับ / ไม่รับ
                           </button>
                         )],
                       ]}
@@ -2690,7 +2686,7 @@ function WeeklyPlanView({
                             row.district_confirmed_at ?? row.updated_at,
                         )],
                         ["พัสดุ", (row) => <span><strong>{text(row.material_id)}</strong><small>{text(row.material_name)}</small></span>],
-                        ["Planner Qty", (row) => formatNumber(plannerQuantity(row), 0)],
+                        ["จำนวนที่ผู้วางแผนกำหนด", (row) => formatNumber(plannerQuantity(row), 0)],
                         ["เขตตอบ", (row) => districtResponseQuantity(row)],
                         ["ผลตอบ", (row) => <Badge>{districtStatusLabel(row)}</Badge>],
                         ["ผู้ยืนยัน / เหตุผล", (row) => <span><strong>{text(row.requester_name)}</strong><small>{districtResponseReason(row)}</small></span>],
@@ -2710,7 +2706,7 @@ function WeeklyPlanView({
         <section className="panel">
           <div className="panel-title">
             <div>
-              <span>DISTRICT LINE CONFIRMATION</span>
+              <span>ยืนยันรายการของเขต</span>
               <h3>เขตยืนยันเป็นรายรายการ ไม่ยืนยันรวมทั้งแผน</h3>
             </div>
             <b>{formatNumber(selectedRows.length)} รายการ</b>
@@ -2729,7 +2725,7 @@ function WeeklyPlanView({
                   </span>
                 ),
               ],
-              ["Planner Qty", (row) => formatNumber(plannerQuantity(row), 0)],
+              ["จำนวนที่ผู้วางแผนกำหนด", (row) => formatNumber(plannerQuantity(row), 0)],
               ["เขตขอ", (row) => formatNumber(row.requested_qty, 0)],
               ["หลังจ่าย", (row) => `${formatNumber(row.projected_months_after, 1)}M`],
               ["ผลตอบ", (row) => <Badge>{text(row.item_status)}</Badge>],
@@ -2748,7 +2744,7 @@ function WeeklyPlanView({
                     }
                     onClick={() => openResponse(row)}
                   >
-                    Confirm / Change / Reject
+                    ยืนยัน / ขอเปลี่ยน / ไม่รับ
                   </button>
                 ),
               ],
@@ -2771,11 +2767,10 @@ function WeeklyPlanView({
           <section className="academic-review" aria-labelledby="academic-review-title">
             <header className="academic-review-hero">
               <div>
-                <span>ACADEMIC REVIEW · FINAL CONTROL</span>
+                <span>ตรวจและอนุมัติวิชาการ</span>
                 <h2 id="academic-review-title">ตรวจหลักฐานก่อนอนุมัติและล็อกแผน</h2>
                 <p>
-                  ตรวจจำนวนที่เขตยืนยัน คำขอเปลี่ยน หลักฐาน AI และลำดับ FIFO
-                  ก่อนส่งแผนที่ล็อกแล้วให้คลังจัดทำ Picking Document
+                  ตรวจจำนวนที่เขตยืนยัน คำขอเปลี่ยน คำแนะนำ AI และลำดับ FIFO ก่อนล็อกแผนให้คลังจัดทำใบหยิบพัสดุ
                 </p>
               </div>
               <div className="academic-review-state">
@@ -2806,7 +2801,7 @@ function WeeklyPlanView({
                   <section className="academic-review-main">
                     <div className="academic-section-title">
                       <div>
-                        <span>PLAN ITEM DETAILS</span>
+                        <span>รายการในแผน</span>
                         <h3>รายการ จำนวน และหลักฐานประกอบ</h3>
                       </div>
                       <b>{academicPlanRows.length} รายการ</b>
@@ -2817,8 +2812,8 @@ function WeeklyPlanView({
                           <tr>
                             <th>เขต / พัสดุ</th>
                             <th>จำนวน</th>
-                            <th>AI / Rule evidence</th>
-                            <th>FIFO evidence</th>
+                            <th>ที่มาของคำแนะนำ AI / เกณฑ์การจ่าย</th>
+                            <th>ข้อมูล FIFO</th>
                             <th>ผลตอบเขต</th>
                           </tr>
                         </thead>
@@ -2839,7 +2834,7 @@ function WeeklyPlanView({
                                   <small>AI {formatNumber(recommendation?.ai_suggested_qty ?? row.suggested_qty, 0)} · Min {formatNumber(row.min_fill_qty, 0)} · Max {formatNumber(row.max_fill_qty, 0)}</small>
                                 </td>
                                 <td>
-                                  <strong>Confidence {formatNumber(Number(recommendation?.confidence_score ?? 0) * 100, 0)}%</strong>
+                                  <strong>ความมั่นใจ {formatNumber(Number(recommendation?.confidence_score ?? 0) * 100, 0)}%</strong>
                                   <small>CMP {formatNumber(row.cmp_monthly, 1)} / เดือน · คงเหลือ {formatNumber(row.months_available, 1)} เดือน</small>
                                 </td>
                                 <td className={fifo.shortage > 0 ? "evidence-short" : "evidence-ready"}>
@@ -2858,7 +2853,7 @@ function WeeklyPlanView({
                   <aside className="academic-change-panel">
                     <div className="academic-section-title">
                       <div>
-                        <span>CHANGE REQUESTS</span>
+                        <span>คำขอเปลี่ยนจำนวน</span>
                         <h3>คำขอเปลี่ยนและความเสี่ยง</h3>
                       </div>
                     </div>
@@ -2873,7 +2868,7 @@ function WeeklyPlanView({
                           <dl>
                             <div><dt>เดิม</dt><dd>{formatNumber(request.original_qty, 0)}</dd></div>
                             <div><dt>ขอ</dt><dd>{formatNumber(request.requested_qty, 0)}</dd></div>
-                            <div><dt>Risk</dt><dd>{text(request.risk_level)}</dd></div>
+                            <div><dt>ความเสี่ยง</dt><dd>{text(request.risk_level)}</dd></div>
                           </dl>
                         </article>
                       ))
@@ -2887,26 +2882,26 @@ function WeeklyPlanView({
                   <div>
                     <strong>
                       {academicStatus === "locked"
-                        ? "แผนล็อกแล้ว — Picking Document พร้อมใช้งาน"
+                        ? "แผนล็อกแล้ว เปิดใบหยิบพัสดุได้"
                         : canAcademicDecide
                           ? "พร้อมให้วิชาการตัดสินใจ"
                           : "รอขั้นตอนก่อนหน้าให้เสร็จสมบูรณ์"}
                     </strong>
-                    <small>การ Lock จะตรึงจำนวนและเปิดเอกสารหยิบตาม FIFO</small>
+                    <small>เมื่อล็อกแผนแล้ว จำนวนจ่ายจะเปลี่ยนไม่ได้ และคลังจะเปิดใบหยิบตาม FIFO ได้</small>
                   </div>
                   {canAcademicDecide && (
                     <>
                       <button type="button" className="btn ghost academic-return" onClick={() => setPlanAction({ type: "return", row: academicPlan })}>
-                        Return to Planner
+                        ส่งกลับให้ผู้วางแผนแก้ไข
                       </button>
                       <button type="button" className="btn primary academic-lock" onClick={() => setPlanAction({ type: "approve", row: academicPlan })}>
-                        Approve &amp; Lock Plan
+                        อนุมัติและล็อกแผน
                       </button>
                     </>
                   )}
                   {academicStatus === "locked" && (
                     <button type="button" className="btn primary" onClick={() => setPickingDocument({ plan: academicPlan, generatedAt: new Date().toISOString() })}>
-                      Preview / Export Picking Document
+                      ดูและดาวน์โหลดใบหยิบพัสดุ
                     </button>
                   )}
                 </footer>
@@ -2919,7 +2914,7 @@ function WeeklyPlanView({
           <section className="panel">
             <div className="panel-title">
               <div>
-                <span>PLAN QUEUE</span>
+                <span>แผนที่รอดำเนินการ</span>
                 <h3>สถานะแผนและการดำเนินการตามบทบาท</h3>
               </div>
             </div>
@@ -2931,7 +2926,7 @@ function WeeklyPlanView({
                 ["สัปดาห์", (row) => row.week_start_date],
                 ["สถานะ", (row) => <Badge>{text(row.plan_status)}</Badge>],
                 ["Planner", (row) => formatDateTime(row.planner_approved_at)],
-                ["วิชาการ / Lock", (row) => formatDateTime(row.locked_at)],
+                ["วิชาการ / ล็อกแผน", (row) => formatDateTime(row.locked_at)],
                 [
                   "การดำเนินการ",
                   (row) => {
@@ -2956,7 +2951,7 @@ function WeeklyPlanView({
                                 })
                               }
                             >
-                              Preview / Export Picking
+                              ดูและดาวน์โหลดใบหยิบพัสดุ
                             </button>
                           )}
                         {canApprove && (
@@ -2965,8 +2960,8 @@ function WeeklyPlanView({
                             onClick={() => setPlanAction({ type: "approve", row })}
                           >
                             {status === "pending_academic_approval"
-                              ? "วิชาการอนุมัติและ Lock"
-                              : "Planner อนุมัติ"}
+                              ? "วิชาการอนุมัติและล็อกแผน"
+                              : "ผู้วางแผนอนุมัติ"}
                           </button>
                         )}
                         {canIssue && (
@@ -3012,7 +3007,7 @@ function WeeklyPlanView({
           <section className="panel">
             <div className="panel-title">
               <div>
-                <span>AUDIT TRAIL</span>
+                <span>ประวัติการดำเนินการ</span>
                 <h3>ประวัติการยืนยันและอนุมัติ</h3>
               </div>
             </div>
@@ -3042,7 +3037,7 @@ function WeeklyPlanView({
           <section className="picking-document-sheet">
             <div className="picking-document-actions no-print">
               <div>
-                <strong>Picking Document Preview</strong>
+                <strong>ตัวอย่างใบหยิบพัสดุ</strong>
                 <small>
                   ตรวจสอบ FIFO และจำนวนก่อนพิมพ์ส่งให้หน้างาน
                 </small>
@@ -3077,11 +3072,11 @@ function WeeklyPlanView({
                 <b>MEA</b>
                 <span>
                   <strong>MEA Synapse</strong>
-                  <small>Warehouse Operations · Khlong Toei</small>
+                  <small>งานคลังคลองเตย</small>
                 </span>
               </div>
               <div>
-                <span>PICKING DOCUMENT</span>
+                <span>ใบหยิบพัสดุ</span>
                 <h2 id="picking-document-title">
                   ใบจัดเตรียมและหยิบพัสดุ
                 </h2>
@@ -3091,7 +3086,7 @@ function WeeklyPlanView({
 
             <section className="picking-document-meta">
               <div>
-                <span>Weekly Plan</span>
+                <span>แผนรายสัปดาห์</span>
                 <strong>
                   {text(
                     pickingDocument.plan.plan_number,
@@ -3100,7 +3095,7 @@ function WeeklyPlanView({
                 </strong>
               </div>
               <div>
-                <span>Version / Status</span>
+                <span>เวอร์ชัน / สถานะ</span>
                 <strong>
                   V
                   {text(
@@ -3110,24 +3105,24 @@ function WeeklyPlanView({
                 </strong>
               </div>
               <div>
-                <span>Warehouse</span>
+                <span>คลัง</span>
                 <strong>คลังคลองเตย · Plant 2401 / SLoc 0001</strong>
               </div>
               <div>
-                <span>Generated</span>
+                <span>จัดทำเมื่อ</span>
                 <strong>{formatDateTime(pickingDocument.generatedAt)}</strong>
               </div>
             </section>
 
             {text(pickingDocument.plan.plan_status) !== "locked" && (
               <aside className="picking-document-draft">
-                DRAFT PREVIEW · ยังไม่ใช่คำสั่งหยิบ จนกว่าแผนจะอนุมัติครบและ Lock
+                เอกสารร่าง ใช้เป็นคำสั่งหยิบได้เมื่อแผนผ่านการอนุมัติครบและล็อกแล้ว
               </aside>
             )}
 
             <section className="picking-document-summary">
               <article>
-                <span>Districts</span>
+                <span>เขต</span>
                 <strong>
                   {
                     new Set(
@@ -3137,7 +3132,7 @@ function WeeklyPlanView({
                 </strong>
               </article>
               <article>
-                <span>Materials</span>
+                <span>พัสดุ</span>
                 <strong>
                   {
                     new Set(
@@ -3147,11 +3142,11 @@ function WeeklyPlanView({
                 </strong>
               </article>
               <article>
-                <span>Plan Lines</span>
+                <span>รายการในแผน</span>
                 <strong>{pickingPlanRows.length}</strong>
               </article>
               <article>
-                <span>Total Qty</span>
+                <span>จำนวนรวม</span>
                 <strong>
                   {formatNumber(
                     pickingPlanRows.reduce(
@@ -3169,12 +3164,12 @@ function WeeklyPlanView({
                 <thead>
                   <tr>
                     <th>เขต / พัสดุ</th>
-                    <th>Final Qty</th>
-                    <th>ลำดับ FIFO / Contract</th>
-                    <th>PO · Vendor · Lot</th>
-                    <th>Pallet / Box / HU</th>
-                    <th>Pick Qty</th>
-                    <th>Remain</th>
+                    <th>จำนวนที่อนุมัติ</th>
+                    <th>ลำดับ FIFO / สัญญา</th>
+                    <th>PO / ผู้ขาย / ล็อต</th>
+                    <th>พาเลท / กล่อง / หน่วยจัดเก็บ</th>
+                    <th>จำนวนหยิบ</th>
+                    <th>คงเหลือ</th>
                     <th>ตรวจหยิบ</th>
                   </tr>
                 </thead>
@@ -3268,14 +3263,13 @@ function WeeklyPlanView({
             </div>
 
             <footer className="picking-document-footer">
-              <div><span>ผู้จัดทำ Picking List</span><i /></div>
+              <div><span>ผู้จัดทำใบหยิบพัสดุ</span><i /></div>
               <div><span>ผู้หยิบพัสดุ</span><i /></div>
               <div><span>ผู้ตรวจสอบ</span><i /></div>
               <div><span>วันเวลาเสร็จสิ้น</span><i /></div>
             </footer>
             <p className="picking-document-note">
-              ใช้ Pallet/Box/HU เก่าให้หมดก่อนตาม FIFO และบันทึก Remain ของหน่วยที่เปิด
-              หากจำนวนหรือสภาพพัสดุไม่ตรง ให้หยุดงานและแจ้ง Planner ก่อนดำเนินการต่อ
+              หยิบจากพาเลท กล่อง หรือหน่วยจัดเก็บเก่าก่อนตาม FIFO แล้วบันทึกยอดคงเหลือของหน่วยที่เปิด หากจำนวนหรือสภาพพัสดุไม่ตรง ให้หยุดงานและแจ้งผู้วางแผน
             </p>
           </section>
         </div>
@@ -3333,10 +3327,10 @@ function WeeklyPlanView({
                   setResponseError("");
                 }}
               >
-                <option value="confirm">Confirm</option>
-                <option value="change">Change quantity</option>
-                <option value="defer">Defer · เลื่อนรับ / ฝากไว้ก่อน</option>
-                <option value="reject">Reject</option>
+                <option value="confirm">ยืนยันตามแผน</option>
+                <option value="change">ขอเปลี่ยนจำนวน</option>
+                <option value="defer">เลื่อนรับ / ฝากไว้ก่อน</option>
+                <option value="reject">ไม่รับรายการ</option>
               </select>
             </label>
             <label>
@@ -3406,7 +3400,7 @@ function WeeklyPlanView({
               ยกเลิก
             </button>
             <button className="btn primary" disabled={actionBusy}>
-              {actionBusy ? "กำลังบันทึก..." : "บันทึกการตอบกลับของเขต"}
+              {actionBusy ? "กำลังบันทึก…" : "บันทึกการตอบกลับของเขต"}
             </button>
           </div>
         </form>
@@ -3449,9 +3443,9 @@ function WeeklyPlanView({
               }
               placeholder={
                 planAction.type === "approve"
-                  ? "สรุปผลการตรวจ AI, FIFO และคำขอเปลี่ยนก่อน Lock"
+                  ? "สรุปผลการตรวจคำแนะนำ AI, FIFO และคำขอเปลี่ยนก่อนล็อกแผน"
                   : planAction.type === "return"
-                    ? "ระบุสิ่งที่ Planner ต้องแก้ไข (จำเป็น)"
+                    ? "ระบุสิ่งที่ผู้วางแผนต้องแก้ไข"
                   : "จำเป็นสำหรับการยกเลิก/ออกเวอร์ชันใหม่"
               }
             />
@@ -3459,9 +3453,9 @@ function WeeklyPlanView({
           <div className="pipeline-actions">
             <button className="btn primary" disabled={actionBusy}>
               {planAction.type === "approve"
-                ? "ยืนยัน Approve & Lock Plan"
+                ? "ยืนยันการอนุมัติและล็อกแผน"
                 : planAction.type === "return"
-                  ? "ยืนยัน Return to Planner"
+                  ? "ยืนยันการส่งกลับให้ผู้วางแผนแก้ไข"
                   : `ยืนยัน ${planAction.type}`}
             </button>
           </div>
@@ -3567,7 +3561,7 @@ function DistrictConfirmationView({
       pending: "รอเขตยืนยัน",
       confirmed: "ยืนยันตามแผน",
       changed: pendingChangeItemIds.has(text(row.replenishment_item_id, ""))
-        ? "เปลี่ยนจำนวน · รอ Planner"
+        ? "เปลี่ยนจำนวน · รอผู้วางแผน"
         : "เปลี่ยนจำนวนแล้ว",
       deferred: "เลื่อนรับ / ฝากไว้ก่อน",
       rejected: "ไม่รับรายการ",
@@ -3759,9 +3753,9 @@ function DistrictConfirmationView({
     draft: "กำลังจัดทำแผน",
     pending_district_confirmation: "รอเขตยืนยัน",
     district_review: "รอเขตยืนยัน",
-    pending_planner_approval: "พร้อมให้ Planner ยืนยัน",
-    pending_academic_approval: "รอวิชาการอนุมัติและ Lock",
-    locked: "Lock แล้ว · พร้อมจัดรถ",
+    pending_planner_approval: "พร้อมให้ ผู้วางแผนยืนยัน",
+    pending_academic_approval: "รอวิชาการอนุมัติและล็อกแผน",
+    locked: "ล็อกแผนแล้ว พร้อมจัดรถ",
     completed: "จ่ายตามแผนแล้ว",
     cancelled: "ยกเลิกแล้ว",
   };
@@ -3770,7 +3764,7 @@ function DistrictConfirmationView({
     event.preventDefault();
     if (!activePlan || !canSubmitApproval) return;
     if (canAcademicLock && approvalNote.trim().length < 3) {
-      setLocalError("กรุณาระบุหมายเหตุการตรวจสอบก่อนอนุมัติและ Lock แผน");
+      setLocalError("กรุณาระบุผลการตรวจสอบก่อนอนุมัติและล็อกแผน");
       return;
     }
     setLocalError("");
@@ -3819,7 +3813,7 @@ function DistrictConfirmationView({
     <div className="stack district-confirmation-view">
       <section className="panel district-confirmation-toolbar">
         <div>
-          <span>DISTRICT CONFIRMATION CONTROL</span>
+          <span>ติดตามการยืนยันของเขต</span>
           <h3>ตรวจผลตอบทุกเขตจากแผนที่ Planner ส่ง</h3>
           <p>แยกตามเลขแผนและเวอร์ชัน เพื่อไม่ปะปนข้อมูลคนละรอบ</p>
         </div>
@@ -3906,7 +3900,7 @@ function DistrictConfirmationView({
                 </p>
                 <small>
                   เลื่อน {formatNumber(district.deferred)} · ไม่รับ {formatNumber(district.rejected)}
-                  {district.pendingChanges ? ` · รอ Planner ${district.pendingChanges}` : ""}
+                  {district.pendingChanges ? ` · รอผู้วางแผน ${district.pendingChanges}` : ""}
                 </small>
               </button>
             );
@@ -3932,7 +3926,7 @@ function DistrictConfirmationView({
             empty="ไม่มีรายการในเขตนี้"
             columns={[
               ["พัสดุ", (row) => <span><strong>{text(row.material_id)}</strong><small>{text(row.material_name)}</small></span>],
-              ["Planner Qty", (row) => formatNumber(row.suggested_qty, 0)],
+              ["จำนวนที่ผู้วางแผนกำหนด", (row) => formatNumber(row.suggested_qty, 0)],
               ["เขตตอบ", (row) => responseQuantity(row)],
               ["ผลตอบ", (row) => <Badge>{responseLabel(row)}</Badge>],
               ["ผู้ยืนยัน", (row) => <span><strong>{text(row.requester_name)}</strong><small>{formatDateTime(row.district_confirmed_at ?? row.updated_at)}</small></span>],
@@ -3944,20 +3938,20 @@ function DistrictConfirmationView({
 
       <form className="panel district-plan-gate" onSubmit={submitApproval}>
         <div>
-          <span>PLAN CONFIRMATION GATE</span>
+          <span>ตรวจแผนก่อนยืนยัน</span>
           <h3>
             {planStatus === "locked"
-              ? "แผน Lock แล้ว พร้อมนำไปจัดรถ"
+              ? "แผนล็อกแล้ว พร้อมจัดรถ"
               : canAcademicLock
-                ? "วิชาการตรวจและ Lock แผน"
-                : "Planner ยืนยันผลตอบจากทุกเขต"}
+                ? "วิชาการตรวจและล็อกแผน"
+                : "ผู้วางแผนยืนยันผลตอบจากทุกเขต"}
           </h3>
           <ul>
             <li className={allDistrictsReady ? "passed" : "blocked"}>
               {allDistrictsReady ? "✓" : "!"} เขตตอบครบ: {formatNumber(responded)}/{formatNumber(totals.total)} รายการ
             </li>
             <li className={allChangesReviewed ? "passed" : "blocked"}>
-              {allChangesReviewed ? "✓" : "!"} คำขอเปลี่ยนที่ยังรอ Planner: {formatNumber(totals.pendingChanges)} รายการ
+              {allChangesReviewed ? "✓" : "!"} คำขอเปลี่ยนที่ยังรอผู้วางแผน: {formatNumber(totals.pendingChanges)} รายการ
             </li>
             {(canAcademicLock || planStatus === "locked") && (
               <li className={allFifoReady || planStatus === "locked" ? "passed" : "blocked"}>
@@ -3972,11 +3966,10 @@ function DistrictConfirmationView({
           {canAcademicLock && !allFifoReady && (
             <details className="fifo-lock-blocker" open>
               <summary>
-                ยัง Lock ไม่ได้ — เปิดดูพัสดุที่ FIFO พร้อมหยิบไม่เพียงพอ
+                ยังล็อกแผนไม่ได้ กรุณาตรวจพัสดุที่มียอด FIFO พร้อมหยิบไม่พอ
               </summary>
               <p>
-                ต้องให้ Planner ลดจำนวนหรือเติม Opening HU/Stock ให้เพียงพอก่อน
-                ระบบจึงจะจอง FIFO และส่งแผนไปจัดรถได้
+                ผู้วางแผนต้องลดจำนวนจ่าย หรือเพิ่มข้อมูลหน่วยจัดเก็บตั้งต้นและสต็อกให้พอก่อน จึงจะจอง FIFO และนำแผนไปจัดรถได้
               </p>
               <div>
                 {fifoReadiness.shortages.slice(0, 8).map((item) => (
@@ -3994,7 +3987,7 @@ function DistrictConfirmationView({
               {fifoReadiness.shortages.length > 8 && (
                 <small>
                   และอีก {formatNumber(fifoReadiness.shortages.length - 8)} พัสดุ
-                  — ดูทั้งหมดที่เมนู “FIFO &amp; พาเลท”
+                  ดูทั้งหมดได้ที่เมนู FIFO และพาเลท
                 </small>
               )}
             </details>
@@ -4002,7 +3995,7 @@ function DistrictConfirmationView({
         </div>
         {planStatus === "locked" ? (
           <button type="button" className="btn primary" onClick={onOpenTransport}>
-            ไปหน้าจัดรถ →
+            ไปหน้าจัดรถ
           </button>
         ) : (
           <div className="district-plan-approval">
@@ -4019,11 +4012,11 @@ function DistrictConfirmationView({
             {localError && <p className="form-error" role="alert">{localError}</p>}
             <button className="btn primary" disabled={!canSubmitApproval || actionBusy}>
               {actionBusy
-                ? "กำลังบันทึก..."
+                ? "กำลังบันทึก…"
                 : canAcademicLock
-                  ? "อนุมัติและ Lock → พร้อมจัดรถ"
+                  ? "อนุมัติและล็อกแผนเพื่อจัดรถ"
                   : canPlannerApprove
-                    ? "ยืนยันแผน → ส่งให้วิชาการ"
+                    ? "ยืนยันแผนและส่งให้วิชาการ"
                     : canAcademicLock && !allFifoReady
                       ? `FIFO ขาด ${formatNumber(fifoReadiness.shortageQty, 0)} EA`
                     : totals.pending > 0
@@ -4136,14 +4129,14 @@ function RecommendationView({ data }: { data: DashboardData }) {
         <article><span>หลักฐานทั้งหมด</span><strong>{formatNumber(enrichedRows.length)}</strong><small>รายการคำนวณ</small></article>
         <article><span>พัสดุ</span><strong>{formatNumber(distinctMaterials)}</strong><small>รหัสพัสดุ</small></article>
         <article><span>เขต</span><strong>{formatNumber(districts.length)}</strong><small>เขตที่มีแผน</small></article>
-        <article className={criticalCount ? "danger" : ""}><span>ต้องตรวจเร่งด่วน</span><strong>{formatNumber(criticalCount)}</strong><small>หลักฐาน Critical</small></article>
+        <article className={criticalCount ? "danger" : ""}><span>ต้องตรวจเร่งด่วน</span><strong>{formatNumber(criticalCount)}</strong><small>รายการเสี่ยงสูง</small></article>
       </section>
       <section className="panel">
         <header className="explorer-heading">
           <div>
-            <span>QUANTITY EVIDENCE EXPLORER</span>
+            <span>ที่มาของจำนวนแนะนำ</span>
             <h3>ค้นหาหลักฐานตามเขตหรือพัสดุ</h3>
-            <p>แสดงที่มาของจำนวนแนะนำจากสต็อก, CMP และกรอบขั้นต่ำ–สูงสุด</p>
+            <p>แสดงที่มาของจำนวนแนะนำจากสต็อก, CMP และกรอบขั้นต่ำถึงสูงสุด</p>
           </div>
           <b aria-live="polite">พบ {formatNumber(filteredRows.length)} จาก {formatNumber(enrichedRows.length)} รายการ</b>
         </header>
@@ -4193,7 +4186,7 @@ function RecommendationView({ data }: { data: DashboardData }) {
               <button type="button" onClick={() => setSelected(null)} aria-label="ปิดรายละเอียด">×</button>
             </header>
             <div className="explorer-dialog-body">
-              <aside className="evidence-equation"><span>เหตุผลของจำนวนแนะนำ</span><strong>{formatNumber(selected.recommended_qty ?? selected.rule_suggested_qty ?? selected.suggested_qty, 2)} EA</strong><p>คำนวณจากสต็อกปัจจุบัน {formatNumber(selected.current_stock_qty, 2)} และ CMP {formatNumber(selected.cmp_monthly, 2)} ต่อเดือน เพื่อเติมให้อยู่ในกรอบ 4–6 เดือน (Min {formatNumber(selected.min_fill_qty, 2)} ถึง Max {formatNumber(selected.max_fill_qty, 2)})</p></aside>
+              <aside className="evidence-equation"><span>เหตุผลของจำนวนแนะนำ</span><strong>{formatNumber(selected.recommended_qty ?? selected.rule_suggested_qty ?? selected.suggested_qty, 2)} EA</strong><p>คำนวณจากสต็อกปัจจุบัน {formatNumber(selected.current_stock_qty, 2)} และ CMP {formatNumber(selected.cmp_monthly, 2)} ต่อเดือน เพื่อเติมให้อยู่ในกรอบ 4 ถึง 6 เดือน (Min {formatNumber(selected.min_fill_qty, 2)} ถึง Max {formatNumber(selected.max_fill_qty, 2)})</p></aside>
               <dl className="explorer-detail-grid">
                 <div><dt>แผน</dt><dd>{text(selected.plan_number, text(selected.plan_code))}</dd></div>
                 <div><dt>CMP ต่อเดือน</dt><dd>{formatNumber(selected.cmp_monthly, 2)}</dd></div>
@@ -4202,7 +4195,7 @@ function RecommendationView({ data }: { data: DashboardData }) {
                 <div><dt>กฎแนะนำ</dt><dd>{formatNumber(selected.rule_suggested_qty ?? selected.recommended_qty ?? selected.suggested_qty, 2)} EA</dd></div>
                 <div><dt>AI แนะนำ</dt><dd>{formatNumber(selected.ai_suggested_qty ?? selected.recommended_qty ?? selected.suggested_qty, 2)} EA</dd></div>
                 <div><dt>ความมั่นใจ</dt><dd>{formatNumber(Number(selected.confidence_score ?? 0) * 100, 0)}%</dd></div>
-                <div><dt>ความสดข้อมูล</dt><dd><Badge>{text(selected.source_freshness_status, text(selected.evidence_status, "unknown"))}</Badge></dd></div>
+                <div><dt>ข้อมูลอัปเดตล่าสุด</dt><dd><Badge>{text(selected.source_freshness_status, text(selected.evidence_status, "unknown"))}</Badge></dd></div>
               </dl>
             </div>
             <footer><button type="button" className="btn primary" onClick={() => setSelected(null)}>ปิดรายละเอียด</button></footer>
@@ -4240,16 +4233,16 @@ function advisoryFor(row: RecordRow): { level: AdvisoryLevel; reason: string } {
   const stock = Number(row.current_stock_qty);
   const months = Number(row.months_available);
   if (Number.isFinite(cmp) && cmp <= 0 && Number.isFinite(stock) && stock > 0) {
-    return { level: "critical", reason: "ไม่มีการใช้ (CMP=0) แต่ยังมีสต็อกค้าง — เสี่ยงเป็นของตาย" };
+    return { level: "critical", reason: "ไม่มีการใช้ (CMP=0) แต่ยังมีสต็อกค้าง เสี่ยงเป็นพัสดุที่ไม่ได้ใช้งาน" };
   }
   if (Number.isFinite(months) && months > 9) {
-    return { level: "critical", reason: `คงคลัง ${months.toFixed(1)} เดือน (>9 — ต้องอนุมัติวิชาการ)` };
+    return { level: "critical", reason: `คงคลัง ${months.toFixed(1)} เดือน (เกิน 9 เดือน ต้องผ่านการอนุมัติวิชาการ)` };
   }
   if (Number.isFinite(months) && months > 6) {
-    return { level: "warning", reason: `คงคลัง ${months.toFixed(1)} เดือน (>6 — overstock)` };
+    return { level: "warning", reason: `คงคลัง ${months.toFixed(1)} เดือน (เกิน 6 เดือน สต็อกเกินเกณฑ์)` };
   }
   if (Number.isFinite(months) && months > 4.5) {
-    return { level: "watch", reason: `คงคลัง ${months.toFixed(1)} เดือน — เริ่มเข้าใกล้ overstock` };
+    return { level: "watch", reason: `คงคลัง ${months.toFixed(1)} เดือน ใกล้มีสต็อกเกินเกณฑ์` };
   }
   return { level: "none", reason: "อยู่ในเกณฑ์ปกติ" };
 }
@@ -4317,7 +4310,7 @@ function IntelligenceAdvisoryView({ data }: { data: DashboardData }) {
       <section className="panel">
         <LiveTable
           rows={flagged}
-          empty="ไม่มีรายการที่ต้องเฝ้าระวัง — หรือยังไม่มีหลักฐานปริมาณ"
+          empty="ไม่พบรายการที่ต้องเฝ้าระวัง หรือยังไม่มีข้อมูลสำหรับคำนวณ"
           columns={[
             ["วัสดุ", (row) => row.material_id],
             ["เขต", (row) => row.district_id],
@@ -4407,7 +4400,7 @@ function ChangeReviewView({
         <div className="change-review-summary" aria-label="สรุปรายการตรวจ">
           {([
             ["abnormal", "ผิดปกติ", "เกินเกณฑ์หรือมีความเสี่ยง"],
-            ["pending", "รอตรวจ", "รอ Planner ตัดสินใจ"],
+            ["pending", "รอตรวจ", "รอผู้วางแผน ตัดสินใจ"],
             ["normal", "ปกติ", "ผ่านเกณฑ์และเก็บเป็นประวัติ"],
           ] as [ReviewFilter, string, string][]).map(([value, label, detail]) => (
             <button
@@ -4496,11 +4489,11 @@ function ChangeReviewView({
           >
             <header>
               <div>
-                <span>REQUEST EVIDENCE · {text(selected.plan_number)}</span>
+                <span>รายละเอียดคำขอ {text(selected.plan_number)}</span>
                 <h3 id="change-evidence-title">
                   {text(selected.material_id)} · เขต {text(selected.district_id)}
                 </h3>
-                <p>ตรวจค่าก่อน–หลัง เหตุผล ผู้ขอ และผลการพิจารณาในที่เดียว</p>
+                <p>ตรวจค่าเดิมและค่าใหม่ เหตุผล ผู้ขอ และผลการพิจารณา</p>
               </div>
               <button type="button" aria-label="ปิด" onClick={() => setSelected(null)}>×</button>
             </header>
@@ -4560,7 +4553,7 @@ function ChangeReviewView({
             ) : (
               <p className="change-evidence-readonly">
                 {selectedStatus === "pending_review"
-                  ? "ดูหลักฐานได้ในโหมดอ่านอย่างเดียว การตัดสินใจคำขอเป็นหน้าที่ Planner หรือ Admin"
+                  ? "คุณดูข้อมูลประกอบคำขอได้ ผู้วางแผนหรือผู้ดูแลระบบเป็นผู้ตัดสินใจ"
                   : "รายการนี้มีผลการตรวจแล้ว เปิดดูได้เพื่อสอบกลับและใช้ประกอบการอนุมัติแผน"}
               </p>
             )}
@@ -4569,7 +4562,7 @@ function ChangeReviewView({
               <button type="button" className="btn ghost" onClick={() => setSelected(null)}>ปิด</button>
               {canReview && selectedStatus === "pending_review" && (
                 <button className="btn primary" disabled={actionBusy || note.trim().length < 3}>
-                  {actionBusy ? "กำลังบันทึก..." : "บันทึกผลการตรวจ"}
+                  {actionBusy ? "กำลังบันทึก…" : "บันทึกผลการตรวจ"}
                 </button>
               )}
             </footer>
@@ -4627,17 +4620,17 @@ function ApprovalView({ data }: { data: DashboardData }) {
     <div className="stack">
       <section className="plain-notice info">
         <i>i</i>
-        <div><strong>ประวัติการอนุมัติ คือ Audit Trail ของแต่ละแผนและแต่ละ Version</strong><p>เรียงจากเหตุการณ์ล่าสุด เปิดดูได้ว่าใครทำอะไร เมื่อใด ที่ขั้นตอนไหน และมีหมายเหตุอะไร โดยไม่รวมรายการที่ยังไม่เคยมีการตัดสินใจ</p></div>
+        <div><strong>ประวัติการยืนยันและอนุมัติของแต่ละแผน แยกตามเวอร์ชัน</strong><p>เรียงเหตุการณ์ล่าสุดก่อน เพื่อดูผู้ดำเนินการ เวลา ขั้นตอน และหมายเหตุ แสดงเฉพาะรายการที่มีการตัดสินใจแล้ว</p></div>
       </section>
       <section className="explorer-kpis" aria-label="สรุปประวัติการอนุมัติ">
         <article><span>เหตุการณ์ทั้งหมด</span><strong>{formatNumber(normalizedRows.length)}</strong><small>บันทึกตรวจสอบ</small></article>
-        <article><span>แผนที่มีประวัติ</span><strong>{formatNumber(planCount)}</strong><small>รวมทุก Version</small></article>
+        <article><span>แผนที่มีประวัติ</span><strong>{formatNumber(planCount)}</strong><small>รวมทุกเวอร์ชัน</small></article>
         <article><span>อนุมัติ / ยืนยัน</span><strong>{formatNumber(approvedCount)}</strong><small>เหตุการณ์สำเร็จ</small></article>
         <article className={returnedCount ? "danger" : ""}><span>ส่งกลับ / ปฏิเสธ / เปลี่ยน</span><strong>{formatNumber(returnedCount)}</strong><small>ต้องอ่านเหตุผล</small></article>
       </section>
       <section className="panel">
         <header className="explorer-heading">
-          <div><span>APPROVAL AUDIT TRAIL</span><h3>ค้นประวัติว่าใครอนุมัติแผนใด</h3><p>เลือกขั้นตอนและผลการตัดสินใจ แล้วเปิดดูหลักฐานของเหตุการณ์นั้น</p></div>
+          <div><span>ค้นประวัติการอนุมัติ</span><h3>ค้นประวัติว่าใครอนุมัติแผนใด</h3><p>เลือกขั้นตอนและผลการตัดสินใจ แล้วเปิดดูหลักฐานของเหตุการณ์นั้น</p></div>
           <b aria-live="polite">พบ {formatNumber(filteredRows.length)} จาก {formatNumber(normalizedRows.length)} เหตุการณ์</b>
         </header>
         <div className="explorer-toolbar">
@@ -4651,12 +4644,12 @@ function ApprovalView({ data }: { data: DashboardData }) {
           empty="ไม่พบประวัติที่ตรงกับตัวกรอง"
           columns={[
             ["วันเวลา", (row) => <span><strong>{formatDateTime(row.__acted_at)}</strong><small>บันทึกในระบบ</small></span>],
-            ["แผน / Version", (row) => <span><strong>{text(row.__plan)}</strong><small>Version {formatNumber(row.__version, 0)}</small></span>],
+            ["แผน / เวอร์ชัน", (row) => <span><strong>{text(row.__plan)}</strong><small>Version {formatNumber(row.__version, 0)}</small></span>],
             ["ขั้นตอน", (row) => <Badge>{text(row.__stage)}</Badge>],
             ["ผล", (row) => <Badge>{text(row.__decision)}</Badge>],
             ["ผู้ดำเนินการ", (row) => <span><strong>{text(row.__actor)}</strong><small>{text(row.__role)}</small></span>],
             ["เขต", (row) => text(row.district_id, "ทุกเขต / ส่วนกลาง")],
-            ["รายละเอียด", (row) => <button type="button" className="table-action" onClick={() => setSelected(row)}>เปิด Audit Trail</button>],
+            ["รายละเอียด", (row) => <button type="button" className="table-action" onClick={() => setSelected(row)}>ดูประวัติ</button>],
           ]}
         />
       </section>
@@ -4787,10 +4780,10 @@ function FifoView({
                 .length,
             )}
           </strong>
-          <small>เปิดจ่ายก่อนปิดผนึก</small>
+          <small>จ่ายหน่วยที่เปิดแล้วก่อนหน่วยปิดผนึก</small>
         </article>
         <article className="danger">
-          <span>สถานะการเปิดไม่ทราบ</span>
+          <span>ยังไม่ทราบสถานะการเปิด</span>
           <strong>
             {formatNumber(
               data.handlingUnits.filter(
@@ -4798,7 +4791,7 @@ function FifoView({
               ).length,
             )}
           </strong>
-          <small>บล็อกจนกว่าจะยืนยัน</small>
+          <small>รอยืนยันก่อนจ่าย</small>
         </article>
         <article>
           <span>พร้อมจ่าย</span>
@@ -4875,8 +4868,7 @@ function FifoView({
               <div>
                 <strong>มีสต็อกอยู่ แต่ยังไม่ได้ลงทะเบียนหน่วยจัดเก็บ</strong>
                 <p>
-                  ยอดสต็อกจากแหล่งข้อมูลจริงแสดงด้านล่าง กรุณาลงทะเบียนการรับพัสดุ
-                  หรือหน่วยที่เปิดแล้วก่อนจ่ายแบบ FIFO ระบบจะไม่สร้างข้อมูลพาเลทหรือสัญญาขึ้นเอง
+                  กรุณาลงทะเบียนการรับพัสดุหรือยืนยันหน่วยที่เปิดแล้วก่อนจ่ายแบบ FIFO ยอดสต็อกด้านล่างยังไม่มีข้อมูลพาเลทและสัญญาที่ใช้ระบุหน่วยหยิบ
                 </p>
               </div>
             </aside>
@@ -4951,7 +4943,7 @@ function FifoView({
                     setReason("");
                   }}
                 >
-                  ยืนยัน Opening
+                  ยืนยันหน่วยจัดเก็บตั้งต้น
                 </button>
               ),
             ],
@@ -5450,7 +5442,7 @@ function TraceView({
     <div className="stack">
       <section className="plain-notice info">
         <i>i</i>
-        <div><strong>สอบกลับจากรายการจ่าย ไปยัง HU, Lot, PO, สัญญา และผู้ขาย</strong><p>เริ่มค้นจากเลขที่จ่าย เขต หรือรหัสพัสดุ แล้วเปิด “ดูเส้นทาง” เพื่อดูต้นทางของของที่จ่ายออกไป</p></div>
+        <div><strong>สอบกลับจากรายการจ่าย ไปยัง HU, Lot, PO, สัญญา และผู้ขาย</strong><p>เริ่มค้นจากเลขที่จ่าย เขต หรือรหัสพัสดุ แล้วเปิด “ดูเส้นทาง” เพื่อดูต้นทางของพัสดุที่จ่าย</p></div>
       </section>
       <section className="explorer-kpis" aria-label="สรุปการสอบกลับ">
         <article><span>รายการที่พบ</span><strong>{formatNumber(rows.length)}</strong><small>หลังใช้ตัวกรอง</small></article>
@@ -5460,7 +5452,7 @@ function TraceView({
       </section>
       <section className="panel">
         <header className="explorer-heading">
-          <div><span>DISTRIBUTION TRACEABILITY</span><h3>ค้นหาเส้นทางการจ่าย</h3><p>ผลลัพธ์แต่ละแถวเชื่อมรายการจ่ายกับหลักฐาน FIFO และเอกสารจัดซื้อ</p></div>
+          <div><span>สอบกลับพัสดุที่จ่าย</span><h3>ค้นหาเส้นทางการจ่าย</h3><p>ผลลัพธ์แต่ละแถวเชื่อมรายการจ่ายกับหลักฐาน FIFO และเอกสารจัดซื้อ</p></div>
           <b aria-live="polite">พบ {formatNumber(rows.length)} จาก {formatNumber(data.traceability.length)} รายการ</b>
         </header>
         <div className="explorer-toolbar trace-toolbar">
@@ -5594,7 +5586,7 @@ function StockView({ data }: { data: DashboardData }) {
       <section className="panel">
         <div className="panel-title">
           <div>
-            <span>สุขภาพสต็อกเขต</span>
+            <span>สถานะสต็อกเขต</span>
             <h3>สต็อกและ CMP ล่าสุด</h3>
           </div>
           <b>{formatNumber(data.stock.length)}</b>
@@ -5618,7 +5610,7 @@ function StockView({ data }: { data: DashboardData }) {
         <div className="panel-title">
           <div>
             <span>สต็อกคลัง</span>
-            <h3>ข้อมูลสต็อกจริงคลังคลองเตย</h3>
+            <h3>สต็อกคลังคลองเตย</h3>
           </div>
           <b>{formatNumber(data.warehouseStock.length)}</b>
         </div>
@@ -5788,7 +5780,7 @@ const importProfiles: Record<
 > = {
   stock: {
     title: "Stock Snapshot",
-    subtitle: "Stock คลังกลางและคลังเขตจาก SAP",
+    subtitle: "สต็อกคลังกลางและคลังเขตจาก SAP",
     schedule: "รายวัน",
     icon: "ST",
     fileHint: "Stock.xlsx",
@@ -5810,7 +5802,7 @@ const importProfiles: Record<
     rules: [
       "ใช้ Stock คอลัมน์ไม่จำกัดเท่านั้น",
       "คลังคลองเตย = Plant 2401 / Storage Location 0001",
-      "Stock เขตสรุปทุก Storage Location ที่อนุญาตของ Plant นั้น",
+      "สต็อกเขตสรุปทุก Storage Location ที่อนุญาตของ Plant นั้น",
     ],
   },
   usage: {
@@ -6314,11 +6306,10 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
     <div className="stack import-page">
       <section className="import-hero">
         <div>
-          <span>DATA FOUNDATION · LOCAL / STAGING</span>
+          <span>เตรียมข้อมูลในเครื่อง / ระบบทดสอบ</span>
           <h2>จากไฟล์ SAP สู่ข้อมูลพร้อมใช้งาน</h2>
           <p>
-            นำเข้า ตรวจสอบ และประมวลผลเป็น Snapshot ก่อนส่งต่อให้แต่ละ Module
-            โดยไม่เขียนทับข้อมูลเดิมทันที
+            นำเข้าและตรวจข้อมูล แล้วจัดเป็นชุดข้อมูลก่อนนำไปใช้ในแต่ละส่วนของระบบ ข้อมูลเดิมจะยังถูกเก็บไว้
           </p>
         </div>
         <div className="import-hero-actions">
@@ -6334,7 +6325,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
 
       <section className="import-overview" aria-label="สถานะการนำเข้าล่าสุด">
         <article className="import-latest-card">
-          <span>LAST IMPORT</span>
+          <span>การนำเข้าล่าสุด</span>
           <strong>{latestImport ? formatDateTime(latestImport.importedAt) : "—"}</strong>
           <small>
             {latestImport
@@ -6343,19 +6334,19 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
           </small>
         </article>
         <article>
-          <span>IMPORT BATCHES</span>
+          <span>รอบนำเข้า</span>
           <strong>{formatNumber(history.length)}</strong>
           <small>เก็บเป็นเวอร์ชัน ไม่เขียนทับประวัติ</small>
         </article>
         <article>
-          <span>ACCEPTED ROWS</span>
+          <span>แถวที่ผ่านการตรวจ</span>
           <strong>
             {formatNumber(history.reduce((sum, record) => sum + record.acceptedCount, 0))}
           </strong>
           <small>จำนวนแถวที่ผ่านการตรวจทั้งหมด</small>
         </article>
         <article>
-          <span>NEEDS REVIEW</span>
+          <span>แถวที่ต้องตรวจ</span>
           <strong>
             {formatNumber(history.reduce((sum, record) => sum + record.rejectedCount, 0))}
           </strong>
@@ -6366,11 +6357,10 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
       <section className="panel import-sequence-panel" aria-label="ลำดับการนำเข้าข้อมูล">
         <div className="panel-title import-sequence-title">
           <div>
-            <span>ORDERED IMPORT · ADMIN WORKFLOW</span>
-            <h3>นำเข้าข้อมูลตามลำดับ 1–4 เพื่อป้องกันข้อมูลตกหล่น</h3>
+            <span>ขั้นตอนนำเข้าข้อมูล</span>
+            <h3>นำเข้าข้อมูลตามลำดับขั้นที่ 1 ถึง 4 เพื่อป้องกันข้อมูลตกหล่น</h3>
             <p>
-              เลือกไฟล์จากกล่องปัจจุบัน ตรวจสอบข้อมูลใน Pop-up และกดยืนยัน
-              ระบบจึงจะเปิดกล่องถัดไปให้อัตโนมัติ
+              เลือกไฟล์ในขั้นตอนปัจจุบัน ตรวจข้อมูลในหน้าต่างที่เปิดขึ้น แล้วกดยืนยันเพื่อทำขั้นตอนถัดไป
             </p>
           </div>
           <div className={`import-sequence-progress ${sequenceComplete ? "complete" : ""}`}>
@@ -6457,7 +6447,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
                 {sequenceComplete && snapshotPublishedAt
                   ? `Snapshot v${publishedSnapshot?.version} · ${publishedSnapshot?.id} · ยืนยันเมื่อ ${formatDateTime(snapshotPublishedAt)}`
                   : sequenceComplete
-                    ? "ข้อมูลทั้ง 4 แหล่งผ่านการตรวจแล้ว กรุณายืนยันก่อนส่งต่อให้ Module"
+                    ? "ข้อมูลทั้ง 4 แหล่งผ่านการตรวจแล้ว กรุณายืนยันเพื่อนำไปใช้งาน"
                     : snapshotPublishedAt
                       ? `Planner ใช้ Snapshot v${publishedSnapshot?.version} ล่าสุดได้ระหว่างนำเข้ารอบใหม่`
                     : `รายการถัดไป: ${nextRequiredSource ? importProfiles[nextRequiredSource].title : "—"}`}
@@ -6475,11 +6465,11 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
               {snapshotPublishedAt && (
                 <>
                   <button type="button" className="btn primary" onClick={onOpenPlanner}>
-                    ไปที่ Planner Workspace →
+                    ไปหน้าจัดทำแผนการจ่าย
                   </button>
                   {sequenceComplete && (
                     <button type="button" className="btn ghost" onClick={restartSequence}>
-                      เริ่มรอบ Import ใหม่
+                      เริ่มรอบนำเข้าใหม่
                     </button>
                   )}
                 </>
@@ -6493,7 +6483,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
         <section className="panel published-snapshot-panel" aria-label="Published Data Snapshot">
           <div className="panel-title">
             <div>
-              <span>DATA SNAPSHOT · PUBLISHED</span>
+              <span>ชุดข้อมูลที่นำมาใช้งานแล้ว</span>
               <h3>ชุดข้อมูลที่ Planner ใช้งานอยู่</h3>
               <p>
                 ระบบเก็บรายการแหล่งข้อมูลและเวอร์ชันที่ประกอบเป็น Snapshot นี้ไว้สำหรับสอบกลับ
@@ -6503,8 +6493,8 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
           </div>
           <div className="published-snapshot-meta">
             <span><b>Snapshot ID</b>{publishedSnapshot.id}</span>
-            <span><b>Published by</b>{publishedSnapshot.publishedBy}</span>
-            <span><b>Published at</b>{formatDateTime(publishedSnapshot.publishedAt)}</span>
+            <span><b>ผู้เผยแพร่</b>{publishedSnapshot.publishedBy}</span>
+            <span><b>เผยแพร่เมื่อ</b>{formatDateTime(publishedSnapshot.publishedAt)}</span>
           </div>
           <div className="published-snapshot-sources">
             {publishedSnapshot.batches.map((batch) => (
@@ -6544,7 +6534,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
                 <p>
                   {sourceKey === "history"
                     ? "ระบบแยกผลจ่ายได้ตามแผนและไม่รับของ แต่ยืนยันเป็น Historical Import รอบเดียว"
-                    : "ระบบจะยังไม่รับข้อมูลและไม่เปิดขั้นตอนถัดไปจนกด Confirm"}
+                    : "กดยืนยันเพื่อรับข้อมูลและทำขั้นตอนถัดไป"}
                 </p>
               </div>
               <button type="button" onClick={resetFile} aria-label="ปิดหน้าตรวจสอบ">
@@ -6568,12 +6558,12 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
               <article>
                 <span>ทั้งหมด</span>
                 <strong>{formatNumber(validation.totalRows)}</strong>
-                <small>Rows detected</small>
+                <small>แถวทั้งหมด</small>
               </article>
               <article className="accepted">
                 <span>พร้อมนำเข้า</span>
                 <strong>{formatNumber(validation.validRows)}</strong>
-                <small>Accepted rows</small>
+                <small>แถวที่ผ่านการตรวจ</small>
               </article>
               <article className={validation.invalidRows ? "warning" : "accepted"}>
                 <span>ต้องตรวจสอบ</span>
@@ -6615,7 +6605,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
             <div className="import-review-body">
               <div className="import-review-table">
                 <div>
-                  <strong>Data Preview</strong>
+                  <strong>ตัวอย่างข้อมูล</strong>
                   <small>5 แถวแรก · {sheet.sheetName}</small>
                 </div>
                 <div className="live-table-wrap">
@@ -6643,7 +6633,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
               </div>
 
               <aside className="import-review-checks">
-                <strong>Column Mapping · {sheet.sheetName}</strong>
+                <strong>จับคู่คอลัมน์ {sheet.sheetName}</strong>
                 {validation.matches.map((match) => (
                   <div key={match.label} className={match.index < 0 ? "failed" : ""}>
                     <i>{match.index < 0 ? "!" : "✓"}</i>
@@ -6659,7 +6649,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
                           }))
                         }
                       >
-                        <option value="">— เลือกคอลัมน์ —</option>
+                        <option value="">เลือกคอลัมน์</option>
                         {sheet.headers.map((header, columnIndex) => (
                           <option key={`${match.label}-${columnIndex}`} value={columnIndex}>
                             {header || `Column ${columnIndex + 1}`}
@@ -6677,7 +6667,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
                   </div>
                 ))}
                 <section>
-                  <strong>Business Rules</strong>
+                  <strong>เกณฑ์ตรวจข้อมูล</strong>
                   {profile.rules.map((rule) => (
                     <p key={rule}>• {rule}</p>
                   ))}
@@ -6688,7 +6678,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
             {validation.missing.length > 0 && (
               <div className="form-error import-review-error" role="alert">
                 ไม่พบคอลัมน์ที่จำเป็น: {validation.missing.map((item) => item.label).join(", ")}
-                กรุณาเลือกคอลัมน์ที่ตรงกันใน Column Mapping หรือ Cancel เพื่อเลือกไฟล์ใหม่
+                กรุณาจับคู่คอลัมน์ให้ครบ หรือเลือกไฟล์ใหม่
               </div>
             )}
 
@@ -6699,7 +6689,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
               </p>
               <div>
                 <button type="button" className="btn ghost" onClick={resetFile}>
-                  Cancel · เลือกไฟล์ใหม่
+                  ยกเลิกและเลือกไฟล์ใหม่
                 </button>
                 <button
                   type="button"
@@ -6707,7 +6697,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
                   onClick={confirmImport}
                   disabled={validation.missing.length > 0 || busy}
                 >
-                  Confirm & Continue →
+                  ยืนยันและทำขั้นตอนถัดไป
                 </button>
               </div>
             </footer>
@@ -6718,7 +6708,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
       <section className="panel import-history-panel">
         <div className="panel-title">
           <div>
-            <span>IMPORT HISTORY · APPEND-ONLY</span>
+            <span>ประวัติการนำเข้า</span>
             <h3>ประวัติการนำเข้าและเวอร์ชันข้อมูล</h3>
           </div>
           <small>{history.length} Import Batches</small>
@@ -6742,7 +6732,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
                 <th>ไฟล์</th>
                 <th>Version</th>
                 <th>ผลการตรวจ</th>
-                <th>ผู้ Import</th>
+                <th>ผู้นำเข้า</th>
                 <th>วันและเวลา</th>
                 <th>สถานะ</th>
               </tr>
@@ -6788,7 +6778,7 @@ function DataImportView({ onOpenPlanner }: { onOpenPlanner: () => void }) {
             ฐานข้อมูลรองรับ <strong>raw.import_batches</strong> และเก็บ Source Snapshot
             แยกตาม Batch เพื่อรักษาประวัติเดิม
           </span>
-          <span>Local Preview แสดงข้อมูลตัวอย่างสำหรับตรวจ UX</span>
+          <span>หน้านี้ใช้ข้อมูลตัวอย่างสำหรับทดสอบการใช้งาน</span>
         </footer>
       </section>
     </div>
@@ -6895,7 +6885,7 @@ function GovernedInputView({
     try {
       const currentStock = Number(stock);
       if (!Number.isFinite(currentStock) || currentStock < 0) {
-        throw new Error("Stock ต้องเป็นจำนวนที่ไม่ติดลบ");
+        throw new Error("จำนวนสต็อกต้องเป็น 0 ขึ้นไป");
       }
       const payload: VmiInputPayload = {
         material_id: materialId,
@@ -7040,8 +7030,7 @@ function OperationsView({ data }: { data: DashboardData }) {
           <span>คู่มือปฏิบัติงาน</span>
           <h3>ศูนย์ควบคุมประจำวัน</h3>
           <p>
-            สำรองข้อมูลก่อนปรับปรุงระบบ บันทึกหลักฐานแบบเพิ่มอย่างเดียว
-            และปิดกั้นเมื่อพบข้อผิดพลาด
+            สำรองข้อมูลก่อนปรับปรุงระบบ เก็บบันทึกเดิมไว้ และหยุดการทำงานเมื่อพบข้อผิดพลาด
           </p>
         </div>
       </section>
@@ -7052,7 +7041,7 @@ function OperationsView({ data }: { data: DashboardData }) {
             <article key={key}>
               <span>{key.replaceAll("_", " ")}</span>
               <strong>{text(value)}</strong>
-              <small>สุขภาพฐานข้อมูล</small>
+              <small>สถานะฐานข้อมูล</small>
             </article>
           ))}
       </section>
@@ -7060,7 +7049,7 @@ function OperationsView({ data }: { data: DashboardData }) {
         <div className="panel-title">
           <div>
             <span>การเปิดใช้งานจริง</span>
-            <h3>ด่านตรวจความพร้อมก่อนเปิดใช้งาน</h3>
+            <h3>ตรวจความพร้อมก่อนเปิดใช้งาน</h3>
           </div>
           <Badge>{text(readiness.readiness_status)}</Badge>
         </div>
@@ -7152,8 +7141,8 @@ function OperationsView({ data }: { data: DashboardData }) {
             "กู้คืนข้อมูลลงฐานข้อมูลแยกทุกไตรมาส และตรวจสอบครบทุกส่วน",
           ],
           [
-            "ปล่อยเวอร์ชันอย่างปลอดภัย",
-            "ทดสอบ → สำรอง → ปรับปรุงระบบ → ตรวจรับ → ทดสอบใช้งาน → บันทึกการปล่อย",
+            "นำเวอร์ชันใหม่ขึ้นใช้งาน",
+            "ทดสอบ สำรองข้อมูล ปรับปรุงระบบ ตรวจรับ ทดสอบใช้งาน และบันทึกผลการนำขึ้นใช้งาน",
           ],
           [
             "เหตุขัดข้อง",
@@ -7438,7 +7427,7 @@ export default function Home() {
           <aside className="demo-mode-bar" aria-label="Local demo role switcher">
             <div>
               <strong>LOCAL DEMO</strong>
-              <span>ข้อมูลตัวอย่าง · ไม่แตะ Supabase / Production</span>
+              <span>ข้อมูลตัวอย่างสำหรับทดลอง ไม่บันทึกลงฐานข้อมูลจริง</span>
             </div>
             <label>
               ทดลองบทบาท
@@ -7450,11 +7439,11 @@ export default function Home() {
                   setModule("warehouse");
                 }}
               >
-                <option value="planner">Planner คลังคลองเตย</option>
-                <option value="district">District User 5501</option>
+                <option value="planner">ผู้วางแผนคลังคลองเตย</option>
+                <option value="district">เจ้าหน้าที่เขต 5501</option>
                 <option value="academic">นักวิชาการ</option>
-                <option value="picker">Warehouse Picker</option>
-                <option value="viewer">Viewer / ผู้บริหาร</option>
+                <option value="picker">เจ้าหน้าที่คลัง</option>
+                <option value="viewer">ผู้บริหาร / ผู้ดูข้อมูล</option>
                 <option value="admin">Admin</option>
               </select>
             </label>
@@ -7497,7 +7486,7 @@ export default function Home() {
                 <aside className="runtime-message error" role="alert">
                   <i>!</i>
                   <div>
-                    <strong>ไม่สามารถซิงก์ข้อมูลบางส่วน</strong>
+                    <strong>โหลดข้อมูลบางส่วนไม่สำเร็จ</strong>
                     <p>{backend.error}</p>
                   </div>
                   <button
@@ -7516,9 +7505,7 @@ export default function Home() {
                     <div>
                       <strong>ยังไม่เปิดให้บันทึกข้อมูลจริง</strong>
                       <p>
-                        เปิดให้อ่านและตรวจข้อมูลได้ แต่คำสั่ง Replenishment,
-                        Inventory และ Ad-hoc จะถูกปฏิเสธจนกว่า Actual data, Auth,
-                        backup และ restore drill จะผ่านครบ
+                        ดูและตรวจข้อมูลได้ ขณะนี้ยังบันทึกแผน สต็อก หรือการจ่ายกรณีพิเศษไม่ได้ ต้องตรวจข้อมูลจริง สิทธิ์ผู้ใช้ การสำรองข้อมูล และการซ้อมกู้คืนให้ผ่านก่อน
                       </p>
                     </div>
                   </aside>

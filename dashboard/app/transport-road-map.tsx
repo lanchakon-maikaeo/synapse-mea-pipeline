@@ -257,9 +257,9 @@ export function TransportRoadMap({
                 {point.verificationStatus === "verified"
                   ? point.routeEligible
                     ? "พิกัดผ่านการรับรองและพร้อมจัดเส้นทาง"
-                    : "พิกัดผ่านการรับรอง แต่ยังไม่มี canonical mapping"
+                    : "พิกัดยืนยันแล้ว แต่ยังไม่เชื่อมกับรหัสสถานที่หลัก"
                   : point.verificationStatus === "candidate"
-                    ? "พิกัด candidate รอการตรวจสอบ"
+                    ? "พิกัดเบื้องต้น รอตรวจสอบ"
                     : "พิกัดถูกกักไว้"}
               </span>
             </Tooltip>
@@ -268,25 +268,23 @@ export function TransportRoadMap({
       </MapContainer>
       {!tileConfig && (
         <div className="transport-map-config-error" role="alert">
-          <strong>Basemap ไม่พร้อมใช้งานใน production</strong>
+          <strong>แผนที่ฐานยังไม่พร้อมใช้งานในระบบจริง</strong>
           <span>
-            ต้องตั้งค่า NEXT_PUBLIC_MAP_TILE_URL และ
-            NEXT_PUBLIC_MAP_ATTRIBUTION ให้ครบ ระบบจะไม่ใช้ public OSM tiles
-            เป็น fallback
+            ผู้ดูแลระบบต้องตั้งค่า NEXT_PUBLIC_MAP_TILE_URL และ NEXT_PUBLIC_MAP_ATTRIBUTION ให้ครบ ระบบจะไม่ใช้บริการแผนที่ OSM สาธารณะแทน
           </span>
         </div>
       )}
       <div id="transport-map-legend" className="transport-map-legend">
         <span><i className="depot" />คลังต้นทาง</span>
         <span><i className="selected" />จุดส่ง</span>
-        <span><i className="candidate" />พิกัด candidate</span>
+        <span><i className="candidate" />พิกัดรอตรวจสอบ</span>
         <span><i className="quarantined" />พิกัดกักไว้</span>
-        <span><i className="route-blocked" />verified แต่ยังจัดเส้นทางไม่ได้</span>
+        <span><i className="route-blocked" />พิกัดยืนยันแล้ว แต่ยังจัดเส้นทางไม่ได้</span>
         <span>
           <b className={hasRoadGeometry ? "road" : "draft"} />
           {hasRoadGeometry
-            ? "แนวถนนจาก routing engine"
-            : "ยังไม่มีเส้นถนน — แสดงเฉพาะหมุดที่ยืนยันแล้ว"}
+            ? "เส้นทางถนนที่คำนวณได้"
+            : "ยังไม่มีเส้นทางถนน แสดงเฉพาะหมุดที่ยืนยันแล้ว"}
         </span>
       </div>
     </div>

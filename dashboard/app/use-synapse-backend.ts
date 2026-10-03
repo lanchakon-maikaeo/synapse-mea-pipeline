@@ -392,7 +392,7 @@ export function useSynapseBackend() {
       .catch((reason: unknown) => {
         if (!active) return;
         setLoading(false);
-        setError(reason instanceof Error ? reason.message : "ไม่สามารถตรวจสอบ Session ได้");
+        setError(reason instanceof Error ? reason.message : "ตรวจสอบการเข้าสู่ระบบไม่สำเร็จ");
       });
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
@@ -445,7 +445,7 @@ export function useSynapseBackend() {
         await ensureSessionLoaded(authData.session);
         return true;
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "ไม่สามารถเชื่อมต่อระบบเข้าสู่ระบบได้");
+        setError(reason instanceof Error ? reason.message : "เชื่อมต่อบริการเข้าสู่ระบบไม่สำเร็จ");
         return false;
       } finally {
         setAuthBusy(false);
@@ -456,7 +456,7 @@ export function useSynapseBackend() {
 
   const signOut = useCallback(async () => {
     if (DEMO_MODE) {
-      setNotice("Local Demo Mode: ใช้ตัวสลับบทบาทด้านบนแทนการออกจากระบบ");
+      setNotice("คุณกำลังใช้ข้อมูลตัวอย่าง เปลี่ยนบทบาทได้จากตัวเลือกด้านบน");
       return;
     }
     if (supabase) await supabase.auth.signOut();
@@ -489,7 +489,7 @@ export function useSynapseBackend() {
         setActionBusy(true);
         setError("");
         await new Promise((resolve) => window.setTimeout(resolve, 250));
-        setNotice(`${successMessage} (Demo เท่านั้น — ไม่บันทึกฐานข้อมูล)`);
+        setNotice(`${successMessage} (ข้อมูลตัวอย่าง ไม่บันทึกลงฐานข้อมูล)`);
         window.setTimeout(() => setNotice(""), 4200);
         setActionBusy(false);
         return { demo: true } as T;
@@ -551,7 +551,7 @@ export function useSynapseBackend() {
         setError(
           requestError instanceof Error
             ? requestError.message
-            : "ไม่สามารถโหลด VMI context ได้",
+            : "โหลดข้อมูลสต็อกและแผนของพัสดุไม่สำเร็จ",
         );
         return null;
       }
@@ -564,7 +564,7 @@ export function useSynapseBackend() {
       (await runAction(
         "/v1/replenishment/runs",
         {},
-        "สร้าง Weekly Plan จากข้อมูลที่ผ่านกติกาแล้ว",
+        "สร้างแผนรายสัปดาห์จากข้อมูลที่ผ่านเกณฑ์แล้ว",
       )) !== null,
     [runAction],
   );
@@ -574,7 +574,7 @@ export function useSynapseBackend() {
       (await runAction(
         "/v1/data-inputs/vmi",
         payload,
-        "เผยแพร่ข้อมูลผ่าน Raw → Staging → Core/Analytics แล้ว",
+        "ตรวจและประมวลผลข้อมูลต้นทาง แล้วเผยแพร่ให้ระบบใช้งานแล้ว",
       )) !== null,
     [runAction],
   );
@@ -584,7 +584,7 @@ export function useSynapseBackend() {
       (await runAction(
         "/v1/admin/packaging-profiles",
         { profiles, source_reference: sourceReference },
-        "บันทึก Packaging Master พร้อมขนาด ความจุพาเลท และน้ำหนักลง Supabase แล้ว",
+        "บันทึกรูปแบบบรรจุ ขนาด ความจุพาเลท และน้ำหนักแล้ว",
       )) !== null,
     [runAction],
   );
@@ -602,7 +602,7 @@ export function useSynapseBackend() {
           handling_units: handlingUnits,
           source_reference: sourceReference,
         },
-        "บันทึก Packaging Master, Opening HU และยอด Stock คลังคลองเตยลง Supabase แล้ว",
+        "บันทึกรูปแบบบรรจุ หน่วยจัดเก็บตั้งต้น และยอดสต็อกคลังคลองเตยแล้ว",
       )) !== null,
     [runAction],
   );
@@ -720,7 +720,7 @@ export function useSynapseBackend() {
       return (await runAction(
         `/v1/replenishment/items/${itemId}/respond`,
         payload,
-        "บันทึก District response พร้อมผู้ขอและเหตุผลแล้ว",
+        "บันทึกคำตอบของเขต พร้อมชื่อผู้ขอและเหตุผลแล้ว",
       )) !== null;
     },
     [runAction],
@@ -796,7 +796,7 @@ export function useSynapseBackend() {
                       row.suggested_qty ?? row.requested_qty ?? 0,
                     ),
                     decision: "confirm",
-                    reason: "ยืนยันตามแผนแทนเขตโดยผู้ดูแลระบบ เพื่อเตรียม Confirm Plan และจัดรถ",
+                    reason: "ยืนยันตามแผนแทนเขตโดยผู้ดูแลระบบ เพื่อเตรียมยืนยันแผนและจัดรถ",
                     requester_name: requesterName || "ผู้ดูแลระบบ",
                   }),
                 },
@@ -815,7 +815,7 @@ export function useSynapseBackend() {
           );
           return false;
         }
-        setNotice(`ยืนยันรายการค้างทุกเขต ${completed} รายการแล้ว พร้อมให้ Planner ตรวจแผน`);
+        setNotice(`ยืนยันรายการค้างทุกเขต ${completed} รายการแล้ว พร้อมให้ผู้วางแผนตรวจแผน`);
         window.setTimeout(() => setNotice(""), 5200);
         return true;
       } catch (requestError) {
@@ -886,7 +886,7 @@ export function useSynapseBackend() {
       return (await runAction(
         `/v1/replenishment/change-requests/${changeRequestId}/review`,
         { decision, review_note: reviewNote },
-        "บันทึกผล Abnormal Request Review แล้ว",
+        "บันทึกผลตรวจคำขอผิดปกติแล้ว",
       )) !== null;
     },
     [runAction],
@@ -943,7 +943,7 @@ export function useSynapseBackend() {
       return (await runAction(
         `/v1/replenishment/plans/${planId}/approve`,
         { note },
-        "บันทึก approval stage และสถานะแผนแล้ว",
+        "บันทึกผลอนุมัติและสถานะแผนแล้ว",
       )) !== null;
     },
     [runAction],
@@ -990,7 +990,7 @@ export function useSynapseBackend() {
       return (await runAction(
         `/demo/replenishment/plans/${planId}/return`,
         { note },
-        "ส่งแผนกลับให้ Planner แก้ไขแล้ว",
+        "ส่งแผนกลับให้ผู้วางแผนแก้ไขแล้ว",
       )) !== null;
     },
     [runAction],
@@ -1001,7 +1001,7 @@ export function useSynapseBackend() {
       (await runAction(
         `/v1/replenishment/plans/${planId}/cancel`,
         { reason },
-        "ยกเลิกแผนและคืน FIFO reservation แล้ว",
+        "ยกเลิกแผนและคืนยอดที่จองไว้ใน FIFO แล้ว",
       )) !== null,
     [runAction],
   );
@@ -1011,7 +1011,7 @@ export function useSynapseBackend() {
       (await runAction(
         `/v1/replenishment/plans/${planId}/version`,
         { reason },
-        "สร้าง Plan version ใหม่โดยคง audit ของเวอร์ชันเดิมแล้ว",
+        "สร้างแผนเวอร์ชันใหม่แล้ว ประวัติของเวอร์ชันเดิมยังอยู่",
       )) !== null,
     [runAction],
   );
@@ -1032,7 +1032,7 @@ export function useSynapseBackend() {
       return (await runAction(
         `/v1/replenishment/plans/${planId}/issue`,
         {},
-        "บันทึกการจ่ายจริงจาก FIFO allocation แล้ว",
+        "บันทึกการจ่ายตามยอดที่จัดสรรจาก FIFO แล้ว",
       )) !== null;
     },
     [runAction],
@@ -1043,7 +1043,7 @@ export function useSynapseBackend() {
       (await runAction(
         "/v1/inventory/receipts",
         payload,
-        "รับ Handling Unit พร้อม lot/contract trace แล้ว",
+        "รับหน่วยจัดเก็บเข้าคลัง พร้อมข้อมูลสอบกลับถึงล็อตและสัญญาแล้ว",
       )) !== null,
     [runAction],
   );
@@ -1067,7 +1067,7 @@ export function useSynapseBackend() {
       (await runAction(
         "/v1/ad-hoc/issues",
         payload,
-        "สร้าง Ad-hoc Issue แยกจาก Weekly Plan แล้ว",
+        "สร้างรายการจ่ายกรณีพิเศษแยกจากแผนรายสัปดาห์แล้ว",
       )) !== null,
     [runAction],
   );
@@ -1077,7 +1077,7 @@ export function useSynapseBackend() {
       (await runAction(
         `/v1/ad-hoc/issues/${adHocIssueId}/approve`,
         { note },
-        "อนุมัติ Ad-hoc Issue และจอง FIFO แล้ว",
+        "อนุมัติรายการจ่ายกรณีพิเศษและจอง FIFO แล้ว",
       )) !== null,
     [runAction],
   );
@@ -1087,7 +1087,7 @@ export function useSynapseBackend() {
       (await runAction(
         `/v1/ad-hoc/issues/${adHocIssueId}/issue`,
         {},
-        "บันทึกการจ่าย Ad-hoc จริงแล้ว",
+        "บันทึกการจ่ายกรณีพิเศษแล้ว",
       )) !== null,
     [runAction],
   );
@@ -1108,7 +1108,7 @@ export function useSynapseBackend() {
           reason,
         },
         damaged
-          ? "รับคืนและย้าย Handling Unit เข้า Quarantine แล้ว"
+          ? "บันทึกรับคืนและย้ายหน่วยจัดเก็บไปกักกันแล้ว"
           : "บันทึกรับคืนโดยเชื่อมกับรายการจ่ายเดิมแล้ว",
       )) !== null,
     [runAction],
@@ -1117,7 +1117,7 @@ export function useSynapseBackend() {
   const setDemoRole = useCallback((role: Role) => {
     if (!DEMO_MODE) return;
     setIdentity(demoIdentity(role));
-    setNotice(`เปลี่ยนบทบาท Demo เป็น ${role}`);
+    setNotice(`เปลี่ยนบทบาททดลองเป็น ${role}`);
     window.setTimeout(() => setNotice(""), 2500);
   }, []);
 

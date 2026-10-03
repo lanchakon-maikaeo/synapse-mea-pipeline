@@ -26,7 +26,7 @@ const examples = [
   "วัสดุ 471050004000 ที่คลังคลองเตยเหลือเท่าไร",
   "เขต 5501 ควรเติมวัสดุ 471050004000 เท่าไร",
   "คลังไหนสต็อกใกล้หมด",
-  "ควรส่ง SKU อะไรไปคลังไหนก่อน",
+  "ควรส่งพัสดุอะไรไปคลังไหนก่อน",
 ];
 
 export default function ChatWidget({ token }: { token: string }) {
@@ -34,7 +34,7 @@ export default function ChatWidget({ token }: { token: string }) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { id: "welcome", role: "assistant", text: "สวัสดีค่ะ ถามข้อมูล VMI จาก Supabase ได้เลย" },
+    { id: "welcome", role: "assistant", text: "สวัสดีค่ะ สอบถามสต็อกและแผนจ่ายพัสดุได้เลย" },
   ]);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -77,14 +77,14 @@ export default function ChatWidget({ token }: { token: string }) {
       setMessages((current) => [...current, {
         id: payload.request_id ?? crypto.randomUUID(),
         role: "assistant",
-        text: payload.answer ?? "ไม่พบคำตอบที่ตรวจสอบได้",
+        text: payload.answer ?? "ยังไม่มีข้อมูลที่ยืนยันคำตอบได้",
       }]);
     } catch (error) {
       if (controller.signal.aborted) return;
       setMessages((current) => [...current, {
         id: crypto.randomUUID(),
         role: "assistant",
-        text: error instanceof Error ? error.message : "ไม่สามารถเชื่อมต่อ Agent ได้",
+        text: error instanceof Error ? error.message : "เชื่อมต่อผู้ช่วยไม่สำเร็จ กรุณาลองอีกครั้ง",
         error: true,
       }]);
     } finally {
@@ -108,7 +108,7 @@ export default function ChatWidget({ token }: { token: string }) {
             </div>
             <div>
               <strong>SYNAPSE Agent</strong>
-              <span><i /> เชื่อมต่อข้อมูลตามสิทธิ์ของคุณ</span>
+              <span><i /> ดูข้อมูลที่คุณมีสิทธิ์เข้าถึง</span>
             </div>
             <button type="button" onClick={() => setOpen(false)} aria-label="ย่อหน้าต่างแชท">—</button>
           </header>
@@ -156,7 +156,7 @@ export default function ChatWidget({ token }: { token: string }) {
                 </button>
               )}
             </div>
-            <small>Agent อ่านข้อมูลเท่านั้น · ไม่อนุมัติหรือจ่ายของ</small>
+            <small>ผู้ช่วยใช้ค้นและอ่านข้อมูล การอนุมัติและจ่ายพัสดุต้องทำในหน้างาน</small>
           </form>
         </section>
       )}
