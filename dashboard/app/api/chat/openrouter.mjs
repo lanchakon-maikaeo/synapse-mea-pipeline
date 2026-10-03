@@ -2,6 +2,15 @@
 export const CHAT_MODEL = 'openai/gpt-4o-mini';
 export const CHAT_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+export function providerConfig(env = process.env) {
+  const apiKey = env.LLM_API_KEY?.trim() || '';
+  const temperature = Number(env.LLM_TEMPERATURE?.trim() || '0');
+  const timeoutMs = Number(env.LLM_TIMEOUT_MS?.trim() || '30000');
+  if (!apiKey.startsWith('sk-or-') || !Number.isFinite(temperature) || temperature < 0 || temperature > 2 ||
+      !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 40000) return null;
+  return { apiKey, model: CHAT_MODEL, temperature, timeoutMs, apiUrl: CHAT_API_URL };
+}
+
 export function openRouterRequest(body) {
   const messages = [];
   if (body.systemInstruction) messages.push({ role: 'system', content: body.systemInstruction.parts.map(p => p.text ?? '').join('\n') });

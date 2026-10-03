@@ -1,6 +1,6 @@
 # Chat knowledge retrieval
 
-Chat generation, tool selection, reranking and answer review use `openai/gpt-4o-mini` through `https://openrouter.ai/api/v1/chat/completions`. Set `OPENROUTER_API_KEY` as a server-only Vercel Secret for Production and Preview. The adapter retains the existing validated tool contract and passes tool call IDs back with their results. It rejects parallel calls, truncated results and malformed arguments.
+Chat generation, tool selection, reranking and answer review use `openai/gpt-4o-mini` through `https://openrouter.ai/api/v1/chat/completions`. Set the OpenRouter key as `LLM_API_KEY`, a server-only Vercel Secret for Production and Preview. Google API keys are rejected for chat. The adapter retains the existing validated tool contract and passes tool call IDs back with their results. It rejects parallel calls, truncated results and malformed arguments.
 
 Document embeddings are a separate workload. Set `GEMINI_API_KEY` for the existing Gemini corpus. An OpenRouter key must not be sent to Google. Changing the document embedding model requires re-embedding existing chunks; changing the chat model does not.
 

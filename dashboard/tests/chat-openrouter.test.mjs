@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CHAT_MODEL, openRouterRequest, openRouterResponse } from '../app/api/chat/openrouter.mjs';
+import { CHAT_API_URL, CHAT_MODEL, providerConfig, openRouterRequest, openRouterResponse } from '../app/api/chat/openrouter.mjs';
 import { runAgent } from '../app/api/chat/harness.mjs';
 import { composeAnswer } from '../app/api/chat/answer.mjs';
 import { parseToolDecision } from '../app/api/chat/tools.mjs';
@@ -8,6 +8,15 @@ import { parseToolDecision } from '../app/api/chat/tools.mjs';
 const response = (name, args, id = 'call-1') => ({ choices: [{ finish_reason: 'tool_calls', message: {
   role: 'assistant', tool_calls: [{ id, type: 'function', function: { name, arguments: JSON.stringify(args) } }],
 } }], usage: { total_tokens: 10 } });
+
+test('LLM_API_KEY selects GPT-4o-mini through OpenRouter without sending Google keys there', () => {
+  const config = providerConfig({ LLM_API_KEY: ' sk-or-test ' });
+  assert.equal(config.apiKey, 'sk-or-test'); assert.equal(config.model, 'openai/gpt-4o-mini');
+  assert.equal(config.apiUrl, CHAT_API_URL);
+  for (const env of [{}, { LLM_API_KEY: 'AIza-google-key' }, { LLM_API_KEY: 'sk-or-test', LLM_TIMEOUT_MS: 'bad' }]) {
+    assert.equal(providerConfig(env), null);
+  }
+});
 
 test('OpenRouter runs the existing read loop and evidence-checked answer with matched tool IDs', async () => {
   const calls = [

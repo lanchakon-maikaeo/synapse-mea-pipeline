@@ -8,7 +8,7 @@ import { runAgent, HARNESS_VERSION } from "./harness.mjs";
 import { retrieveDatabase } from "./retrieval.mjs";
 import { embedText, providerErrorCode } from "./embedding.mjs";
 import { composeAnswer } from "./answer.mjs";
-import { CHAT_API_URL, CHAT_MODEL, openRouterRequest, openRouterResponse } from "./openrouter.mjs";
+import { providerConfig, openRouterRequest, openRouterResponse } from "./openrouter.mjs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -42,18 +42,6 @@ function reply(body: unknown, status = 200) {
 
 function failure(status: number, code: string, message: string, requestId: string) {
   return reply({ error: { code, message, request_id: requestId } }, status);
-}
-
-function providerConfig() {
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim() || "";
-  const rawTemperature = process.env.LLM_TEMPERATURE?.trim() || "0";
-  const rawTimeout = process.env.LLM_TIMEOUT_MS?.trim() || "30000";
-  const temperature = Number(rawTemperature);
-  const timeoutMs = Number(rawTimeout);
-  if (!apiKey || !Number.isFinite(temperature) ||
-      temperature < 0 || temperature > 2 || !Number.isInteger(timeoutMs) ||
-      timeoutMs < 1_000 || timeoutMs > 40_000) return null;
-  return { apiKey, model: CHAT_MODEL, temperature, timeoutMs, apiUrl: CHAT_API_URL };
 }
 
 async function supabaseRpc<T>(name: string, body: unknown, authorization: string, signal: AbortSignal): Promise<T> {
