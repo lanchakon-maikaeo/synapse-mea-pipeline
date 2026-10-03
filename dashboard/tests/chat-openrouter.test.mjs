@@ -29,6 +29,7 @@ test('OpenRouter runs the existing read loop and evidence-checked answer with ma
     const request = openRouterRequest(body); requests.push(request);
     assert.equal(request.model, CHAT_MODEL); assert.equal(request.tool_choice, 'required');
     assert.equal(request.parallel_tool_calls, false);
+    assert.notEqual(request.provider?.require_parameters, true);
     const [name, args] = calls.shift();
     assert.ok(request.tools.some(tool => tool.function.name === name));
     return openRouterResponse(response(name, args, `call-${requests.length}`));

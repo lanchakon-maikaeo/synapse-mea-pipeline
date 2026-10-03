@@ -37,7 +37,9 @@ export function openRouterRequest(body) {
     tools: body.tools.flatMap(tool => tool.functionDeclarations).map(fn => ({ type: 'function',
       function: { name: fn.name, description: fn.description, parameters: fn.parametersJsonSchema } })),
     tool_choice: 'required', parallel_tool_calls: false,
-    provider: { require_parameters: true },
+    // OpenRouter omits parallel_tool_calls from GPT-4o-mini endpoint metadata.
+    // Requiring every parameter filters out its tool-capable endpoint (404).
+    // Keep the single-call response validation below as the execution boundary.
     temperature: body.generationConfig.temperature, max_tokens: body.generationConfig.maxOutputTokens,
   };
 }

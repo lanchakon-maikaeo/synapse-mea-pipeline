@@ -2,6 +2,8 @@
 
 Chat generation, tool selection, reranking and answer review use `openai/gpt-4o-mini` through `https://openrouter.ai/api/v1/chat/completions`. Set the OpenRouter key as `LLM_API_KEY`, a server-only Vercel Secret for Production and Preview. Google API keys are rejected for chat. The adapter retains the existing validated tool contract and passes tool call IDs back with their results. It rejects parallel calls, truncated results and malformed arguments.
 
+Do not set `provider.require_parameters: true` for this request: GPT-4o-mini endpoint metadata does not list `parallel_tool_calls`, so that filter can exclude every endpoint and return HTTP 404. The request still sends `parallel_tool_calls: false`, and the adapter rejects multiple calls before executing any tool.
+
 Document embeddings are a separate workload. Set `GEMINI_API_KEY` for the existing Gemini corpus. An OpenRouter key must not be sent to Google. Changing the document embedding model requires re-embedding existing chunks; changing the chat model does not.
 
 `search_knowledge` embeds a question with Gemini `gemini-embedding-001` (768 dimensions, RETRIEVAL_QUERY), then calls `public.vmi_chat_knowledge` under the user's JWT. The SQL function is SECURITY INVOKER; RLS on `rag.knowledge_chunks` enforces active profile, allowed role and district. Chat users can only read. The existing harness bounds the read loop and the writer/reviewer validates the returned text as evidence.
