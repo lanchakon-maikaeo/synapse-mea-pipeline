@@ -13,14 +13,15 @@ export default function AlertPanel({token,role,onNavigate,onAsk,demo=false}:{tok
  const [open,setOpen]=useState(false),[status,setStatus]=useState('open'),[feed,setFeed]=useState<Feed|null>(null);
  const [offset,setOffset]=useState(0),[error,setError]=useState(''),[loading,setLoading]=useState(false);
  const button=useRef<HTMLButtonElement>(null),panel=useRef<HTMLDivElement>(null);
+ const sequence=useRef(0);
  const refresh=useCallback(async(signal?:AbortSignal)=>{
   if(!token||demo||signal?.aborted)return;
-  setLoading(true);setError('');
+  const current=++sequence.current;setLoading(true);setError('');
   try {const response=await fetch(`/api/alerts?status=${status}&offset=${offset}`,{headers:{Authorization:`Bearer ${token}`},cache:'no-store',signal});
    if(!response.ok)throw Error('อ่านแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่');
-   const data=await response.json();if(!signal?.aborted)setFeed(data);
-  } catch(e){if(!signal?.aborted)setError(e instanceof Error?e.message:'บริการแจ้งเตือนขัดข้อง');}
-  finally{if(!signal?.aborted)setLoading(false);}
+   const data=await response.json();if(!signal?.aborted&&current===sequence.current)setFeed(data);
+  } catch(e){if(!signal?.aborted&&current===sequence.current)setError(e instanceof Error?e.message:'บริการแจ้งเตือนขัดข้อง');}
+  finally{if(!signal?.aborted&&current===sequence.current)setLoading(false);}
  },[token,status,offset,demo]);
  useEffect(()=>{const controller=new AbortController();queueMicrotask(()=>void refresh(controller.signal));
   const timer=setInterval(()=>{if(document.visibilityState==='visible')void refresh(controller.signal);},60000);
