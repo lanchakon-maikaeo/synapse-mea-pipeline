@@ -66,7 +66,7 @@ test('agent cannot cite unread sources or publish a reviewer-rejected recommenda
   summary:'ตรวจสอบข้อมูล',actions:['ตรวจสต็อก'],evidence_ids:['policy'],uncertainties:[]}),now),/invalid_recommendation/);
  await assert.rejects(analyzeAlert(alert,related,async()=>{
   calls++; if(calls===1)return tool('read_evidence',{sources:['policy']});
-  if(calls===2)return tool('recommend',{summary:'จะหมดวันนี้',actions:['ส่งทันที'],evidence_ids:['alert','policy'],uncertainties:[]});
+  if(calls===2||calls===4)return tool('recommend',{summary:'จะหมดวันนี้',actions:['ส่งทันที'],evidence_ids:['alert','policy'],uncertainties:[]});
   return tool('check_recommendation',{supported:false,reason:'stale_current_claim'});
  },now),/unsupported_stale_current_claim/);
 });
@@ -107,3 +107,19 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
  assert.equal(result.details.analysis_status,'analyzed');assert.equal(calls,3);
  await assert.rejects(analyzeAlert(alert,{policy},async()=>tool('read_evidence',{sources:['policy','policy']}),now),/invalid_evidence_source/);
 });
+
+ test('stale current-stock drafts get one repair and a fresh independent review',async()=>{
+ const alert=buildCandidates(context,now)[0];let calls=0;
+ const tool=(name,args)=>({candidates:[{content:{role:'model',parts:[{functionCall:{id:`call-${calls}`,name,args}}]}}]});
+ const result=await analyzeAlert(alert,{policy},async body=>{
+  calls++;
+  if(calls===1)return tool('read_evidence',{sources:['policy']});
+  if(calls===2)return tool('recommend',{summary:'สต็อกใกล้หมดวันนี้',actions:['ส่งวันนี้'],evidence_ids:['alert'],uncertainties:[]});
+  if(calls===3)return tool('check_recommendation',{supported:false,reason:'stale_current_claim'});
+  if(calls===4){assert.equal(body.contents.at(-1).parts[0].functionResponse.response.status,'rejected');return tool('recommend',{summary:'ข้อมูลเก่า ยังยืนยันสต็อกปัจจุบันไม่ได้',actions:['อัปเดตสต็อกก่อนจัดลำดับส่ง'],evidence_ids:['alert'],uncertainties:['ยังจัดลำดับส่งวันนี้ไม่ได้']});}
+  assert.match(body.contents[0].parts[0].text,/2026-10-04/);
+  return tool('check_recommendation',{supported:true,reason:'supported'});
+ },now);
+ assert.equal(result.details.analysis_status,'analyzed');assert.equal(calls,5);
+ assert.match(result.details.analysis.summary,/ข้อมูลเก่า/);
+ });

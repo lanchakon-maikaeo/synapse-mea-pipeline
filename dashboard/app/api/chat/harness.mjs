@@ -1,4 +1,4 @@
-import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, wantsSources, CONVERSATION_REPLIES, CHAT_TOOLS } from "./tools.mjs";
+import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, wantsSources, CONVERSATION_REPLIES, CHAT_TOOLS, annotateStockFreshness } from "./tools.mjs";
 
 export const HARNESS_VERSION = "v4";
 export const MAX_READS = 6;
@@ -80,6 +80,7 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
     if (!result || !["ok", "no_data", "forbidden", "invalid_input", "unavailable"].includes(result.status)) {
       throw new Error("tool_output_invalid");
     }
+    result=annotateStockFreshness(result);
     trace.push({ tool: decision.name, status: result.status, duration_ms: Date.now() - started,
       ...(result.retrieval ? { retrieval: result.retrieval } : {}) });
     evidence.push(result);

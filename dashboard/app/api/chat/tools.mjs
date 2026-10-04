@@ -268,10 +268,28 @@ const date = (value) => {
 const text = (value, fallback = "—") => value === null || value === undefined || value === "" ? fallback : String(value);
 
 export function wantsSources(question) {
-  return /แหล่งข้อมูล|แหล่งที่มา|อ้างอิง|เอาข้อมูลมาจาก|ข้อมูลมาจาก|ที่มาของ|\b(?:sources?|citations?|references?)\b|where.*(?:data|information).*from/i.test(question);
+  return /หลักฐาน|แหล่งข้อมูล|แหล่งที่มา|อ้างอิง|เอาข้อมูลมาจาก|ข้อมูลมาจาก|ที่มาของ|\b(?:sources?|citations?|references?)\b|where.*(?:data|information).*from/i.test(question);
+}
+
+// Same conservative 26-hour stock freshness window as the proactive policy.
+// observed_at is a read timestamp and never refreshes a stock snapshot.
+export function annotateStockFreshness(envelope, now = new Date()) {
+  if(envelope?.status!=='ok'||!Array.isArray(envelope.data))return envelope;
+  const stockTools=['get_stock_status','get_replenishment_recommendation','get_operations_overview'];
+  const rows=envelope.data.filter(row=>row&&typeof row==='object'&&(stockTools.includes(envelope.tool)||Object.hasOwn(row,'current_stock_qty')||Object.hasOwn(row,'quantity_on_hand')));
+  if(!rows.length)return envelope;
+  const unverified=rows.filter(row=>{const time=typeof row.snapshot_at==='string'?Date.parse(row.snapshot_at):NaN;return !Number.isFinite(time)||time>now.getTime()||now.getTime()-time>26*3600000;}).length;
+  const freshness={assessed_at:now.toISOString(),max_age_hours:26,unverified_rows:unverified,status:unverified?'unverified':'current'};
+  const warnings=[...(envelope.warnings??[]),...(unverified?['ข้อมูลสต็อกเก่าหรือไม่มีวันที่ snapshot ที่ยืนยันได้ ยังยืนยันยอดปัจจุบันและลำดับส่งวันนี้ไม่ได้ ควรอัปเดตสต็อก ตรวจยอดจองและของเข้า แล้วประเมินแผนอีกครั้ง']:[])];
+  return {...envelope,freshness,warnings};
 }
 
 export function renderToolResult(envelope, includeSources = false) {
+  const notice=envelope?.freshness?.status==='unverified'?'ข้อมูลต่อไปนี้เป็นข้อมูลที่บันทึกไว้ ยังยืนยันสต็อกปัจจุบันไม่ได้\n\n':'';
+  return notice+renderRecordedResult(envelope,includeSources)+(notice?'\n\nควรอัปเดตสต็อก ตรวจยอดจองและของเข้า ก่อนจัดลำดับส่งวันนี้':'');
+}
+
+function renderRecordedResult(envelope, includeSources = false) {
   const status = envelope?.status;
   if (status === "no_data") return "ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ";
   if (status === "forbidden") return "บัญชีนี้ไม่มีสิทธิ์อ่านข้อมูลส่วนนี้";

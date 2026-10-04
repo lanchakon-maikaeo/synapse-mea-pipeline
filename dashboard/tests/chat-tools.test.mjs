@@ -100,3 +100,16 @@ test("invalid optional argument types cannot silently widen an overview", () => 
     assert.throws(() => validateDecision({ name: "get_operations_overview", args: { view: "risk", material_id } }));
   }
 });
+
+ test('historical stock cannot be refreshed by the time it was read', async()=>{
+ const {annotateStockFreshness,renderToolResult}=await import('../app/api/chat/tools.mjs');
+ const now=new Date('2026-10-04T00:30:00Z');
+ const stock={status:'ok',tool:'get_operations_overview',observed_at:now.toISOString(),data:[{current_stock_qty:0,snapshot_at:'2026-07-21T00:00:00Z'}]};
+ const result=annotateStockFreshness(stock,now);
+ assert.equal(result.freshness.status,'unverified');
+ assert.match(renderToolResult(result),/ยังยืนยันสต็อกปัจจุบันไม่ได้/);
+ assert.match(result.warnings.join(' '),/ลำดับส่งวันนี้ไม่ได้/);
+ assert.equal(annotateStockFreshness({...stock,data:[{current_stock_qty:0,snapshot_at:now.toISOString()}]},now).freshness.status,'current');
+ assert.equal(annotateStockFreshness({...stock,data:[{current_stock_qty:0,snapshot_at:null}]},now).freshness.status,'unverified');
+ assert.equal(annotateStockFreshness({...stock,data:[{current_stock_qty:0,snapshot_at:'2026-10-05'}]},now).freshness.status,'unverified');
+ });
