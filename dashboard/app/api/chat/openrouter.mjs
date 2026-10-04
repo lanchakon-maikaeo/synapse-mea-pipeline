@@ -49,15 +49,15 @@ export function openRouterRequest(body, model = CHAT_MODEL) {
 }
 
 export function openRouterResponse(payload) {
-  if (!Array.isArray(payload?.choices) || payload.choices.length !== 1) throw Error('provider_output_invalid');
+  if (!Array.isArray(payload?.choices) || payload.choices.length !== 1) throw Error('provider_output_invalid_choices');
   const choice = payload.choices[0];
   const calls = choice.message?.tool_calls;
   if (choice.finish_reason !== 'tool_calls') throw Error(choice.finish_reason === 'length' ? 'provider_output_invalid_length' : 'provider_output_invalid_finish');
   if (!Array.isArray(calls) || calls.length !== 1 ||
       calls[0].type !== 'function' || typeof calls[0].id !== 'string' || !calls[0].id ||
-      typeof calls[0].function?.name !== 'string' || typeof calls[0].function?.arguments !== 'string') throw Error('provider_output_invalid');
+      typeof calls[0].function?.name !== 'string' || typeof calls[0].function?.arguments !== 'string') throw Error(Array.isArray(calls)&&calls.length>1?'provider_output_invalid_parallel':'provider_output_invalid_call');
   let args;
-  try { args = JSON.parse(calls[0].function.arguments); } catch { throw Error('provider_output_invalid'); }
+  try { args = JSON.parse(calls[0].function.arguments); } catch { throw Error('provider_output_invalid_json'); }
   if (!args || typeof args !== 'object' || Array.isArray(args)) throw Error('provider_output_invalid');
   return { candidates: [{ content: { role: 'model', parts: [{ functionCall: {
     id: calls[0].id, name: calls[0].function.name, args,

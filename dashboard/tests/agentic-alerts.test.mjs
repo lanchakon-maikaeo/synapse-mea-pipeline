@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { districtRisk, warehouseSupply } from '../app/agentic-alerts.mjs';
+import { districtRisk, warehouseSupply, nextUrgentAlert } from '../app/agentic-alerts.mjs';
 
 test('missing/fixture stock never becomes a stockout; real zero retains replenishment risk', () => {
   const row = { material_id: 'A', district_id: '5501', current_stock_qty: 0, cmp_monthly: 10,
@@ -86,4 +86,12 @@ test('failed analysis yields its next slot to an untouched alert',async()=>{
  const fetcher=async(_,init)=>{attempted.push(JSON.parse(JSON.parse(init.body).messages[1].content).alert.key);return new Response('',{status:503});};
  for(let run=0;run<2;run++){await runAlertWorker({rpc,env:{LLM_API_KEY:'sk-or-test'},now:new Date(now.getTime()+run*900000),signal:new AbortController().signal,maxAnalyses:1,fetcher});sample.existing=saved.map(x=>({...x,status:'open'}));}
  assert.equal(new Set(attempted).size,2);
+});
+
+test('assistant surfaces new critical events, keeps dismissal and ignores normal or acknowledged alerts',()=>{
+ const a={alert_id:'A',status:'open',severity:'critical',details:{fingerprint:'1'}};const seen=new Set(['A:1']);
+ assert.equal(nextUrgentAlert([a],seen),null);
+ assert.equal(nextUrgentAlert([{...a,details:{fingerprint:'2'}}],seen)?.alert_id,'A');
+ assert.equal(nextUrgentAlert([{...a,severity:'warning'},{...a,status:'acknowledged'}],new Set()),null);
+ assert.equal(nextUrgentAlert([a,{...a,alert_id:'B'}],seen)?.alert_id,'B');
 });

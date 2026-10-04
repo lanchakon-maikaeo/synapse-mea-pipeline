@@ -34,7 +34,7 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { id: "welcome", role: "assistant", text: "สวัสดีค่ะ สอบถามสต็อกและแผนจ่ายพัสดุได้เลย" },
+    { id: "welcome", role: "assistant", text: "สวัสดีค่ะ วันนี้ให้ช่วยดูเรื่องไหน? ถามเรื่องสต็อก งานที่ควรทำ หรือแผนส่งพัสดุได้เลย" },
   ]);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -43,7 +43,7 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
   useEffect(() => {
     if (open) {
       inputRef.current?.focus();
-      endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      endRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
     }
   }, [open, messages]);
 
@@ -112,7 +112,7 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
             </div>
             <div>
               <strong>SYNAPSE Agent</strong>
-              <span><i /> ดูข้อมูลที่คุณมีสิทธิ์เข้าถึง</span>
+              <span><i /> ผู้ช่วยส่วนตัว · ใช้ข้อมูลตามสิทธิ์ของคุณ</span>
             </div>
             <button type="button" onClick={() => setOpen(false)} aria-label="ย่อหน้าต่างแชท">—</button>
           </header>
@@ -149,7 +149,8 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
                     event.currentTarget.form?.requestSubmit();
                   }
                 }}
-                rows={1}
+                placeholder="พิมพ์คำถาม หรือบอกให้ช่วยวางแผนวันนี้…"
+                rows={2}
                 disabled={busy}
               />
               {busy ? (

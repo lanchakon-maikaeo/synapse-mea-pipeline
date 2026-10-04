@@ -56,3 +56,8 @@ export function warehouseSupply({ material_id, location_id, units, required_qty,
     shortfall_qty: incomplete ? null : Math.max(0, required - allocatable),
     incomplete, basis: 'eligible_handling_units_against_requested_quantity' };
 }
+
+// A changed event can surface again; unchanged urgent events stay dismissed.
+export function nextUrgentAlert(alerts, seen) {
+  return alerts.find(a=>a.status==='open'&&a.severity==='critical'&&!seen.has(`${a.alert_id}:${a.details.fingerprint??a.created_at}`))??null;
+}
