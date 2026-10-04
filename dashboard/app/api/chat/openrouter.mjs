@@ -40,7 +40,8 @@ export function openRouterRequest(body, model = CHAT_MODEL) {
     ...(model === CHAT_MODEL ? { provider: { only: ['openai'] } } : {}),
     tools: body.tools.flatMap(tool => tool.functionDeclarations).map(fn => ({ type: 'function',
       function: { name: fn.name, description: fn.description, parameters: fn.parametersJsonSchema, strict: true } })),
-    tool_choice: 'required', parallel_tool_calls: false,
+    tool_choice: body.tools.flatMap(tool=>tool.functionDeclarations).length===1
+      ? {type:'function',function:{name:body.tools[0].functionDeclarations[0].name}} : 'required', parallel_tool_calls: false,
     // OpenRouter omits parallel_tool_calls from GPT-4o-mini endpoint metadata.
     // Requiring every parameter filters out its tool-capable endpoint (404).
     // Keep the single-call response validation below as the execution boundary.

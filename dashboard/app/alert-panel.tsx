@@ -13,6 +13,7 @@ const identity=(alert:Alert)=>[alert.details.location_id&&`คลัง ${alert.
 export default function AlertPanel({token,role,onNavigate,onAsk,demo=false}:{token:string|null;role:Role;
  onNavigate:(target:string)=>void;onAsk:(question:string)=>void;demo?:boolean}) {
  const [open,setOpen]=useState(false),[status,setStatus]=useState('open'),[feed,setFeed]=useState<Feed|null>(null);
+ const [openCount,setOpenCount]=useState(0);
  const [peek,setPeek]=useState<Alert|null>(null);
  const shown=useRef(new Set<string>());
  const [offset,setOffset]=useState(0),[error,setError]=useState(''),[loading,setLoading]=useState(false);
@@ -23,7 +24,7 @@ export default function AlertPanel({token,role,onNavigate,onAsk,demo=false}:{tok
   const current=++sequence.current;setLoading(true);setError('');
   try {const response=await fetch(`/api/alerts?status=${status}&offset=${offset}`,{headers:{Authorization:`Bearer ${token}`},cache:'no-store',signal});
    if(!response.ok)throw Error('อ่านแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่');
-   const data=await response.json();if(!signal?.aborted&&current===sequence.current){setFeed(data);
+   const data=await response.json();if(!signal?.aborted&&current===sequence.current){setFeed(data);setOpenCount(data.open_count);
     if(status==='open'){const urgent=nextUrgentAlert(data.alerts,shown.current);
      if(urgent){const key=`${urgent.alert_id}:${urgent.details.fingerprint??urgent.created_at}`;
       if(!shown.current.has(key)){shown.current.add(key);setPeek(urgent);}}else setPeek(current=>data.alerts.some((a:Alert)=>a.alert_id===current?.alert_id&&a.severity==='critical')?current:null);}
@@ -46,9 +47,9 @@ export default function AlertPanel({token,role,onNavigate,onAsk,demo=false}:{tok
   if(!response.ok)throw Error('รับทราบไม่สำเร็จ');setPeek(null);await refresh();
  }catch(e){setError(e instanceof Error?e.message:'รับทราบไม่สำเร็จ');}};
  return <>
-  <button ref={button} type="button" onClick={()=>{setOpen(true);setPeek(null);void refresh();}} aria-label={`แจ้งเตือน ${feed?.open_count??0} รายการ`} aria-expanded={open}
+  <button ref={button} type="button" onClick={()=>{setOpen(true);setPeek(null);void refresh();}} aria-label={`แจ้งเตือน ${openCount} รายการ`} aria-expanded={open}
    className="relative flex size-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground">
-   <Bell className="size-4"/>{!!feed?.open_count&&<span className="absolute -right-1 -top-1 rounded-full bg-primary px-1 text-[10px] text-white">{feed.open_count>9?'9+':feed.open_count}</span>}
+   <Bell className="size-4"/>{!!openCount&&<span className="absolute -right-1 -top-1 rounded-full bg-primary px-1 text-[10px] text-white">{openCount>9?'9+':openCount}</span>}
   </button>
   {peek&&!open&&createPortal(<aside className="agent-notice" role="status" aria-live="polite">
    <div className="flex items-center gap-3"><span className="agent-assistant-icon"><Sparkles size={21}/></span><div className="flex-1"><strong>มีเรื่องสำคัญที่ควรดู</strong><p className="text-sm text-muted-foreground">SYNAPSE · ผู้ช่วยส่วนตัว</p></div><button type="button" aria-label="ย่อคำแนะนำสำคัญ" onClick={()=>setPeek(null)}><X size={20}/></button></div>

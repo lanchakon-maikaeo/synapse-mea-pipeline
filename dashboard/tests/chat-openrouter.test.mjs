@@ -31,7 +31,7 @@ test('OpenRouter runs the existing read loop and evidence-checked answer with ma
   const requests = [];
   const generate = async body => {
     const request = openRouterRequest(body, config.model); requests.push(request);
-    assert.equal(request.model, 'openai/gpt-4o'); assert.equal(request.tool_choice, 'required');
+    assert.equal(request.model, 'openai/gpt-4o'); assert.deepEqual(request.tool_choice,request.tools.length===1?{type:'function',function:{name:request.tools[0].function.name}}:'required');
     assert.equal(request.parallel_tool_calls, false);
     assert.notEqual(request.provider?.require_parameters, true);
     const [name, args] = calls.shift();

@@ -65,7 +65,7 @@ test('agent cannot cite unread sources or publish a reviewer-rejected recommenda
  await assert.rejects(analyzeAlert(alert,related,async()=>tool('recommend',{
   summary:'ตรวจสอบข้อมูล',actions:['ตรวจสต็อก'],evidence_ids:['policy'],uncertainties:[]}),now),/invalid_recommendation/);
  await assert.rejects(analyzeAlert(alert,related,async()=>{
-  calls++; if(calls===1)return tool('read_evidence',{source:'policy'});
+  calls++; if(calls===1)return tool('read_evidence',{sources:['policy']});
   if(calls===2)return tool('recommend',{summary:'จะหมดวันนี้',actions:['ส่งทันที'],evidence_ids:['alert','policy'],uncertainties:[]});
   return tool('check_recommendation',{supported:false});
  },now),/unsupported_recommendation/);
@@ -94,4 +94,16 @@ test('assistant surfaces new critical events, keeps dismissal and ignores normal
  assert.equal(nextUrgentAlert([{...a,details:{fingerprint:'2'}}],seen)?.alert_id,'A');
  assert.equal(nextUrgentAlert([{...a,severity:'warning'},{...a,status:'acknowledged'}],new Set()),null);
  assert.equal(nextUrgentAlert([a,{...a,alert_id:'B'}],seen)?.alert_id,'B');
+});
+test('agent reads a bounded evidence batch before publishing reviewed advice',async()=>{
+ const alert=buildCandidates(context,now)[0];let calls=0;
+ const tool=(name,args)=>({candidates:[{content:{parts:[{functionCall:{id:`call-${calls}`,name,args}}]}}]});
+ const result=await analyzeAlert(alert,{policy,warehouse:{rows:[],truncated:false}},async body=>{
+  calls++;const names=body.tools[0].functionDeclarations.map(x=>x.name);
+  if(calls===1){assert.deepEqual(names,['read_evidence']);return tool('read_evidence',{sources:['policy','warehouse']});}
+  if(calls===2){assert.deepEqual(names,['recommend']);return tool('recommend',{summary:'ตรวจข้อมูลสต็อกให้เป็นปัจจุบัน',actions:['ตรวจยอดและรายการจอง'],evidence_ids:['policy','warehouse','alert'],uncertainties:['ยังไม่ทราบเวลาของเข้า']});}
+  return tool('check_recommendation',{supported:true});
+ },now);
+ assert.equal(result.details.analysis_status,'analyzed');assert.equal(calls,3);
+ await assert.rejects(analyzeAlert(alert,{policy},async()=>tool('read_evidence',{sources:['policy','policy']}),now),/invalid_evidence_source/);
 });
