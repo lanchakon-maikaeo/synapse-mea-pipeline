@@ -6,6 +6,16 @@ export function providerErrorCode(status, fallback = 'provider_unavailable') {
   return status === 402 ? 'provider_billing_required' : status === 429 ? 'provider_rate_limited' : fallback;
 }
 
+// A 402 with an explicit in-flight budget and Retry-After is temporary.
+// All other 402 responses need the account/key credit limit checked.
+export async function providerFailureCode(response, fallback = `provider_http_${response.status}`) {
+  if(response.status!==402){await response.body?.cancel().catch(()=>undefined);return providerErrorCode(response.status,fallback);}
+  const payload=await response.json().catch(()=>null);
+  const delay=Number(response.headers.get('retry-after'));
+  return payload?.error?.metadata?.limit_source==='openrouter_in_flight_budget'&&Number.isFinite(delay)&&delay>0
+    ?'provider_capacity_budget':'provider_billing_required';
+}
+
 export async function embedText({ text, apiKey, taskType = 'RETRIEVAL_QUERY', signal, fetcher = fetch }) {
   if (typeof text !== 'string' || !text.trim() || text.length > 8000 || !apiKey?.startsWith('sk-or-') ||
       !['RETRIEVAL_QUERY', 'RETRIEVAL_DOCUMENT'].includes(taskType)) throw Error('embedding_input_invalid');
@@ -15,8 +25,7 @@ export async function embedText({ text, apiKey, taskType = 'RETRIEVAL_QUERY', si
     redirect: 'error', signal,
   });
   if (!response.ok) {
-    await response.body?.cancel().catch(() => undefined);
-    throw Error(providerErrorCode(response.status, 'embedding_unavailable'));
+    throw Error(await providerFailureCode(response, 'embedding_unavailable'));
   }
   const payload = await response.json();
   const invalidOutput = reason => new Error('embedding_output_invalid', { cause: {

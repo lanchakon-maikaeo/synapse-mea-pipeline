@@ -107,6 +107,7 @@ test("invalid optional argument types cannot silently widen an overview", () => 
  const stock={status:'ok',tool:'get_operations_overview',observed_at:now.toISOString(),data:[{current_stock_qty:0,snapshot_at:'2026-07-21T00:00:00Z'}]};
  const result=annotateStockFreshness(stock,now);
  assert.equal(result.freshness.status,'unverified');
+ assert.equal(annotateStockFreshness({status:'ok',tool:'query_database',data:[{sum_current_stock_qty:42}]},now).freshness.status,'unverified');
  assert.match(renderToolResult(result),/ยังยืนยันสต็อกปัจจุบันไม่ได้/);
  assert.match(result.warnings.join(' '),/ลำดับส่งวันนี้ไม่ได้/);
  assert.equal(annotateStockFreshness({...stock,data:[{current_stock_qty:0,snapshot_at:now.toISOString()}]},now).freshness.status,'current');

@@ -123,3 +123,26 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
  assert.equal(result.details.analysis_status,'analyzed');assert.equal(calls,5);
  assert.match(result.details.analysis.summary,/ข้อมูลเก่า/);
  });
+
+ test('review of a current workflow cites its own facts, not unused historical stock',async()=>{
+ const alert={key:'workflow',details:{evidence:{plan_status:'pending_district_confirmation',item_count:6}}};let calls=0;
+ const related={queue:{rows:[{plan_status:'pending_district_confirmation'}]},stock:{rows:[{snapshot_at:'2026-07-21',current_stock_qty:0}]}};
+ const tool=(name,args)=>({candidates:[{content:{role:'model',parts:[{functionCall:{id:`call-${calls}`,name,args}}]}}]});
+ const result=await analyzeAlert(alert,related,async body=>{
+  calls++;
+  if(calls===1)return tool('read_evidence',{sources:['stock','queue']});
+  if(calls===2)return tool('recommend',{summary:'แผนรอการยืนยันจากเขต 6 รายการ',actions:['ตรวจสถานะแผนและข้อมูลก่อนยืนยัน'],evidence_ids:['alert','queue'],uncertainties:['ยังไม่ยืนยันสต็อกปัจจุบัน']});
+  const input=JSON.parse(body.contents[0].parts[0].text);
+  assert.deepEqual(Object.keys(input.evidence),['alert','queue']);
+  assert.equal(input.evidence.alert.item_count,6);
+  return tool('check_recommendation',{supported:true,reason:'supported',explanation:'Workflow facts match the cited active records'});
+ },now);
+ assert.equal(result.details.analysis_status,'analyzed');
+ });
+ test('a billing refusal stops further model calls while every alert is still saved',async()=>{
+ const sample={...context,stock:[...context.stock,{...context.stock[0],district_id:'5502'}]};let requests=0;let saved;
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const result=await runAlertWorker({rpc,env:{LLM_API_KEY:'sk-or-test'},now,signal:new AbortController().signal,fetcher:async()=>{requests++;return new Response(JSON.stringify({error:{message:'insufficient credits'}}),{status:402});}});
+ assert.equal(requests,1);assert.equal(saved.length,2);assert.equal(result.errors.provider_billing_required,1);
+ assert.ok(saved.every(x=>x.details.analysis_status==='evidence_only'));
+ });

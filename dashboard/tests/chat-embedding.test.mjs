@@ -48,3 +48,12 @@ test('knowledge search runs through the existing harness and hides sources by de
     assert.equal(result.answer.includes('rules.md'),question.includes('แหล่งข้อมูล'));
   }
 });
+
+ test('402 in-flight capacity is distinct from an exhausted account or key budget',async()=>{
+ const {providerFailureCode}=await import('../app/api/chat/embedding.mjs');
+ const body={error:{metadata:{limit_source:'openrouter_in_flight_budget'}}};
+ assert.equal(await providerFailureCode(new Response(JSON.stringify(body),{status:402,headers:{'retry-after':'2'}})),'provider_capacity_budget');
+ assert.equal(await providerFailureCode(new Response(JSON.stringify(body),{status:402})),'provider_billing_required');
+ assert.equal(await providerFailureCode(new Response(JSON.stringify({error:{message:'insufficient credits'}}),{status:402})),'provider_billing_required');
+ assert.equal(await providerFailureCode(new Response('upstream',{status:503})),'provider_http_503');
+ });

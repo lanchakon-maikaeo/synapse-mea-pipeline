@@ -276,7 +276,7 @@ export function wantsSources(question) {
 export function annotateStockFreshness(envelope, now = new Date()) {
   if(envelope?.status!=='ok'||!Array.isArray(envelope.data))return envelope;
   const stockTools=['get_stock_status','get_replenishment_recommendation','get_operations_overview'];
-  const rows=envelope.data.filter(row=>row&&typeof row==='object'&&(stockTools.includes(envelope.tool)||Object.hasOwn(row,'current_stock_qty')||Object.hasOwn(row,'quantity_on_hand')));
+  const rows=envelope.data.filter(row=>row&&typeof row==='object'&&(stockTools.includes(envelope.tool)||Object.keys(row).some(key=>/(?:^|_)(current_stock_qty|quantity_on_hand)$/.test(key))));
   if(!rows.length)return envelope;
   const unverified=rows.filter(row=>{const time=typeof row.snapshot_at==='string'?Date.parse(row.snapshot_at):NaN;return !Number.isFinite(time)||time>now.getTime()||now.getTime()-time>26*3600000;}).length;
   const freshness={assessed_at:now.toISOString(),max_age_hours:26,unverified_rows:unverified,status:unverified?'unverified':'current'};

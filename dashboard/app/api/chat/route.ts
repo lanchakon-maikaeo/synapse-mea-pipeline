@@ -6,7 +6,7 @@ import {
 
 import { runAgent, HARNESS_VERSION } from "./harness.mjs";
 import { retrieveDatabase } from "./retrieval.mjs";
-import { embedText, providerErrorCode } from "./embedding.mjs";
+import { embedText, providerFailureCode } from "./embedding.mjs";
 import { composeAnswer } from "./answer.mjs";
 import { providerConfig, openRouterRequest, openRouterResponse } from "./openrouter.mjs";
 
@@ -132,8 +132,7 @@ export async function POST(request: Request) {
       signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]),
     });
     if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new Error(providerErrorCode(response.status, `provider_http_${response.status}`));
+      throw new Error(await providerFailureCode(response));
     }
     const payload = openRouterResponse(await response.json());
     const tokens = payload?.usageMetadata?.totalTokenCount;
@@ -168,7 +167,7 @@ export async function POST(request: Request) {
       ? error.cause as { validation_code?: string; tool?: string } | undefined : undefined;
     const embedding = code === "embedding_output_invalid" && error instanceof Error
       ? error.cause as { embedding_validation?: string; response_model?: string; vector_dimensions?: number } | undefined : undefined;
-    const status = code === "unauthorized" ? 401 : code === "forbidden" ? 403 : code === "provider_rate_limited" ? 429 : 503;
+    const status = code === "unauthorized" ? 401 : code === "forbidden" ? 403 : ["provider_rate_limited","provider_capacity_budget"].includes(code) ? 429 : 503;
     console.warn(JSON.stringify({ event: "chat_run_failed", request_id: requestId, harness: HARNESS_VERSION,
       error_code: /^[a-z_0-9]{1,80}$/.test(code) ? code : "agent_unavailable",
       validation_code: validation?.validation_code, decision_tool: validation?.tool,
@@ -177,7 +176,9 @@ export async function POST(request: Request) {
       http_status: status, model_calls: modelCalls, total_tokens: totalTokens, duration_ms: Date.now() - startedAt }));
     const message = code === "provider_billing_required"
       ? "บริการ AI ยังใช้งานไม่ได้ กรุณาให้ผู้ดูแลระบบตรวจ billing และโควตาของผู้ให้บริการ"
-      : code === "provider_rate_limited"
+      : code === "provider_capacity_budget"
+        ? "บริการ AI มีคำขอค้างอยู่ กรุณาลองใหม่ภายหลัง"
+        : code === "provider_rate_limited"
         ? "บริการ AI ใช้งานเกินโควตาชั่วคราว กรุณาลองใหม่ภายหลัง"
         : "ค้นและตรวจข้อมูลไม่สำเร็จ กรุณาลองใหม่ภายหลัง";
     return failure(status, code, message, requestId);
