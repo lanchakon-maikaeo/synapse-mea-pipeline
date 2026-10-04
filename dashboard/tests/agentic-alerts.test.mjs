@@ -67,8 +67,8 @@ test('agent cannot cite unread sources or publish a reviewer-rejected recommenda
  await assert.rejects(analyzeAlert(alert,related,async()=>{
   calls++; if(calls===1)return tool('read_evidence',{sources:['policy']});
   if(calls===2)return tool('recommend',{summary:'จะหมดวันนี้',actions:['ส่งทันที'],evidence_ids:['alert','policy'],uncertainties:[]});
-  return tool('check_recommendation',{supported:false});
- },now),/unsupported_recommendation/);
+  return tool('check_recommendation',{supported:false,reason:'stale_current_claim'});
+ },now),/unsupported_stale_current_claim/);
 });
 test('warehouse covered demand does not create a missing-stock alert; busy worker does not read or write', async()=>{
  const sample={...context,stock:[],warehouse:[{material_id:'A',location_id:'W',quantity_on_hand:100,snapshot_at:now.toISOString(),data_class:'actual'}],
@@ -102,7 +102,7 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
   calls++;const names=body.tools[0].functionDeclarations.map(x=>x.name);
   if(calls===1){assert.deepEqual(names,['read_evidence']);return tool('read_evidence',{sources:['policy','warehouse']});}
   if(calls===2){assert.deepEqual(names,['recommend']);return tool('recommend',{summary:'ตรวจข้อมูลสต็อกให้เป็นปัจจุบัน',actions:['ตรวจยอดและรายการจอง'],evidence_ids:['policy','warehouse','alert'],uncertainties:['ยังไม่ทราบเวลาของเข้า']});}
-  return tool('check_recommendation',{supported:true});
+  return tool('check_recommendation',{supported:true,reason:'supported'});
  },now);
  assert.equal(result.details.analysis_status,'analyzed');assert.equal(calls,3);
  await assert.rejects(analyzeAlert(alert,{policy},async()=>tool('read_evidence',{sources:['policy','policy']}),now),/invalid_evidence_source/);
