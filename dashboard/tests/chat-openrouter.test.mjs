@@ -13,6 +13,7 @@ test('LLM_API_KEY selects GPT-4o-mini through OpenRouter without sending Google 
   const config = providerConfig({ LLM_API_KEY: ' sk-or-test ' });
   assert.equal(config.apiKey, 'sk-or-test'); assert.equal(config.model, 'openai/gpt-4o-mini');
   assert.equal(config.apiUrl, CHAT_API_URL);
+  assert.deepEqual(openRouterRequest({contents:[],tools:[],generationConfig:{temperature:0,maxOutputTokens:100}}).provider,{only:['openai']});
   assert.equal(providerConfig({ LLM_API_KEY: 'sk-or-test', LLM_MODEL: '  ' }).model, config.model);
   for (const env of [{}, { LLM_API_KEY: 'AIza-google-key' }, { LLM_API_KEY: 'sk-or-test', LLM_TIMEOUT_MS: 'bad' },
     { LLM_API_KEY: 'sk-or-test', LLM_MODEL: 'gpt-4o-mini' }, { LLM_API_KEY: 'sk-or-test', LLM_MODEL: 'openai/gpt mini' }]) {

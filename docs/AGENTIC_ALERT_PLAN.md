@@ -60,7 +60,10 @@
 - Tests ผ่าน 5 tests ใหม่และ 38 Agent tests เดิม; scoped lint, TypeScript และ production build ผ่าน
 - Rollback-only DB verification ผ่าน grants, เขต, picker, viewer, acknowledgment, dedup, resolution, worsening และ lease; ไม่มีแถวทดสอบหรือการเปลี่ยน profile ค้าง
 - Migration 20261004024530 ใช้จริงและลงทะเบียนแล้ว; เพิ่ม pg_cron/pg_net และ invoker อ่าน invocation secret จาก Vault
-- ตั้ง worker credentials เฉพาะ sensitive Preview/dev env; ยังต้อง deploy แล้วติดตั้ง cron jobs และตรวจ HTTP/runtime/UI ก่อนสำเร็จ
+- ตั้ง worker credentials เฉพาะ sensitive Preview/dev env; cron jobs 07:30 ไทยและทุก 15 นาทีเปิดใช้งานแล้ว
+- HTTP worker ผ่าน Preview protection ด้วย automation bypass ใน Vault: 200, saved 121; รอบแรก analyzed 0/6 เพราะ provider_output_invalid จึงยังไม่ถือว่าการทดสอบ LLM สำเร็จ
+- UI live ตรวจกระดิ่ง 121 รายการ หลักฐาน รับทราบแล้วลดเป็น 120 และย้ายแท็บ ถาม Agent เติมข้อความ และเปิด FIFO ต้นทางได้; คืนสถานะรายการที่ใช้ทดสอบแล้ว
+- Dev commit 50f57a9 และ prebuilt deployment อยู่ในคิว Vercel; ต้องตรวจ LLM และ UI รุ่นล่าสุดก่อนสำเร็จ
 - Security advisor มี 3 findings ที่เกี่ยวข้อง: private run table RLS ไม่มี policy และ scoped security-definer feed/ack ที่ authenticated เรียกได้ เป็นสิทธิ์ตั้งใจและตรวจ authorization แล้ว ไม่อ้างว่าทั้งฐานข้อมูลสะอาด
 
 ### ต้นไม้การตัดสินใจ

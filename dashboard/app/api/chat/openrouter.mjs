@@ -36,6 +36,8 @@ export function openRouterRequest(body, model = CHAT_MODEL) {
   if (pending) throw Error('provider_tool_history_invalid');
   return {
     model, messages,
+    // The Azure mini endpoints omit tools from their supported parameters.
+    ...(model === CHAT_MODEL ? { provider: { only: ['openai'] } } : {}),
     tools: body.tools.flatMap(tool => tool.functionDeclarations).map(fn => ({ type: 'function',
       function: { name: fn.name, description: fn.description, parameters: fn.parametersJsonSchema, strict: true } })),
     tool_choice: 'required', parallel_tool_calls: false,
