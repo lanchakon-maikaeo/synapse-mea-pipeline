@@ -98,3 +98,7 @@
 - งานทั่วไปเปิดด้วยการกด และยังรองรับรับทราบ/ประวัติ/เปิดข้อมูลต้นทาง/ถาม Agent ต่อ
 - แชทใช้ข้อความหลัก 16px และช่องพิมพ์สองบรรทัด พร้อม reduced-motion และขนาดมือถือ/desktop
 - Commit 0eea915 มี UX ข้างต้นและการแยกรหัส provider error เพิ่มเติม; ต้องตรวจ Preview/UI/runtime ก่อนถือว่าสำเร็จ
+
+### Provider read serialization verification
+
+Preview 0eea915 was READY and the modern drawer/chat passed desktop and 390px checks. Live worker request 8 saved 121 alerts but reviewed 0 of 6 attempts (`provider_output_invalid_parallel`); the broad chat question also failed. Evidence reads now use a bounded source batch. The shared provider adapter executes one read proposal per step and explicitly defers unused call IDs. Duplicate IDs, unknown/mixed terminal batches, permissions and budgets remain guarded. All 38 agent tests passed, including read → deferred read → finish. Live verification of this correction is pending.

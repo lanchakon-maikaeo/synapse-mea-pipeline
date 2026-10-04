@@ -68,3 +68,18 @@ test('a mismatched result cannot be attached to another tool call', () => {
   const content = openRouterResponse(response('get_stock_status', {})).candidates[0].content;
   assert.throws(() => openRouterRequest({ contents: [content, { role: 'user', parts: [{ functionResponse: { name: 'query_database', response: {} } }] }] }), /provider_tool_history_invalid/);
 });
+
+test('parallel read proposals execute one at a time and every unused call receives a deferred result',async()=>{
+ const first=response('get_operations_overview',{view:'risk',material_id:null,district_id:null},'risk-1');
+ first.choices[0].message.tool_calls.push(response('get_operations_overview',{view:'delivery',material_id:null,district_id:null},'delivery-deferred').choices[0].message.tool_calls[0]);
+ let turns=0;const reads=[];
+ const result=await runAgent({message:'คลังไหนใกล้หมดและควรส่งไหนก่อน',temperature:0,scope:{role:'admin'},
+  generate:async body=>{turns++;const request=openRouterRequest(body);
+   if(turns===1)return openRouterResponse(first);
+   if(turns===2){const replies=request.messages.filter(x=>x.role==='tool');assert.equal(replies.length,2);assert.equal(replies[1].tool_call_id,'delivery-deferred');assert.equal(JSON.parse(replies[1].content).status,'deferred');assert.deepEqual(reads,['risk']);return openRouterResponse(response('get_operations_overview',{view:'delivery',material_id:null,district_id:null},'delivery-2'));}
+   return openRouterResponse(response('finish',{},'finished'));
+  },read:async decision=>{reads.push(decision.args.view);return {tool:decision.name,status:'no_data',data:[],view:decision.args.view};}});
+ assert.deepEqual(reads,['risk','delivery']);assert.equal(result.stop_reason,'complete');
+ const duplicate=structuredClone(first);duplicate.choices[0].message.tool_calls[1].id='risk-1';assert.throws(()=>openRouterResponse(duplicate),/invalid_call/);
+ const unsafe=structuredClone(first);unsafe.choices[0].message.tool_calls[1].function.name='write_database';assert.throws(()=>openRouterResponse(unsafe),/invalid_parallel/);
+});

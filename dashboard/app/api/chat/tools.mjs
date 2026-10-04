@@ -84,7 +84,7 @@ export const CONVERSATION_REPLIES = {
   goodbye: "สวัสดีค่ะ ไว้กลับมาคุยกันใหม่นะคะ",
   capabilities: "ฉันช่วยค้นชื่อเขต วัสดุ สต็อก แผนเติมของ สัญญา ขนส่ง และประวัติในระบบตามสิทธิ์ของคุณ รวมถึงกรอง เรียง และสรุปยอดจากฐานข้อมูลได้ เช่น ‘เขต 5501 คือเขตไหน’ หรือ ‘ทะเบียนวัสดุมีกี่รายการ’ ฉันอ่านข้อมูลและให้คำแนะนำได้ แต่ยังไม่อนุมัติหรือจ่ายของค่ะ",
 };
-const DB_TOOLS = new Set(CHAT_TOOLS.filter((tool) => !["conversation", "clarify", "unsupported", "finish"].includes(tool.name)).map((tool) => tool.name));
+export const DB_TOOLS = new Set(CHAT_TOOLS.filter((tool) => !["conversation", "clarify", "unsupported", "finish"].includes(tool.name)).map((tool) => tool.name));
 const districtPattern = /^55(0[1-9]|1[0-8])$/;
 const materialPattern = /^[A-Za-z0-9._/-]{1,100}$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
