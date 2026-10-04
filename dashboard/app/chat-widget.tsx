@@ -29,7 +29,7 @@ const examples = [
   "ควรส่งพัสดุอะไรไปคลังไหนก่อน",
 ];
 
-export default function ChatWidget({ token }: { token: string }) {
+export default function ChatWidget({ token, suggestedQuestion }: { token: string; suggestedQuestion?: { question: string; id: number } | null }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -56,6 +56,10 @@ export default function ChatWidget({ token }: { token: string }) {
   }, []);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (suggestedQuestion) { setOpen(true); setInput(suggestedQuestion.question.slice(0, 2000)); }
+  }, [suggestedQuestion]);
 
   async function ask(question: string) {
     const message = question.trim();

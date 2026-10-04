@@ -14,7 +14,6 @@ import {
 import {
   AlertTriangle,
   BarChart3,
-  Bell,
   Boxes,
   ClipboardList,
   FileClock,
@@ -52,6 +51,7 @@ import {
 } from "./use-synapse-backend";
 import FifoPackagingSetupView from "./fifo-packaging-setup";
 import ChatWidget from "./chat-widget";
+import AlertPanel from "./alert-panel";
 import {
   TransportModule,
   transportNavForRole,
@@ -832,7 +832,7 @@ function Sidebar({
 
 function Header({
   role, displayName, districtId, loading, openMenu, logout, navigate, refresh,
-  snapshot, alertCount, activePrimary, onPrimary,
+  snapshot, alertToken, onAlertAsk, demoMode, activePrimary, onPrimary,
 }: {
   role: Role;
   displayName: string;
@@ -843,7 +843,9 @@ function Header({
   navigate: (view: ViewKey) => void;
   refresh: () => void;
   snapshot: string;
-  alertCount: number;
+  alertToken: string | null;
+  onAlertAsk: (question: string) => void;
+  demoMode: boolean;
   activePrimary: "dashboard" | "shipments" | "transport" | "warehouses" | "other";
   onPrimary: (key: "dashboard" | "shipments" | "transport" | "warehouses") => void;
 }) {
@@ -878,7 +880,7 @@ function Header({
         <form onSubmit={submit} className="relative hidden max-w-md flex-1 md:block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาเมนู เช่น Stock, FIFO, คำขอ…" aria-label="ค้นหาเมนู" className="h-9 w-full rounded-md border border-border bg-card pl-9 pr-3 text-sm" /></form>
         <div className="ml-auto flex items-center gap-2">
           <button type="button" onClick={refresh} disabled={loading} title="โหลดข้อมูลล่าสุด" className="hidden items-center gap-2 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted sm:flex"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /><span className="max-w-32 truncate">{loading ? "กำลังโหลด…" : snapshot}</span></button>
-          {(role === "admin" || role === "planner") && <button type="button" onClick={() => navigate("operations")} className="relative flex size-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground" aria-label={`แจ้งเตือน ${alertCount} รายการ`}><Bell className="size-4" />{alertCount > 0 && <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] text-white">{Math.min(alertCount, 9)}</span>}</button>}
+          <AlertPanel token={alertToken} role={role} demo={demoMode} onNavigate={(target) => navigate((target === "input" && role !== "admin" && role !== "planner" ? role === "district" ? "stock" : "warehouses" : target === "fifo" && role !== "admin" && role !== "planner" ? "warehouses" : target) as ViewKey)} onAsk={onAlertAsk} />
           <details className="relative"><summary className="flex cursor-pointer list-none items-center gap-2 rounded-md border border-border bg-card py-1 pl-1 pr-2.5"><span className="flex size-7 items-center justify-center rounded-full bg-accent text-xs font-semibold text-primary">{displayName.charAt(0) || roleNameTh[role].charAt(0)}</span><span className="hidden max-w-36 truncate text-sm font-medium sm:block">{displayName}</span></summary><div className="absolute right-0 mt-2 w-52 rounded-lg border border-border bg-card p-2 shadow-xl"><p className="px-2 py-2 text-xs text-muted-foreground">{roleNameTh[role]}{districtId ? ` · ${districtId}` : ""}</p><button type="button" onClick={logout} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted"><LogOut className="size-4" />ออกจากระบบ</button></div></details>
         </div>
       </div>
@@ -7361,6 +7363,7 @@ function PageContent({
 
 export default function Home() {
   const backend = useSynapseBackend();
+  const [alertQuestion, setAlertQuestion] = useState<{ question: string; id: number } | null>(null);
   const [view, setView] = useState<ViewKey>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [moduleKey, setModule] = useState<"warehouse" | "transport">(
@@ -7459,7 +7462,9 @@ export default function Home() {
           navigate={(target) => { setModule("warehouse"); setView(allowedViews.has(target) ? target : "dashboard"); }}
           refresh={() => void backend.refresh()}
           snapshot={snapshot}
-          alertCount={backend.data.alerts.length}
+          alertToken={backend.session?.access_token ?? null}
+          onAlertAsk={(question) => setAlertQuestion({ question, id: Date.now() })}
+          demoMode={backend.demoMode}
           activePrimary={activePrimary}
           onPrimary={choosePrimary}
         />
@@ -7535,7 +7540,7 @@ export default function Home() {
           {backend.notice}
         </div>
       )}
-      <ChatWidget token={backend.session.access_token} />
+      <ChatWidget token={backend.session.access_token} suggestedQuestion={alertQuestion} />
     </div>
   );
 }
