@@ -50,7 +50,8 @@ export function openRouterResponse(payload) {
   if (!Array.isArray(payload?.choices) || payload.choices.length !== 1) throw Error('provider_output_invalid');
   const choice = payload.choices[0];
   const calls = choice.message?.tool_calls;
-  if (choice.finish_reason !== 'tool_calls' || !Array.isArray(calls) || calls.length !== 1 ||
+  if (choice.finish_reason !== 'tool_calls') throw Error(choice.finish_reason === 'length' ? 'provider_output_invalid_length' : 'provider_output_invalid_finish');
+  if (!Array.isArray(calls) || calls.length !== 1 ||
       calls[0].type !== 'function' || typeof calls[0].id !== 'string' || !calls[0].id ||
       typeof calls[0].function?.name !== 'string' || typeof calls[0].function?.arguments !== 'string') throw Error('provider_output_invalid');
   let args;

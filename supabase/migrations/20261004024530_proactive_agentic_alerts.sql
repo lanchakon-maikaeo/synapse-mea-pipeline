@@ -159,12 +159,13 @@ create extension if not exists pg_net with schema extensions;
 revoke usage on schema net,cron from public,anon,authenticated;
 create function ops.invoke_agentic_alert_dev() returns bigint
 language plpgsql security definer set search_path=pg_catalog as $$
-declare secret text;
+declare secret text; bypass text;
 begin
  select decrypted_secret into secret from vault.decrypted_secrets where name='synapse-agentic-dev-cron';
- if secret is null then raise exception 'agentic_cron_secret_missing'; end if;
+ select decrypted_secret into bypass from vault.decrypted_secrets where name='synapse-agentic-dev-bypass';
+ if secret is null or bypass is null then raise exception 'agentic_cron_secret_missing'; end if;
  return net.http_get(url:='https://mea-synapse-production-git-dev-synapse-mea.vercel.app/api/internal/agentic-alerts',
-  headers:=jsonb_build_object('Authorization','Bearer '||secret),timeout_milliseconds:=100000);
+  headers:=jsonb_build_object('Authorization','Bearer '||secret,'x-vercel-protection-bypass',bypass),timeout_milliseconds:=100000);
 end;
 $$;
 revoke all on function ops.invoke_agentic_alert_dev() from public,anon,authenticated;

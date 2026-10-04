@@ -10,7 +10,7 @@ Proactive recommendations appear in the top-right bell before a user asks a ques
 
 Configure `AGENTIC_ALERT_SERVICE_KEY` and `AGENTIC_ALERT_CRON_SECRET` as sensitive server-only Vercel Preview/dev variables. LLM calls use existing `LLM_API_KEY` and `LLM_MODEL`; these do not change the Codex model. Never expose worker credentials with `NEXT_PUBLIC_`.
 
-The dev scheduler calls `ops.invoke_agentic_alert_dev()`, whose HTTP URL is fixed to the dev alias and whose invocation secret is `synapse-agentic-dev-cron` in Supabase Vault. Install jobs only after the Preview endpoint is ready:
+The dev scheduler calls `ops.invoke_agentic_alert_dev()`, whose HTTP URL is fixed to the dev alias and whose invocation secret is `synapse-agentic-dev-cron` in Supabase Vault. The automation protection bypass is encrypted separately as `synapse-agentic-dev-bypass` and sent through the `x-vercel-protection-bypass` header; Preview authentication stays enabled. Install jobs only after the Preview endpoint is ready:
 
 ```sql
 select cron.schedule('synapse-agentic-dev-daily','30 0 * * *','select ops.invoke_agentic_alert_dev();');

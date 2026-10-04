@@ -4,10 +4,11 @@ import { Bell, X, RefreshCw } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { formatDateTime, type Role } from './lib';
 type Alert={alert_id:string;alert_type:string;severity:string;status:string;message:string;created_at:string;details:{
- scope?:string;target?:string;action?:string;analysis_status?:string;analysis?:{summary:string;actions:string[];uncertainties:string[];evidence_ids:string[]};
+ material_id?:string;district_id?:string;location_id?:string;scope?:string;target?:string;action?:string;analysis_status?:string;analysis?:{summary:string;actions:string[];uncertainties:string[];evidence_ids:string[]};
  evidence?:Record<string,unknown>;limitations?:string[];analyzed_at?:string}};
 type Feed={open_count:number;alerts:Alert[];last_run?:{status:string;finished_at?:string};schedule:string};
 const evidenceLabels:Record<string,string>={material_id:'รหัสวัสดุ',district_id:'รหัสเขต',location_id:'รหัสคลัง',snapshot_at:'เวลาของข้อมูลสต็อก',usage_as_of_date:'วันที่อัตราใช้',stock_qty:'สต็อกตามหลักฐาน',cmp_monthly:'อัตราใช้ต่อเดือน',months_available:'จำนวนเดือนที่คาดว่าพอใช้',target_gap_qty:'ส่วนต่างถึงเป้าหมายเติม',required_qty:'จำนวนที่แผนต้องการ',allocatable_qty:'ยอดพร้อมจัดสรร',shortfall_qty:'ส่วนขาดเทียบแผน',incomplete:'ข้อมูลยังไม่ครบ',count:'จำนวนรายการที่ต้องตรวจ',material_ids:'ตัวอย่างรหัสวัสดุ',oldest_snapshot:'ข้อมูลสต็อกเก่าสุด',stale:'ข้อมูลเก่า',plan_number:'เลขแผน',plan_id:'รหัสแผน',plan_ids:'แผนที่เกี่ยวข้อง',plan_status:'สถานะแผน',response_due_at:'กำหนดตอบแผน',item_count:'จำนวนรายการในแผน',items:'รายการแผนตามหลักฐาน',truncated:'แสดงรายการเพียงบางส่วน',priority:'คะแนนลำดับงานเดิม',needs_data_check:'ต้องตรวจข้อมูลต้นทาง',policy:'เกณฑ์เติมที่ใช้งาน',action:'สิ่งที่ควรทำ',district_name:'ชื่อเขต',name:'ชื่อคลัง',basis:'ฐานการเปรียบเทียบ'};
+const identity=(alert:Alert)=>[alert.details.location_id&&`คลัง ${alert.details.location_id}`,alert.details.district_id&&`เขต ${alert.details.district_id}`,alert.details.material_id&&`วัสดุ ${alert.details.material_id}`,alert.details.evidence?.plan_number&&`แผน ${alert.details.evidence.plan_number}`].filter(Boolean).join(' · ');
 export default function AlertPanel({token,role,onNavigate,onAsk,demo=false}:{token:string|null;role:Role;
  onNavigate:(target:string)=>void;onAsk:(question:string)=>void;demo?:boolean}) {
  const [open,setOpen]=useState(false),[status,setStatus]=useState('open'),[feed,setFeed]=useState<Feed|null>(null);
@@ -62,6 +63,7 @@ export default function AlertPanel({token,role,onNavigate,onAsk,demo=false}:{tok
       <div className="flex items-center gap-2 text-xs"><span className={alert.severity==='critical'?'text-red-600':alert.severity==='warning'?'text-amber-600':'text-muted-foreground'}>{alert.severity==='critical'?'เร่งด่วน':alert.severity==='warning'?'ควรตรวจสอบ':'งานที่ควรจัดการ'}</span>
        <span className="text-muted-foreground">{alert.details.scope==='warehouse'?'คลังส่วนกลาง':alert.details.scope==='district'?'คลังประจำเขต':'ระบบ/แผนงาน'}</span></div>
       <h3 className="text-sm font-semibold">{alert.message}</h3>
+      {identity(alert)&&<p className="break-words text-xs text-muted-foreground">{identity(alert)}</p>}
       <p className="text-sm">{alert.details.action??alert.message}</p>
       {alert.details.analysis&&<><p className="text-sm text-muted-foreground">{alert.details.analysis.summary}</p>
        <ul className="list-disc space-y-1 pl-4 text-sm">{alert.details.analysis.actions.map((a,i)=><li key={i}>{a}</li>)}</ul></>}
@@ -73,7 +75,7 @@ export default function AlertPanel({token,role,onNavigate,onAsk,demo=false}:{tok
       <div className="flex flex-wrap gap-2 text-xs">
        {status==='open'&&role!=='viewer'&&<button type="button" className="rounded border border-border px-2 py-1.5" onClick={()=>void acknowledge(alert.alert_id)}>รับทราบ</button>}
        <button type="button" className="rounded bg-primary px-2 py-1.5 text-white" onClick={()=>{onNavigate(alert.details.target??'operations');setOpen(false);}}>เปิดข้อมูลต้นทาง</button>
-       <button type="button" className="rounded border border-border px-2 py-1.5" onClick={()=>{onAsk(`ตรวจข้อมูลล่าสุดเกี่ยวกับ ${alert.message} และแนะนำสิ่งที่ควรทำ พร้อมหลักฐาน`);setOpen(false);}}>ถาม Agent ต่อ</button>
+       <button type="button" className="rounded border border-border px-2 py-1.5" onClick={()=>{onAsk(`ตรวจข้อมูลล่าสุดเกี่ยวกับ ${alert.message} (${identity(alert)}) และแนะนำสิ่งที่ควรทำ พร้อมหลักฐาน`);setOpen(false);}}>ถาม Agent ต่อ</button>
       </div>
      </article>)}
     </div>
