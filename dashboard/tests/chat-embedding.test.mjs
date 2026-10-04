@@ -57,3 +57,14 @@ test('knowledge search runs through the existing harness and hides sources by de
  assert.equal(await providerFailureCode(new Response(JSON.stringify({error:{message:'insufficient credits'}}),{status:402})),'provider_billing_required');
  assert.equal(await providerFailureCode(new Response('upstream',{status:503})),'provider_http_503');
  });
+
+ test('provider waits for a short in-flight Retry-After once and never retries billing',async()=>{
+ const {fetchProvider}=await import('../app/api/chat/embedding.mjs');let requests=0;
+ const blocked=()=>new Response(JSON.stringify({error:{metadata:{limit_source:'openrouter_in_flight_budget'}}}),{status:402,headers:{'retry-after':'1'}});
+ const response=await fetchProvider('https://openrouter.ai/api/v1/chat/completions',{signal:new AbortController().signal},async()=>++requests===1?blocked():new Response('ok'));
+ assert.equal(await response.text(),'ok');assert.equal(requests,2);
+ requests=0;
+ await assert.rejects(fetchProvider('https://openrouter.ai/api/v1/chat/completions',{},async()=>{requests++;return new Response('{}',{status:402});}),/provider_billing_required/);
+ assert.equal(requests,1);
+ await assert.rejects(fetchProvider('https://openrouter.ai/api/v1/chat/completions',{},async()=>new Response(JSON.stringify({error:{metadata:{limit_source:'openrouter_in_flight_budget'}}}),{status:402,headers:{'retry-after':'60'}})),error=>error.message==='provider_capacity_budget'&&error.cause.retry_after_seconds===60);
+ });

@@ -146,3 +146,30 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
  assert.equal(requests,1);assert.equal(saved.length,2);assert.equal(result.errors.provider_billing_required,1);
  assert.ok(saved.every(x=>x.details.analysis_status==='evidence_only'));
  });
+
+ test('an in-flight capacity hold stops a run without skipping its alert persistence',async()=>{
+ const sample={...context,stock:[...context.stock,{...context.stock[0],district_id:'5502'}]};let requests=0;let saved;
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const result=await runAlertWorker({rpc,env:{LLM_API_KEY:'sk-or-test'},now,signal:new AbortController().signal,fetcher:async()=>{requests++;return new Response(JSON.stringify({error:{metadata:{limit_source:'openrouter_in_flight_budget'}}}),{status:402,headers:{'retry-after':'60'}});}});
+ assert.equal(requests,1);assert.equal(saved.length,2);assert.equal(result.retry_after_seconds,60);
+ assert.equal(result.errors.provider_capacity_budget,1);
+ });
+ test('workflow reads cannot mix another plan, material or origin into their evidence',async()=>{
+ const item={replenishment_plan_id:'P',replenishment_item_id:'I',district_id:'5501',material_id:'A',origin_location_id:'W',plan_status:'pending_district_confirmation',item_status:'draft',input_data_class:'actual',suggested_qty:0,allocated_qty:0};
+ const sample={...context,queue:[item,{...item,replenishment_plan_id:'OTHER',material_id:'B',origin_location_id:'OTHER'}],warehouse:[{material_id:'A',location_id:'W'},{material_id:'B',location_id:'W'},{material_id:'A',location_id:'OTHER'}],stock:[...context.stock,{...context.stock[0],material_id:'B'}]};let reads;let saved;
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const fetcher=async(_,init)=>{
+  const body=JSON.parse(init.body);const name=body.tools[0].function.name;const initial=JSON.parse(body.messages[1].content);
+  if(initial.alert&&!initial.alert.key.includes('proactive:workflow:P:'))return new Response('{}',{status:503});
+  let args;
+  if(name==='read_evidence')args={sources:['queue','stock','warehouse']};
+  else if(name==='recommend'){reads=JSON.parse(body.messages.at(-1).content);args={summary:'ตรวจสถานะแผน P',actions:['ตรวจข้อมูลก่อนยืนยัน'],evidence_ids:['alert','queue'],uncertainties:[]};}
+  else args={supported:true,reason:'supported',explanation:''};
+  return new Response(JSON.stringify({choices:[{finish_reason:'tool_calls',message:{tool_calls:[{id:`id-${name}`,type:'function',function:{name,arguments:JSON.stringify(args)}}]}}]}));
+ };
+ await runAlertWorker({rpc,env:{LLM_API_KEY:'sk-or-test'},now,signal:new AbortController().signal,maxAnalyses:6,fetcher});
+ assert.deepEqual(reads.queue.rows.map(x=>x.replenishment_plan_id),['P']);
+ assert.deepEqual(reads.stock.rows.map(x=>x.material_id),['A']);
+ assert.deepEqual(reads.warehouse.rows.map(x=>[x.location_id,x.material_id]),[['W','A']]);
+ assert.equal(saved.find(x=>x.key.includes('proactive:workflow:P:')).details.analysis_status,'analyzed');
+ });

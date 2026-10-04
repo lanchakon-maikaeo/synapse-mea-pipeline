@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { districtRisk, warehouseSupply } from '../agentic-alerts.mjs';
-import { providerFailureCode } from './chat/embedding.mjs';
+import { fetchProvider } from './chat/embedding.mjs';
 import { providerConfig, openRouterRequest, openRouterResponse } from './chat/openrouter.mjs';
 
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -174,11 +174,10 @@ export async function runAlertWorker({ rpc, env=process.env, signal, now=new Dat
     const pack = rows => ({rows:rows.slice(0,15),truncated:rows.length>15});
     const alerts=buildCandidates(context,now);
     const config=providerConfig(env);
-    let attempted=0;let analyzed=0;let providerAvailable=true;const errors={};
+    let attempted=0;let analyzed=0;let providerAvailable=true;let retryAfter;const errors={};
     const generate=async body=>{
-      const response=await fetcher(config.apiUrl,{method:'POST',headers:{Authorization:`Bearer ${config.apiKey}`,'Content-Type':'application/json'},
-        body:JSON.stringify(openRouterRequest(body,config.model)),redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(config.timeoutMs)])});
-      if(!response.ok) throw Error(await providerFailureCode(response));
+      const response=await fetchProvider(config.apiUrl,{method:'POST',headers:{Authorization:`Bearer ${config.apiKey}`,'Content-Type':'application/json'},
+        body:JSON.stringify(openRouterRequest(body,config.model)),redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(config.timeoutMs)])},fetcher);
       return openRouterResponse(await response.json());
     };
     // Oldest attempt first keeps a failed recommendation from starving untouched alerts.
@@ -188,16 +187,20 @@ export async function runAlertWorker({ rpc, env=process.env, signal, now=new Dat
       if(alert.details.analysis_status==='analyzed') continue;
       if(!config || !providerAvailable || attempted>=maxAnalyses || signal.aborted) {alert.details.analysis_status='evidence_only';continue;}
       const d=alert.details;
+      const queue=context.queue.filter(x=>(!d.material_id||x.material_id===d.material_id)&&(!d.district_id||x.district_id===d.district_id)&&(!d.location_id||x.origin_location_id===d.location_id)&&(d.scope!=='workflow'||x.replenishment_plan_id===d.evidence.plan_id));
+      const materials=new Set(queue.map(x=>x.material_id));
+      const origins=new Set(queue.map(x=>`${x.origin_location_id}:${x.material_id}`));
       const related={
         policy:context.policy,
-        stock:pack(context.stock.filter(x=>(!d.material_id||x.material_id===d.material_id)&&(!d.district_id||x.district_id===d.district_id))),
-        queue:pack(context.queue.filter(x=>(!d.material_id||x.material_id===d.material_id)&&(!d.district_id||x.district_id===d.district_id)&&(!d.location_id||x.origin_location_id===d.location_id))),
-        warehouse:pack(context.warehouse.filter(x=>(!d.material_id||x.material_id===d.material_id)&&(!d.location_id||x.location_id===d.location_id))),
+        stock:pack(context.stock.filter(x=>(!d.material_id||x.material_id===d.material_id)&&(!d.district_id||x.district_id===d.district_id)&&(d.scope!=='workflow'||materials.has(x.material_id)))),
+        queue:pack(queue),
+        warehouse:pack(context.warehouse.filter(x=>(!d.material_id||x.material_id===d.material_id)&&(!d.location_id||x.location_id===d.location_id)&&(d.scope!=='workflow'||origins.has(`${x.location_id}:${x.material_id}`)))),
       };
       attempted++; alert.details.analysis_attempted_at=now.toISOString();
       try { alerts[index]=await analyzeAlert(alert,related,generate,now); alerts[index].details.model=config.model; analyzed++; }
       catch(error) {const code=error instanceof Error && /^[a-z_0-9]{1,80}$/.test(error.message)?error.message:'analysis_unavailable';errors[code]=(errors[code]??0)+1;alert.details.analysis_status='evidence_only';alert.details.analysis_error=code;
-        if(code==='provider_billing_required')providerAvailable=false;
+        if(['provider_billing_required','provider_capacity_budget'].includes(code))providerAvailable=false;
+        if(code==='provider_capacity_budget')retryAfter=error.cause?.retry_after_seconds;
         // Rejected proposals stay in private operator logs, never in the alert feed.
         if(error?.cause?.draft) {
           const safe=value=>typeof value==='string'?value.replace(/sk-[\w-]+|Bearer\s+\S+|eyJ[\w.-]+/g,'[redacted]').slice(0,700):'';
@@ -207,6 +210,6 @@ export async function runAlertWorker({ rpc, env=process.env, signal, now=new Dat
       }
     }
     const result=await rpc('agentic_alert_save',{p_run_id:id,p_alerts:alerts,p_model:config?.model??null,p_analyzed:analyzed});
-    return {status:'succeeded',...result,attempted,analyzed,errors};
+    return {status:'succeeded',...result,attempted,analyzed,errors,...(retryAfter?{retry_after_seconds:retryAfter}:{})};
   } catch(error) {await rpc('agentic_alert_fail',{p_run_id:id}).catch(()=>{});throw error;}
 }

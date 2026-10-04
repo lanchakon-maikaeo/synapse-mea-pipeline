@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises';
 // Documents and questions must use the same model and dimensions.
 export const EMBEDDING_MODEL = 'baai/bge-m3';
 export const EMBEDDING_DIMENSIONS = 1024;
@@ -16,17 +17,30 @@ export async function providerFailureCode(response, fallback = `provider_http_${
     ?'provider_capacity_budget':'provider_billing_required';
 }
 
+// Only replay a request rejected before generation by the in-flight budget.
+export async function fetchProvider(url, init, fetcher = fetch, fallback = '') {
+  for(let attempt=0;attempt<2;attempt++) {
+    const response=await fetcher(url,init);
+    if(response.ok)return response;
+    const code=await providerFailureCode(response,fallback||undefined);
+    const seconds=Number(response.headers.get('retry-after'));
+    if(code==='provider_capacity_budget'&&attempt===0&&Number.isInteger(seconds)&&seconds>0&&seconds<=10) {
+      await delay(seconds*1000,undefined,{signal:init.signal});
+      continue;
+    }
+    throw Error(code,{cause:code==='provider_capacity_budget'&&Number.isFinite(seconds)&&seconds>0?{retry_after_seconds:seconds}:undefined});
+  }
+  throw Error('provider_unavailable');
+}
+
 export async function embedText({ text, apiKey, taskType = 'RETRIEVAL_QUERY', signal, fetcher = fetch }) {
   if (typeof text !== 'string' || !text.trim() || text.length > 8000 || !apiKey?.startsWith('sk-or-') ||
       !['RETRIEVAL_QUERY', 'RETRIEVAL_DOCUMENT'].includes(taskType)) throw Error('embedding_input_invalid');
-  const response = await fetcher('https://openrouter.ai/api/v1/embeddings', {
+  const response = await fetchProvider('https://openrouter.ai/api/v1/embeddings', {
     method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: EMBEDDING_MODEL, input: text, encoding_format: 'float' }),
     redirect: 'error', signal,
-  });
-  if (!response.ok) {
-    throw Error(await providerFailureCode(response, 'embedding_unavailable'));
-  }
+  },fetcher,'embedding_unavailable');
   const payload = await response.json();
   const invalidOutput = reason => new Error('embedding_output_invalid', { cause: {
     embedding_validation: reason,

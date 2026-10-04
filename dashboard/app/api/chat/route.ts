@@ -6,7 +6,7 @@ import {
 
 import { runAgent, HARNESS_VERSION } from "./harness.mjs";
 import { retrieveDatabase } from "./retrieval.mjs";
-import { embedText, providerFailureCode } from "./embedding.mjs";
+import { embedText, fetchProvider } from "./embedding.mjs";
 import { composeAnswer } from "./answer.mjs";
 import { providerConfig, openRouterRequest, openRouterResponse } from "./openrouter.mjs";
 
@@ -125,15 +125,14 @@ export async function POST(request: Request) {
   if (!Number.isInteger(topK) || topK < 1 || topK > 12) return failure(503, "retrieval_not_configured", "ค่า retrieval top-k ต้องเป็นจำนวนเต็ม 1–12", requestId);
   const generate = async (body: unknown, limit = 12) => {
     if (modelCalls >= limit) throw new Error("model_call_limit");
-    modelCalls++;
-    const response = await fetch(config.apiUrl, {
+    const response = await fetchProvider(config.apiUrl, {
       method: "POST", headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(openRouterRequest(body, config.model)), redirect: "error",
       signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]),
+    },async(input:RequestInfo|URL,init?:RequestInit)=>{
+      if(modelCalls>=limit)throw new Error('model_call_limit');
+      modelCalls++;return fetch(input,init);
     });
-    if (!response.ok) {
-      throw new Error(await providerFailureCode(response));
-    }
     const payload = openRouterResponse(await response.json());
     const tokens = payload?.usageMetadata?.totalTokenCount;
     if (Number.isSafeInteger(tokens) && tokens >= 0) totalTokens += tokens;
