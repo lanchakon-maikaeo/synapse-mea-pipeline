@@ -80,3 +80,10 @@ test('warehouse covered demand does not create a missing-stock alert; busy worke
  const result=await runAlertWorker({rpc:async()=>{count++;return false;},signal:new AbortController().signal});
  assert.equal(result.status,'busy');assert.equal(count,1);
 });
+test('failed analysis yields its next slot to an untouched alert',async()=>{
+ const sample={...context,stock:[...context.stock,{...context.stock[0],district_id:'5502'}]};let saved;const attempted=[];
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const fetcher=async(_,init)=>{attempted.push(JSON.parse(JSON.parse(init.body).messages[1].content).alert.key);return new Response('',{status:503});};
+ for(let run=0;run<2;run++){await runAlertWorker({rpc,env:{LLM_API_KEY:'sk-or-test'},now:new Date(now.getTime()+run*900000),signal:new AbortController().signal,maxAnalyses:1,fetcher});sample.existing=saved.map(x=>({...x,status:'open'}));}
+ assert.equal(new Set(attempted).size,2);
+});

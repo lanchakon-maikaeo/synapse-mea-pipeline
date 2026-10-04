@@ -19,7 +19,7 @@ export function buildCandidates(context, now = new Date()) {
       limitations: ['ยังไม่มีข้อมูลยืนยันเวลาของเข้าครบทุกแหล่ง จึงไม่ระบุวันขาดแบบแน่นอน'],
       ...(previous?.details?.fingerprint === fingerprint && previous.status !== 'resolved'
         ? { analysis: previous.details.analysis, analysis_status: previous.details.analysis_status,
-            analyzed_at: previous.details.analyzed_at, model: previous.details.model } : {}) } });
+            analysis_attempted_at: previous.details.analysis_attempted_at, analyzed_at: previous.details.analyzed_at, model: previous.details.model } : {}) } });
   };
   for (const row of context.stock) {
     const risk = districtRisk(row, context.policy, now);
@@ -169,7 +169,9 @@ export async function runAlertWorker({ rpc, env=process.env, signal, now=new Dat
       if(!response.ok) {await response.body?.cancel();throw Error(`provider_http_${response.status}`);}
       return openRouterResponse(await response.json());
     };
-    for(let index=0;index<alerts.length;index++) {
+    // Oldest attempt first keeps a failed recommendation from starving untouched alerts.
+    const order=alerts.map((_,index)=>index).sort((a,b)=>(Date.parse(alerts[a].details.analysis_attempted_at)||0)-(Date.parse(alerts[b].details.analysis_attempted_at)||0));
+    for(const index of order) {
       const alert=alerts[index];
       if(alert.details.analysis_status==='analyzed') continue;
       if(!config || attempted>=maxAnalyses || signal.aborted) {alert.details.analysis_status='evidence_only';continue;}
@@ -180,7 +182,7 @@ export async function runAlertWorker({ rpc, env=process.env, signal, now=new Dat
         queue:pack(context.queue.filter(x=>(!d.material_id||x.material_id===d.material_id)&&(!d.district_id||x.district_id===d.district_id)&&(!d.location_id||x.origin_location_id===d.location_id))),
         warehouse:pack(context.warehouse.filter(x=>(!d.material_id||x.material_id===d.material_id)&&(!d.location_id||x.location_id===d.location_id))),
       };
-      attempted++;
+      attempted++; alert.details.analysis_attempted_at=now.toISOString();
       try { alerts[index]=await analyzeAlert(alert,related,generate,now); alerts[index].details.model=config.model; analyzed++; }
       catch(error) {const code=error instanceof Error && /^[a-z_0-9]{1,80}$/.test(error.message)?error.message:'analysis_unavailable';errors[code]=(errors[code]??0)+1;alert.details.analysis_status='evidence_only';alert.details.analysis_error=code;}
     }

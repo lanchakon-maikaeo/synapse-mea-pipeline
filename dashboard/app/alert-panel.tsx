@@ -71,7 +71,7 @@ export default function AlertPanel({token,role,onNavigate,onAsk,demo=false}:{tok
       {[...(alert.details.limitations??[]),...(alert.details.analysis?.uncertainties??[])].map((x,i)=><p key={i} className="text-xs text-muted-foreground">{x}</p>)}
       <details><summary className="cursor-pointer text-xs text-primary">ดูหลักฐานและเวลาของข้อมูล</summary>
        <dl className="mt-2 space-y-1 break-words text-xs">{Object.entries(alert.details.evidence??{}).map(([key,value])=>
-        <div key={key}><dt className="font-medium">{evidenceLabels[key]??key}</dt><dd className="whitespace-pre-wrap text-muted-foreground">{typeof value==='object'?JSON.stringify(value,null,2):typeof value==='boolean'?value?'ใช่':'ไม่':String(value??'ไม่ทราบ')}</dd></div>)}</dl></details>
+        <div key={key}><dt className="font-medium">{evidenceLabels[key]??key}</dt><dd className="whitespace-pre-wrap text-muted-foreground">{value==null?'ไม่ทราบ':typeof value==='object'?JSON.stringify(value,null,2):typeof value==='boolean'?value?'ใช่':'ไม่':String(value??'ไม่ทราบ')}</dd></div>)}</dl></details>
       <div className="flex flex-wrap gap-2 text-xs">
        {status==='open'&&role!=='viewer'&&<button type="button" className="rounded border border-border px-2 py-1.5" onClick={()=>void acknowledge(alert.alert_id)}>รับทราบ</button>}
        <button type="button" className="rounded bg-primary px-2 py-1.5 text-white" onClick={()=>{onNavigate(alert.details.target??'operations');setOpen(false);}}>เปิดข้อมูลต้นทาง</button>
