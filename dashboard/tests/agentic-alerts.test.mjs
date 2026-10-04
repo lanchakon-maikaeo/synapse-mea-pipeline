@@ -67,7 +67,7 @@ test('agent cannot cite unread sources or publish a reviewer-rejected recommenda
  await assert.rejects(analyzeAlert(alert,related,async()=>{
   calls++; if(calls===1)return tool('read_evidence',{sources:['policy']});
   if(calls===2||calls===4)return tool('recommend',{summary:'จะหมดวันนี้',actions:['ส่งทันที'],evidence_ids:['alert','policy'],uncertainties:[]});
-  return tool('check_recommendation',{supported:false,reason:'stale_current_claim'});
+  return tool('check_recommendation',{supported:false,reason:'stale_current_claim',explanation:'Uses historical stock as current'});
  },now),/unsupported_stale_current_claim/);
 });
 test('warehouse covered demand does not create a missing-stock alert; busy worker does not read or write', async()=>{
@@ -102,7 +102,7 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
   calls++;const names=body.tools[0].functionDeclarations.map(x=>x.name);
   if(calls===1){assert.deepEqual(names,['read_evidence']);return tool('read_evidence',{sources:['policy','warehouse']});}
   if(calls===2){assert.deepEqual(names,['recommend']);return tool('recommend',{summary:'ตรวจข้อมูลสต็อกให้เป็นปัจจุบัน',actions:['ตรวจยอดและรายการจอง'],evidence_ids:['policy','warehouse','alert'],uncertainties:['ยังไม่ทราบเวลาของเข้า']});}
-  return tool('check_recommendation',{supported:true,reason:'supported'});
+  return tool('check_recommendation',{supported:true,reason:'supported',explanation:''});
  },now);
  assert.equal(result.details.analysis_status,'analyzed');assert.equal(calls,3);
  await assert.rejects(analyzeAlert(alert,{policy},async()=>tool('read_evidence',{sources:['policy','policy']}),now),/invalid_evidence_source/);
@@ -115,10 +115,10 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
   calls++;
   if(calls===1)return tool('read_evidence',{sources:['policy']});
   if(calls===2)return tool('recommend',{summary:'สต็อกใกล้หมดวันนี้',actions:['ส่งวันนี้'],evidence_ids:['alert'],uncertainties:[]});
-  if(calls===3)return tool('check_recommendation',{supported:false,reason:'stale_current_claim'});
+  if(calls===3)return tool('check_recommendation',{supported:false,reason:'stale_current_claim',explanation:'Uses historical stock as current'});
   if(calls===4){assert.equal(body.contents.at(-1).parts[0].functionResponse.response.status,'rejected');return tool('recommend',{summary:'ข้อมูลเก่า ยังยืนยันสต็อกปัจจุบันไม่ได้',actions:['อัปเดตสต็อกก่อนจัดลำดับส่ง'],evidence_ids:['alert'],uncertainties:['ยังจัดลำดับส่งวันนี้ไม่ได้']});}
   assert.match(body.contents[0].parts[0].text,/2026-10-04/);
-  return tool('check_recommendation',{supported:true,reason:'supported'});
+  return tool('check_recommendation',{supported:true,reason:'supported',explanation:''});
  },now);
  assert.equal(result.details.analysis_status,'analyzed');assert.equal(calls,5);
  assert.match(result.details.analysis.summary,/ข้อมูลเก่า/);
