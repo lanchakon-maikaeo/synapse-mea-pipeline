@@ -453,3 +453,42 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,te
 @media(max-width:1000px){.fifo-explorer-toolbar,.fifo-setup-search{grid-template-columns:1fr 1fr}.fifo-explorer-toolbar>.btn,.fifo-setup-search>.btn{width:100%}.fifo-setup-explainer,.fifo-setup-lifecycle{grid-template-columns:1fr}.fifo-setup-steps{grid-template-columns:1fr 1fr}.fifo-setup-publish{grid-template-columns:1fr}.fifo-setup-publish-actions{flex-wrap:wrap}.fifo-setup-notice{grid-column:auto}.fifo-setup-detail-groups{grid-template-columns:1fr}.fifo-setup-calculated{grid-template-columns:1fr 1fr}}
 @media(max-width:700px){.fifo-explorer-toolbar,.fifo-setup-search{grid-template-columns:1fr}.fifo-setup-hero{align-items:flex-start;flex-direction:column}.fifo-setup-hero aside{width:100%;min-width:0}.fifo-setup-workflow-head,.fifo-setup-footer,.fifo-setup-notice,.fifo-setup-detail-head{align-items:stretch;flex-direction:column}.fifo-setup-workflow-actions{align-items:stretch;flex-direction:column}.fifo-setup-steps{grid-template-columns:1fr}.fifo-setup-tabs{display:grid}.fifo-setup-publish-actions,.fifo-setup-footer-actions{display:grid!important;grid-auto-flow:row}.fifo-setup-publish-actions .btn,.fifo-setup-footer-actions .btn{width:100%}.fifo-setup-detail-groups section>div,.fifo-setup-calculated{grid-template-columns:1fr}}
 .fifo-setup-table-wrap{max-height:580px}
+.sap-import-panel .panel-title p{margin:6px 0 0;color:#64748b;font-size:13px}
+.sap-import-body{display:grid;gap:18px;padding:20px}
+.sap-import-help{margin:0;padding:14px 16px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a5f;font-size:13px;line-height:1.6}
+.sap-import-entry{display:grid;gap:14px;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.sap-import-mode{display:flex;flex-wrap:wrap;gap:8px}
+.sap-import-mode button{padding:9px 14px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;color:#334155;font:inherit;font-size:13px;cursor:pointer}
+.sap-import-mode button[aria-pressed="true"]{border-color:#ea580c;background:#fff7ed;color:#9a3412;font-weight:700}
+.sap-import-mode button:focus-visible{outline:3px solid #fdba74;outline-offset:2px}
+.sap-import-files{display:grid;grid-template-columns:1fr 1fr auto;align-items:end;gap:16px}
+.sap-import-files.single{grid-template-columns:minmax(0,1fr) auto}
+.sap-import-files label{display:grid;gap:7px;color:#1e293b;font-size:13px;font-weight:600}
+.sap-import-files input{max-width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:white;font:inherit}
+.sap-import-files small{color:#64748b;font-size:11px;font-weight:400;overflow-wrap:anywhere}
+.sap-import-review,.sap-import-history{display:grid;gap:12px;padding:18px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+.sap-import-review h4,.sap-import-history h4{margin:0;color:#0f172a;font-size:16px}
+.sap-import-review p,.sap-import-history p{margin:0;color:#64748b;font-size:13px}
+.sap-import-counts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sap-import-counts article{padding:14px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}
+.sap-import-counts article>strong{display:block;margin-bottom:8px;color:#0f172a;font-size:14px}
+.sap-import-counts article>div{display:flex;justify-content:space-between;gap:12px;padding:5px 0;color:#475569;font-size:12px}
+.sap-import-counts b{color:#0f172a;font-size:14px}
+.sap-import-changes,.sap-import-history-detail{display:grid;gap:8px;max-height:400px;overflow:auto;padding:12px;border:1px solid #e2e8f0;border-radius:10px}
+.sap-import-changes>div,.sap-import-history-detail>div{display:grid;grid-template-columns:150px 130px 1fr;gap:10px;padding:8px;border-bottom:1px solid #edf2f7;color:#334155;font-size:12px}
+.sap-import-changes small{font-size:11px;overflow-wrap:anywhere}
+.sap-import-run{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px;border:1px solid #e2e8f0;border-radius:9px}
+.sap-import-run>div{display:grid;gap:4px}
+.sap-import-run strong{font-size:13px;color:#0f172a}
+.sap-import-run small{font-size:11px;color:#64748b;overflow-wrap:anywhere}
+.sap-import-run-actions{display:flex;flex-wrap:wrap;gap:6px}
+.sap-import-success{margin:0;padding:10px 12px;border-radius:8px;background:#dcfce7;color:#166534;font-size:13px}
+.sap-import-table-wrap{max-height:420px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px}
+.sap-import-table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}
+.sap-import-table th,.sap-import-table td{padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:left}
+.sap-import-table th{position:sticky;top:0;background:#f8fafc;color:#475569}
+.sap-import-counts article>small{display:block;margin-bottom:8px;color:#64748b;overflow-wrap:anywhere}
+.sap-legacy-preview{padding:14px;border:1px solid #f1d3b5;border-radius:12px;background:#fffaf5}
+.sap-legacy-preview>summary{cursor:pointer;color:#9a3412;font-size:13px;font-weight:600}
+.sap-legacy-preview>.import-page{margin-top:16px}
+@media(max-width:900px){.sap-import-files,.sap-import-files.single{grid-template-columns:1fr}.sap-import-counts{grid-template-columns:1fr}.sap-import-changes>div,.sap-import-history-detail>div{grid-template-columns:1fr}.sap-import-run{align-items:start;flex-direction:column}}

@@ -1,0 +1,11 @@
+.env
+.env.*
+.git
+.npm-cache
+.pglast-check
+.vercel
+node_modules
+dashboard/node_modules
+dashboard/.next
+*.xlsx
+outputs
