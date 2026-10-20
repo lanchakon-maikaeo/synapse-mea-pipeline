@@ -1,84 +1,93 @@
-# Daily SAP import for Synapse
+# Daily and monthly source file import for Synapse
 
-## Quick file-check mode (current Import page)
+## What the operator uploads
 
-The current Import page checks the prepared workbook entirely in the browser.
-Choose one `.xlsx` containing `INPUT_รวมสัญญา` and `INPUT_105จริง`, or choose
-the two SAP exports separately. Press **ตรวจไฟล์** to validate headers,
-business keys, quantities, and duplicate rows. The page shows item counts,
-warnings, and the first 20 rows of each source; the user can export validated
-rows as CSV. Files and parsed rows are **not uploaded or saved** to Supabase,
-and this mode does not compare against prior imports or subtract Synapse 301
-issues. Do not treat 105 totals as available-to-issue stock.
+| File | Cadence | Used for |
+|---|---|---|
+| `Stock.xlsx` (sheet `update-stock`, snapshot date in K1) | daily | District stock for the 18 districts and Khlong Toei warehouse stock |
+| `INPUT_รวมสัญญา` | daily | Contract / PO lines, acceptance date for FIFO order |
+| `INPUT_105` | daily | Khlong Toei receipts (movement 105) |
+| `อัตราการใช้งาน.xlsx` (sheet `Check CMP`) | monthly | 12 months of usage per district, CMP |
 
-The database-backed team import described below is a later release, not the
-current quick mode; it requires M22 and a governed production backup/restore.
+Movement 301 is **not** uploaded: issues are recorded by Synapse itself when a
+picker confirms a real issue. 105 is receipt in preparation for issue, not
+available-to-issue stock.
 
-## Operator workflow
+## Workflow (Import Data page)
 
-1. Download the contract report and Khlong Toei 105 receipt report from SAP.
-2. On any team computer, sign in to Synapse as Planner or Admin and open
-   **Import Data**. The default option accepts one prepared `.xlsx` workbook
-   containing both `INPUT_รวมสัญญา` and `INPUT_105จริง`. Alternatively select
-   the two original SAP `.xlsx` exports separately; the former reviewed CSV
-   files remain accepted in that mode. The importer identifies each sheet by
-   its supported headers, not by workbook sheet order. No shared Windows
-   folder or local refresh script is required.
-3. The page checks supported headers, required identifiers, numeric
-   quantities, and duplicate business keys. The 14-column Khlong Toei 105
-   layout has no unit: an unambiguous unit is inferred from the contract file,
-   with material-only matches flagged for explicit review. SAP `SLoc` is
-   preserved separately and is **not** treated as `รก.`.
-4. Review added, updated, unchanged, and not-in-file counts. Not-in-file rows
-   remain in current data; absence does not delete an earlier SAP record.
-5. The Planner leaves a draft for the team. An active Admin opens the pending
-   draft, reviews changes and warnings, and confirms it. Warnings require an
-   explicit acknowledgement. Only then are accepted current rows updated.
-   Admins and planners can inspect import history, changed fields, and download
-   either complete historical CSV snapshot.
+1. Admin or Planner opens **Import Data** and selects any of the four files.
+   `INPUT_รวมสัญญา` and `INPUT_105` may come from one prepared workbook; the
+   14-column 105 export needs the contract file in the same batch to read the
+   unit of measure.
+2. **ตรวจไฟล์** parses every file in the browser: headers, identifiers,
+   numbers, duplicate keys. Stock and usage use the same rules as
+   `pipeline/src/synapse_pipeline/actual_workbooks.py` (12-digit material,
+   4-digit plant/storage, `-` usage = 0,
+   `CMP = ROUND(AVERAGE(non-negative LY, 12M, 6M, 4M), 0)`).
+3. **อัปโหลดและเทียบกับข้อมูลล่าสุด** creates an import run per file, uploads
+   rows in chunks under the 1 MB API limit and compares every row with the
+   latest accepted value of its business key: new, changed, reappeared,
+   unchanged and not-in-file counts, with before/after samples.
+4. An **Admin** confirms. Parser warnings must be acknowledged first. A run
+   becomes stale, and must be checked again, if another run of the same file
+   type was committed after it was compared. Uploading the same file twice is
+   flagged by its SHA-256.
+5. History lists every run with file name, SHA-256, uploader, confirmer and
+   its changes.
 
-The old four-step Import preview is retained under an explicitly labeled
-collapsed section. It does not write to the database and must not be used as
-evidence of a production import.
+## Record identity
 
-## Record identity and audit
-
-- Contract line: material + purchase order + SAP line item. Rows without a
-  material code (for example services) remain in the audit snapshot but cannot
-  be matched to stock. Procurement code
-  is a many-line grouping field. Contract number is an attribute so a corrected
-  number appears as an update, not a second line.
+- Stock: plant + storage location + material. Rows without a storage
+  location use `<missing>`. SAP sometimes exports the same key twice (seen for
+  scrap material at plant 2402); each occurrence is kept in file order with
+  suffix `#2`, `#3`, … and flagged.
+- Usage/CMP: material + plant. Plants outside the 18 districts are stored but
+  carry no district.
+- Contract line: material + purchase order + SAP line item (leading zeros
+  ignored). Procurement code is a grouping field; contract number is an
+  attribute, so a corrected number is an update, not a second line.
 - 105 receipt: material document + material + purchase order + GR/GI slip +
-  `รายการ` + `รก.` + posting date. `รายการ` and `รก.` are warehouse/storage
-  fields, not a contract installment or lot number. For the 14-column layout,
-  quantity also separates rows whose exported identity fields are otherwise
-  identical. An amount correction on such a row may appear as a new key and
-  needs human review. Ambiguous duplicate keys are rejected.
-- The draft and every committed run retain normalized imported rows, source row
-  numbers, filenames, SHA-256 file digests, actor, timestamp, and comparison
-  summary. Changed rows also retain before and after payloads. Original `.xlsx`
-  binary files are **not** archived in Supabase Storage yet; operators should
-  keep their SAP exports under the organization's existing records policy.
-- `ops.sap_current_rows` is the latest accepted value for each business key.
-  `ops.sap_contract_totals` groups contract quantity by procurement code,
-  material, and unit, never across incompatible units.
+  `รายการ` + `รก.` + posting date; the 14-column layout also includes
+  quantity. `รายการ` and `รก.` are storage fields, not a contract installment.
 
-## Deployment order and limits
+Keys are computed in the database (`ops.srcimp_business_key`), so a client
+cannot redefine record identity.
 
-Apply `supabase/migrations/202610010001_m22_sap_import_history.sql` first,
-after the governed production backup and restore drill in `supabase/README.md`.
-Verify its RPCs and admin permissions, then deploy the dashboard. The web page
-uses authenticated Supabase RPCs and never exposes a service-role key.
+## Storage and history
 
-This import establishes a governed database landing and history for daily SAP
-contracts and 105 receipts. It does **not** automatically rewrite the legacy
-`public.contracts` table or activate planning, FIFO, or dispatch calculations.
-Those downstream modules must explicitly read the validated current tables
-after their matching and reconciliation rules have been approved. This keeps a
-new SAP file from silently altering an already locked operational plan.
+Migration `supabase/migrations/202610200001_source_file_import_history.sql`:
 
-Movement 105 means receipt in preparation for issue. Movement 301 is generated
-from Synapse's own approved issue transactions, **not** imported as a SAP
-file. The SAP import does not yet reconcile these staging rows to operational
-receipt lots or subtract issue balances; do not display the staging 105 total
-as available-to-issue stock until that reconciliation is implemented.
+- `ops.source_import_runs` — permanent run evidence (cannot be deleted;
+  committed and discarded runs are final).
+- `ops.source_current_rows` — latest accepted value per key. Keys absent from a
+  newer file get `missing_since_run_id`; they are never deleted.
+- `ops.source_row_versions` — append-only new/changed/missing/reappeared
+  versions with before/after payloads. The accepted state at any run can be
+  rebuilt from these versions, so unchanged rows are not copied every day
+  (the managed database storage allowance is small).
+- `ops.source_import_staging_rows` — working rows, removed on commit/discard;
+  drafts older than two days are discarded automatically.
+
+All tables have RLS enabled with no direct grants. The only entry point is
+`public.srcimp_dispatch`, reached through the same-origin API at
+`/v1/source-imports/*`, which requires the `admin` or `planner` role; commit
+requires `admin`.
+
+## What this release does not change
+
+Accepted rows land in their own governed tables. Core stock, CMP, FIFO lots
+and weekly replenishment keep reading their existing governed sources until
+promotion from these accepted rows is approved as a separate change. A new
+file therefore cannot silently alter an open or locked plan.
+
+## Deployment order
+
+1. Take the governed backup described in `supabase/README.md`.
+2. Apply `202610200001_source_file_import_history.sql`, then run
+   `supabase/tests/source_file_import_verify.sql` (all checks must pass; it
+   rolls back its own fixtures).
+3. Deploy the dashboard. Until step 2 is done the page shows that the database
+   is not ready and offers local file checks only.
+
+Rollback: `supabase/rollbacks/202610200001_source_file_import_history_rollback.sql`
+withdraws the entry point and discards open drafts; all history is retained.

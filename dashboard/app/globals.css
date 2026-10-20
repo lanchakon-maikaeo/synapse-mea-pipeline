@@ -492,3 +492,28 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,te
 .sap-legacy-preview>summary{cursor:pointer;color:#9a3412;font-size:13px;font-weight:600}
 .sap-legacy-preview>.import-page{margin-top:16px}
 @media(max-width:900px){.sap-import-files,.sap-import-files.single{grid-template-columns:1fr}.sap-import-counts{grid-template-columns:1fr}.sap-import-changes>div,.sap-import-history-detail>div{grid-template-columns:1fr}.sap-import-run{align-items:start;flex-direction:column}}
+.source-import-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.source-import-card{display:grid;align-content:start;gap:8px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fffdfb}
+.source-import-card.is-ready{border-color:#9fd9bd;background:#f6fcf9}
+.source-import-card.has-error{border-color:#f1b3ab;background:#fff7f6}
+.source-import-card>header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.source-import-card>header strong{color:var(--ink);font-size:14px}
+.source-cadence{padding:3px 8px;border-radius:999px;background:#fff0e4;color:#9a3d0b;font-size:10px;font-weight:700;white-space:nowrap}
+.source-import-card>p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
+.source-import-card input[type=file]{width:100%;max-width:100%;padding:8px;border:1px solid #e3d6ca;border-radius:8px;background:#fff;font:inherit;font-size:12px}
+.source-import-card small{color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.source-import-card small.source-ok{color:var(--green);font-weight:600}
+.source-import-card small.source-error{color:var(--red);font-weight:600}
+.source-import-card small.source-progress{color:#9a3d0b;font-weight:600}
+.source-import-card>footer{margin-top:2px;padding-top:8px;border-top:1px dashed var(--line);color:var(--muted);font-size:11px}
+.source-import-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px}
+.source-diff-counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.source-diff-counts article{display:grid;gap:4px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fffaf6}
+.source-diff-counts small{color:var(--muted);font-size:11px}
+.source-diff-counts b{color:var(--ink);font:600 20px "Space Grotesk"}
+.source-commit-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px;padding-top:6px}
+.source-commit-row label{display:flex;align-items:center;gap:6px;margin-right:auto;color:var(--ink);font-size:12px}
+.sap-import-help.warning{border-color:#f6c98f;background:#fff8ec;color:#7a4510}
+.sap-state.discarded{background:#f1efed;color:#7d7268}
+@media(max-width:1100px){.source-import-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.source-diff-counts{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){.source-import-grid,.source-diff-counts{grid-template-columns:1fr}.source-import-actions .btn,.source-commit-row .btn{width:100%}}

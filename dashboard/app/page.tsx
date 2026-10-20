@@ -29,7 +29,7 @@ import {
   type VmiInputPayload,
 } from "./use-synapse-backend";
 import FifoPackagingSetupView from "./fifo-packaging-setup";
-import SapImportPreview from "./sap-import-preview";
+import SourceImportCenter from "./import-center";
 import {
   TransportModule,
   transportNavForRole,
@@ -5472,7 +5472,10 @@ function PageContent({
   if (view === "stock") return <StockView data={backend.data} />;
   if (view === "import") return (
     <div className="stack">
-      <SapImportPreview />
+      <SourceImportCenter
+        token={backend.session?.access_token ?? null}
+        role={role}
+      />
       <details className="sap-legacy-preview">
         <summary>เครื่องมือทดลองนำเข้าชุดเดิม (เก็บเฉพาะในเบราว์เซอร์ ไม่บันทึกฐานข้อมูล)</summary>
         <DataImportView onOpenPlanner={() => navigate("weekly")} />

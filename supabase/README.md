@@ -35,6 +35,10 @@ append-only operational evidence and guarded backup-before-migrate deployment.
 - `202607240021_actual_workbook_observation_lineage.sql` — four-workbook
   Stock/Usage/Contract relations, monthly observations, row-level evidence,
   latest-import readiness and Staging-only environment guard
+- `202610200001_source_file_import_history.sql` — governed upload, compare
+  and Admin-commit history for daily Stock, contracts and 105 receipts and
+  monthly usage/CMP; append-only row versions, rows absent from a newer file
+  flagged rather than deleted (rollback withdraws the entry point only)
 
 Migrations `202607150005`–`202607150007` remain in filename order because they
 may already exist in deployed databases. Their forecast, route and Wave 3
@@ -51,6 +55,8 @@ capabilities.
   checks from governed VMI input through weekly/ad-hoc issue and traceback
 - `tests/m21_actual_workbook_observation_verify.sql` — M21 evidence,
   normalized usage, readiness and environment-guard contract
+- `tests/source_file_import_verify.sql` — source import role gates, diff,
+  missing-row flagging, stale-commit guard and history immutability
 - `scripts/test_supabase_migrations_local.sh` — clean PostgreSQL 17 apply,
   both SQL contracts and guarded deployment/backup evidence
 

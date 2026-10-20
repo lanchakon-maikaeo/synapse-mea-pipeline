@@ -60,6 +60,31 @@ function readWorksheet(xml: string, shared: string[]): string[][] {
   return matrix;
 }
 
+export { excelDate };
+
+/** Every worksheet in an .xlsx with its tab name, as raw text matrices. */
+export function readAllWorksheets(bytes: Uint8Array): Array<{ name: string; matrix: string[][] }> {
+  const files = unzipSync(bytes);
+  const sharedXml = files["xl/sharedStrings.xml"];
+  const shared = sharedXml ? Array.from(strFromU8(sharedXml).matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g),
+    (match) => stringValue(match[1])) : [];
+  const workbookXml = files["xl/workbook.xml"] ? strFromU8(files["xl/workbook.xml"]) : "";
+  const relsXml = files["xl/_rels/workbook.xml.rels"] ? strFromU8(files["xl/_rels/workbook.xml.rels"]) : "";
+  const targets = new Map(Array.from(relsXml.matchAll(/<Relationship\b([^>]*)\/?>/g), (match) =>
+    [attr(match[1], "Id"), attr(match[1], "Target").replace(/^\/?(xl\/)?/, "xl/")]));
+  const sheets = Array.from(workbookXml.matchAll(/<sheet\b([^>]*)\/?>/g), (match) => ({
+    name: xmlText(attr(match[1], "name")),
+    path: targets.get(attr(match[1], "r:id")) ?? "",
+  })).filter((sheet) => files[sheet.path]);
+  const listed = sheets.length ? sheets : Object.keys(files)
+    .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))
+    .map((path) => ({ name: path, path }));
+  return listed.map((sheet) => ({
+    name: sheet.name,
+    matrix: readWorksheet(strFromU8(files[sheet.path]), shared),
+  }));
+}
+
 function matches(headers: string[], expected: string[]): boolean {
   return expected.every((heading, index) => headers[index]?.trim() === heading);
 }

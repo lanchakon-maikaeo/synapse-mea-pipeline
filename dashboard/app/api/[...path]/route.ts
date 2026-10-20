@@ -453,7 +453,10 @@ async function handle(request: Request) {
     path === "/v1/data-inputs/vmi" ||
     path === "/v1/data-inputs/vmi/context";
   const transportPath = path.startsWith("/v1/transport/");
-  const dispatcher = transportPath
+  const sourceImportPath = path.startsWith("/v1/source-imports/");
+  const dispatcher = sourceImportPath
+    ? "srcimp_dispatch"
+    : transportPath
     ? "m13_transport_dispatch"
     : legacySourcePath
       ? "m11_legacy_dispatch"
