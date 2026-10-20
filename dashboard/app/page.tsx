@@ -7,8 +7,10 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type Dispatch,
   type FormEvent,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import { formatDateTime, formatNumber, type Role } from "./lib";
 import {
@@ -37,6 +39,7 @@ import {
 type ViewKey =
   | "dashboard"
   | "weekly"
+  | "summary"
   | "recommendations"
   | "advisory"
   | "changes"
@@ -53,6 +56,37 @@ type ViewKey =
   | "operations"
   | "release";
 
+type PlannerDraft = {
+  quantities: Record<string, string>;
+  editedRows: Record<string, RecordRow>;
+  selectedIds: Record<string, boolean>;
+  searchMode: "district" | "material";
+  query: string;
+};
+
+const emptyPlannerDraft: PlannerDraft = {
+  quantities: {},
+  editedRows: {},
+  selectedIds: {},
+  searchMode: "district",
+  query: "",
+};
+
+// Plan statuses that mean a calculated plan is already in the review/approval
+// pipeline, so the summary page is meaningful even without a fresh selection.
+const SUMMARY_PLAN_STATUSES = new Set([
+  "pending_district_confirmation",
+  "pending_review",
+  "pending_approval",
+  "pending_planner_approval",
+  "pending_academic_approval",
+  "locked",
+]);
+
+function hasPlannerSelection(draft: PlannerDraft) {
+  return Object.values(draft.selectedIds).some(Boolean);
+}
+
 type NavGroup = {
   label: string;
   items: Array<[ViewKey, string, string]>;
@@ -65,6 +99,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "คำนวณการจ่าย", "▤"],
+        ["summary", "สรุปการจ่าย", "☰"],
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
       ],
@@ -104,6 +139,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "คำนวณการจ่าย", "▤"],
+        ["summary", "สรุปการจ่าย", "☰"],
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
@@ -192,6 +228,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "แผนการจ่าย",
     "แผนการจ่ายรายสัปดาห์",
     "ขั้นตอน: เขต → ผู้วางแผน → วิชาการ → ล็อก → จ่ายแบบ FIFO",
+  ],
+  summary: [
+    "สรุปการจ่าย",
+    "สรุปแผนการจ่ายรายสัปดาห์",
+    "ขั้นตอน: ตรวจรายการที่คำนวณ → เขตยืนยัน → ผู้วางแผน → วิชาการ → ล็อก FIFO",
   ],
   recommendations: [
     "หลักฐานปริมาณ",
@@ -506,6 +547,7 @@ function Login({
 
 function Sidebar({
   active,
+  hiddenViews,
   role,
   open,
   navigate,
@@ -517,6 +559,7 @@ function Sidebar({
   setTransportView,
 }: {
   active: ViewKey;
+  hiddenViews: Set<ViewKey>;
   role: Role;
   open: boolean;
   navigate: (view: ViewKey) => void;
@@ -587,7 +630,9 @@ function Sidebar({
             ? navByRole[role].map((group) => (
                 <section key={group.label}>
                   <p>{group.label}</p>
-                  {group.items.map(([key, label, icon]) => (
+                  {group.items
+                    .filter(([key]) => !hiddenViews.has(key))
+                    .map(([key, label, icon]) => (
                     <button
                       type="button"
                       key={key}
@@ -981,6 +1026,12 @@ function WeeklyPlanView({
   actionBusy,
   data,
   role,
+  mode,
+  draft,
+  setDraft,
+  summaryAvailable,
+  onOpenCalculate,
+  onOpenSummary,
   onApprove,
   onCancel,
   onCreate,
@@ -992,6 +1043,17 @@ function WeeklyPlanView({
   actionBusy: boolean;
   data: DashboardData;
   role: Role;
+  /**
+   * calculate: planner build step only (คำนวณการจ่าย)
+   * summary: draft confirmation → district review → approval (สรุปการจ่าย)
+   * full: legacy single-page flow used by roles that do not calculate
+   */
+  mode: "calculate" | "summary" | "full";
+  draft: PlannerDraft;
+  setDraft: Dispatch<SetStateAction<PlannerDraft>>;
+  summaryAvailable: boolean;
+  onOpenCalculate: () => void;
+  onOpenSummary: () => void;
   onApprove: (planId: string, note?: string) => Promise<boolean>;
   onCancel: (planId: string, reason: string) => Promise<boolean>;
   onCreate: () => Promise<boolean>;
@@ -1007,23 +1069,57 @@ function WeeklyPlanView({
   ) => Promise<boolean>;
   onVersion: (planId: string, reason: string) => Promise<boolean>;
 }) {
-  const [workflowStep, setWorkflowStep] = useState(() =>
-    role === "district" ? 3 : role === "academic" ? 5 : 0,
+  const [workflowStep, setWorkflowStepState] = useState(() =>
+    mode === "summary"
+      ? hasPlannerSelection(draft)
+        ? 2
+        : 3
+      : mode === "calculate"
+        ? 0
+        : role === "district"
+          ? 3
+          : role === "academic"
+            ? 5
+            : 0,
   );
-  const [searchMode, setSearchMode] = useState<"district" | "material">(
-    "district",
-  );
-  const [query, setQuery] = useState("");
+  // In split mode the build step lives on คำนวณการจ่าย and every later step
+  // lives on สรุปการจ่าย; crossing that boundary changes page instead of step.
+  const setWorkflowStep = (step: number) => {
+    if (mode === "calculate" && step >= 2) {
+      if (summaryAvailable || hasPlannerSelection(draft)) onOpenSummary();
+      return;
+    }
+    if (mode === "summary" && step < 2) {
+      onOpenCalculate();
+      return;
+    }
+    setWorkflowStepState(step);
+  };
+  // Planner work-in-progress is lifted to the page shell so it survives the
+  // move between the calculation page and the summary page.
+  const draftField =
+    <K extends keyof PlannerDraft>(key: K) =>
+    (value: SetStateAction<PlannerDraft[K]>) =>
+      setDraft((current) => ({
+        ...current,
+        [key]:
+          typeof value === "function"
+            ? (value as (previous: PlannerDraft[K]) => PlannerDraft[K])(
+                current[key],
+              )
+            : value,
+      }));
+  const searchMode = draft.searchMode;
+  const setSearchMode = draftField("searchMode");
+  const query = draft.query;
+  const setQuery = draftField("query");
   const [focusedItemId, setFocusedItemId] = useState("");
-  const [plannerQuantities, setPlannerQuantities] = useState<
-    Record<string, string>
-  >({});
-  const [editedPlanningRows, setEditedPlanningRows] = useState<
-    Record<string, RecordRow>
-  >({});
-  const [selectedPlanningIds, setSelectedPlanningIds] = useState<
-    Record<string, boolean>
-  >({});
+  const plannerQuantities = draft.quantities;
+  const setPlannerQuantities = draftField("quantities");
+  const editedPlanningRows = draft.editedRows;
+  const setEditedPlanningRows = draftField("editedRows");
+  const selectedPlanningIds = draft.selectedIds;
+  const setSelectedPlanningIds = draftField("selectedIds");
   const [responseRow, setResponseRow] = useState<RecordRow | null>(null);
   const [decision, setDecision] =
     useState<ReplenishmentResponsePayload["decision"]>("confirm");
@@ -1385,6 +1481,20 @@ function WeeklyPlanView({
                   : ""
             }`}
             key={phase.name}
+            disabled={
+              mode === "calculate" &&
+              index > 0 &&
+              !summaryAvailable &&
+              !selectedRows.length
+            }
+            title={
+              mode === "calculate" &&
+              index > 0 &&
+              !summaryAvailable &&
+              !selectedRows.length
+                ? "คำนวณและเลือกรายการเข้าแผนก่อน จึงจะเปิดหน้าสรุปการจ่ายได้"
+                : undefined
+            }
             onClick={() => setWorkflowStep(phase.go)}
           >
             <span>{phase.step}</span>
@@ -1488,7 +1598,9 @@ function WeeklyPlanView({
                 disabled={!selectedRows.length}
                 onClick={() => setWorkflowStep(2)}
               >
-                ยืนยันรายการที่เลือก ({formatNumber(selectedRows.length)})
+                {mode === "calculate"
+                  ? `สรุปการจ่าย (${formatNumber(selectedRows.length)}) →`
+                  : `ยืนยันรายการที่เลือก (${formatNumber(selectedRows.length)})`}
               </button>
             )}
           </section>
@@ -1873,13 +1985,33 @@ function WeeklyPlanView({
               disabled={!selectedRows.length}
               onClick={() => setWorkflowStep(2)}
             >
-              ยืนยันรายการที่เลือกเข้า Draft Plan ({formatNumber(selectedRows.length)}) →
+              {mode === "calculate"
+                ? `คำนวณเสร็จ · ไปหน้าสรุปการจ่าย (${formatNumber(selectedRows.length)}) →`
+                : `ยืนยันรายการที่เลือกเข้า Draft Plan (${formatNumber(selectedRows.length)}) →`}
             </button>
           </div>
         </>
       )}
 
-      {workflowStep === 2 && (
+      {workflowStep === 2 && mode === "summary" && !selectedRows.length && (
+        <article className="workspace-empty">
+          <i>—</i>
+          <h3>ยังไม่มีรายการที่คำนวณเข้าแผน</h3>
+          <p>
+            ไปที่หน้า “คำนวณการจ่าย” กรอก Planner Qty และเลือกรายการเข้าแผนก่อน
+            แล้วระบบจะสรุปการจ่ายให้ที่หน้านี้
+          </p>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={onOpenCalculate}
+          >
+            ไปหน้าคำนวณการจ่าย
+          </button>
+        </article>
+      )}
+
+      {workflowStep === 2 && (mode !== "summary" || selectedRows.length > 0) && (
         <section className="panel">
           <div className="panel-title">
             <div>
@@ -2000,7 +2132,7 @@ function WeeklyPlanView({
               className="btn ghost"
               onClick={() => setWorkflowStep(0)}
             >
-              ← กลับไปแก้รายการ
+              {mode === "summary" ? "← กลับไปหน้าคำนวณการจ่าย" : "← กลับไปแก้รายการ"}
             </button>
             <button
               type="button"
@@ -5237,21 +5369,36 @@ function PageContent({
   role,
   backend,
   navigate,
+  plannerDraft,
+  setPlannerDraft,
+  summaryAvailable,
 }: {
   view: ViewKey;
   role: Role;
   backend: ReturnType<typeof useSynapseBackend>;
   navigate: (view: ViewKey) => void;
+  plannerDraft: PlannerDraft;
+  setPlannerDraft: Dispatch<SetStateAction<PlannerDraft>>;
+  summaryAvailable: boolean;
 }) {
   if (view === "dashboard") {
     return <DashboardView data={backend.data} role={role} navigate={navigate} />;
   }
-  if (view === "weekly") {
+  if (view === "weekly" || view === "summary") {
+    const splitFlow = role === "admin" || role === "planner";
+    const mode = !splitFlow ? "full" : view === "summary" ? "summary" : "calculate";
     return (
       <WeeklyPlanView
+        key={mode}
         actionBusy={backend.actionBusy}
         data={backend.data}
         role={role}
+        mode={mode}
+        draft={plannerDraft}
+        setDraft={setPlannerDraft}
+        summaryAvailable={summaryAvailable}
+        onOpenCalculate={() => navigate("weekly")}
+        onOpenSummary={() => navigate("summary")}
         onApprove={backend.approveReplenishmentPlan}
         onCancel={backend.cancelReplenishmentPlan}
         onCreate={backend.createReplenishmentRun}
@@ -5359,6 +5506,8 @@ function PageContent({
 export default function Home() {
   const backend = useSynapseBackend();
   const [view, setView] = useState<ViewKey>("dashboard");
+  const [plannerDraft, setPlannerDraft] =
+    useState<PlannerDraft>(emptyPlannerDraft);
   const [menuOpen, setMenuOpen] = useState(false);
   const [moduleKey, setModule] = useState<"warehouse" | "transport">(
     "warehouse",
@@ -5379,14 +5528,34 @@ export default function Home() {
   const allowedViews = new Set(
     navByRole[role].flatMap((group) => group.items.map(([key]) => key)),
   );
-  const activeView = allowedViews.has(view) ? view : "dashboard";
+  // สรุปการจ่าย appears only after a calculation exists: either the planner
+  // has selected calculated lines in this session, or a calculated plan is
+  // already moving through district review / approval on the server.
+  const summaryAvailable =
+    hasPlannerSelection(plannerDraft) ||
+    backend.data.replenishment.some((row) =>
+      SUMMARY_PLAN_STATUSES.has(text(row.plan_status, "")),
+    );
+  const hiddenViews = new Set<ViewKey>(summaryAvailable ? [] : ["summary"]);
+  const requestedView =
+    view === "summary" && !summaryAvailable ? "weekly" : view;
+  const activeView = allowedViews.has(requestedView)
+    ? requestedView
+    : "dashboard";
   const allowedTransportViews = new Set(
     transportNavForRole(role).map(([transportKey]) => transportKey),
   );
   const activeTransportView = allowedTransportViews.has(transportView)
     ? transportView
     : "dashboard";
-  const [eyebrow, title, description] = titles[activeView];
+  const [eyebrow, title, description] =
+    activeView === "weekly" && (role === "admin" || role === "planner")
+      ? [
+          "คำนวณการจ่าย",
+          "คำนวณการจ่ายรายสัปดาห์",
+          "เลือกพัสดุ · กรอก Planner Qty · ตรวจ AI + FIFO แล้วไปหน้าสรุปการจ่าย",
+        ]
+      : titles[activeView];
   const snapshot = latestSnapshot(backend.data);
 
   return (
@@ -5396,6 +5565,7 @@ export default function Home() {
       </a>
       <Sidebar
         active={activeView}
+        hiddenViews={hiddenViews}
         role={role}
         open={menuOpen}
         navigate={setView}
@@ -5419,6 +5589,7 @@ export default function Home() {
                 value={role}
                 onChange={(event) => {
                   backend.setDemoRole(event.target.value as Role);
+                  setPlannerDraft(emptyPlannerDraft);
                   setView("dashboard");
                   setModule("warehouse");
                 }}
@@ -5437,7 +5608,11 @@ export default function Home() {
           title={moduleKey === "transport" ? "ระบบขนส่ง" : title}
           loading={backend.loading}
           openMenu={() => setMenuOpen(true)}
-          logout={() => void backend.signOut()}
+          logout={() => {
+            setPlannerDraft(emptyPlannerDraft);
+            setView("dashboard");
+            void backend.signOut();
+          }}
           navigate={setView}
           refresh={() => void backend.refresh()}
           snapshot={snapshot}
@@ -5494,6 +5669,9 @@ export default function Home() {
                 role={role}
                 backend={backend}
                 navigate={setView}
+                plannerDraft={plannerDraft}
+                setPlannerDraft={setPlannerDraft}
+                summaryAvailable={summaryAvailable}
               />
             </>
           )}
