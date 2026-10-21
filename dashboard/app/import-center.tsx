@@ -13,7 +13,7 @@ import {
   type ImportRun,
   type SourceKind,
 } from "./source-import-client";
-import { readStockWorkbook, readUsageWorkbook } from "./source-workbooks";
+import { dateFromFileName, readStockWorkbook, readUsageWorkbook } from "./source-workbooks";
 
 type Parsed = {
   name: string;
@@ -27,6 +27,7 @@ type Parsed = {
 
 type Slot = {
   file: File | null;
+  snapshotDate: string;
   parsed: Parsed | null;
   error: string;
   run: ImportRun | null;
@@ -45,9 +46,9 @@ const SOURCES: Record<SourceKind, {
   stock: {
     title: "Stock (SAP)",
     cadence: "ทุกวัน",
-    use: "Stock เขต 18 เขต และคลองเตย · ใช้คำนวณว่าเขตต้องเติมเท่าไร",
+    use: "Stock คลังคลองเตย (และ Stock เขตถ้าไฟล์มี) · ใช้ดูของพร้อมจ่ายและคำนวณการเติม",
     accept: ".xlsx",
-    hint: "Stock.xlsx ชีท update-stock (วันที่ข้อมูลอยู่ที่ K1)",
+    hint: "Stock_update_วว.ดด.ปป.XLSX จาก SAP (คลังคลองเตย 2401/0001)",
   },
   contracts: {
     title: "รวมสัญญา",
@@ -61,14 +62,14 @@ const SOURCES: Record<SourceKind, {
     cadence: "ทุกวัน",
     use: "ล็อตที่รับเข้าคลองเตยแล้ว · ไม่ใช่ยอดพร้อมจ่าย",
     accept: ".xlsx,.csv",
-    hint: "INPUT_105 (แบบ 14 ช่องต้องเลือกรวมสัญญาด้วย เพื่ออ่านหน่วยนับ)",
+    hint: "105_update_วว.ดด.ปป.XLSX (แบบมีใบสั่งซื้อ 13 ช่อง)",
   },
   usage: {
     title: "อัตราการใช้งาน",
     cadence: "เดือนละครั้ง",
     use: "ยอดใช้ 12 เดือนของแต่ละเขต · ใช้คำนวณ CMP",
     accept: ".xlsx",
-    hint: "อัตราการใช้งาน.xlsx ชีท Check CMP",
+    hint: "อัตราการใช้งาน.xlsx ชีท Check CMP (12 เดือนขึ้นไป)",
   },
 };
 
@@ -99,7 +100,56 @@ const FIELD_LABELS: Record<string, string> = {
   as_of_date: "ข้อมูลถึง",
 };
 
-const emptySlot = (): Slot => ({ file: null, parsed: null, error: "", run: null, progress: "" });
+const emptySlot = (): Slot => ({ file: null, snapshotDate: "", parsed: null, error: "", run: null, progress: "" });
+
+const digitsKey = (value: unknown) => String(value ?? "").trim().replace(/^0+(?=\d)/, "");
+
+/**
+ * How the checked files relate to each other, as counts of rows/codes. This
+ * is a read-only cross-check for the operator; nothing is stored from it.
+ */
+function crossLinks(slots: Record<SourceKind, Slot>) {
+  const contracts = slots.contracts.parsed?.rows ?? [];
+  const receipts = slots.receipts_105.parsed?.rows ?? [];
+  const stock = slots.stock.parsed?.rows ?? [];
+  const usage = slots.usage.parsed?.rows ?? [];
+  const lines: string[] = [];
+  if (contracts.length && receipts.length) {
+    const byOrder = new Map<string, Array<Record<string, unknown>>>();
+    for (const { payload } of contracts) {
+      const key = `${digitsKey(payload.purchase_order)}|${payload.material_code}`;
+      byOrder.set(key, [...(byOrder.get(key) ?? []), payload]);
+    }
+    let exact = 0;
+    let ambiguous = 0;
+    let notFound = 0;
+    let unitMismatch = 0;
+    for (const { payload } of receipts) {
+      const candidates = byOrder.get(`${digitsKey(payload.purchase_order)}|${payload.material_code}`) ?? [];
+      const poItem = payload.po_item ?? (payload.source_layout ? undefined : payload.item);
+      const hit = poItem !== undefined
+        ? candidates.find((line) => digitsKey(line.line_item) === digitsKey(poItem))
+        : candidates.length === 1 ? candidates[0] : undefined;
+      if (hit) {
+        exact += 1;
+        if (String(hit.unit ?? "") !== String(payload.unit ?? "")) unitMismatch += 1;
+      } else if (candidates.length) ambiguous += 1;
+      else notFound += 1;
+    }
+    lines.push(`รับเข้า 105 → รวมสัญญา: ตรงถึงบรรทัดสัญญา ${formatNumber(exact)} · ต้องตรวจ (PO+วัสดุตรงหลายบรรทัด) ${formatNumber(ambiguous)} · ไม่พบ PO+วัสดุในไฟล์สัญญา ${formatNumber(notFound)} จาก ${formatNumber(receipts.length)} รายการ`);
+    if (unitMismatch) lines.push(`หน่วยนับในสัญญากับ 105 ไม่ตรงกัน ${formatNumber(unitMismatch)} รายการ: ต้องตรวจก่อนใช้กับ FIFO (ระบบไม่แปลงหน่วยให้เอง)`);
+  }
+  if (stock.length && usage.length) {
+    const usageCodes = new Set(usage.map(({ payload }) => payload.material_id));
+    const stockCodes = new Set(stock.map(({ payload }) => payload.material_id));
+    const found = [...stockCodes].filter((code) => usageCodes.has(code)).length;
+    lines.push(`Stock → อัตราการใช้งาน: วัสดุใน Stock มีข้อมูลการใช้ ${formatNumber(found)} จาก ${formatNumber(stockCodes.size)} รหัส`);
+  }
+  if (stock.length && !stock.some(({ payload }) => payload.district_id)) {
+    lines.push("ไฟล์ Stock นี้มีเฉพาะคลังคลองเตย ไม่มี Stock ของ 18 เขต");
+  }
+  return lines;
+}
 
 async function sha256Hex(bytes: ArrayBuffer) {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -209,7 +259,7 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
         } else {
           const bytes = await file.arrayBuffer();
           const result = kind === "stock"
-            ? readStockWorkbook(new Uint8Array(bytes))
+            ? readStockWorkbook(new Uint8Array(bytes), { snapshotDate: slots.stock.snapshotDate || null })
             : readUsageWorkbook(new Uint8Array(bytes));
           parsed = {
             name: file.name, size: file.size, sha256: await sha256Hex(bytes),
@@ -349,11 +399,22 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
                 <label>
                   <span className="sr-only">เลือกไฟล์ {source.title}</span>
                   <input type="file" accept={source.accept} disabled={busy}
-                    onChange={(event) => patch(kind, {
-                      file: event.target.files?.[0] ?? null, parsed: null, run: null, error: "", progress: "",
-                    })} />
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      patch(kind, {
+                        file, parsed: null, run: null, error: "", progress: "",
+                        ...(kind === "stock" ? { snapshotDate: file ? dateFromFileName(file.name) ?? "" : "" } : {}),
+                      });
+                    }} />
                 </label>
                 <small>{slot.file?.name ?? source.hint}</small>
+                {kind === "stock" && slot.file && (
+                  <label className="source-date">
+                    วันที่ของข้อมูล Stock
+                    <input type="date" value={slot.snapshotDate} disabled={busy}
+                      onChange={(event) => patch("stock", { snapshotDate: event.target.value, parsed: null, run: null })} />
+                  </label>
+                )}
                 {slot.progress && <small className="source-progress">{slot.progress}</small>}
                 {slot.parsed && !slot.error && (
                   <small className="source-ok">
@@ -384,6 +445,14 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
           </button>
         </div>
         {notice && <p className="sap-import-success" role="status">{notice}</p>}
+
+        {crossLinks(slots).length > 0 && (
+          <div className="sap-import-review source-links" role="status">
+            <h4>การเชื่อมโยงระหว่างไฟล์</h4>
+            <p>ตรวจจากไฟล์ที่เลือกในรอบนี้ (นับเป็นจำนวนรายการ/รหัส ไม่บันทึกผลนี้ลงฐานข้อมูล)</p>
+            {crossLinks(slots).map((line) => <p key={line}>• {line}</p>)}
+          </div>
+        )}
 
         {stagedKinds.map((kind) => {
           const run = slots[kind].run as ImportRun;

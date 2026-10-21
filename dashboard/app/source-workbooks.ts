@@ -23,19 +23,56 @@ export const PLANT_TO_DISTRICT: Record<string, string> = {
   "7901": "5517", "8001": "5518",
 };
 
+// The daily SAP export has 6 columns; the older prepared workbook added
+// value, stock in transfer and the snapshot date in K1.
 const STOCK_HEADERS = [
-  "โรงงาน", "ที่เก็บสินค้า", "วัสดุ", "คำอธิบายวัสดุ", "ไม่จำกัด",
-  "หน่วยนับพื้นฐาน", "ไม่จำกัดค่า", "การส่ง/การโอน",
+  "โรงงาน", "ที่เก็บสินค้า", "วัสดุ", "คำอธิบายวัสดุ", "ไม่จำกัด", "หน่วยนับพื้นฐาน",
 ];
+const STOCK_EXTENDED_HEADERS = [...STOCK_HEADERS, "ไม่จำกัดค่า", "การส่ง/การโอน"];
 const USAGE_HEADERS = ["พัสดุ", "โรงงาน", "พัสดุ&โรงงาน", "CMP", "LY", "12", "6", "4"];
 
 export function cleanIdentifier(value: unknown, width?: number): string {
   let cleaned = String(value ?? "").trim();
+  // Google Sheets exports whole numbers as "5701.0" and long codes as
+  // "6.21045006E11"; both are exact integers below 2^53.
+  if (/^\d+(\.\d+)?[eE]\+?\d+$/.test(cleaned)) {
+    const expanded = Number(cleaned);
+    if (Number.isSafeInteger(expanded)) cleaned = expanded.toFixed(0);
+  }
   if (/^\d+\.0+$/.test(cleaned)) cleaned = cleaned.replace(/\.0+$/, "");
   if (width && /^\d+$/.test(cleaned) && cleaned.length <= width) {
     cleaned = cleaned.padStart(width, "0");
   }
   return cleaned;
+}
+
+/**
+ * SAP material numbers appear as 12 digits, as 18 digits with leading zeros
+ * (contract export) or as numbers that lost leading zeros (Excel). All are
+ * normalized to the 12-digit form used everywhere else in Synapse.
+ */
+export function normalizeMaterial(value: unknown): string {
+  const cleaned = cleanIdentifier(value);
+  if (!/^\d+$/.test(cleaned)) return cleaned;
+  const significant = cleaned.replace(/^0+(?=\d)/, "");
+  return significant.length <= 12 ? significant.padStart(12, "0") : cleaned;
+}
+
+/**
+ * Snapshot date from a file name such as "Stock_update_20.10.69.XLSX"
+ * (day.month.Buddhist-year) or "..._20.10.2026.xlsx". Returns YYYY-MM-DD.
+ */
+export function dateFromFileName(name: string): string | null {
+  const match = /(\d{1,2})[._-](\d{1,2})[._-](\d{2}|\d{4})(?!\d)/.exec(name);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  let year = Number(match[3]);
+  if (match[3].length === 2) year += year >= 40 ? 2500 - 543 : 2000;
+  else if (year > 2400) year -= 543;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return date.toISOString().slice(0, 10);
 }
 
 export function parseNumber(value: unknown, dashIsZero = false): number | null {
@@ -58,8 +95,13 @@ export function excelRound(value: number): number {
   return value < 0 ? -rounded : rounded;
 }
 
+function headerCell(value: unknown) {
+  const cleaned = String(value ?? "").trim();
+  return /^\d+\.0+$/.test(cleaned) ? cleaned.replace(/\.0+$/, "") : cleaned;
+}
+
 function headerMatches(row: string[] | undefined, expected: string[]) {
-  return expected.every((label, index) => (row?.[index] ?? "").trim() === label);
+  return expected.every((label, index) => headerCell(row?.[index]) === label);
 }
 
 function findSheet(bytes: Uint8Array, expected: string[], preferredName: string) {
@@ -79,14 +121,20 @@ function monthPeriod(label: string): string | null {
   return `${cleaned.slice(2)}-${cleaned.slice(0, 2)}`;
 }
 
-export function parseStockMatrix(matrix: string[][], sheet = "update-stock"): ParsedSource {
+export function parseStockMatrix(
+  matrix: string[][],
+  sheet = "update-stock",
+  options: { snapshotDate?: string | null } = {},
+): ParsedSource {
   const header = matrix[0] ?? [];
   if (!headerMatches(header, STOCK_HEADERS)) {
-    throw new Error("Stock: หัวตารางไม่ตรงกับไฟล์ update-stock ที่ส่งออกจาก SAP");
+    throw new Error("Stock: หัวตารางไม่ตรงกับไฟล์ Stock ที่ส่งออกจาก SAP (โรงงาน / ที่เก็บสินค้า / วัสดุ / คำอธิบายวัสดุ / ไม่จำกัด / หน่วยนับพื้นฐาน)");
   }
-  const snapshot = excelDate(String(header[10] ?? "").trim());
+  const extended = headerMatches(header, STOCK_EXTENDED_HEADERS);
+  const fileDate = excelDate(String(header[10] ?? "").trim());
+  const snapshot = /^\d{4}-\d{2}-\d{2}/.test(fileDate) ? fileDate : (options.snapshotDate ?? "");
   if (!/^\d{4}-\d{2}-\d{2}/.test(snapshot)) {
-    throw new Error("Stock: ช่อง K1 ต้องเป็นวันที่ของข้อมูล (snapshot date)");
+    throw new Error("Stock: ไม่พบวันที่ของข้อมูล กรุณาระบุวันที่ Stock ในการ์ดก่อนตรวจไฟล์");
   }
   const rows: SourceRow[] = [];
   const seen = new Map<string, number>();
@@ -102,11 +150,11 @@ export function parseStockMatrix(matrix: string[][], sheet = "update-stock"): Pa
     const rowNumber = index + 1;
     const plant = cleanIdentifier(values[0], 4);
     const storage = cleanIdentifier(values[1], 4);
-    const material = cleanIdentifier(values[2], 12);
+    const material = normalizeMaterial(values[2]);
     if (!plant) throw new Error(`Stock แถว ${rowNumber}: ไม่มีรหัสโรงงาน`);
     if (material !== rawMaterial) paddedMaterials += 1;
     if (!storage) missingStorage += 1;
-    const transfer = parseNumber(values[7]) ?? 0;
+    const transfer = extended ? parseNumber(values[7]) ?? 0 : 0;
     if (transfer !== 0) transferRows += 1;
     // SAP occasionally exports the same plant+storage+material twice (seen
     // for scrap material at plant 2402). Each occurrence is kept as its own
@@ -130,7 +178,7 @@ export function parseStockMatrix(matrix: string[][], sheet = "update-stock"): Pa
         material_name: String(values[3] ?? "").trim(),
         unrestricted_qty: parseNumber(values[4]) ?? 0,
         base_unit: String(values[5] ?? "").trim(),
-        unrestricted_value: parseNumber(values[6]),
+        unrestricted_value: extended ? parseNumber(values[6]) : null,
         stock_in_transfer_qty: transfer,
         district_id: PLANT_TO_DISTRICT[plant] ?? null,
         warehouse_id: plant === "2401" && storage === "0001" ? "WH-KT" : null,
@@ -156,6 +204,8 @@ export function parseStockMatrix(matrix: string[][], sheet = "update-stock"): Pa
     metadata: {
       snapshot_date: snapshot.slice(0, 10),
       quantity_rule: "Unrestricted only; stock in transfer retained as evidence",
+      snapshot_date_source: /^\d{4}-\d{2}-\d{2}/.test(fileDate) ? "workbook K1" : "operator / file name",
+      layout: extended ? "prepared_11_columns" : "sap_6_columns",
       district_rows: rows.filter((row) => row.payload.district_id).length,
       warehouse_rows: rows.filter((row) => row.payload.warehouse_id).length,
       material_codes_padded_to_12_digits: paddedMaterials,
@@ -165,7 +215,7 @@ export function parseStockMatrix(matrix: string[][], sheet = "update-stock"): Pa
 }
 
 export function parseUsageMatrix(matrix: string[][], sheet = "Check CMP"): ParsedSource {
-  const header = (matrix[0] ?? []).map((value) => String(value ?? "").trim());
+  const header = (matrix[0] ?? []).map(headerCell);
   if (!headerMatches(header, USAGE_HEADERS)) {
     throw new Error("อัตราการใช้งาน: ไม่พบชีท Check CMP ที่มีหัวตาราง พัสดุ / โรงงาน / CMP / LY / 12 / 6 / 4");
   }
@@ -173,8 +223,8 @@ export function parseUsageMatrix(matrix: string[][], sheet = "Check CMP"): Parse
     const period = monthPeriod(label);
     return period ? [{ index, period }] : [];
   });
-  if (months.length !== 12) {
-    throw new Error(`อัตราการใช้งาน: ต้องมีคอลัมน์ยอดใช้รายเดือน 12 เดือน (รูปแบบ MMYYYY) พบ ${months.length}`);
+  if (months.length < 12) {
+    throw new Error(`อัตราการใช้งาน: ต้องมีคอลัมน์ยอดใช้รายเดือนอย่างน้อย 12 เดือน (รูปแบบ MMYYYY) พบ ${months.length}`);
   }
   const latest = months.map((month) => month.period).sort().at(-1) ?? "";
   const [latestYear, latestMonth] = latest.split("-").map(Number);
@@ -189,7 +239,7 @@ export function parseUsageMatrix(matrix: string[][], sheet = "Check CMP"): Parse
   let dashCells = 0;
   for (let index = 1; index < matrix.length; index += 1) {
     const values = matrix[index] ?? [];
-    const material = cleanIdentifier(values[0], 12);
+    const material = normalizeMaterial(values[0]);
     const plant = cleanIdentifier(values[1], 4);
     if (!material || !plant) continue;
     const rowNumber = index + 1;
@@ -256,10 +306,13 @@ export function parseUsageMatrix(matrix: string[][], sheet = "Check CMP"): Parse
   };
 }
 
-export function readStockWorkbook(bytes: Uint8Array): ParsedSource {
+export function readStockWorkbook(
+  bytes: Uint8Array,
+  options: { snapshotDate?: string | null } = {},
+): ParsedSource {
   const sheet = findSheet(bytes, STOCK_HEADERS, "update-stock");
   if (!sheet) throw new Error("Stock: ไม่พบชีทที่มีหัวตาราง โรงงาน / ที่เก็บสินค้า / วัสดุ / ไม่จำกัด");
-  return parseStockMatrix(sheet.matrix, sheet.name);
+  return parseStockMatrix(sheet.matrix, sheet.name, options);
 }
 
 export function readUsageWorkbook(bytes: Uint8Array): ParsedSource {

@@ -4,10 +4,28 @@
 
 | File | Cadence | Used for |
 |---|---|---|
-| `Stock.xlsx` (sheet `update-stock`, snapshot date in K1) | daily | District stock for the 18 districts and Khlong Toei warehouse stock |
-| `INPUT_รวมสัญญา` | daily | Contract / PO lines, acceptance date for FIFO order |
-| `INPUT_105` | daily | Khlong Toei receipts (movement 105) |
-| `อัตราการใช้งาน.xlsx` (sheet `Check CMP`) | monthly | 12 months of usage per district, CMP |
+| `Stock_update_DD.MM.YY.XLSX` (6-column SAP export) or prepared `Stock.xlsx` (11 columns, date in K1) | daily | Khlong Toei warehouse stock (plus district stock when the file contains district plants) |
+| `รวมสัญญา_update_DD.MM.YYYY.xlsx` / `INPUT_รวมสัญญา` (16 columns) | daily | Contract / PO lines, acceptance date for FIFO order |
+| `105_update_DD.MM.YY.XLSX` (13 columns with PO) or the older 14/15-column layouts | daily | Khlong Toei receipts (movement 105) |
+| `อัตราการใช้งาน.xlsx` (sheet `Check CMP`, 12 or more MMYYYY columns) | monthly | Monthly usage per district, CMP |
+
+Format notes:
+
+- The 6-column Stock export has no date; the page pre-fills the snapshot date
+  from the file name (`20.10.69` = 20 Oct 2569 = 2026-10-20) and the operator
+  can correct it.
+- Contract exports use 18-digit material codes with leading zeros; they are
+  normalized to the 12-digit code (original kept as `source_material_code`).
+- The 13-column 105 export ends with SAP subtotal rows that carry only a
+  quantity; they are skipped. `รายการ` is kept as `po_item` (PO line) and
+  `รายการในเอกสารวัสดุ` as the material-document item.
+- Usage workbooks exported from Google Sheets carry `12.0`, `5701.0` and
+  `6.21045006E11`; these are read as exact integer codes.
+- After checking, the page shows how the files link: 105 rows matched to a
+  contract line by PO + material + PO line, rows whose PO is not in the
+  contract file, unit mismatches between contract and 105 (never converted
+  automatically) and Stock materials that have usage history. This cross-check
+  is informational and not stored.
 
 Movement 301 is **not** uploaded: issues are recorded by Synapse itself when a
 picker confirms a real issue. 105 is receipt in preparation for issue, not

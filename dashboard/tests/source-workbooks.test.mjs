@@ -52,10 +52,10 @@ test("duplicate stock rows are kept in file order and flagged", () => {
   assert.ok(parsed.warnings.some((warning) => warning.includes("ซ้ำ")));
 });
 
-test("stock requires the snapshot date in K1", () => {
+test("stock requires a snapshot date from K1 or the operator", () => {
   assert.throws(
     () => parseStockMatrix([[...stockHeader.slice(0, 10), ""], ["5501", "1", "1", "x", "1", "EA"]]),
-    /K1/,
+    /วันที่/,
   );
 });
 
@@ -112,4 +112,68 @@ test("stock workbook is found by header, not by sheet position", () => {
   const parsed = readStockWorkbook(bytes);
   assert.equal(parsed.sheet, "update-stock");
   assert.equal(parsed.rows[0].payload.material_id, "015800100148");
+});
+
+test("daily SAP Stock export: 6 columns, date from file name, Google/Excel number forms", async () => {
+  const { dateFromFileName, normalizeMaterial, cleanIdentifier } = await import("../app/source-workbooks.ts");
+  assert.equal(dateFromFileName("Stock_update_20.10.69.XLSX"), "2026-10-20");
+  assert.equal(dateFromFileName("รวมสัญญา_update_20.10.2026.xlsx"), "2026-10-20");
+  assert.equal(dateFromFileName("Stock.xlsx"), null);
+  assert.equal(dateFromFileName("x_31.02.69.xlsx"), null);
+  assert.equal(normalizeMaterial("000000597031193600"), "597031193600");
+  assert.equal(normalizeMaterial("20520508910"), "020520508910");
+  assert.equal(cleanIdentifier("6.21045006E11"), "621045006000");
+  assert.equal(cleanIdentifier("5701.0", 4), "5701");
+  const parsed = parseStockMatrix([
+    stockHeader.slice(0, 6),
+    ["2401", "0001", "471050004000", "PVC", "27350", "EA"],
+  ], "Sheet1", { snapshotDate: "2026-10-20" });
+  assert.equal(parsed.rows[0].payload.snapshot_date, "2026-10-20");
+  assert.equal(parsed.rows[0].payload.warehouse_id, "WH-KT");
+  assert.equal(parsed.rows[0].payload.stock_in_transfer_qty, 0);
+  assert.equal(parsed.metadata.layout, "sap_6_columns");
+  assert.throws(() => parseStockMatrix([stockHeader.slice(0, 6), ["2401", "0001", "1", "x", "1", "EA"]]), /วันที่/);
+});
+
+test("usage accepts more than twelve months and Google Sheets header numbers", () => {
+  const header = ["พัสดุ", "โรงงาน", "พัสดุ&โรงงาน", "CMP", "LY", "12.0", "6.0", "4.0", "", "", "2025",
+    "092026", "082026", "072026", "062026", "052026", "042026", "032026", "022026", "012026",
+    "122025", "112025", "102025", "092025", "082025", "072025", "062025", "052025"];
+  const parsed = parseUsageMatrix([
+    header,
+    ["6.21045006E11", "5701.0", "", "32", "35", "30", "29", "35", "", "", "415", ...Array(17).fill("1")],
+  ]);
+  assert.equal(parsed.metadata.as_of_date, "2026-09-30");
+  assert.equal(parsed.metadata.monthly_periods.length, 17);
+  assert.equal(parsed.rows[0].payload.material_id, "621045006000");
+  assert.equal(parsed.rows[0].payload.sap_plant_code, "5701");
+  assert.equal(parsed.rows[0].payload.cmp_monthly, 32);
+});
+
+test("13-column 105 export keeps PO line, skips SAP subtotal rows", async () => {
+  const { parseReceipt13, receipt13 } = await import("../app/sap-xlsx.ts");
+  const parsed = parseReceipt13([
+    receipt13,
+    ["614513240100", "ROD", "1300116822", "1", "1700", "SET", "2401", "ฝพด.พัสดุกลาง",
+      "2025-01-22", "2025-01-22", "2025-01-07", "3", "5000698546"],
+    ["", "", "", "", "2975", "", "", "", "", "", "", "", ""],
+  ]);
+  assert.equal(parsed.rows.length, 1);
+  const row = parsed.rows[0].payload;
+  assert.equal(row.purchase_order, "1300116822");
+  assert.equal(row.po_item, "3");
+  assert.equal(row.item, "1");
+  assert.equal(row.material_document, "5000698546");
+  assert.equal(row.unit, "SET");
+  assert.ok(parsed.warnings[0].includes("ผลรวม"));
+});
+
+test("18-digit contract materials are normalized to 12 digits", async () => {
+  const { parseSapMatrix, sapColumns } = await import("../app/sap-import.ts");
+  const rows = parseSapMatrix([
+    sapColumns.contracts.map(([label]) => label),
+    ["000000597031193600", "TAPE", "EA", "MA9", "1300201763", "", "1", "Vendor", "", "1000", "", "", "", "", "", ""],
+  ], "contracts");
+  assert.equal(rows[0].payload.material_code, "597031193600");
+  assert.equal(rows[0].payload.source_material_code, "000000597031193600");
 });

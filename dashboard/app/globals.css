@@ -515,5 +515,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,te
 .source-commit-row label{display:flex;align-items:center;gap:6px;margin-right:auto;color:var(--ink);font-size:12px}
 .sap-import-help.warning{border-color:#f6c98f;background:#fff8ec;color:#7a4510}
 .sap-state.discarded{background:#f1efed;color:#7d7268}
+.source-date{display:grid;gap:4px;color:var(--ink);font-size:11px;font-weight:600}
+.source-date input{padding:7px 8px;border:1px solid #e3d6ca;border-radius:8px;background:#fff;font:inherit;font-size:12px}
+.source-links p{color:var(--ink)}
 @media(max-width:1100px){.source-import-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.source-diff-counts{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:560px){.source-import-grid,.source-diff-counts{grid-template-columns:1fr}.source-import-actions .btn,.source-commit-row .btn{width:100%}}

@@ -84,6 +84,12 @@ export function parseSapMatrix(matrix: string[][], kind: SapKind,
     const payload = Object.fromEntries(columns.map(([, field], column) =>
       [field, values[column]?.trim() ?? ""])) as Record<string, string>;
     Object.assign(payload, extras?.get(rowNumber));
+    // Contract exports carry 18-digit materials with leading zeros; Stock,
+    // usage and 105 use 12 digits. Normalize so every file links on one code.
+    if (/^0+\d{12}$/.test(payload.material_code ?? "")) {
+      payload.source_material_code = payload.material_code;
+      payload.material_code = payload.material_code.slice(-12);
+    }
     const needed = kind === "contracts"
       ? ["purchase_order", "procurement_code", "line_item", "quantity", "unit"]
       : ["material_code", "purchase_order", "material_document", "quantity", "unit"];

@@ -5,6 +5,12 @@ const receipt14 = ["โรงงาน", "SLoc", "MvT", "เลขที่จ�
   "Mat. Doc.", "วัสดุ", "ผู้รับ", "ผู้ใช้", "ใบสั่งซื้อ",
   "ใบตราส่งสินค้า", "ว/ทเอกสาร", "Pstng Date", "Qty in UnE"];
 
+// SAP 105 export with PO (2026-10): 13 columns, plus SAP subtotal rows at
+// the end that carry only a quantity.
+export const receipt13 = ["วัสดุ", "คำอธิบายวัสดุ", "ใบสั่งซื้อ", "รายการในเอกสารวัสดุ",
+  "ปริมาณในหน่วยบันทึก", "หน่วยนับพื้นฐาน", "โรงงาน", "ชื่อ 1", "วันที่ผ่านรายการ",
+  "วันที่บันทึก", "วันที่ในเอกสาร", "รายการ", "เอกสารทางวัสดุ"];
+
 function xmlText(value: string): string {
   return value.replace(/&#(x[\da-f]+|\d+);|&(amp|lt|gt|quot|apos);/gi,
     (match, numeric: string | undefined, named: string | undefined) => {
@@ -90,7 +96,7 @@ function matches(headers: string[], expected: string[]): boolean {
 }
 
 export function readSapWorkbook(bytes: Uint8Array, kind: SapKind): {
-  matrix: string[][]; layout: "standard" | "sap_105_14";
+  matrix: string[][]; layout: "standard" | "sap_105_14" | "sap_105_13";
 } {
   const files = unzipSync(bytes);
   const sharedXml = files["xl/sharedStrings.xml"];
@@ -102,16 +108,18 @@ export function readSapWorkbook(bytes: Uint8Array, kind: SapKind): {
   for (const name of sheetNames) {
     const matrix = readWorksheet(strFromU8(files[name]), shared);
     const headerIndex = matrix.findIndex((row) => matches(row ?? [], expected) ||
-      (kind === "receipts_105" && matches(row ?? [], receipt14)));
+      (kind === "receipts_105" && (matches(row ?? [], receipt14) || matches(row ?? [], receipt13))));
     if (headerIndex < 0) continue;
     const header = matrix[headerIndex];
-    const layout = matches(header, expected) ? "standard" : "sap_105_14";
-    const width = layout === "standard" ? expected.length : receipt14.length;
+    const layout = matches(header, expected) ? "standard"
+      : matches(header, receipt13) ? "sap_105_13" : "sap_105_14";
+    const width = layout === "standard" ? expected.length
+      : layout === "sap_105_13" ? receipt13.length : receipt14.length;
     const selected = [header.slice(0, width), ...matrix.slice(headerIndex + 1).map((row) =>
       (row ?? []).slice(0, width))];
     const dateIndexes = layout === "standard"
       ? (kind === "contracts" ? [8, 10, 11, 12, 13, 14, 15] : [12, 13, 14])
-      : [11, 12];
+      : layout === "sap_105_13" ? [8, 9, 10] : [11, 12];
     for (const row of selected.slice(1)) {
       for (const index of dateIndexes) row[index] = excelDate(row[index] ?? "");
     }
@@ -158,5 +166,37 @@ export function parseReceipt14(matrix: string[][], contractRows: SapRow[]): {
       delivery_note: row[10] ?? "" });
   }
   const rows = parseSapMatrix(standard, "receipts_105", extras);
+  return { rows, warnings };
+}
+
+/**
+ * 13-column 105 export. The PO line ("รายการ") and material-document item
+ * are kept separately; material document + item identifies the receipt.
+ * SAP subtotal rows (no material) are skipped.
+ */
+export function parseReceipt13(matrix: string[][]): { rows: SapRow[]; warnings: string[] } {
+  if (!matches(matrix[0] ?? [], receipt13)) throw new Error("หัวตารางรับเข้า 105 แบบ 13 ช่องไม่ถูกต้อง");
+  const standard = [sapColumns.receipts_105.map(([label]) => label)];
+  const extras = new Map<number, Record<string, string>>();
+  let subtotalRows = 0;
+  for (const [index, row] of matrix.slice(1).entries()) {
+    const number = index + 2;
+    if (!row?.some(Boolean)) { standard.push([]); continue; }
+    if (!row[0]) {
+      // SAP appends per-unit subtotal lines that carry only a quantity.
+      subtotalRows += 1;
+      standard.push([]);
+      continue;
+    }
+    standard.push([row[0] ?? "", row[1] ?? "", row[2] ?? "", row[3] ?? "", row[6] ?? "",
+      row[7] ?? "", "", "", "", row[12] ?? "", row[4] ?? "", row[5] ?? "",
+      row[8] ?? "", row[9] ?? "", row[10] ?? ""]);
+    extras.set(number, { source_layout: "sap_105_13", po_item: row[11] ?? "",
+      material_document_item: row[3] ?? "" });
+  }
+  const rows = parseSapMatrix(standard, "receipts_105", extras);
+  const warnings = subtotalRows
+    ? [`รับเข้า 105: ข้ามแถวผลรวมท้ายไฟล์ของ SAP ${subtotalRows} แถว (ไม่มีรหัสวัสดุ)`]
+    : [];
   return { rows, warnings };
 }
