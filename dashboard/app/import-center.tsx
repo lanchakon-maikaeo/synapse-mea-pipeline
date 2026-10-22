@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import ImportSummary, { type FileFact } from "./import-summary";
+import type { SummaryInput } from "./material-summary";
 import { formatDateTime, formatNumber, type Role } from "./lib";
 import { readSourceFile } from "./sap-file-reader";
 import type { SapRow } from "./sap-import";
@@ -104,55 +106,6 @@ const FIELD_LABELS: Record<string, string> = {
 
 const emptySlot = (): Slot => ({ file: null, snapshotDate: "", parsed: null, error: "", run: null, progress: "" });
 
-const digitsKey = (value: unknown) => String(value ?? "").trim().replace(/^0+(?=\d)/, "");
-
-/**
- * How the checked files relate to each other, as counts of rows/codes. This
- * is a read-only cross-check for the operator; nothing is stored from it.
- */
-function crossLinks(slots: Record<SourceKind, Slot>) {
-  const contracts = slots.contracts.parsed?.rows ?? [];
-  const receipts = slots.receipts_105.parsed?.rows ?? [];
-  const stock = slots.stock.parsed?.rows ?? [];
-  const usage = slots.usage.parsed?.rows ?? [];
-  const lines: string[] = [];
-  if (contracts.length && receipts.length) {
-    const byOrder = new Map<string, Array<Record<string, unknown>>>();
-    for (const { payload } of contracts) {
-      const key = `${digitsKey(payload.purchase_order)}|${payload.material_code}`;
-      byOrder.set(key, [...(byOrder.get(key) ?? []), payload]);
-    }
-    let exact = 0;
-    let ambiguous = 0;
-    let notFound = 0;
-    let unitMismatch = 0;
-    for (const { payload } of receipts) {
-      const candidates = byOrder.get(`${digitsKey(payload.purchase_order)}|${payload.material_code}`) ?? [];
-      const poItem = payload.po_item ?? (payload.source_layout ? undefined : payload.item);
-      const hit = poItem !== undefined
-        ? candidates.find((line) => digitsKey(line.line_item) === digitsKey(poItem))
-        : candidates.length === 1 ? candidates[0] : undefined;
-      if (hit) {
-        exact += 1;
-        if (String(hit.unit ?? "") !== String(payload.unit ?? "")) unitMismatch += 1;
-      } else if (candidates.length) ambiguous += 1;
-      else notFound += 1;
-    }
-    lines.push(`รับเข้า 105 → รวมสัญญา: ตรงถึงงวดของสัญญา (PO + วัสดุ + งวด) ${formatNumber(exact)} · ต้องตรวจ (ระบุงวดไม่ได้) ${formatNumber(ambiguous)} · ไม่พบ PO+วัสดุในไฟล์สัญญา ${formatNumber(notFound)} จาก ${formatNumber(receipts.length)} รายการ`);
-    if (unitMismatch) lines.push(`หน่วยนับในสัญญากับ 105 ไม่ตรงกัน ${formatNumber(unitMismatch)} รายการ: ต้องตรวจก่อนใช้กับ FIFO (ระบบไม่แปลงหน่วยให้เอง)`);
-  }
-  if (stock.length && usage.length) {
-    const usageCodes = new Set(usage.map(({ payload }) => payload.material_id));
-    const stockCodes = new Set(stock.map(({ payload }) => payload.material_id));
-    const found = [...stockCodes].filter((code) => usageCodes.has(code)).length;
-    lines.push(`Stock → อัตราการใช้งาน: วัสดุใน Stock มีข้อมูลการใช้ ${formatNumber(found)} จาก ${formatNumber(stockCodes.size)} รหัส`);
-  }
-  if (stock.length && !stock.some(({ payload }) => payload.district_id)) {
-    lines.push("ไฟล์ Stock นี้มีเฉพาะคลังคลองเตย ไม่มี Stock ของ 18 เขต");
-  }
-  return lines;
-}
-
 async function sha256Hex(bytes: ArrayBuffer) {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -200,6 +153,7 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
   const [acknowledged, setAcknowledged] = useState<Record<string, boolean>>({});
   const [viewer, setViewer] = useState<{ runId: string; type: ChangeType; rows: ChangeRow[]; loading: boolean } | null>(null);
   const [notice, setNotice] = useState("");
+  const [savedRows, setSavedRows] = useState<Partial<Record<SourceKind, Array<Record<string, unknown>>>>>({});
   const canCommit = role === "admin";
 
   const patch = (kind: SourceKind, value: Partial<Slot>) =>
@@ -219,6 +173,10 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
       setHistory(runs);
       setBackend("ready");
       setBackendError("");
+      // Accepted rows feed the material summary when no file is selected.
+      const loaded = await Promise.all(ORDER.map(async (kind) =>
+        [kind, state[kind]?.accepted_rows ? await sourceImportApi.currentRows(token, kind).catch(() => []) : []] as const));
+      setSavedRows(Object.fromEntries(loaded));
     } catch (reason) {
       if (isImportBackendMissing(reason)) {
         setBackend("missing");
@@ -235,6 +193,31 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
     void refresh();
   }, [refresh]);
 
+  const summary = useMemo(() => {
+    const rowsFor = (kind: SourceKind) => slots[kind].parsed
+      ? slots[kind].parsed.rows.map((row) => row.payload)
+      : savedRows[kind] ?? [];
+    const input: SummaryInput = {
+      stock: rowsFor("stock"),
+      contracts: rowsFor("contracts"),
+      receipts: rowsFor("receipts_105"),
+      usage: rowsFor("usage"),
+    };
+    const files: FileFact[] = ORDER.map((kind) => {
+      const parsed = slots[kind].parsed;
+      const latest = current?.[kind]?.latest_commit;
+      return {
+        label: SOURCES[kind].title,
+        rows: parsed ? parsed.rows.length : savedRows[kind]?.length ?? 0,
+        source: parsed
+          ? `ไฟล์ที่ตรวจรอบนี้ · ${parsed.name}`
+          : latest ? `บันทึกแล้ว ${formatDateTime(latest.committed_at)}` : "ยังไม่มีข้อมูล",
+        changes: slots[kind].run?.summary ?? (parsed ? null : latest?.summary ?? null),
+      };
+    });
+    const hasRows = Object.values(input).some((rows) => rows.length > 0);
+    return hasRows ? { input, files } : null;
+  }, [slots, savedRows, current]);
   const selectedKinds = ORDER.filter((kind) => slots[kind].file);
   const parsedKinds = ORDER.filter((kind) => slots[kind].parsed && !slots[kind].run);
   const stagedKinds = ORDER.filter((kind) => slots[kind].run);
@@ -448,13 +431,7 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
         </div>
         {notice && <p className="sap-import-success" role="status">{notice}</p>}
 
-        {crossLinks(slots).length > 0 && (
-          <div className="sap-import-review source-links" role="status">
-            <h4>การเชื่อมโยงระหว่างไฟล์</h4>
-            <p>ตรวจจากไฟล์ที่เลือกในรอบนี้ (นับเป็นจำนวนรายการ/รหัส ไม่บันทึกผลนี้ลงฐานข้อมูล)</p>
-            {crossLinks(slots).map((line) => <p key={line}>• {line}</p>)}
-          </div>
-        )}
+
 
         {stagedKinds.map((kind) => {
           const run = slots[kind].run as ImportRun;
@@ -510,6 +487,8 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
             </div>
           );
         })}
+
+        {summary && <ImportSummary input={summary.input} files={summary.files} />}
 
         {backend === "ready" && (
           <div className="sap-import-history">

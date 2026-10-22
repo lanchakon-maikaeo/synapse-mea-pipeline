@@ -130,6 +130,9 @@ insert into srcimp_state
 select 'viewer_list', pg_temp.call_as('20000000-0000-4000-8000-000000000003', 'GET', '/v1/source-imports/runs');
 insert into srcimp_state
 select 'current', pg_temp.call_as('20000000-0000-4000-8000-000000000001', 'GET', '/v1/source-imports/current');
+insert into srcimp_state
+select 'current_rows', pg_temp.call_as('20000000-0000-4000-8000-000000000002', 'GET',
+  '/v1/source-imports/current-rows', '{}'::jsonb, '{"source_kind":"stock"}'::jsonb);
 
 -- Stale check: run 3 is staged, then run 4 commits first; run 3 must re-check.
 insert into srcimp_state
@@ -225,6 +228,13 @@ union all
 select 'current_summary_counts',
   (select value #>> '{body,stock,accepted_rows}' = '3'
       and value #>> '{body,stock,missing_rows}' = '1' from srcimp_v where name = 'current')
+union all
+select 'current_rows_exclude_missing',
+  (select value #>> '{body,total}' = '3'
+      and jsonb_array_length(value #> '{body,rows}') = 3
+      and not exists (select 1 from jsonb_array_elements(value #> '{body,rows}') r
+                      where r ->> 'sap_plant_code' = '5601')
+   from srcimp_v where name = 'current_rows')
 union all
 select 'stale_run_must_recheck',
   (select value #>> '{body,status}' = 'committed' from srcimp_v where name = 'run4_commit')

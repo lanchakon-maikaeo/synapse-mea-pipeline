@@ -116,6 +116,18 @@ export const sourceImportApi = {
   current: (token: string) => call<CurrentSourceState>(token, "GET", "/current"),
   runs: (token: string, limit = 30) =>
     call<ImportRun[]>(token, "GET", "/runs", undefined, { limit: String(limit) }),
+  /** All accepted rows of one file type (vendor and monthly history omitted). */
+  async currentRows(token: string, kind: SourceKind): Promise<Array<Record<string, unknown>>> {
+    const rows: Array<Record<string, unknown>> = [];
+    for (let offset = 0; offset < 200000; offset += 5000) {
+      const page = await call<{ total: number; rows: Array<Record<string, unknown>> }>(
+        token, "GET", "/current-rows", undefined,
+        { source_kind: kind, limit: "5000", offset: String(offset) });
+      rows.push(...page.rows);
+      if (rows.length >= page.total || page.rows.length === 0) break;
+    }
+    return rows;
+  },
   changes: (token: string, runId: string, type: ChangeType, limit = 25) =>
     call<{ rows: ChangeRow[] }>(token, "GET", `/runs/${runId}/changes`, undefined,
       { type, limit: String(limit) }),

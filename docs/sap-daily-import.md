@@ -57,6 +57,26 @@ available-to-issue stock.
 5. History lists every run with file name, SHA-256, uploader, confirmer and
    its changes.
 
+## Material summary (Import page)
+
+Below the upload cards the page summarises the four files by 12-digit
+material code (`dashboard/app/material-summary.ts`). It uses the files checked
+in the current session, or the accepted rows from the database
+(`GET /v1/source-imports/current-rows`, vendor and monthly history omitted)
+when no file is selected.
+
+- Per file: rows, and new / updated / unchanged / not-in-file from the latest
+  comparison or commit.
+- Installments (`รายการที่` = งวด): finished = fully received in 105 for the
+  same PO + material + งวด, or accepted (`วันผ่านตรวจรับ`) when its 105 row is
+  outside the 105 export's date range; open = not yet due or partially
+  received; overdue = past `วันส่งมอบ`, no 105 receipt and no acceptance;
+  unit mismatch = contract and 105 units differ (never converted).
+- 105 receipts matched to an installment vs. not found in the contract file.
+- Per material: Khlong Toei stock, total CMP of the districts and months of
+  cover, PO / installment counts, receipts and flags, with an installment
+  drill-down. Quantities are never added across materials or units.
+
 ## Record identity
 
 - Stock: plant + storage location + material. Rows without a storage

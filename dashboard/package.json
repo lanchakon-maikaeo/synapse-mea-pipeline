@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "node scripts/verify-production-config.mjs && next build --webpack",
     "start": "next start",
-    "test": "next build --webpack && node --test tests/rendered-html.test.mjs tests/pipeline-orchestration.test.mjs tests/pipeline-validation.test.mjs tests/route-optimizer.test.mjs tests/transport-truthfulness.test.mjs tests/production-configuration.test.mjs tests/sap-import.test.mjs tests/source-workbooks.test.mjs",
+    "test": "next build --webpack && node --test tests/rendered-html.test.mjs tests/pipeline-orchestration.test.mjs tests/pipeline-validation.test.mjs tests/route-optimizer.test.mjs tests/transport-truthfulness.test.mjs tests/production-configuration.test.mjs tests/sap-import.test.mjs tests/source-workbooks.test.mjs tests/material-summary.test.mjs",
     "verify": "npm run lint && npm run test && npm run db:check && node --test tests/database-contract.test.mjs",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern dist --ignore-pattern .vinext --ignore-pattern .wrangler",
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",

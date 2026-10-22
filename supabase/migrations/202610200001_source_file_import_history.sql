@@ -752,6 +752,31 @@ begin
     return public.m09_result(200, v_payload);
   end if;
 
+  -- Accepted rows for the material summary on the Import page. Vendor names
+  -- stay hidden (Business Rules v1) and the monthly usage history is left out
+  -- to keep the response small; both remain in the stored history.
+  if v_method = 'GET' and p_path = '/v1/source-imports/current-rows' then
+    if coalesce(p_query ->> 'source_kind', '') not in ('stock', 'contracts', 'receipts_105', 'usage') then
+      return public.m09_error(422, 'validation_error', 'source_kind is invalid', p_request_id);
+    end if;
+    v_limit := least(greatest(coalesce(nullif(p_query ->> 'limit', '')::integer, 5000), 1), 5000);
+    v_offset := greatest(coalesce(nullif(p_query ->> 'offset', '')::integer, 0), 0);
+    select jsonb_build_object(
+      'source_kind', p_query ->> 'source_kind',
+      'total', (select count(*) from ops.source_current_rows c
+        where c.source_kind = p_query ->> 'source_kind' and c.missing_since_run_id is null),
+      'rows', coalesce(jsonb_agg(c.payload - 'vendor' - 'monthly_usage' order by c.business_key), '[]'::jsonb)
+    )
+    into v_payload
+    from (
+      select business_key, payload from ops.source_current_rows
+      where source_kind = p_query ->> 'source_kind' and missing_since_run_id is null
+      order by business_key
+      limit v_limit offset v_offset
+    ) c;
+    return public.m09_result(200, v_payload);
+  end if;
+
   if v_method = 'POST' and p_path = '/v1/source-imports/runs' then
     if coalesce(p_body ->> 'source_kind', '') not in ('stock', 'contracts', 'receipts_105', 'usage') then
       return public.m09_error(422, 'validation_error', 'source_kind is invalid', p_request_id);
