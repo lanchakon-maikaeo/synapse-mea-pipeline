@@ -38,6 +38,8 @@ test("installments link to 105 receipts by PO + material + งวด", () => {
   assert.equal(fuse.districtCount, 2);
   assert.equal(fuse.cmpTotal, 100);
   assert.equal(fuse.monthsOfCover, 3);
+  assert.deepEqual(fuse.districts.map((row) => [row.districtId, row.districtName, row.cmp]),
+    [["5501", "เขตนวลจันทร์", 60], ["5502", "เขตสามเสน", 40]]);
   assert.deepEqual(fuse.installments.map((item) => item.status),
     ["complete", "partial", "overdue", "accepted", "pending"]);
   assert.equal(fuse.unmatchedReceipts, 1);

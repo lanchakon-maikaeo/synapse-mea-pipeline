@@ -36,6 +36,25 @@ export type InstallmentSummary = {
   status: InstallmentStatus;
 };
 
+export const DISTRICT_NAMES: Record<string, string> = {
+  "5501": "เขตนวลจันทร์", "5502": "เขตสามเสน", "5503": "เขตนนทบุรี", "5504": "เขตธนบุรี",
+  "5505": "เขตบางใหญ่", "5506": "เขตลาดกระบัง", "5507": "เขตบางนา", "5508": "เขตวัดเลียบ",
+  "5509": "เขตคลองเตย", "5510": "เขตราษฎร์บูรณะ", "5511": "เขตยานนาวา", "5512": "เขตบางขุนเทียน",
+  "5513": "เขตบางบัวทอง", "5514": "เขตบางกะปิ", "5515": "เขตสมุทรปราการ", "5516": "เขตบางพลี",
+  "5517": "เขตมีนบุรี", "5518": "เขตบางเขน",
+};
+
+export type DistrictUsage = {
+  districtId: string;
+  districtName: string;
+  plant: string;
+  cmp: number;
+  ly: number;
+  avg12: number;
+  avg6: number;
+  avg4: number;
+};
+
 export type MaterialSummary = {
   material: string;
   name: string;
@@ -44,6 +63,7 @@ export type MaterialSummary = {
   stockQty: number;
   districtCount: number;
   cmpTotal: number;
+  districts: DistrictUsage[];
   monthsOfCover: number | null;
   purchaseOrders: number;
   installments: InstallmentSummary[];
@@ -94,7 +114,7 @@ export function buildMaterialSummary(input: SummaryInput, today = new Date().toI
     if (!found) {
       found = {
         material: code, name: "", unit: "", inStock: false, stockQty: 0, districtCount: 0,
-        cmpTotal: 0, monthsOfCover: null, purchaseOrders: 0, installments: [], contractQty: 0,
+        cmpTotal: 0, districts: [], monthsOfCover: null, purchaseOrders: 0, installments: [], contractQty: 0,
         receiptCount: 0, receivedQty: 0, unmatchedReceipts: 0, lastReceiptDate: "", flags: [],
       };
       materials.set(code, found);
@@ -113,13 +133,30 @@ export function buildMaterialSummary(input: SummaryInput, today = new Date().toI
     item.unit ||= text(row.base_unit);
   }
 
+  // Usage stays per district; the total is only a convenience next to it.
   for (const row of input.usage) {
-    if (!text(row.district_id)) continue;
+    const districtId = text(row.district_id);
+    if (!districtId) continue;
     const cmp = num(row.cmp_monthly);
-    if (cmp <= 0) continue;
+    const summaries = [row.avg_ly, row.avg_12m, row.avg_6m, row.avg_4m];
+    const raw = [row.avg_ly_raw, row.avg_12m_raw, row.avg_6m_raw, row.avg_4m_raw];
+    const pick = (index: number) => num(summaries[index] ?? raw[index]);
+    if (cmp <= 0 && [0, 1, 2, 3].every((index) => pick(index) <= 0)) continue;
     const item = entry(materialCode(row.material_id));
-    item.districtCount += 1;
-    item.cmpTotal += cmp;
+    item.districts.push({
+      districtId,
+      districtName: DISTRICT_NAMES[districtId] ?? "",
+      plant: text(row.sap_plant_code),
+      cmp,
+      ly: pick(0),
+      avg12: pick(1),
+      avg6: pick(2),
+      avg4: pick(3),
+    });
+    if (cmp > 0) {
+      item.districtCount += 1;
+      item.cmpTotal += cmp;
+    }
   }
 
   const installmentIndex = new Map<string, InstallmentSummary>();
@@ -209,6 +246,7 @@ export function buildMaterialSummary(input: SummaryInput, today = new Date().toI
       else if (installment.status === "unit_mismatch") totals.unitMismatch += 1;
       else totals.pending += 1;
     }
+    item.districts.sort((left, right) => left.districtId.localeCompare(right.districtId));
     item.installments.sort((left, right) =>
       left.purchaseOrder.localeCompare(right.purchaseOrder) ||
       Number(left.installment) - Number(right.installment));

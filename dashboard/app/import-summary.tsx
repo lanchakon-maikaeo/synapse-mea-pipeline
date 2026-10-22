@@ -133,7 +133,7 @@ export default function ImportSummary({ input, files }: { input: SummaryInput; f
           <table className="summary-table">
             <thead>
               <tr>
-                <th>พัสดุ</th><th>Stock คลองเตย</th><th>CMP รวม / เดือน</th><th>พอใช้ (เดือน)</th>
+                <th>พัสดุ</th><th>Stock คลองเตย</th><th>CMP รวม / เดือน<small>กด ▸ ดูรายเขต</small></th><th>พอใช้ (เดือน)</th>
                 <th>PO / งวด</th><th>งวดจบ</th><th>งวดค้าง</th><th>รับเข้า 105</th><th>ต้องตรวจ</th>
               </tr>
             </thead>
@@ -147,9 +147,9 @@ export default function ImportSummary({ input, files }: { input: SummaryInput; f
                     <tr className={expanded ? "expanded" : ""}>
                       <td>
                         <button type="button" className="summary-expand" aria-expanded={expanded}
-                          disabled={!item.installments.length}
+                          disabled={!item.installments.length && !item.districts.length}
                           onClick={() => setOpen(expanded ? "" : item.material)}>
-                          {item.installments.length ? (expanded ? "▾" : "▸") : "·"}
+                          {item.installments.length || item.districts.length ? (expanded ? "▾" : "▸") : "·"}
                         </button>
                         <span><strong>{item.material}</strong><small>{item.name || "—"}{item.unit ? ` · ${item.unit}` : ""}</small></span>
                       </td>
@@ -165,6 +165,33 @@ export default function ImportSummary({ input, files }: { input: SummaryInput; f
                     {expanded && (
                       <tr className="summary-detail">
                         <td colSpan={9}>
+                          {item.districts.length > 0 && (
+                            <div className="summary-detail-block">
+                              <strong>อัตราการใช้รายเขต ({formatNumber(item.districts.length)} เขต · CMP รวม {qty(item.cmpTotal)} {item.unit} / เดือน)</strong>
+                              <table>
+                                <thead>
+                                  <tr><th>เขต</th><th>โรงงาน</th><th>CMP / เดือน</th><th>สัดส่วน</th><th>เฉลี่ยปีก่อน (LY)</th><th>เฉลี่ย 12 เดือน</th><th>เฉลี่ย 6 เดือน</th><th>เฉลี่ย 4 เดือน</th></tr>
+                                </thead>
+                                <tbody>
+                                  {item.districts.map((district) => (
+                                    <tr key={district.districtId}>
+                                      <td>{district.districtId} : {district.districtName || "—"}</td>
+                                      <td>{district.plant}</td>
+                                      <td><b>{qty(district.cmp)}</b></td>
+                                      <td>{item.cmpTotal ? `${formatNumber((district.cmp / item.cmpTotal) * 100, 1)}%` : "—"}</td>
+                                      <td>{qty(district.ly)}</td>
+                                      <td>{qty(district.avg12)}</td>
+                                      <td>{qty(district.avg6)}</td>
+                                      <td>{qty(district.avg4)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          {item.installments.length > 0 && (
+                          <div className="summary-detail-block">
+                          <strong>งวดสัญญา ({formatNumber(item.installments.length)} งวด จาก {formatNumber(item.purchaseOrders)} PO)</strong>
                           <table>
                             <thead>
                               <tr><th>PO</th><th>งวด</th><th>สัญญา</th><th>จำนวนงวด</th><th>กำหนดส่ง</th><th>วันผ่านตรวจรับ</th><th>รับเข้า 105</th><th>สถานะ</th></tr>
@@ -184,6 +211,8 @@ export default function ImportSummary({ input, files }: { input: SummaryInput; f
                               ))}
                             </tbody>
                           </table>
+                          </div>
+                          )}
                         </td>
                       </tr>
                     )}
