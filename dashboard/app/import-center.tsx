@@ -53,7 +53,7 @@ const SOURCES: Record<SourceKind, {
   contracts: {
     title: "รวมสัญญา",
     cadence: "ทุกวัน",
-    use: "สัญญา / PO / วันผ่านตรวจรับ · ใช้เรียงลำดับ FIFO",
+    use: "สัญญา / PO / งวดส่งมอบ / วันผ่านตรวจรับ · ใช้เรียงลำดับ FIFO",
     accept: ".xlsx,.csv",
     hint: "INPUT_รวมสัญญา หรือไฟล์เดียวที่มีทั้งรวมสัญญาและ 105",
   },
@@ -95,6 +95,8 @@ const FIELD_LABELS: Record<string, string> = {
   contract_number: "สัญญา",
   acceptance_date: "วันผ่านตรวจรับ",
   delivery_date: "วันส่งมอบ",
+  line_item: "งวด",
+  po_item: "งวด",
   vendor: "ผู้ขาย",
   posting_date: "วันที่ผ่านรายการ",
   as_of_date: "ข้อมูลถึง",
@@ -136,7 +138,7 @@ function crossLinks(slots: Record<SourceKind, Slot>) {
       } else if (candidates.length) ambiguous += 1;
       else notFound += 1;
     }
-    lines.push(`รับเข้า 105 → รวมสัญญา: ตรงถึงบรรทัดสัญญา ${formatNumber(exact)} · ต้องตรวจ (PO+วัสดุตรงหลายบรรทัด) ${formatNumber(ambiguous)} · ไม่พบ PO+วัสดุในไฟล์สัญญา ${formatNumber(notFound)} จาก ${formatNumber(receipts.length)} รายการ`);
+    lines.push(`รับเข้า 105 → รวมสัญญา: ตรงถึงงวดของสัญญา (PO + วัสดุ + งวด) ${formatNumber(exact)} · ต้องตรวจ (ระบุงวดไม่ได้) ${formatNumber(ambiguous)} · ไม่พบ PO+วัสดุในไฟล์สัญญา ${formatNumber(notFound)} จาก ${formatNumber(receipts.length)} รายการ`);
     if (unitMismatch) lines.push(`หน่วยนับในสัญญากับ 105 ไม่ตรงกัน ${formatNumber(unitMismatch)} รายการ: ต้องตรวจก่อนใช้กับ FIFO (ระบบไม่แปลงหน่วยให้เอง)`);
   }
   if (stock.length && usage.length) {

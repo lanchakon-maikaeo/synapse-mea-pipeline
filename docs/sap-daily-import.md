@@ -17,8 +17,12 @@ Format notes:
 - Contract exports use 18-digit material codes with leading zeros; they are
   normalized to the 12-digit code (original kept as `source_material_code`).
 - The 13-column 105 export ends with SAP subtotal rows that carry only a
-  quantity; they are skipped. `รายการ` is kept as `po_item` (PO line) and
-  `รายการในเอกสารวัสดุ` as the material-document item.
+  quantity; they are skipped. `รายการ` is the contract installment (งวด)
+  received and is kept as `po_item`; it links to `รายการที่` in the contract
+  file. `รายการในเอกสารวัสดุ` is only the line number inside the material
+  document. On the 20.10 files 456 of 461 matched installments received
+  exactly the installment quantity; the other 5 are KG items weighed slightly
+  over.
 - Usage workbooks exported from Google Sheets carry `12.0`, `5701.0` and
   `6.21045006E11`; these are read as exact integer codes.
 - After checking, the page shows how the files link: 105 rows matched to a
@@ -61,8 +65,10 @@ available-to-issue stock.
   suffix `#2`, `#3`, … and flagged.
 - Usage/CMP: material + plant. Plants outside the 18 districts are stored but
   carry no district.
-- Contract line: material + purchase order + SAP line item (leading zeros
-  ignored). Procurement code is a grouping field; contract number is an
+- Contract installment: material + purchase order + `รายการที่` (leading
+  zeros ignored). `รายการที่` is the delivery installment (งวด) of that
+  contract: one PO + material can have several installments, each with its
+  own quantity and `วันส่งมอบ`. Procurement code is a grouping field; contract number is an
   attribute, so a corrected number is an update, not a second line.
 - 105 receipt: material document + material + purchase order + GR/GI slip +
   `รายการ` + `รก.` + posting date; the 14-column layout also includes
