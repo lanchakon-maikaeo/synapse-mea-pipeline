@@ -95,6 +95,13 @@ type NavGroup = {
 const navByRole: Record<Role, NavGroup[]> = {
   admin: [
     {
+      label: "IMPORT CENTER",
+      items: [
+        ["import", "Import Data", "⇧"],
+        ["fifo_setup", "FIFO / Packaging Setup", "▣"],
+      ],
+    },
+    {
       label: "เมนูหลัก",
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
@@ -102,13 +109,6 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["summary", "สรุปการจ่าย", "☰"],
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
-      ],
-    },
-    {
-      label: "IMPORT CENTER",
-      items: [
-        ["import", "Import Data", "⇧"],
-        ["fifo_setup", "FIFO / Packaging Setup", "▣"],
       ],
     },
     {
