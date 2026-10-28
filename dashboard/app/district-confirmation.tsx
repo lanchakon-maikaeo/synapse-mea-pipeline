@@ -557,8 +557,20 @@ export function DistrictConfirmationBoard({
                                   <td>
                                     <strong>{text(line.material_id)}</strong>
                                     <small>{text(line.material_name)}</small>
+                                    {line.planner_source === "added" && (
+                                      <small className="dp-accent">เพิ่มโดย Planner</small>
+                                    )}
                                   </td>
-                                  <td>{formatNumber(planQty(line), 0)}</td>
+                                  <td>
+                                    {formatNumber(planQty(line), 0)}
+                                    {line.system_suggested_qty !== undefined &&
+                                      line.system_suggested_qty !== null &&
+                                      Number(line.system_suggested_qty) !== planQty(line) && (
+                                        <small className="dp-muted">
+                                          ระบบเสนอ {formatNumber(line.system_suggested_qty, 0)}
+                                        </small>
+                                      )}
+                                  </td>
                                   <td>
                                     {state === "pending"
                                       ? "—"

@@ -740,3 +740,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,te
 @media(max-width:700px){.dc-kpis{grid-template-columns:1fr 1fr}.dc-checks{grid-template-columns:1fr}.dc-plan{min-width:0;width:100%}}
 .dc-row.none td{padding-top:7px!important;padding-bottom:7px!important}
 .dc-row.none td small{display:inline;margin-left:6px}
+.ps-modal{width:min(1040px,calc(100vw - 48px))}
+.ps-stats{grid-template-columns:repeat(5,minmax(0,1fr))}
+.ps-table small{display:block;color:var(--muted);font-size:10px}
+.ps-table tr.open td{background:#fff8f2}
+.ps-dropped td{color:#a89888}
+@media(max-width:800px){.ps-stats{grid-template-columns:1fr 1fr}}

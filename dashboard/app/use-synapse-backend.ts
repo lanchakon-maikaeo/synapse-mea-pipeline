@@ -1,5 +1,6 @@
 "use client";
 
+import type { PlannerSelectionPayload } from "./plan-submit";
 import { createClient, type Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -566,6 +567,90 @@ export function useSynapseBackend() {
         {},
         "สร้าง Weekly Plan จากข้อมูลที่ผ่านกติกาแล้ว",
       )) !== null,
+    [runAction],
+  );
+
+  const submitPlannerSelection = useCallback(
+    async (planId: string, payload: PlannerSelectionPayload) => {
+      if (DEMO_MODE) {
+        const actedAt = new Date().toISOString();
+        setData((current) => {
+          const template = current.replenishment.find(
+            (row) => String(row.replenishment_plan_id) === planId,
+          );
+          const keep = new Map(
+            payload.lines
+              .filter((line) => line.replenishment_item_id)
+              .map((line) => [String(line.replenishment_item_id), line]),
+          );
+          const dropped = new Map(
+            payload.dropped.map((line) => [line.replenishment_item_id, line]),
+          );
+          const updated = current.replenishment.map((row) => {
+            const id = String(row.replenishment_item_id);
+            if (String(row.replenishment_plan_id) !== planId) return row;
+            const line = keep.get(id);
+            if (line) {
+              return {
+                ...row,
+                system_suggested_qty: row.system_suggested_qty ?? row.suggested_qty,
+                suggested_qty: line.quantity,
+                planner_source: "system",
+                item_status: "pending",
+                planner_selected_at: actedAt,
+              };
+            }
+            const drop = dropped.get(id);
+            if (drop) {
+              return {
+                ...row,
+                system_suggested_qty: row.system_suggested_qty ?? row.suggested_qty,
+                item_status: "cancelled",
+                district_note: `Planner ไม่ส่ง: ${drop.reason}`,
+              };
+            }
+            return row;
+          });
+          const added = payload.lines
+            .filter((line) => !line.replenishment_item_id)
+            .map((line, index) => ({
+              ...(template ?? {}),
+              replenishment_item_id: `RI-DEMO-ADD-${Date.now()}-${index}`,
+              replenishment_plan_id: planId,
+              district_id: line.district_id,
+              district_name_th: line.district_name_th,
+              material_id: line.material_id,
+              material_name: line.material_name,
+              suggested_qty: line.quantity,
+              system_suggested_qty: null,
+              confirmed_qty: null,
+              requested_qty: null,
+              final_qty: null,
+              planner_source: "added",
+              planner_note: line.reason,
+              item_status: "pending",
+              requester_name: null,
+              district_note: null,
+              planner_selected_at: actedAt,
+            }));
+          return {
+            ...current,
+            replenishment: [...updated, ...added].map((row) =>
+              String(row.replenishment_plan_id) === planId
+                ? { ...row, plan_status: "pending_district_confirmation" }
+                : row,
+            ),
+          };
+        });
+      }
+      return (
+        (await runAction(
+          `/v1/replenishment/plans/${encodeURIComponent(planId)}/planner-selection`,
+          payload,
+          `ส่งแผน ${payload.lines.length} รายการให้เขตยืนยันแล้ว`,
+        )) !== null
+      );
+    },
     [runAction],
   );
 
@@ -1148,6 +1233,7 @@ export function useSynapseBackend() {
     returnAcademicPlan,
     respondReplenishment,
     confirmPendingDistrictItems,
+    submitPlannerSelection,
     reviewChangeRequest,
     session,
     setDemoRole,
