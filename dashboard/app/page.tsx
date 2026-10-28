@@ -31,6 +31,12 @@ import {
 import FifoPackagingSetupView from "./fifo-packaging-setup";
 import SourceImportCenter from "./import-center";
 import {
+  DistrictPlanner,
+  DistrictProgress,
+  type DistrictStats,
+  type DistrictTab,
+} from "./district-planner";
+import {
   TransportModule,
   transportNavForRole,
   type TransportView,
@@ -62,6 +68,13 @@ type PlannerDraft = {
   selectedIds: Record<string, boolean>;
   searchMode: "district" | "material";
   query: string;
+  /** District-by-district planning (คำนวณการจ่ายทีละเขต). */
+  activeDistrict: string;
+  districtTab: DistrictTab;
+  confirmedDistricts: Record<string, string>;
+  skipReasons: Record<string, string>;
+  addedIds: Record<string, boolean>;
+  addReasons: Record<string, string>;
 };
 
 const emptyPlannerDraft: PlannerDraft = {
@@ -70,6 +83,12 @@ const emptyPlannerDraft: PlannerDraft = {
   selectedIds: {},
   searchMode: "district",
   query: "",
+  activeDistrict: "",
+  districtTab: "fill",
+  confirmedDistricts: {},
+  skipReasons: {},
+  addedIds: {},
+  addReasons: {},
 };
 
 // Plan statuses that mean a calculated plan is already in the review/approval
@@ -1145,6 +1164,11 @@ function WeeklyPlanView({
   const setEditedPlanningRows = draftField("editedRows");
   const selectedPlanningIds = draft.selectedIds;
   const setSelectedPlanningIds = draftField("selectedIds");
+  const setDistrictTab = draftField("districtTab");
+  const setConfirmedDistricts = draftField("confirmedDistricts");
+  const setSkipReasons = draftField("skipReasons");
+  const setAddedIds = draftField("addedIds");
+  const setAddReasons = draftField("addReasons");
   const [responseRow, setResponseRow] = useState<RecordRow | null>(null);
   const [decision, setDecision] =
     useState<ReplenishmentResponsePayload["decision"]>("confirm");
@@ -1182,6 +1206,19 @@ function WeeklyPlanView({
           `${material.id} : ${material.name}`.toLowerCase().includes(materialTerm),
         )
       : null;
+  // One row per district + material: the same item appears once per plan
+  // version, so keep the row from the newest plan.
+  const latestReplenishment = (() => {
+    const order = (row: RecordRow) =>
+      `${text(row.week_start_date, "")}|${String(Number(row.version_no ?? 0)).padStart(6, "0")}|${text(row.updated_at, "")}`;
+    const byKey = new Map<string, RecordRow>();
+    data.replenishment.forEach((row) => {
+      const key = `${text(row.district_id)}|${text(row.material_id)}`;
+      const current = byKey.get(key);
+      if (!current || order(row) > order(current)) byKey.set(key, row);
+    });
+    return [...byKey.values()];
+  })();
   const districtReference = [
     ...new Map(
       [...data.districts, ...data.stock, ...data.replenishment].map((row) => [
@@ -1193,18 +1230,20 @@ function WeeklyPlanView({
       ]),
     ).values(),
   ].filter((district) => district.district_id && district.district_id !== "—");
-  const materialRows: RecordRow[] = selectedMaterial
-    ? districtReference.map((district) => {
+  const materialRowFor = (
+    material: { id: string; name: string },
+    district: { district_id: string; district_name_th: string },
+  ): RecordRow => {
         const stock =
           data.stock.find(
             (row) =>
-              text(row.material_id) === selectedMaterial.id &&
+              text(row.material_id) === material.id &&
               text(row.district_id) === district.district_id,
           ) ?? {};
         const queued =
-          data.replenishment.find(
+          latestReplenishment.find(
             (row) =>
-              text(row.material_id) === selectedMaterial.id &&
+              text(row.material_id) === material.id &&
               text(row.district_id) === district.district_id,
           ) ?? {};
         const currentStock = Number(stock.current_stock_qty ?? 0);
@@ -1217,8 +1256,8 @@ function WeeklyPlanView({
           ...stock,
           ...queued,
           ...district,
-          material_id: selectedMaterial.id,
-          material_name: selectedMaterial.name,
+          material_id: material.id,
+          material_name: material.name,
           current_stock_qty: currentStock,
           cmp_monthly: cmp,
           months_available: months,
@@ -1230,15 +1269,86 @@ function WeeklyPlanView({
           needs_fill: needsFill,
           material_search_row: true,
         };
-      })
+  };
+  const materialRows: RecordRow[] = selectedMaterial
+    ? districtReference.map((district) => materialRowFor(selectedMaterial, district))
     : [];
+  const canPlanDistricts = role === "admin" || role === "planner";
+  const districtFlow = searchMode === "district" && canPlanDistricts;
+  const rowNeedsFill = (row: RecordRow) =>
+    Boolean(row.needs_fill ?? Number(row.suggested_qty ?? 0) > 0);
+  const flowDistricts = [
+    ...new Map(
+      [...data.districts, ...latestReplenishment].map((row) => [
+        text(row.district_id),
+        { id: text(row.district_id), name: text(row.district_name_th) },
+      ]),
+    ).values(),
+  ]
+    .filter((district) => district.id && district.id !== "—")
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const addedRowsAll = Object.values(editedPlanningRows).filter(
+    (row) => draft.addedIds[itemId(row)],
+  );
+  const systemRowsByDistrict = latestReplenishment.reduce<Record<string, RecordRow[]>>(
+    (groups, row) => {
+      if (draft.addedIds[itemId(row)]) return groups;
+      const key = text(row.district_id);
+      (groups[key] ??= []).push(row);
+      return groups;
+    },
+    {},
+  );
+  const isPicked = (row: RecordRow) =>
+    Boolean(selectedPlanningIds[itemId(row)]) &&
+    Number(plannerQuantities[itemId(row)] ?? (row.replenishment_item_id ? Number(row.suggested_qty ?? 0) : 0)) > 0;
+  const districtStats = (districtId: string): DistrictStats => {
+    const systemRows = systemRowsByDistrict[districtId] ?? [];
+    const needs = systemRows.filter(rowNeedsFill);
+    const added = addedRowsAll.filter((row) => text(row.district_id) === districtId);
+    const selected = systemRows.filter(isPicked).length;
+    const undecided = needs.filter(
+      (row) => !isPicked(row) && !draft.skipReasons[itemId(row)],
+    ).length;
+    return {
+      needs: needs.length,
+      selected,
+      added: added.length,
+      undecided,
+      confirmed: Boolean(draft.confirmedDistricts[districtId]),
+      touched:
+        selected > 0 ||
+        added.length > 0 ||
+        systemRows.some((row) => draft.skipReasons[itemId(row)]),
+    };
+  };
+  const activeDistrict =
+    (draft.activeDistrict &&
+      flowDistricts.some((district) => district.id === draft.activeDistrict) &&
+      draft.activeDistrict) ||
+    flowDistricts.find(
+      (district) =>
+        !draft.confirmedDistricts[district.id] &&
+        (systemRowsByDistrict[district.id] ?? []).some(rowNeedsFill),
+    )?.id ||
+    flowDistricts[0]?.id ||
+    "";
+  const activeSystemRows = systemRowsByDistrict[activeDistrict] ?? [];
+  const activeAddedRows = addedRowsAll.filter(
+    (row) => text(row.district_id) === activeDistrict,
+  );
+  const activeDistrictInfo = districtReference.find(
+    (district) => district.district_id === activeDistrict,
+  ) ?? { district_id: activeDistrict, district_name_th: "" };
   const rows = (
-    searchMode === "district"
-      ? data.replenishment.filter((row) => {
-          const value = query.trim().toLowerCase();
-          return !value || text(row.district_id).toLowerCase().includes(value);
-        })
-      : materialRows
+    districtFlow
+      ? [...activeSystemRows, ...activeAddedRows]
+      : searchMode === "district"
+        ? latestReplenishment.filter((row) => {
+            const value = query.trim().toLowerCase();
+            return !value || text(row.district_id).toLowerCase().includes(value);
+          })
+        : materialRows
   ).sort(
     (left, right) =>
       Number(Boolean(right.needs_fill ?? Number(right.suggested_qty ?? 0) > 0)) -
@@ -1470,6 +1580,103 @@ function WeeklyPlanView({
       setPlanNote("");
     }
   };
+  const unconfirmDistrict = (districtId: string) =>
+    setConfirmedDistricts((current) => {
+      if (!current[districtId]) return current;
+      const next = { ...current };
+      delete next[districtId];
+      return next;
+    });
+  const touchRow = (row: RecordRow) => {
+    setEditedPlanningRows((current) => ({ ...current, [itemId(row)]: row }));
+    unconfirmDistrict(text(row.district_id));
+  };
+  const districtPlannerHandlers = {
+    onSelectDistrict: (districtId: string) =>
+      setDraft((current) => ({ ...current, activeDistrict: districtId, districtTab: "fill" })),
+    onToggle: (row: RecordRow, checked: boolean) => {
+      const id = itemId(row);
+      setFocusedItemId(id);
+      touchRow(row);
+      setSelectedPlanningIds((current) => ({ ...current, [id]: checked }));
+      if (checked) {
+        setSkipReasons((current) => {
+          if (!current[id]) return current;
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
+      }
+    },
+    onQuantity: (row: RecordRow, nextQuantity: number) => {
+      const id = itemId(row);
+      touchRow(row);
+      setPlannerQuantities((current) => ({ ...current, [id]: String(nextQuantity) }));
+      if (nextQuantity === 0) {
+        setSelectedPlanningIds((current) => ({ ...current, [id]: false }));
+      }
+    },
+    onSkip: (row: RecordRow, reason: string | null) => {
+      const id = itemId(row);
+      unconfirmDistrict(text(row.district_id));
+      setSkipReasons((current) => {
+        const next = { ...current };
+        if (reason) next[id] = reason;
+        else delete next[id];
+        return next;
+      });
+      if (reason) setSelectedPlanningIds((current) => ({ ...current, [id]: false }));
+    },
+    onAddReason: (row: RecordRow, reason: string) => {
+      unconfirmDistrict(text(row.district_id));
+      setAddReasons((current) => ({ ...current, [itemId(row)]: reason }));
+    },
+    onAddMaterial: (row: RecordRow, addQuantity: number) => {
+      const id = itemId(row);
+      touchRow(row);
+      setAddedIds((current) => ({ ...current, [id]: true }));
+      setPlannerQuantities((current) => ({ ...current, [id]: String(addQuantity) }));
+      setSelectedPlanningIds((current) => ({ ...current, [id]: true }));
+      setFocusedItemId(id);
+    },
+    onRemoveAdded: (row: RecordRow) => {
+      const id = itemId(row);
+      unconfirmDistrict(text(row.district_id));
+      setAddedIds((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      setSelectedPlanningIds((current) => ({ ...current, [id]: false }));
+      setAddReasons((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+    },
+    onConfirmDistrict: () => {
+      const confirmedAt = new Date().toISOString();
+      const nextConfirmed = { ...draft.confirmedDistricts, [activeDistrict]: confirmedAt };
+      const start = flowDistricts.findIndex((district) => district.id === activeDistrict);
+      const ordered = [...flowDistricts.slice(start + 1), ...flowDistricts.slice(0, start)];
+      const next =
+        ordered.find(
+          (district) =>
+            !nextConfirmed[district.id] &&
+            (systemRowsByDistrict[district.id] ?? []).some(rowNeedsFill),
+        ) ?? ordered.find((district) => !nextConfirmed[district.id]);
+      setDraft((current) => ({
+        ...current,
+        confirmedDistricts: { ...current.confirmedDistricts, [activeDistrict]: confirmedAt },
+        activeDistrict: next?.id ?? current.activeDistrict,
+        districtTab: "fill",
+      }));
+    },
+    onUnconfirmDistrict: () => unconfirmDistrict(activeDistrict),
+  };
+  const confirmedDistrictCount = flowDistricts.filter(
+    (district) => draft.confirmedDistricts[district.id],
+  ).length;
   const activePhase = workflowStep < 2 ? 0 : workflowStep < 5 ? 1 : 2;
   const districtOptions = [
     ...new Map(
@@ -1571,6 +1778,12 @@ function WeeklyPlanView({
               </button>
             </div>
             {searchMode === "district" ? (
+              districtFlow ? (
+                <span className="district-flow-note">
+                  ทำทีละเขต · ยืนยันแล้ว {formatNumber(confirmedDistrictCount)} จาก{" "}
+                  {formatNumber(flowDistricts.length)} เขต · เลือกเขตจากแถบด้านล่าง
+                </span>
+              ) : (
               <select
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -1583,6 +1796,7 @@ function WeeklyPlanView({
                   </option>
                 ))}
               </select>
+              )
             ) : (
               <>
                 <input
@@ -1630,8 +1844,57 @@ function WeeklyPlanView({
             </span>
           </section>
 
+          {districtFlow && (
+            <DistrictProgress
+              districts={flowDistricts}
+              activeDistrict={activeDistrict}
+              statsFor={districtStats}
+              onSelectDistrict={districtPlannerHandlers.onSelectDistrict}
+            />
+          )}
+
           <section className="planner-workspace-grid">
             <article className="panel planner-picker">
+              {districtFlow ? (
+                <DistrictPlanner
+                  canCreate={canCreate}
+                  districts={flowDistricts}
+                  activeDistrict={activeDistrict}
+                  statsFor={districtStats}
+                  onSelectDistrict={districtPlannerHandlers.onSelectDistrict}
+                  tab={draft.districtTab}
+                  onTab={(tab) => setDistrictTab(tab)}
+                  districtRows={activeSystemRows}
+                  addedRows={activeAddedRows}
+                  itemId={itemId}
+                  needsFill={rowNeedsFill}
+                  isSelected={(id) => Boolean(selectedPlanningIds[id])}
+                  onToggle={districtPlannerHandlers.onToggle}
+                  quantityValue={(row) =>
+                    plannerQuantities[itemId(row)] ?? String(defaultPlannerQuantity(row))
+                  }
+                  onQuantity={districtPlannerHandlers.onQuantity}
+                  plannerQuantity={plannerQuantity}
+                  warehouseQuantity={warehouseQuantity}
+                  fifoShortage={(row) => fifoPlanFor(row).shortage}
+                  focusedId={itemId(focusedRow ?? {})}
+                  onFocus={setFocusedItemId}
+                  skipReasons={draft.skipReasons}
+                  onSkip={districtPlannerHandlers.onSkip}
+                  addReasons={draft.addReasons}
+                  onAddReason={districtPlannerHandlers.onAddReason}
+                  materialCatalog={materialCatalog}
+                  buildMaterialRow={(materialId) => {
+                    const material = materialCatalog.find((item) => item.id === materialId);
+                    return material ? materialRowFor(material, activeDistrictInfo) : null;
+                  }}
+                  onAddMaterial={districtPlannerHandlers.onAddMaterial}
+                  onRemoveAdded={districtPlannerHandlers.onRemoveAdded}
+                  onConfirmDistrict={districtPlannerHandlers.onConfirmDistrict}
+                  onUnconfirmDistrict={districtPlannerHandlers.onUnconfirmDistrict}
+                />
+              ) : (
+              <>
               <div className="panel-title">
                 <div>
                   <span>PLANNER WORKSPACE</span>
@@ -1821,6 +2084,8 @@ function WeeklyPlanView({
                   </h3>
                   <p>Planner สามารถสลับวิธีค้นหาได้โดยข้อมูลในแผนไม่หาย</p>
                 </article>
+              )}
+              </>
               )}
             </article>
 
