@@ -13,7 +13,14 @@ import (
 	"time"
 )
 
-const productionOrigin = "https://mea-synapse-production.vercel.app"
+// Dashboard origins allowed to read the basemap. mea-synapse-web is the
+// production dashboard in the Synapse01 Vercel team; mea-synapse-production is
+// the previous host in the synapse-mea team and stays allowed so either can
+// serve the map.
+var allowedOrigins = map[string]bool{
+	"https://mea-synapse-web.vercel.app":        true,
+	"https://mea-synapse-production.vercel.app": true,
+}
 
 func jsonResponse(writer http.ResponseWriter, status int, body any) {
 	writer.Header().Set("Content-Type", "application/json")
@@ -60,7 +67,7 @@ func main() {
 			return
 		}
 		origin := request.Header.Get("Origin")
-		if origin != "" && origin != productionOrigin {
+		if origin != "" && !allowedOrigins[origin] {
 			jsonResponse(writer, http.StatusForbidden, map[string]string{"error": "origin_not_allowed"})
 			return
 		}
