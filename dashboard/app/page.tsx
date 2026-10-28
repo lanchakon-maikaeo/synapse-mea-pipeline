@@ -36,6 +36,7 @@ import {
   type DistrictStats,
   type DistrictTab,
 } from "./district-planner";
+import { DistrictConfirmationBoard } from "./district-confirmation";
 import {
   TransportModule,
   transportNavForRole,
@@ -95,6 +96,7 @@ const emptyPlannerDraft: PlannerDraft = {
 // pipeline, so the summary page is meaningful even without a fresh selection.
 const SUMMARY_PLAN_STATUSES = new Set([
   "pending_district_confirmation",
+  "district_review",
   "pending_review",
   "pending_approval",
   "pending_planner_approval",
@@ -1083,6 +1085,8 @@ function WeeklyPlanView({
   onReview,
   onRespond,
   onVersion,
+  onConfirmPending,
+  onOpenTransport,
 }: {
   actionBusy: boolean;
   data: DashboardData;
@@ -1112,6 +1116,8 @@ function WeeklyPlanView({
     payload: ReplenishmentResponsePayload,
   ) => Promise<boolean>;
   onVersion: (planId: string, reason: string) => Promise<boolean>;
+  onConfirmPending?: (planId: string, requesterName: string) => Promise<boolean>;
+  onOpenTransport?: () => void;
 }) {
   const [workflowStep, setWorkflowStepState] = useState(() =>
     mode === "summary"
@@ -1135,6 +1141,10 @@ function WeeklyPlanView({
     }
     if (mode === "summary" && step < 2) {
       onOpenCalculate();
+      return;
+    }
+    if (mode === "summary" && step === 2 && !hasPlannerSelection(draft)) {
+      setWorkflowStepState(3);
       return;
     }
     setWorkflowStepState(step);
@@ -1739,6 +1749,7 @@ function WeeklyPlanView({
         ))}
       </section>
 
+      {!(workflowStep === 3 && canCreate) && (
       <section className="user-status">
         {[
           ["รายการที่เลือก", selectedRows.length, "รายการที่เลือกเข้าแผนในรอบคำนวณนี้"],
@@ -1751,6 +1762,7 @@ function WeeklyPlanView({
           </article>
         ))}
       </section>
+      )}
 
       {(workflowStep === 0 || workflowStep === 1) && (
         <>
@@ -2433,7 +2445,23 @@ function WeeklyPlanView({
         </section>
       )}
 
-      {workflowStep === 3 && (
+      {workflowStep === 3 && canCreate && (
+        <DistrictConfirmationBoard
+          rows={data.replenishment}
+          districts={districtOptions}
+          role={role}
+          canRespond={canRespond}
+          actionBusy={actionBusy}
+          onRespond={openResponse}
+          onConfirmPending={onConfirmPending}
+          onReviewChanges={() => setWorkflowStep(4)}
+          onApprove={() => setWorkflowStep(5)}
+          onOpenTransport={onOpenTransport}
+          onOpenCalculate={() => setWorkflowStep(0)}
+        />
+      )}
+
+      {workflowStep === 3 && !canCreate && (
         <section className="panel">
           <div className="panel-title">
             <div>
@@ -2598,7 +2626,8 @@ function WeeklyPlanView({
       )}
 
       {responseRow && (
-        <form className="pipeline-form" onSubmit={submitResponse}>
+        <div className="import-review-backdrop" role="dialog" aria-modal="true">
+        <form className="pipeline-form dc-response" onSubmit={submitResponse}>
           <div className="panel-title">
             <div>
               <span>การตอบกลับของเขต</span>
@@ -2668,6 +2697,7 @@ function WeeklyPlanView({
             </button>
           </div>
         </form>
+        </div>
       )}
 
       {planAction && (
@@ -5659,6 +5689,7 @@ function PageContent({
   plannerDraft,
   setPlannerDraft,
   summaryAvailable,
+  openTransport,
 }: {
   view: ViewKey;
   role: Role;
@@ -5667,6 +5698,7 @@ function PageContent({
   plannerDraft: PlannerDraft;
   setPlannerDraft: Dispatch<SetStateAction<PlannerDraft>>;
   summaryAvailable: boolean;
+  openTransport: () => void;
 }) {
   if (view === "dashboard") {
     return <DashboardView data={backend.data} role={role} navigate={navigate} />;
@@ -5693,6 +5725,8 @@ function PageContent({
         onReview={backend.reviewChangeRequest}
         onRespond={backend.respondReplenishment}
         onVersion={backend.versionReplenishmentPlan}
+        onConfirmPending={backend.confirmPendingDistrictItems}
+        onOpenTransport={openTransport}
       />
     );
   }
@@ -5962,6 +5996,10 @@ export default function Home() {
                 plannerDraft={plannerDraft}
                 setPlannerDraft={setPlannerDraft}
                 summaryAvailable={summaryAvailable}
+                openTransport={() => {
+                  setModule("transport");
+                  setTransportView("planner");
+                }}
               />
             </>
           )}

@@ -663,3 +663,80 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,te
 .district-progress-side .district-progress-bar{flex:1 1 auto}
 .district-progress-side .btn{white-space:nowrap}
 @media(max-width:700px){.district-progress-side{flex:1 1 100%;flex-wrap:wrap}}
+
+/* สรุปการจ่าย · District confirmation board */
+.dc-board{display:grid;gap:0;overflow:hidden}
+.dc-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+.dc-head>div>span{color:#d85b10;font:700 9px "Space Grotesk";letter-spacing:.14em}
+.dc-head h3{margin:5px 0 3px;color:var(--navy);font-size:19px}
+.dc-head p{margin:0;color:var(--muted);font-size:11px}
+.dc-plan{display:grid;gap:3px;min-width:260px;padding:10px 13px;border:1px solid var(--line);border-radius:12px;background:#fffaf6}
+.dc-plan>span{color:#7a6a5c;font-size:9px;font-weight:700}
+.dc-plan strong{color:var(--navy);font:700 14px "Space Grotesk"}
+.dc-plan select{min-height:34px;padding:0 8px;border:1px solid #d8c8ba;border-radius:8px;background:#fff;font:inherit;font-size:12px}
+.dc-plan small{color:var(--muted);font-size:10px}
+.dc-plan-status{padding:1px 7px;border-radius:999px;font-size:10px}
+.dc-plan-status.ok{background:#eaf8f0;color:#18794e}
+.dc-plan-status.wait{background:#fff1e6;color:#c4520f}
+.dc-kpis{display:grid;grid-template-columns:1.4fr repeat(4,minmax(0,1fr));gap:10px;padding:16px 20px 6px}
+.dc-kpis article{display:grid;align-content:start;gap:3px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.dc-kpis article.warn{border-color:#f1d29c;background:#fffaf0}
+.dc-kpis span{color:#7a6a5c;font-size:10px;font-weight:700}
+.dc-kpis strong{color:var(--navy);font:700 24px "Space Grotesk"}
+.dc-kpis strong small{color:var(--muted);font-size:14px}
+.dc-kpis small{color:var(--muted);font-size:10px}
+.dc-kpis small b{font-size:10px}
+.dc-kpi-main{background:#fffaf6!important}
+.dc-bar{height:7px;margin:4px 0 2px;border-radius:999px;background:#f3e8de;overflow:hidden}
+.dc-bar i{display:block;height:100%;background:var(--green)}
+.dc-checks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0;padding:10px 20px 16px;list-style:none}
+.dc-checks li{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:#7a6a5c}
+.dc-checks li>i{width:24px;height:24px;display:grid;place-items:center;flex:0 0 auto;border:1.5px solid #d3c3b4;border-radius:999px;font:700 10px "Space Grotesk";font-style:normal}
+.dc-checks li div{display:grid;gap:2px}
+.dc-checks strong{color:var(--navy);font-size:11px}
+.dc-checks small{font-size:10px}
+.dc-checks li.ok{border-color:#bfe5d1;background:#f2fbf6}
+.dc-checks li.ok>i{border-color:var(--green);background:var(--green);color:#fff}
+.dc-checks li.current{border-color:var(--orange);box-shadow:0 0 0 3px #ee6a1f1f}
+.dc-checks li.current>i{border-color:var(--orange);background:var(--orange);color:#fff}
+.dc-checks li.current small{color:#b64b14;font-weight:700}
+.dc-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:10px 20px;border-top:1px solid var(--line);border-bottom:1px solid #f3ebe3;background:#fffaf6}
+.dc-filters{padding:0;border:0;background:none}
+.dc-table small{display:block;margin-top:2px;font-size:10px}
+.dc-table td{vertical-align:middle}
+.dc-row.none td{color:#a89888}
+.dc-row.open td{background:#fff8f2}
+.dc-state{display:inline-block;padding:4px 9px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
+.dc-state.pending{background:#fff1e6;color:#c4520f}
+.dc-state.changed{background:#fff6e0;color:#a35d12}
+.dc-state.complete{background:#eaf8f0;color:#18794e}
+.dc-state.none{background:#f4efea;color:#8a7868}
+.dc-detail>td{padding:0 14px 14px!important;background:#fff8f2}
+.dc-lines{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:11px}
+.dc-lines th{padding:8px 10px;border-bottom:1px solid var(--line);background:#fbf6f1;color:#7a6a5c;font-size:9px;text-align:left}
+.dc-lines td{padding:8px 10px;border-bottom:1px solid #f3ebe3;vertical-align:middle}
+.dc-lines tr:last-child td{border-bottom:0}
+.dc-lines small{display:block;color:var(--muted);font-size:10px}
+.dc-note{max-width:260px;color:#5d4b3d}
+.dc-line{display:inline-block;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
+.dc-line.pending{background:#fff1e6;color:#c4520f}
+.dc-line.confirmed{background:#eaf8f0;color:#18794e}
+.dc-line.changed{background:#fff6e0;color:#a35d12}
+.dc-line.rejected{background:#fdecea;color:#c43a2e}
+.dc-footer{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-top:1px solid var(--line);background:#fffaf6}
+.dc-footer>div:first-child{display:grid;gap:2px}
+.dc-footer strong{color:var(--navy);font-size:12px}
+.dc-footer small{color:var(--muted);font-size:10px}
+.dc-footer>div:last-child{display:flex;flex-wrap:wrap;gap:8px}
+.dc-bulk{width:min(640px,calc(100vw - 48px))}
+.dc-bulk-list{display:grid;gap:4px;max-height:240px;margin:0;padding:10px 12px;overflow:auto;border:1px solid var(--line);border-radius:10px;list-style:none}
+.dc-bulk-list li{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #f3ebe3;font-size:11px}
+.dc-bulk-list li:last-child{border-bottom:0}
+.dc-bulk-name{display:grid;gap:4px}
+.dc-bulk-name span{color:#6d5a4b;font-size:10px;font-weight:700}
+.dc-bulk-name input{min-height:40px;padding:0 12px;border:1px solid #d8c8ba;border-radius:10px;font:inherit;font-size:12px}
+.dc-response{width:min(760px,calc(100vw - 48px));max-height:calc(100vh - 48px);margin:0!important;overflow:auto;border-radius:18px;background:#fff;box-shadow:0 30px 80px #071a3560}
+@media(max-width:1100px){.dc-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.dc-kpi-main{grid-column:1/-1}.dc-checks{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.dc-kpis{grid-template-columns:1fr 1fr}.dc-checks{grid-template-columns:1fr}.dc-plan{min-width:0;width:100%}}
+.dc-row.none td{padding-top:7px!important;padding-bottom:7px!important}
+.dc-row.none td small{display:inline;margin-left:6px}
