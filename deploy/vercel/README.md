@@ -1,6 +1,12 @@
 # SYNAPSE routing runtimes on Vercel
 
-These are new runtimes for the `synapse-mea` Vercel team. They do not deploy,
+These runtimes now run in the `Synapse01` Vercel team as
+`mea-synapse-map-tiles`, `mea-synapse-routing-osrm`,
+`mea-synapse-routing-valhalla` and `mea-synapse-optimization-worker`; the
+production dashboard is `mea-synapse-web`. Each runtime project skips builds
+unless its own root directory changed (Ignored Build Step
+`git diff HEAD^ HEAD --quiet -- .`). They were first created for the
+`synapse-mea` Vercel team. They do not deploy,
 call, or modify the unrelated `mea-vrp-solver` project.
 
 Create four Git-backed Vercel projects from this repository:
