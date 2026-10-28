@@ -1228,6 +1228,7 @@ function WeeklyPlanView({
       `${text(row.week_start_date, "")}|${String(Number(row.version_no ?? 0)).padStart(6, "0")}|${text(row.updated_at, "")}`;
     const byKey = new Map<string, RecordRow>();
     data.replenishment.forEach((row) => {
+      if (text(row.item_status, "") === "cancelled") return;
       const key = `${text(row.district_id)}|${text(row.material_id)}`;
       const current = byKey.get(key);
       if (!current || order(row) > order(current)) byKey.set(key, row);
@@ -1373,7 +1374,7 @@ function WeeklyPlanView({
   );
 
   const defaultPlannerQuantity = (row: RecordRow) =>
-    row.replenishment_item_id ? Number(row.suggested_qty ?? 0) : 0;
+    row.replenishment_item_id ? Number(row.planner_qty ?? row.suggested_qty ?? 0) : 0;
   const focusedRow =
     rows.find((row) => itemId(row) === focusedItemId) ?? rows[0] ?? null;
   const plannerQuantity = (row: RecordRow) => {
@@ -1614,7 +1615,7 @@ function WeeklyPlanView({
   const openResponse = (row: RecordRow) => {
     setResponseRow(row);
     setDecision("confirm");
-    setQuantity(text(row.suggested_qty, "0"));
+    setQuantity(text(row.planner_qty ?? row.suggested_qty, "0"));
     setReason("");
     setRequester("");
   };

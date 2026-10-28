@@ -593,8 +593,9 @@ export function useSynapseBackend() {
             if (line) {
               return {
                 ...row,
-                system_suggested_qty: row.system_suggested_qty ?? row.suggested_qty,
-                suggested_qty: line.quantity,
+                planner_qty: line.quantity,
+                requested_qty: line.quantity,
+                final_qty: line.quantity,
                 planner_source: "system",
                 item_status: "pending",
                 planner_selected_at: actedAt,
@@ -604,7 +605,6 @@ export function useSynapseBackend() {
             if (drop) {
               return {
                 ...row,
-                system_suggested_qty: row.system_suggested_qty ?? row.suggested_qty,
                 item_status: "cancelled",
                 district_note: `Planner ไม่ส่ง: ${drop.reason}`,
               };
@@ -621,11 +621,11 @@ export function useSynapseBackend() {
               district_name_th: line.district_name_th,
               material_id: line.material_id,
               material_name: line.material_name,
-              suggested_qty: line.quantity,
-              system_suggested_qty: null,
+              suggested_qty: 0,
+              planner_qty: line.quantity,
               confirmed_qty: null,
-              requested_qty: null,
-              final_qty: null,
+              requested_qty: line.quantity,
+              final_qty: line.quantity,
               planner_source: "added",
               planner_note: line.reason,
               item_status: "pending",
@@ -767,7 +767,7 @@ export function useSynapseBackend() {
                       plan_code: target?.plan_code,
                       district_id: target?.district_id,
                       material_id: target?.material_id,
-                      original_qty: target?.suggested_qty,
+                      original_qty: target?.planner_qty ?? target?.suggested_qty,
                       requested_qty: payload.confirmed_qty,
                       reason: payload.reason,
                       requester_name: payload.requester_name,
@@ -832,7 +832,7 @@ export function useSynapseBackend() {
             ) {
               return row;
             }
-            const quantity = Number(row.suggested_qty ?? row.requested_qty ?? 0);
+            const quantity = Number(row.planner_qty ?? row.suggested_qty ?? row.requested_qty ?? 0);
             return {
               ...row,
               confirmed_qty: quantity,
@@ -878,7 +878,7 @@ export function useSynapseBackend() {
                   method: "POST",
                   body: JSON.stringify({
                     confirmed_qty: Number(
-                      row.suggested_qty ?? row.requested_qty ?? 0,
+                      row.planner_qty ?? row.suggested_qty ?? row.requested_qty ?? 0,
                     ),
                     decision: "confirm",
                     reason: "ยืนยันตามแผนแทนเขตโดยผู้ดูแลระบบ เพื่อเตรียม Confirm Plan และจัดรถ",
@@ -939,7 +939,7 @@ export function useSynapseBackend() {
                   confirmed_qty:
                     decision === "approved"
                       ? request?.requested_qty
-                      : row.suggested_qty,
+                      : row.planner_qty ?? row.suggested_qty,
                   item_status: decision === "approved" ? "confirmed" : "rejected",
                   response_status: decision === "approved" ? "confirmed" : "rejected",
                 }

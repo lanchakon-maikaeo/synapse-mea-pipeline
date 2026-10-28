@@ -270,6 +270,9 @@ export const m09OpenApi = {
     "/v1/replenishment/change-requests/{change_request_id}/review": post(
       "Review a district quantity change",
     ),
+    "/v1/replenishment/plans/{plan_id}/planner-selection": post(
+      "Send the planner's selection to districts before they confirm",
+    ),
     "/v1/replenishment/plans/{plan_id}/approve": post(
       "Advance Planner or Academic approval",
     ),

@@ -84,13 +84,14 @@ type DistrictRow = {
 
 type Filter = "all" | "open" | DistrictState;
 
-const planQty = (row: RecordRow) => Number(row.suggested_qty ?? 0) || 0;
+const planQty = (row: RecordRow) =>
+  Number(row.planner_qty ?? row.suggested_qty ?? 0) || 0;
 const answeredQty = (row: RecordRow) => {
   const state = lineState(row);
   if (state === "pending") return 0;
   if (state === "rejected") return 0;
   return (
-    Number(row.final_qty ?? row.confirmed_qty ?? row.requested_qty ?? row.suggested_qty ?? 0) ||
+    Number(row.final_qty ?? row.confirmed_qty ?? row.requested_qty ?? row.planner_qty ?? row.suggested_qty ?? 0) ||
     0
   );
 };
@@ -563,11 +564,12 @@ export function DistrictConfirmationBoard({
                                   </td>
                                   <td>
                                     {formatNumber(planQty(line), 0)}
-                                    {line.system_suggested_qty !== undefined &&
-                                      line.system_suggested_qty !== null &&
-                                      Number(line.system_suggested_qty) !== planQty(line) && (
+                                    {line.planner_qty !== undefined &&
+                                      line.planner_qty !== null &&
+                                      line.planner_source !== "added" &&
+                                      Number(line.suggested_qty ?? 0) !== planQty(line) && (
                                         <small className="dp-muted">
-                                          ระบบเสนอ {formatNumber(line.system_suggested_qty, 0)}
+                                          ระบบเสนอ {formatNumber(line.suggested_qty, 0)}
                                         </small>
                                       )}
                                   </td>
