@@ -832,6 +832,13 @@ function DashboardView({
     (row) => text(row.replenishment_plan_id) === effectivePlanId,
   );
   const pendingChanges = planChanges.filter((row) => row.status === "pending_review").length;
+  // Follow-up work across every plan, not only the plan selected above.
+  const awaitingDistrictLines = data.replenishment.filter((row) =>
+    ["draft", "pending", "change_requested"].includes(text(row.item_status)),
+  ).length;
+  const pendingChangesAllPlans = data.changeRequests.filter(
+    (row) => text(row.status) === "pending_review",
+  ).length;
   const changedLines = planRows.filter((row) => {
     const requested = Number(row.requested_qty ?? row.confirmed_qty ?? 0);
     const suggested = Number(row.suggested_qty ?? 0);
@@ -950,6 +957,24 @@ function DashboardView({
           <strong>{formatNumber(remainingLineCount)}</strong>
           <small>ยังไม่จ่ายหรือจ่ายไม่ครบ</small>
         </article>
+      </section>
+
+      <section className="panel distribution-followup">
+        <div className="panel-title">
+          <div><span>งานที่ต้องติดตาม (ทุกแผน)</span><h3>รอเขตยืนยันและคำขอเปลี่ยน</h3></div>
+        </div>
+        <div className="distribution-action-list">
+          <button onClick={() => navigate("weekly")}>
+            <span>รอเขตตอบ</span>
+            <strong>{formatNumber(awaitingDistrictLines)}</strong>
+            <small>รายการที่ส่งให้เขตแล้ว เขตยังไม่ยืนยัน</small>
+          </button>
+          <button onClick={() => navigate("changes")}>
+            <span>คำขอเปลี่ยนรอตรวจ</span>
+            <strong>{formatNumber(pendingChangesAllPlans)}</strong>
+            <small>คำขอแก้แผนจากเขตที่ยังไม่ได้ตรวจ</small>
+          </button>
+        </div>
       </section>
 
       <section className="panel distribution-week-panel">
@@ -1509,22 +1534,13 @@ function WeeklyPlanView({
 
       <section className="user-status">
         {[
-          ["รายการที่เลือก", selectedRows.length],
-          ["เขตในแผน", districtSummary.length],
-          [
-            "รอเขตตอบ",
-            data.replenishment.filter((row) =>
-              ["draft", "pending", "change_requested"].includes(
-                text(row.item_status),
-              ),
-            ).length,
-          ],
-          ["คำขอเปลี่ยน", data.changeRequests.length],
-        ].map(([label, value]) => (
+          ["รายการที่เลือก", selectedRows.length, "รายการที่เลือกเข้าแผนในรอบคำนวณนี้"],
+          ["เขตในแผน", districtSummary.length, "จำนวนเขตในรายการที่เลือก"],
+        ].map(([label, value, note]) => (
           <article key={String(label)}>
             <span>{label}</span>
             <strong>{formatNumber(value)}</strong>
-            <small>ข้อมูลจริงจากระบบ</small>
+            <small>{note}</small>
           </article>
         ))}
       </section>
