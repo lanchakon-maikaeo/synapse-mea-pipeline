@@ -80,7 +80,10 @@ export function DistrictProgress({
   activeDistrict,
   statsFor,
   onSelectDistrict,
-}: Pick<Props, "districts" | "activeDistrict" | "statsFor" | "onSelectDistrict">) {
+  onSwitchToMaterial,
+}: Pick<Props, "districts" | "activeDistrict" | "statsFor" | "onSelectDistrict"> & {
+  onSwitchToMaterial?: () => void;
+}) {
   const confirmedCount = districts.filter((d) => statsFor(d.id).confirmed).length;
   const inProgress = districts.filter((d) => {
     const stats = statsFor(d.id);
@@ -100,8 +103,15 @@ export function DistrictProgress({
             {formatNumber(Math.max(0, districts.length - confirmedCount - inProgress))}
           </small>
         </div>
-        <div className="district-progress-bar" aria-hidden="true">
-          <i style={{ width: `${pct}%` }} />
+        <div className="district-progress-side">
+          <div className="district-progress-bar" aria-hidden="true">
+            <i style={{ width: `${pct}%` }} />
+          </div>
+          {onSwitchToMaterial && (
+            <button type="button" className="btn ghost" onClick={onSwitchToMaterial}>
+              ค้นหารายพัสดุ (ดูครบ 18 เขต)
+            </button>
+          )}
         </div>
       </div>
       <div className="district-chip-grid">

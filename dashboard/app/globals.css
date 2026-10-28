@@ -659,3 +659,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,te
 .dr-footer>div{display:flex;flex-wrap:wrap;gap:8px}
 @media(max-width:1100px){.district-chip-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
 @media(max-width:700px){.district-chip-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.dr-stats{grid-template-columns:1fr 1fr}.district-filters span{margin-left:0}}
+.district-progress-side{flex:0 1 420px;display:flex;align-items:center;gap:12px}
+.district-progress-side .district-progress-bar{flex:1 1 auto}
+.district-progress-side .btn{white-space:nowrap}
+@media(max-width:700px){.district-progress-side{flex:1 1 100%;flex-wrap:wrap}}

@@ -1754,6 +1754,7 @@ function WeeklyPlanView({
 
       {(workflowStep === 0 || workflowStep === 1) && (
         <>
+          {!(districtFlow && data.replenishment.length > 0) && (
           <section className="filter-bar planner-filter">
             <div className="search-switch" role="group" aria-label="ค้นหาตาม">
               <button
@@ -1834,6 +1835,7 @@ function WeeklyPlanView({
               </button>
             )}
           </section>
+          )}
 
           <section className="planner-preview-note">
             <strong>Candidate Source</strong>
@@ -1850,6 +1852,10 @@ function WeeklyPlanView({
               activeDistrict={activeDistrict}
               statsFor={districtStats}
               onSelectDistrict={districtPlannerHandlers.onSelectDistrict}
+              onSwitchToMaterial={() => {
+                setSearchMode("material");
+                setQuery(materialOptions[0] ?? "");
+              }}
             />
           )}
 
