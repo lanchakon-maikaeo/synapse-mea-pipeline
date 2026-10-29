@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import "@fontsource-variable/inter/index.css";
+import "@fontsource-variable/noto-sans-thai/index.css";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
