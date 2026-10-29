@@ -270,6 +270,12 @@ export const m09OpenApi = {
     "/v1/replenishment/change-requests/{change_request_id}/review": post(
       "Review a district quantity change",
     ),
+    "/v1/packing/worklist": get("Received lots with their packing status"),
+    "/v1/packing/profiles": post("Save one packing profile (box and pallet dimensions)"),
+    "/v1/admin/legacy-issue-history": {
+      ...get("Legacy issue history summary"),
+      ...post("Import legacy issue / refusal history"),
+    },
     "/v1/replenishment/plans/{plan_id}/planner-selection": post(
       "Send the planner's selection to districts before they confirm",
     ),
