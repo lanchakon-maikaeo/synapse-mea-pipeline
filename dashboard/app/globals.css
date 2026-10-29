@@ -744,8 +744,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,te
 .ps-modal{width:min(1040px,calc(100vw - 48px))}
 .ps-stats{grid-template-columns:repeat(5,minmax(0,1fr))}
 .ps-table small{display:block;color:var(--muted);font-size:10px}
-.ps-table tr.open td{background:#fff8f2}
-.ps-dropped td{color:#a89888}
+.ps-table tr.open td{background:#f3f8fe}
+.ps-dropped td{color:#8896a8}
 @media(max-width:800px){.ps-stats{grid-template-columns:1fr 1fr}}
 
 /* Shared page header (every menu) · Midnight Ember */
