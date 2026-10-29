@@ -1145,3 +1145,20 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .login-request-link b{color:#1859a8}
 @media(max-width:900px){.um-summary{grid-template-columns:1fr 1fr}.um-roles{grid-column:1/-1}.um-request-facts{grid-template-columns:1fr 1fr}.um-review{grid-template-columns:1fr}.um-history>ul>li{grid-template-columns:1fr}}
 @media(max-width:620px){.um-form{grid-template-columns:1fr;padding:16px}}
+.um-password{display:flex;gap:6px}
+.um-password input{flex:1;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace!important;letter-spacing:.04em}
+.um-password .btn{white-space:nowrap}
+.um-setup{display:grid;gap:8px;padding:18px 24px;color:#33465c;font-size:12px}
+.um-setup strong{color:var(--attn-ink);font-size:14px}
+.um-setup ol{margin:0;padding-left:20px;line-height:1.9}
+.um-setup code,.um-reset code{padding:1px 6px;border-radius:6px;background:#eef2f6;font-size:12px}
+.um-setup small{color:var(--muted)}
+.um-created{display:grid;gap:8px;padding:18px 24px}
+.um-created strong{color:#0f7a4a;font-size:16px}
+.um-created p{margin:0;color:#33465c;font-size:13px}
+.um-created pre{margin:0;padding:12px 14px;border:1px dashed #b9cde4;border-radius:12px;background:#f7faff;color:var(--navy);font-size:13px;white-space:pre-wrap}
+.um-created small{color:var(--muted);font-size:11px}
+.um-reset{display:grid;gap:10px;padding:12px;border:1px dashed var(--line);border-radius:12px}
+.um-reset p{margin:0;color:#0f7a4a;font-size:12px}
+.um-reset>.btn{justify-self:start}
+.um-small{padding:6px 12px!important;font-size:12px!important}
