@@ -399,6 +399,44 @@ function Badge({ children }: { children: ReactNode }) {
   );
 }
 
+function PageHero({
+  icon,
+  eyebrow,
+  title,
+  description,
+  meta = [],
+  aside,
+}: {
+  icon: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  meta?: Array<[string, string]>;
+  aside?: ReactNode;
+}) {
+  return (
+    <header className="page-hero">
+      <div className="page-hero-icon" aria-hidden="true">{icon}</div>
+      <div className="page-hero-copy">
+        <span className="page-hero-eyebrow"><i aria-hidden="true" />{eyebrow}</span>
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </div>
+      {(meta.length > 0 || aside) && (
+        <div className="page-hero-aside">
+          {meta.map(([label, value]) => (
+            <div className="hero-chip" key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+          {aside}
+        </div>
+      )}
+    </header>
+  );
+}
+
 function LiveTable({
   columns,
   empty,
@@ -918,129 +956,199 @@ function DashboardView({
         : role === "academic"
           ? "weekly"
           : "changes";
+  const statusIcon = planHealth.tone === "good" ? "✓" : planHealth.tone === "danger" ? "!" : "◷";
+  const planStatusLabel: Record<string, string> = {
+    draft: "ร่างแผน",
+    district_review: "รอเขตยืนยัน",
+    pending_district_confirmation: "รอเขตยืนยัน",
+    pending_planner_approval: "รอ Planner อนุมัติ",
+    pending_academic_approval: "รอวิชาการอนุมัติ",
+    locked: "Lock แล้ว",
+    completed: "จ่ายครบแล้ว",
+    cancelled: "ยกเลิก",
+  };
+  const pctOf = (value: number) =>
+    planRows.length ? Math.min(100, (value / planRows.length) * 100) : 0;
+  const maxDayLines = Math.max(1, ...weekDays.map((day) => day.lines));
+  const todayKey = Number.isFinite(dashboardReferenceTime)
+    ? new Date(dashboardReferenceTime).toISOString().slice(0, 10)
+    : "";
+  const [heroEyebrow, heroTitle, heroDescription] = titles.dashboard;
   return (
     <div className="stack">
-      <section className="distribution-dashboard-hero">
-        <div>
-          <span>WEEKLY DISTRIBUTION CONTROL</span>
-          <h2>สรุปรายการจ่ายตามแผน</h2>
-          <p>
-            เทียบจำนวนรายการตามแผนกับรายการที่จ่ายจริงจาก Inventory Movement พร้อมรายการค้างและข้อยกเว้น
-          </p>
-        </div>
-        <label>
-          <span>แผนที่กำลังติดตาม</span>
-          <select value={effectivePlanId} onChange={(event) => setSelectedPlanId(event.target.value)}>
-            {plans.length ? plans.map((row) => (
-              <option key={text(row.replenishment_plan_id)} value={text(row.replenishment_plan_id)}>
-                {text(row.plan_number) || text(row.replenishment_plan_id).slice(0, 8)} · V{formatNumber(row.version_no ?? 1)} · {text(row.plan_status)}
-              </option>
-            )) : <option value="">ยังไม่มีแผนการจ่าย</option>}
-          </select>
-        </label>
+      <PageHero
+        icon="⌂"
+        eyebrow={heroEyebrow}
+        title={heroTitle}
+        description={heroDescription}
+        aside={
+          <>
+            <label className="hero-chip hero-select">
+              <span>แผนที่กำลังติดตาม</span>
+              <select value={effectivePlanId} onChange={(event) => setSelectedPlanId(event.target.value)}>
+                {plans.length ? plans.map((row) => (
+                  <option key={text(row.replenishment_plan_id)} value={text(row.replenishment_plan_id)}>
+                    {text(row.plan_number) || text(row.replenishment_plan_id).slice(0, 8)} · V{formatNumber(row.version_no ?? 1)} · {planStatusLabel[text(row.plan_status)] ?? text(row.plan_status)}
+                  </option>
+                )) : <option value="">ยังไม่มีแผนการจ่าย</option>}
+              </select>
+              <small>
+                {plan
+                  ? `สัปดาห์ ${text(plan.week_start_date)} · ${formatNumber(plannedDistricts.size)} เขต`
+                  : "เลือกแผนเพื่อเริ่มติดตาม"}
+              </small>
+            </label>
+            <div className={`hero-progress ${planHealth.tone}`}>
+              <div
+                className="hero-ring"
+                style={{ ["--pct" as string]: `${completionPct}%` }}
+                role="img"
+                aria-label={`จ่ายครบ ${formatNumber(completionPct, 1)}%`}
+              >
+                <strong>{formatNumber(completionPct, 0)}%</strong>
+              </div>
+              <div>
+                <span className={`hero-status ${planHealth.tone}`}>
+                  <i aria-hidden="true">{statusIcon}</i>
+                  {planHealth.label}
+                </span>
+                <strong>
+                  {formatNumber(completedLineCount)} / {formatNumber(planRows.length)}
+                </strong>
+                <small>รายการจ่ายครบตามแผน</small>
+              </div>
+            </div>
+          </>
+        }
+      />
+
+      <section className="dash-kpis">
+        {[
+          { tone: "plan", icon: "▤", label: "รายการตามแผน", value: planRows.length, note: `${formatNumber(plannedDistricts.size)} เขตในแผน`, pct: planRows.length ? 100 : 0 },
+          { tone: "started", icon: "↗", label: "เริ่มจ่ายแล้ว", value: issuedLineCount, note: `${formatNumber(issuedDistricts.size)} เขตมี Inventory Movement`, pct: pctOf(issuedLineCount) },
+          { tone: "done", icon: "✓", label: "จ่ายครบแล้ว", value: completedLineCount, note: "ครบตามจำนวนของแต่ละรายการ", pct: pctOf(completedLineCount) },
+          { tone: "left", icon: "◷", label: "รายการคงเหลือ", value: remainingLineCount, note: "ยังไม่จ่ายหรือจ่ายไม่ครบ", pct: pctOf(remainingLineCount) },
+        ].map((card) => (
+          <article key={card.label} className={`dash-kpi ${card.tone}`}>
+            <header>
+              <i aria-hidden="true">{card.icon}</i>
+              <span>{card.label}</span>
+              <em>{formatNumber(card.pct, 0)}%</em>
+            </header>
+            <strong>{formatNumber(card.value)}</strong>
+            <div className="dash-kpi-bar" aria-hidden="true"><b style={{ width: `${card.pct}%` }} /></div>
+            <small>{card.note}</small>
+          </article>
+        ))}
       </section>
 
-      <section className={`distribution-plan-status ${planHealth.tone}`}>
-        <div>
-          <span>สถานะแผน</span>
-          <strong>{planHealth.label}</strong>
-          <small>
-            {plan
-              ? `${text(plan.plan_number)} · Version ${formatNumber(plan.version_no ?? 1)} · สัปดาห์ ${text(plan.week_start_date)}`
-              : "เลือกแผนเพื่อเริ่มติดตาม"}
-          </small>
-        </div>
-        <div className="distribution-progress-copy">
-          <strong>{formatNumber(completionPct, 1)}%</strong>
-          <span>{formatNumber(completedLineCount)} / {formatNumber(planRows.length)} รายการจ่ายครบ</span>
-        </div>
-        <div className="distribution-progress"><i style={{ width: `${completionPct}%` }} /></div>
-      </section>
-
-      <section className="kpis distribution-kpis">
-        <article>
-          <div><span>รายการตามแผน</span><i className="dot purple" /></div>
-          <strong>{formatNumber(planRows.length)}</strong>
-          <small>{formatNumber(plannedDistricts.size)} เขต</small>
+      <section className="dash-row">
+        <article className="panel dash-week">
+          <div className="panel-title">
+            <div><span>ผลจ่ายรายวัน</span><h3>ความคืบหน้าจันทร์–ศุกร์</h3></div>
+            <b>{formatNumber(issuedLineCount)} รายการเริ่มจ่าย</b>
+          </div>
+          <div className="dash-bars" role="list" aria-label="จำนวนรายการที่มีการจ่ายจริงต่อวัน">
+            {weekDays.every((day) => day.lines === 0) && (
+              <p className="dash-bars-empty">ยังไม่มีการจ่ายจริงในสัปดาห์ของแผนนี้</p>
+            )}
+            {weekDays.map((day, index) => {
+              const key = day.date ? day.date.toISOString().slice(0, 10) : "";
+              const dayName = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์"][index];
+              const dateLabel = day.date
+                ? day.date.toLocaleDateString("th-TH", { day: "numeric", month: "short" })
+                : "—";
+              return (
+                <div
+                  key={index}
+                  role="listitem"
+                  className={`dash-bar ${key && key === todayKey ? "today" : ""}`}
+                  title={`${dayName} ${dateLabel}: ${formatNumber(day.lines)} รายการ`}
+                >
+                  <div className="dash-bar-track">
+                    <em>{formatNumber(day.lines)}</em>
+                    <b style={{ height: `${day.lines ? Math.max(6, (day.lines / maxDayLines) * 100) : 0}%` }} />
+                  </div>
+                  <strong>{dayName}</strong>
+                  <small>{dateLabel}</small>
+                </div>
+              );
+            })}
+          </div>
+          <p className="distribution-data-note">นับรายการที่มี Inventory Movement จริงในแต่ละวัน โดยไม่นำหน่วยของวัสดุต่างชนิดมารวมกัน</p>
         </article>
-        <article>
-          <div><span>เริ่มจ่ายแล้ว</span><i className="dot blue" /></div>
-          <strong>{formatNumber(issuedLineCount)}</strong>
-          <small>{formatNumber(issuedDistricts.size)} เขตมี Inventory Movement</small>
-        </article>
-        <article>
-          <div><span>จ่ายครบแล้ว</span><i className="dot green" /></div>
-          <strong>{formatNumber(completedLineCount)}</strong>
-          <small>จำนวนรายการที่จ่ายครบตามจำนวนของตนเอง</small>
-        </article>
-        <article>
-          <div><span>รายการคงเหลือ</span><i className="dot orange" /></div>
-          <strong>{formatNumber(remainingLineCount)}</strong>
-          <small>ยังไม่จ่ายหรือจ่ายไม่ครบ</small>
+
+        <article className="panel dash-followup">
+          <div className="panel-title">
+            <div><span>งานที่ต้องติดตาม (ทุกแผน)</span><h3>รอเขตยืนยันและคำขอเปลี่ยน</h3></div>
+          </div>
+          <div className="dash-follow-list">
+            <button type="button" className={awaitingDistrictLines ? "warn" : ""} onClick={() => navigate("weekly")}>
+              <i aria-hidden="true">✉</i>
+              <span><b>รอเขตตอบ</b><small>ส่งให้เขตแล้ว เขตยังไม่ยืนยัน</small></span>
+              <strong>{formatNumber(awaitingDistrictLines)}</strong>
+            </button>
+            <button type="button" className={pendingChangesAllPlans ? "warn" : ""} onClick={() => navigate("changes")}>
+              <i aria-hidden="true">⇄</i>
+              <span><b>คำขอเปลี่ยนรอตรวจ</b><small>คำขอแก้แผนจากเขตที่ยังไม่ได้ตรวจ</small></span>
+              <strong>{formatNumber(pendingChangesAllPlans)}</strong>
+            </button>
+            <button type="button" className={pendingAdHoc ? "warn" : ""} onClick={() => navigate("adhoc")}>
+              <i aria-hidden="true">↗</i>
+              <span><b>กรณีพิเศษรอดำเนินการ</b><small>แยกออกจากแผนสัปดาห์</small></span>
+              <strong>{formatNumber(pendingAdHoc)}</strong>
+            </button>
+          </div>
         </article>
       </section>
 
-      <section className="panel distribution-followup">
-        <div className="panel-title">
-          <div><span>งานที่ต้องติดตาม (ทุกแผน)</span><h3>รอเขตยืนยันและคำขอเปลี่ยน</h3></div>
-        </div>
-        <div className="distribution-action-list">
-          <button onClick={() => navigate("weekly")}>
-            <span>รอเขตตอบ</span>
-            <strong>{formatNumber(awaitingDistrictLines)}</strong>
-            <small>รายการที่ส่งให้เขตแล้ว เขตยังไม่ยืนยัน</small>
-          </button>
-          <button onClick={() => navigate("changes")}>
-            <span>คำขอเปลี่ยนรอตรวจ</span>
-            <strong>{formatNumber(pendingChangesAllPlans)}</strong>
-            <small>คำขอแก้แผนจากเขตที่ยังไม่ได้ตรวจ</small>
-          </button>
-        </div>
-      </section>
-
-      <section className="panel distribution-week-panel">
-        <div className="panel-title">
-          <div><span>ผลจ่ายรายวัน</span><h3>ความคืบหน้าจันทร์–ศุกร์</h3></div>
-          <b>{formatNumber(completedLineCount)}/{formatNumber(planRows.length)} รายการครบ</b>
-        </div>
-        <div className="distribution-week-grid">
-          {weekDays.map((day, index) => (
-            <article key={index}>
-              <span>{["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์"][index]}</span>
-              <small>{day.date ? day.date.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : "—"}</small>
-              <strong>{formatNumber(day.lines)}</strong>
-              <em>รายการที่มีการจ่ายจริงในวันนี้</em>
-            </article>
-          ))}
-        </div>
-        <p className="distribution-data-note">จำนวนรายวันนับรายการที่มี Inventory Movement จริง โดยไม่นำหน่วยของวัสดุต่างชนิดมารวมกัน</p>
-      </section>
-
-      <section className="distribution-exception-grid">
-        <article className="panel">
+      <section className="dash-row">
+        <article className="panel dash-variance">
           <div className="panel-title">
             <div><span>รายการค้างตามแผน</span><h3>วัสดุที่ยังจ่ายไม่ครบ</h3></div>
             <b className="count">{varianceRows.length}</b>
           </div>
-          <div className="distribution-variance-list">
+          <div className="dash-variance-list">
             {varianceRows.length ? varianceRows.map(({ row, target, actual, gap }) => (
               <article key={text(row.replenishment_item_id)}>
-                <div><strong>{text(row.material_id)}</strong><small>เขต {text(row.district_id)} · {text(row.material_name)}</small></div>
-                <dl><div><dt>แผน</dt><dd>{formatNumber(target, 0)}</dd></div><div><dt>จ่ายแล้ว</dt><dd>{formatNumber(actual, 0)}</dd></div><div className="gap"><dt>ค้าง</dt><dd>{formatNumber(gap, 0)}</dd></div></dl>
+                <div className="dash-variance-name">
+                  <strong>{text(row.material_id)}</strong>
+                  <small>เขต {text(row.district_id)} · {text(row.material_name)}</small>
+                </div>
+                <div className="dash-variance-progress">
+                  <div aria-hidden="true"><b style={{ width: `${target ? Math.min(100, (actual / target) * 100) : 0}%` }} /></div>
+                  <small>จ่ายแล้ว {formatNumber(actual, 0)} / {formatNumber(target, 0)}</small>
+                </div>
+                <div className="dash-variance-gap"><span>ค้าง</span><strong>{formatNumber(gap, 0)}</strong></div>
               </article>
             )) : <p className="empty-copy">ไม่มีรายการค้างในแผนนี้</p>}
           </div>
         </article>
-        <article className="panel">
+        <article className="panel dash-exceptions">
           <div className="panel-title">
             <div><span>ข้อยกเว้นที่ต้องจัดการ</span><h3>สิ่งที่ทำให้แผนเสี่ยงไม่สำเร็จ</h3></div>
           </div>
-          <div className="distribution-action-list">
-            <button onClick={() => navigate("fifo")}><span>หลักฐาน FIFO ยังไม่ครบ</span><strong>{formatNumber(fifoGapLines)}</strong><small>เปิดตรวจหน่วยจัดเก็บที่พร้อมจ่าย</small></button>
-            <button onClick={() => navigate("weekly")}><span>รายการเปลี่ยนจากแผน</span><strong>{formatNumber(changedLines)}</strong><small>จำนวนรายการที่เขตขอต่างจากระบบเสนอ</small></button>
-            <button onClick={() => navigate("changes")}><span>คำขอเปลี่ยนรอตรวจ</span><strong>{formatNumber(pendingChanges)}</strong><small>ตรวจผลกระทบก่อนจ่าย</small></button>
-            <button onClick={() => navigate("adhoc")}><span>กรณีพิเศษรอดำเนินการ</span><strong>{formatNumber(pendingAdHoc)}</strong><small>แยกออกจากแผนสัปดาห์</small></button>
-            <button onClick={() => navigate(nextView)}><span>เปิดงานที่ต้องดำเนินการ</span><strong>→</strong><small>ไปยังหน้าปฏิบัติงานตามสิทธิ์</small></button>
+          <div className="dash-follow-list">
+            <button type="button" className={fifoGapLines ? "warn" : ""} onClick={() => navigate("fifo")}>
+              <i aria-hidden="true">▦</i>
+              <span><b>หลักฐาน FIFO ยังไม่ครบ</b><small>เปิดตรวจหน่วยจัดเก็บที่พร้อมจ่าย</small></span>
+              <strong>{formatNumber(fifoGapLines)}</strong>
+            </button>
+            <button type="button" className={changedLines ? "warn" : ""} onClick={() => navigate("weekly")}>
+              <i aria-hidden="true">±</i>
+              <span><b>รายการเปลี่ยนจากแผน</b><small>เขตขอต่างจากที่ระบบเสนอ</small></span>
+              <strong>{formatNumber(changedLines)}</strong>
+            </button>
+            <button type="button" className={pendingChanges ? "warn" : ""} onClick={() => navigate("changes")}>
+              <i aria-hidden="true">⇄</i>
+              <span><b>คำขอเปลี่ยนรอตรวจ (แผนนี้)</b><small>ตรวจผลกระทบก่อนจ่าย</small></span>
+              <strong>{formatNumber(pendingChanges)}</strong>
+            </button>
+            <button type="button" className="go" onClick={() => navigate(nextView)}>
+              <i aria-hidden="true">→</i>
+              <span><b>เปิดงานที่ต้องดำเนินการ</b><small>ไปยังหน้าปฏิบัติงานตามสิทธิ์</small></span>
+              <strong>›</strong>
+            </button>
           </div>
         </article>
       </section>
@@ -5951,13 +6059,19 @@ export default function Home() {
             />
           ) : (
             <>
-              <header className="page-head user-page-head">
-                <div>
-                  <span>{eyebrow}</span>
-                  <h1>{title}</h1>
-                  <p>{description}</p>
-                </div>
-              </header>
+              {activeView !== "dashboard" && (
+                <PageHero
+                  icon={
+                    navByRole[role]
+                      .flatMap((group) => group.items)
+                      .find(([key]) => key === activeView)?.[2] ?? "◆"
+                  }
+                  eyebrow={eyebrow}
+                  title={title}
+                  description={description}
+                  meta={[["ข้อมูลล่าสุด", snapshot]]}
+                />
+              )}
               {backend.error && (
                 <aside className="runtime-message error" role="alert">
                   <i>!</i>
