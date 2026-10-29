@@ -129,9 +129,10 @@ const navByRole: Record<Role, NavGroup[]> = {
       label: "IMPORT CENTER",
       items: [
         ["import", "Import Data", "⇧"],
-        ["fifo_setup", "FIFO / Packaging Setup", "▣"],
-        ["packing", "ข้อมูล Packing", "▧"],
         ["legacy_history", "ประวัติจากระบบเดิม", "⇣"],
+        ["data", "ข้อมูล SAP / คุณภาพ", "▥"],
+        ["packing", "ข้อมูล Packing", "▧"],
+        ["fifo_setup", "FIFO / Packaging Setup", "▣"],
       ],
     },
     {
@@ -140,8 +141,10 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "คำนวณการจ่าย", "▤"],
         ["summary", "สรุปการจ่าย", "☰"],
-        ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
+        ["history", "ประวัติการดำเนินงาน", "☷"],
+        ["approvals", "ประวัติแผนการจ่าย", "✓"],
+        ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
     },
     {
@@ -150,18 +153,15 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["fifo", "FIFO & พาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
-        ["trace", "สอบกลับการจ่าย", "⌕"],
-        ["history", "ประวัติการดำเนินงาน", "☷"],
       ],
     },
     {
       label: "ข้อมูล & ควบคุม",
       items: [
-        ["recommendations", "หลักฐานปริมาณ", "✦"],
-        ["advisory", "เฝ้าระวังของค้าง", "◈"],
         ["stock", "ข้อมูล Stock", "◫"],
         ["input", "อัปเดต Stock", "↻"],
-        ["data", "ข้อมูล SAP / คุณภาพ", "▥"],
+        ["recommendations", "หลักฐานปริมาณ", "✦"],
+        ["advisory", "เฝ้าระวังของค้าง", "◈"],
         ["operations", "ศูนย์ควบคุม", "⚙"],
         ["release", "ขอบเขตรุ่น", "◉"],
       ],
@@ -174,8 +174,10 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "คำนวณการจ่าย", "▤"],
         ["summary", "สรุปการจ่าย", "☰"],
-        ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
+        ["history", "ประวัติการดำเนินงาน", "☷"],
+        ["approvals", "ประวัติแผนการจ่าย", "✓"],
+        ["trace", "สอบกลับการจ่าย", "⌕"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
         ["advisory", "เฝ้าระวังของค้าง", "◈"],
       ],
@@ -185,11 +187,9 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["fifo", "FIFO & พาเลท", "▦"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
-        ["trace", "สอบกลับการจ่าย", "⌕"],
-        ["history", "ประวัติการดำเนินงาน", "☷"],
+        ["packing", "ข้อมูล Packing", "▧"],
         ["stock", "ข้อมูล Stock", "◫"],
         ["input", "อัปเดต Stock", "↻"],
-        ["packing", "ข้อมูล Packing", "▧"],
       ],
     },
   ],
@@ -258,6 +258,62 @@ const navByRole: Record<Role, NavGroup[]> = {
     },
   ],
 };
+
+// Related pages share one menu entry and are switched with tabs on the page.
+// The first key is the one shown in the menu; the others become tabs.
+const VIEW_GROUPS: Array<{ keys: ViewKey[]; navLabel?: string }> = [
+  { keys: ["weekly", "summary"] },
+  { keys: ["history", "approvals", "trace"] },
+  { keys: ["import", "legacy_history", "data"], navLabel: "นำเข้าข้อมูล" },
+  { keys: ["packing", "fifo_setup"] },
+  { keys: ["stock", "input"], navLabel: "Stock (ดู / อัปเดต)" },
+  { keys: ["recommendations", "advisory"], navLabel: "หลักฐาน & เฝ้าระวัง" },
+  { keys: ["operations", "release"] },
+];
+
+function viewGroup(view: ViewKey, allowed: Set<ViewKey>) {
+  const group = VIEW_GROUPS.find((item) => item.keys.includes(view));
+  if (!group) return null;
+  const keys = group.keys.filter((key) => allowed.has(key));
+  return keys.length > 1 ? { ...group, keys } : null;
+}
+
+function ViewTabs({
+  view,
+  role,
+  hiddenViews,
+  navigate,
+}: {
+  view: ViewKey;
+  role: Role;
+  hiddenViews: Set<ViewKey>;
+  navigate: (view: ViewKey) => void;
+}) {
+  const items = navByRole[role].flatMap((group) => group.items);
+  const allowed = new Set(items.map(([key]) => key).filter((key) => !hiddenViews.has(key)));
+  const group = viewGroup(view, allowed);
+  if (!group) return null;
+  return (
+    <div className="view-tabs" role="tablist">
+      {group.keys.map((key) => {
+        const item = items.find(([itemKey]) => itemKey === key);
+        return (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={view === key}
+            className={view === key ? "active" : ""}
+            onClick={() => navigate(key)}
+          >
+            <i aria-hidden="true">{item?.[2]}</i>
+            {item?.[1] ?? key}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 const titles: Record<ViewKey, [string, string, string]> = {
   dashboard: [
@@ -683,30 +739,43 @@ function Sidebar({
         </div>
         <nav>
           {moduleKey === "warehouse"
-            ? navByRole[role].map((group) => (
+            ? navByRole[role].map((group) => {
+                const navAllowed = new Set(
+                  navByRole[role]
+                    .flatMap((item) => item.items.map(([key]) => key))
+                    .filter((key) => !hiddenViews.has(key)),
+                );
+                const entries = group.items
+                  .filter(([key]) => navAllowed.has(key))
+                  .map(([key, label, icon]) => ({ key, label, icon, group: viewGroup(key, navAllowed) }))
+                  .filter((entry) => !entry.group || entry.group.keys[0] === entry.key);
+                if (!entries.length) return null;
+                return (
                 <section key={group.label}>
                   <p>{group.label}</p>
-                  {group.items
-                    .filter(([key]) => !hiddenViews.has(key))
-                    .map(([key, label, icon]) => (
+                  {entries.map(({ key, label, icon, group: viewSet }) => {
+                    const isActive = active === key || Boolean(viewSet?.keys.includes(active));
+                    return (
                     <button
                       type="button"
                       key={key}
-                      className={`${active === key ? "active" : ""} ${
+                      className={`${isActive ? "active" : ""} ${
                         key === "import" ? "import-nav-button" : ""
                       }`}
-                      aria-current={active === key ? "page" : undefined}
+                      aria-current={isActive ? "page" : undefined}
                       onClick={() => {
                         navigate(key);
                         close();
                       }}
                     >
                       <i>{icon}</i>
-                      <span>{label}</span>
+                      <span>{viewSet?.navLabel ?? label}</span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </section>
-              ))
+                );
+              })
             : (
                 <section>
                   <p>ระบบขนส่ง</p>
@@ -6223,6 +6292,7 @@ export default function Home() {
                     </div>
                   </aside>
                 )}
+              <ViewTabs view={activeView} role={role} hiddenViews={hiddenViews} navigate={setView} />
               <PageContent
                 view={activeView}
                 role={role}
