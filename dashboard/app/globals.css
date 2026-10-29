@@ -846,3 +846,31 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .content .fifo-setup-hero aside strong{color:var(--navy)}
 .content .transport-overview-hero>strong{border-color:#bbd4f3;background:#e8f1fd;color:#1761bc}
 @media(max-width:760px){.content :is(.fifo-setup-hero,.operations-hero,.release-hero,.transport-overview-hero){flex-direction:column;align-items:flex-start}.content .fifo-setup-hero aside{width:100%;min-width:0}}
+/* Attention accent: orange marks what needs focus or a decision (brand stays blue) */
+:root{--attn:#ea6a1f;--attn-ink:#c2510f;--attn-soft:#fff1e6;--attn-line:#f6c9a8}
+.stock-state.needs-fill{background:var(--attn-soft);color:var(--attn-ink)}
+.dash-follow-list button.warn{border-color:var(--attn-line);background:#fffaf6}
+.dash-follow-list button.warn>i{background:var(--attn-soft);color:var(--attn)}
+.dash-follow-list button.warn>strong{color:var(--attn)}
+.dash-variance-gap{background:var(--attn-soft)}
+.dash-variance-gap span{color:var(--attn-ink)}
+.dash-variance-gap strong{color:var(--attn)}
+.dash-kpi.left{--tone:var(--attn);--tone-soft:var(--attn-soft)}
+.dc-state.pending,.dc-line.pending{background:var(--attn-soft);color:var(--attn-ink)}
+.dc-kpis article.warn{border-color:var(--attn-line);background:#fffaf6}
+.dc-kpis article.warn strong{color:var(--attn)}
+.dc-checks li.current{border-color:var(--attn);box-shadow:0 0 0 3px #ea6a1f1f}
+.dc-checks li.current>i{border-color:var(--attn);background:var(--attn)}
+.dc-checks li.current small{color:var(--attn-ink)}
+.dp-accent{color:var(--attn)!important}
+.dp-warn{color:var(--attn-ink)!important}
+.dp-reason select.missing{border-color:var(--attn);background:#fffaf6}
+.dr-checks li.warn{color:var(--attn-ink)}
+.dr-section.warn{border-color:var(--attn-line)!important;background:#fffaf6!important}
+.dr-section.warn h4{color:var(--attn-ink)!important}
+.district-chip.touched small{color:var(--attn-ink)}
+.district-counters span.attn{background:var(--attn-soft);color:var(--attn-ink)}
+.district-counters span.attn b{color:var(--attn)}
+.dash-follow-list button.warn:hover{border-color:var(--attn)}
+.dp-brand{color:var(--orange)!important}
+.dc-plan-status.wait{background:var(--attn-soft);color:var(--attn-ink)}
