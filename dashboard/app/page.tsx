@@ -43,6 +43,9 @@ import { PackingEntryView } from "./packing-entry";
 import { LegacyHistoryImportView } from "./legacy-history-import";
 import { OperationHistoryView } from "./operation-history";
 import { demoHistoryPayload } from "./history-demo";
+import { UserManagementView } from "./user-management";
+import { AccessRequestForm } from "./access-request-form";
+import { demoUsersPayload } from "./users-demo";
 import { DEMO_MODE } from "./demo-data";
 import {
   TransportModule,
@@ -69,6 +72,7 @@ type ViewKey =
   | "packing"
   | "legacy_history"
   | "history"
+  | "users"
   | "input"
   | "operations"
   | "release";
@@ -162,6 +166,12 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["input", "อัปเดต Stock", "↻"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
         ["advisory", "เฝ้าระวังของค้าง", "◈"],
+      ],
+    },
+    {
+      label: "ผู้ดูแลระบบ",
+      items: [
+        ["users", "จัดการผู้ใช้งาน", "⚇"],
         ["operations", "ศูนย์ควบคุม", "⚙"],
         ["release", "ขอบเขตรุ่น", "◉"],
       ],
@@ -396,6 +406,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "ข้อมูล Packing รายสัญญา",
     "กรอกขนาดกล่องและพาเลทของของที่รับเข้าแล้ว (105) แยกตามผู้ขาย/สัญญา/PO · ใช้คำนวณการจัดรถ",
   ],
+  users: [
+    "ผู้ดูแลระบบ",
+    "จัดการผู้ใช้งาน",
+    "อนุมัติคำขอสิทธิ์ กำหนดบทบาทและเขต ระงับบัญชี และดูประวัติการเปลี่ยนสิทธิ์ทั้งหมด",
+  ],
   history: [
     "ประวัติการดำเนินงาน",
     "ประวัติการดำเนินงานทั้งหมด",
@@ -556,6 +571,7 @@ function Login({
   onLogin: (identifier: string, password: string) => Promise<boolean>;
 }) {
   const [showPassword, setShowPassword] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const submit = async (event: FormEvent) => {
@@ -651,8 +667,12 @@ function Login({
             <i />
             <span>ข้อมูลตามพื้นที่รับผิดชอบ</span>
           </div>
+          <button type="button" className="login-request-link" onClick={() => setRequestOpen(true)}>
+            ยังไม่มีบัญชี? <b>ขอสิทธิ์ใช้งาน →</b>
+          </button>
         </form>
       </section>
+      {requestOpen && <AccessRequestForm onClose={() => setRequestOpen(false)} />}
     </main>
   );
 }
@@ -6089,6 +6109,15 @@ function PageContent({
         role={role}
         demoMode={DEMO_MODE}
         demoRows={backend.data.receiptOptions}
+      />
+    );
+  }
+  if (view === "users") {
+    return (
+      <UserManagementView
+        token={backend.session?.access_token ?? null}
+        demoMode={DEMO_MODE}
+        demoPayload={DEMO_MODE ? demoUsersPayload() : undefined}
       />
     );
   }

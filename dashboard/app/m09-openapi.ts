@@ -277,6 +277,9 @@ export const m09OpenApi = {
       ...post("Import legacy issue / refusal history"),
     },
     "/v1/history": get("Unified operation history (events, weekly, by district)"),
+    "/v1/admin/users": get("Users, access requests and permission change history (admin)"),
+    "/v1/admin/users/{user_id}": post("Change display name / role / district / active (admin)"),
+    "/v1/admin/access-requests/{request_id}/review": post("Approve or reject an access request (admin)"),
     "/v1/replenishment/plans/{plan_id}/planner-selection": post(
       "Send the planner's selection to districts before they confirm",
     ),
