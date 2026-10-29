@@ -276,6 +276,7 @@ export const m09OpenApi = {
       ...get("Legacy issue history summary"),
       ...post("Import legacy issue / refusal history"),
     },
+    "/v1/history": get("Unified operation history (events, weekly, by district)"),
     "/v1/replenishment/plans/{plan_id}/planner-selection": post(
       "Send the planner's selection to districts before they confirm",
     ),
