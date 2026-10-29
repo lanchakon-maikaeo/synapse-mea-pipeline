@@ -614,7 +614,7 @@ function Sidebar({
         borderRadius: 8,
         border: "1px solid rgba(255,255,255,.15)",
         background:
-          moduleKey === key ? "#E3670A" : "rgba(255,255,255,.06)",
+          moduleKey === key ? "#1f6fd1" : "rgba(255,255,255,.06)",
         color: moduleKey === key ? "#fff" : "rgba(255,255,255,.7)",
         cursor: "pointer",
       }}
