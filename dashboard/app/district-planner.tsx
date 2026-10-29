@@ -271,8 +271,8 @@ export function DistrictPlanner(props: Props) {
         </div>
         <div className="district-counters">
           <span><b>{formatNumber(stats.needs)}</b> ต้องเติมตามระบบ</span>
-          <span><b className="dp-accent">{formatNumber(stats.selected)}</b> เลือกแล้ว</span>
-          <span><b className={stats.undecided ? "dp-warn" : ""}>{formatNumber(stats.undecided)}</b> ยังไม่ตัดสินใจ</span>
+          <span><b className="dp-brand">{formatNumber(stats.selected)}</b> เลือกแล้ว</span>
+          <span className={stats.undecided ? "attn" : ""}><b className={stats.undecided ? "dp-warn" : ""}>{formatNumber(stats.undecided)}</b> ยังไม่ตัดสินใจ</span>
           <span><b>{formatNumber(stats.added)}</b> เพิ่มรายพัสดุ</span>
         </div>
       </div>
@@ -613,7 +613,7 @@ export function DistrictPlanner(props: Props) {
             <div className="dr-body">
               <div className="dr-stats">
                 <div><span>ต้องเติมตามระบบ</span><strong>{formatNumber(stats.needs)}</strong></div>
-                <div><span>เลือกเข้าแผน</span><strong className="dp-accent">{formatNumber(selectedSystemRows.length)}</strong></div>
+                <div><span>เลือกเข้าแผน</span><strong className="dp-brand">{formatNumber(selectedSystemRows.length)}</strong></div>
                 <div><span>เพิ่มรายพัสดุ</span><strong>{formatNumber(selectedAddedRows.length)}</strong></div>
                 <div><span>รวมในแผนเขตนี้</span><strong>{formatNumber(planRows.length)}</strong><small>รายการ · ไม่รวมจำนวนข้ามหน่วย</small></div>
               </div>
