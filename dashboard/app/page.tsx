@@ -41,6 +41,8 @@ import { PlanSubmitModal, type PlannerSelectionPayload } from "./plan-submit";
 import { PageHero } from "./page-hero";
 import { PackingEntryView } from "./packing-entry";
 import { LegacyHistoryImportView } from "./legacy-history-import";
+import { OperationHistoryView } from "./operation-history";
+import { demoHistoryPayload } from "./history-demo";
 import { DEMO_MODE } from "./demo-data";
 import {
   TransportModule,
@@ -66,6 +68,7 @@ type ViewKey =
   | "fifo_setup"
   | "packing"
   | "legacy_history"
+  | "history"
   | "input"
   | "operations"
   | "release";
@@ -148,6 +151,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
+        ["history", "ประวัติการดำเนินงาน", "☷"],
       ],
     },
     {
@@ -182,6 +186,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["fifo", "FIFO & พาเลท", "▦"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
+        ["history", "ประวัติการดำเนินงาน", "☷"],
         ["stock", "ข้อมูล Stock", "◫"],
         ["input", "อัปเดต Stock", "↻"],
         ["packing", "ข้อมูล Packing", "▧"],
@@ -198,6 +203,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["recommendations", "หลักฐานปริมาณ", "✦"],
         ["approvals", "ประวัติการอนุมัติ", "◷"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
+        ["history", "ประวัติการดำเนินงาน", "☷"],
       ],
     },
     {
@@ -219,6 +225,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["packing", "ข้อมูล Packing", "▧"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
+        ["history", "ประวัติการดำเนินงาน", "☷"],
       ],
     },
   ],
@@ -232,6 +239,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["adhoc", "ขอจ่ายกรณีพิเศษ", "↗"],
         ["stock", "Stock เขต", "◫"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
+        ["history", "ประวัติการดำเนินงาน", "☷"],
       ],
     },
   ],
@@ -245,6 +253,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["fifo", "FIFO & พาเลท", "▦"],
         ["stock", "ข้อมูล Stock", "◫"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
+        ["history", "ประวัติการดำเนินงาน", "☷"],
       ],
     },
   ],
@@ -330,6 +339,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "ข้อมูล Packing",
     "ข้อมูล Packing รายสัญญา",
     "กรอกขนาดกล่องและพาเลทของของที่รับเข้าแล้ว (105) แยกตามผู้ขาย/สัญญา/PO · ใช้คำนวณการจัดรถ",
+  ],
+  history: [
+    "ประวัติการดำเนินงาน",
+    "ประวัติการดำเนินงานทั้งหมด",
+    "รวมทุกเหตุการณ์ในที่เดียว: แผน การตอบของเขต คำขอผิดปกติ การจ่ายจริง จ่ายกรณีพิเศษ สต็อก ขนส่ง และประวัติจากระบบเดิม",
   ],
   legacy_history: [
     "ประวัติจากระบบเดิม",
@@ -6006,6 +6020,16 @@ function PageContent({
         role={role}
         demoMode={DEMO_MODE}
         demoRows={backend.data.receiptOptions}
+      />
+    );
+  }
+  if (view === "history") {
+    return (
+      <OperationHistoryView
+        token={backend.session?.access_token ?? null}
+        role={role}
+        demoMode={DEMO_MODE}
+        demoPayload={DEMO_MODE ? demoHistoryPayload() : undefined}
       />
     );
   }
