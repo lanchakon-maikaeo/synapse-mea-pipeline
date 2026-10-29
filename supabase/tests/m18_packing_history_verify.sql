@@ -112,7 +112,7 @@ insert into m18_checks select 'worklist lists received and accepted lots',
       and (e ->> 'received_qty')::numeric = 2000 and (e ->> 'receipt_lines')::int = 2
       and e ->> 'vendor_name' = 'Vendor Alpha' and e ->> 'contract_no' = 'C-918')
 from m18_state;
-insert into m18_checks select 'unreceived, unaccepted contract line excluded',
+insert into m18_checks select 'contract line without 105 excluded',
   not exists (select 1 from jsonb_array_elements(worklist -> 'body') e
     where e ->> 'material_id' = '918000000002')
 from m18_state;

@@ -1,7 +1,7 @@
 -- M18: Packing entry worklist + legacy issue history.
 --
--- 1. Packing: a worklist of material + PO lots that have a 105 receipt (or an
---    accepted contract line), with the packing status of each, and a single
+-- 1. Packing: a worklist of material + PO lots that have a 105 receipt
+--    (received, waiting to be issued), with the packing status of each, and a single
 --    profile save that warehouse staff (picker) can use as well as admin.
 --    Profiles reuse core.packaging_master_profiles (natural key material +
 --    vendor + contract + PO + plant + storage location).
@@ -209,24 +209,12 @@ as $$
       and missing_since_run_id is null
       and coalesce(payload ->> 'material_code', '') <> ''
     order by material_id, purchase_order, payload ->> 'acceptance_date' desc nulls last
-  ), core_lines as (
-    select distinct on (ci.material_id, c.purchase_order::text)
-      ci.material_id,
-      c.purchase_order::text as purchase_order,
-      c.contract_number as contract_no,
-      v.vendor_name,
-      ci.item_description as description,
-      ci.unit,
-      ci.acceptance_date::text as acceptance_date
-    from core.contract_items ci
-    join core.contracts c using (contract_id)
-    left join core.vendors v using (vendor_id)
-    where ci.is_current and ci.material_id is not null and ci.acceptance_date is not null
-    order by ci.material_id, c.purchase_order::text, ci.acceptance_date desc
   ), lots as (
+    -- 105 is the signal that a lot is in the warehouse waiting to be issued;
+    -- the contract line only adds vendor and contract number.
     select
-      coalesce(r.material_id, cl.material_id) as material_id,
-      coalesce(r.purchase_order, cl.purchase_order) as purchase_order,
+      r.material_id,
+      r.purchase_order,
       r.received_qty, r.receipt_lines, r.first_receipt, r.last_receipt,
       coalesce(cl.contract_no, '') as contract_no,
       cl.vendor_name,
@@ -234,15 +222,8 @@ as $$
       coalesce(cl.unit, r.receipt_unit) as unit,
       cl.acceptance_date
     from receipts r
-    full join contract_lines cl
+    left join contract_lines cl
       on cl.material_id = r.material_id and cl.purchase_order = r.purchase_order
-    where r.material_id is not null or cl.acceptance_date is not null
-    union all
-    select k.material_id, k.purchase_order, null, null, null, null,
-      coalesce(k.contract_no, ''), k.vendor_name, k.description, k.unit, k.acceptance_date
-    from core_lines k
-    where not exists (select 1 from receipts r where r.material_id = k.material_id and r.purchase_order = k.purchase_order)
-      and not exists (select 1 from contract_lines cl where cl.material_id = k.material_id and cl.purchase_order = k.purchase_order)
   ), needed as (
     select distinct i.material_id
     from core.replenishment_items i
