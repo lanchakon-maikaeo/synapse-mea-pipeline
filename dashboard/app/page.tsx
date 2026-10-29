@@ -39,6 +39,9 @@ import {
 import { DistrictConfirmationBoard } from "./district-confirmation";
 import { PlanSubmitModal, type PlannerSelectionPayload } from "./plan-submit";
 import { PageHero } from "./page-hero";
+import { PackingEntryView } from "./packing-entry";
+import { LegacyHistoryImportView } from "./legacy-history-import";
+import { DEMO_MODE } from "./demo-data";
 import {
   TransportModule,
   transportNavForRole,
@@ -61,6 +64,8 @@ type ViewKey =
   | "data"
   | "import"
   | "fifo_setup"
+  | "packing"
+  | "legacy_history"
   | "input"
   | "operations"
   | "release";
@@ -122,6 +127,8 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["import", "Import Data", "⇧"],
         ["fifo_setup", "FIFO / Packaging Setup", "▣"],
+        ["packing", "ข้อมูล Packing", "▧"],
+        ["legacy_history", "ประวัติจากระบบเดิม", "⇣"],
       ],
     },
     {
@@ -177,6 +184,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["trace", "สอบกลับการจ่าย", "⌕"],
         ["stock", "ข้อมูล Stock", "◫"],
         ["input", "อัปเดต Stock", "↻"],
+        ["packing", "ข้อมูล Packing", "▧"],
       ],
     },
   ],
@@ -208,6 +216,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["weekly", "แผนที่ล็อกแล้ว", "▤"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
+        ["packing", "ข้อมูล Packing", "▧"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
       ],
@@ -316,6 +325,16 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "FIFO Setup",
     "FIFO, Packaging & Opening Setup",
     "ตรวจ Packing เริ่มต้นหน่วยขนถ่าย กระทบยอด และ Publish หลักฐาน FIFO ก่อนเริ่มใช้งานจริง",
+  ],
+  packing: [
+    "ข้อมูล Packing",
+    "ข้อมูล Packing รายสัญญา",
+    "กรอกขนาดกล่องและพาเลทของของที่รับเข้าแล้ว (105) แยกตามผู้ขาย/สัญญา/PO · ใช้คำนวณการจัดรถ",
+  ],
+  legacy_history: [
+    "ประวัติจากระบบเดิม",
+    "ยกประวัติการจ่ายจากระบบเดิม",
+    "นำเข้าประวัติจ่ายได้ตามแผน / ปรับจำนวน / ไม่รับของ จากไฟล์คำนวณการจ่ายเดิม",
   ],
   input: [
     "อัปเดตสต็อก",
@@ -5977,6 +5996,24 @@ function PageContent({
         contractRows={backend.data.receiptOptions}
         materialRows={backend.data.materials}
         onPublishOpening={backend.publishFifoOpening}
+      />
+    );
+  }
+  if (view === "packing") {
+    return (
+      <PackingEntryView
+        token={backend.session?.access_token ?? null}
+        role={role}
+        demoMode={DEMO_MODE}
+        demoRows={backend.data.receiptOptions}
+      />
+    );
+  }
+  if (view === "legacy_history") {
+    return (
+      <LegacyHistoryImportView
+        token={backend.session?.access_token ?? null}
+        demoMode={DEMO_MODE}
       />
     );
   }
