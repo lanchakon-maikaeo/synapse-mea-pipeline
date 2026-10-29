@@ -37,6 +37,7 @@ import {
   type DistrictTab,
 } from "./district-planner";
 import { DistrictConfirmationBoard } from "./district-confirmation";
+import { PlanSubmitModal, type PlannerSelectionPayload } from "./plan-submit";
 import { PageHero } from "./page-hero";
 import {
   TransportModule,
@@ -1158,6 +1159,8 @@ function WeeklyPlanView({
   onVersion,
   onConfirmPending,
   onOpenTransport,
+  onSubmitSelection,
+  actionError = "",
 }: {
   actionBusy: boolean;
   data: DashboardData;
@@ -1189,6 +1192,8 @@ function WeeklyPlanView({
   onVersion: (planId: string, reason: string) => Promise<boolean>;
   onConfirmPending?: (planId: string, requesterName: string) => Promise<boolean>;
   onOpenTransport?: () => void;
+  onSubmitSelection?: (planId: string, payload: PlannerSelectionPayload) => Promise<boolean>;
+  actionError?: string;
 }) {
   const [workflowStep, setWorkflowStepState] = useState(() =>
     mode === "summary"
@@ -1294,6 +1299,7 @@ function WeeklyPlanView({
       `${text(row.week_start_date, "")}|${String(Number(row.version_no ?? 0)).padStart(6, "0")}|${text(row.updated_at, "")}`;
     const byKey = new Map<string, RecordRow>();
     data.replenishment.forEach((row) => {
+      if (text(row.item_status, "") === "cancelled") return;
       const key = `${text(row.district_id)}|${text(row.material_id)}`;
       const current = byKey.get(key);
       if (!current || order(row) > order(current)) byKey.set(key, row);
@@ -1439,7 +1445,7 @@ function WeeklyPlanView({
   );
 
   const defaultPlannerQuantity = (row: RecordRow) =>
-    row.replenishment_item_id ? Number(row.suggested_qty ?? 0) : 0;
+    row.replenishment_item_id ? Number(row.planner_qty ?? row.suggested_qty ?? 0) : 0;
   const focusedRow =
     rows.find((row) => itemId(row) === focusedItemId) ?? rows[0] ?? null;
   const plannerQuantity = (row: RecordRow) => {
@@ -1619,10 +1625,68 @@ function WeeklyPlanView({
 
   const canCreate = role === "admin" || role === "planner";
   const canRespond = ["admin", "planner", "district"].includes(role);
+
+  // Planner selection → server plan. The open plan for the week holds the
+  // system proposal; the planner's picks replace it before districts confirm.
+  const openPlanStatuses = new Set([
+    "draft",
+    "pending_district_confirmation",
+    "district_review",
+  ]);
+  const targetPlan = data.replenishment
+    .filter((row) => openPlanStatuses.has(text(row.plan_status, "")))
+    .sort((left, right) =>
+      `${text(right.week_start_date, "")}|${String(Number(right.version_no ?? 0)).padStart(6, "0")}`.localeCompare(
+        `${text(left.week_start_date, "")}|${String(Number(left.version_no ?? 0)).padStart(6, "0")}`,
+      ),
+    )[0];
+  const targetPlanId = text(targetPlan?.replenishment_plan_id, "");
+  const lineKey = (row: RecordRow) => `${text(row.district_id)}|${text(row.material_id)}`;
+  const targetItems = data.replenishment.filter(
+    (row) =>
+      text(row.replenishment_plan_id) === targetPlanId &&
+      ["draft", "pending"].includes(text(row.item_status, "")),
+  );
+  const targetByKey = new Map(targetItems.map((row) => [lineKey(row), row]));
+  const selectedKeys = new Set(selectedRows.map(lineKey));
+  const selectionPayload: PlannerSelectionPayload = {
+    lines: selectedRows.map((row) => {
+      const system = targetByKey.get(lineKey(row));
+      return {
+        replenishment_item_id: system ? text(system.replenishment_item_id) : null,
+        district_id: text(row.district_id),
+        district_name_th: text(row.district_name_th, ""),
+        material_id: text(row.material_id),
+        material_name: text(row.material_name, ""),
+        quantity: plannerQuantity(row),
+        system_quantity: system ? Number(system.suggested_qty ?? 0) : null,
+        source: system ? "system" : "added",
+        reason: system ? "" : (draft.addReasons[itemId(row)] ?? ""),
+      };
+    }),
+    dropped: targetItems
+      .filter((row) => !selectedKeys.has(lineKey(row)))
+      .map((row) => ({
+        replenishment_item_id: text(row.replenishment_item_id),
+        district_id: text(row.district_id),
+        district_name_th: text(row.district_name_th, ""),
+        material_id: text(row.material_id),
+        material_name: text(row.material_name, ""),
+        system_quantity: Number(row.suggested_qty ?? 0),
+        reason: draft.skipReasons[itemId(row)] || "ไม่ได้เลือกเข้าแผน",
+      })),
+  };
+  const usedDistrictFlow = Object.keys(draft.confirmedDistricts).length > 0;
+  const unconfirmedSendDistricts = usedDistrictFlow
+    ? [...new Set(selectionPayload.lines.map((line) => line.district_id))]
+        .filter((id) => !draft.confirmedDistricts[id])
+        .sort()
+    : [];
+  const [submitOpen, setSubmitOpen] = useState(false);
   const openResponse = (row: RecordRow) => {
     setResponseRow(row);
     setDecision("confirm");
-    setQuantity(text(row.suggested_qty, "0"));
+    setQuantity(text(row.planner_qty ?? row.suggested_qty, "0"));
     setReason("");
     setRequester("");
   };
@@ -2507,10 +2571,22 @@ function WeeklyPlanView({
             <button
               type="button"
               className="btn primary"
-              disabled={!selectedRows.length}
-              onClick={() => setWorkflowStep(3)}
+              disabled={
+                !selectedRows.length ||
+                (Boolean(onSubmitSelection) && canCreate && !targetPlanId)
+              }
+              title={
+                onSubmitSelection && canCreate && !targetPlanId
+                  ? "ยังไม่มีรอบแผนของสัปดาห์นี้ในระบบ — กด “เริ่มรอบแผนจากข้อมูลล่าสุด” ก่อน"
+                  : undefined
+              }
+              onClick={() =>
+                onSubmitSelection && canCreate
+                  ? setSubmitOpen(true)
+                  : setWorkflowStep(3)
+              }
             >
-              ยืนยัน Draft Plan และส่งให้เขตตรวจทีละรายการ →
+              ตรวจและส่งแผนให้เขตยืนยัน →
             </button>
           </div>
         </section>
@@ -2694,6 +2770,25 @@ function WeeklyPlanView({
             />
           </section>
         </>
+      )}
+
+      {submitOpen && onSubmitSelection && (
+        <PlanSubmitModal
+          planLabel={`${text(targetPlan?.plan_number ?? targetPlan?.plan_code)} · V${text(targetPlan?.version_no, "1")}`}
+          weekLabel={`สัปดาห์ ${text(targetPlan?.week_start_date)}`}
+          payload={selectionPayload}
+          unconfirmedDistricts={unconfirmedSendDistricts}
+          busy={actionBusy}
+          error={actionError}
+          onClose={() => setSubmitOpen(false)}
+          onSubmit={async () => {
+            const ok = await onSubmitSelection(targetPlanId, selectionPayload);
+            if (!ok) return;
+            setSubmitOpen(false);
+            setDraft(emptyPlannerDraft);
+            setWorkflowStepState(3);
+          }}
+        />
       )}
 
       {responseRow && (
@@ -5798,6 +5893,8 @@ function PageContent({
         onVersion={backend.versionReplenishmentPlan}
         onConfirmPending={backend.confirmPendingDistrictItems}
         onOpenTransport={openTransport}
+        onSubmitSelection={backend.submitPlannerSelection}
+        actionError={backend.error}
       />
     );
   }

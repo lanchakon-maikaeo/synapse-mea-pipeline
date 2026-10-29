@@ -1,5 +1,6 @@
 "use client";
 
+import type { PlannerSelectionPayload } from "./plan-submit";
 import { createClient, type Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -569,6 +570,90 @@ export function useSynapseBackend() {
     [runAction],
   );
 
+  const submitPlannerSelection = useCallback(
+    async (planId: string, payload: PlannerSelectionPayload) => {
+      if (DEMO_MODE) {
+        const actedAt = new Date().toISOString();
+        setData((current) => {
+          const template = current.replenishment.find(
+            (row) => String(row.replenishment_plan_id) === planId,
+          );
+          const keep = new Map(
+            payload.lines
+              .filter((line) => line.replenishment_item_id)
+              .map((line) => [String(line.replenishment_item_id), line]),
+          );
+          const dropped = new Map(
+            payload.dropped.map((line) => [line.replenishment_item_id, line]),
+          );
+          const updated = current.replenishment.map((row) => {
+            const id = String(row.replenishment_item_id);
+            if (String(row.replenishment_plan_id) !== planId) return row;
+            const line = keep.get(id);
+            if (line) {
+              return {
+                ...row,
+                planner_qty: line.quantity,
+                requested_qty: line.quantity,
+                final_qty: line.quantity,
+                planner_source: "system",
+                item_status: "pending",
+                planner_selected_at: actedAt,
+              };
+            }
+            const drop = dropped.get(id);
+            if (drop) {
+              return {
+                ...row,
+                item_status: "cancelled",
+                district_note: `Planner ไม่ส่ง: ${drop.reason}`,
+              };
+            }
+            return row;
+          });
+          const added = payload.lines
+            .filter((line) => !line.replenishment_item_id)
+            .map((line, index) => ({
+              ...(template ?? {}),
+              replenishment_item_id: `RI-DEMO-ADD-${Date.now()}-${index}`,
+              replenishment_plan_id: planId,
+              district_id: line.district_id,
+              district_name_th: line.district_name_th,
+              material_id: line.material_id,
+              material_name: line.material_name,
+              suggested_qty: 0,
+              planner_qty: line.quantity,
+              confirmed_qty: null,
+              requested_qty: line.quantity,
+              final_qty: line.quantity,
+              planner_source: "added",
+              planner_note: line.reason,
+              item_status: "pending",
+              requester_name: null,
+              district_note: null,
+              planner_selected_at: actedAt,
+            }));
+          return {
+            ...current,
+            replenishment: [...updated, ...added].map((row) =>
+              String(row.replenishment_plan_id) === planId
+                ? { ...row, plan_status: "pending_district_confirmation" }
+                : row,
+            ),
+          };
+        });
+      }
+      return (
+        (await runAction(
+          `/v1/replenishment/plans/${encodeURIComponent(planId)}/planner-selection`,
+          payload,
+          `ส่งแผน ${payload.lines.length} รายการให้เขตยืนยันแล้ว`,
+        )) !== null
+      );
+    },
+    [runAction],
+  );
+
   const publishVmiInput = useCallback(
     async (payload: VmiInputPayload) =>
       (await runAction(
@@ -682,7 +767,7 @@ export function useSynapseBackend() {
                       plan_code: target?.plan_code,
                       district_id: target?.district_id,
                       material_id: target?.material_id,
-                      original_qty: target?.suggested_qty,
+                      original_qty: target?.planner_qty ?? target?.suggested_qty,
                       requested_qty: payload.confirmed_qty,
                       reason: payload.reason,
                       requester_name: payload.requester_name,
@@ -747,7 +832,7 @@ export function useSynapseBackend() {
             ) {
               return row;
             }
-            const quantity = Number(row.suggested_qty ?? row.requested_qty ?? 0);
+            const quantity = Number(row.planner_qty ?? row.suggested_qty ?? row.requested_qty ?? 0);
             return {
               ...row,
               confirmed_qty: quantity,
@@ -793,7 +878,7 @@ export function useSynapseBackend() {
                   method: "POST",
                   body: JSON.stringify({
                     confirmed_qty: Number(
-                      row.suggested_qty ?? row.requested_qty ?? 0,
+                      row.planner_qty ?? row.suggested_qty ?? row.requested_qty ?? 0,
                     ),
                     decision: "confirm",
                     reason: "ยืนยันตามแผนแทนเขตโดยผู้ดูแลระบบ เพื่อเตรียม Confirm Plan และจัดรถ",
@@ -854,7 +939,7 @@ export function useSynapseBackend() {
                   confirmed_qty:
                     decision === "approved"
                       ? request?.requested_qty
-                      : row.suggested_qty,
+                      : row.planner_qty ?? row.suggested_qty,
                   item_status: decision === "approved" ? "confirmed" : "rejected",
                   response_status: decision === "approved" ? "confirmed" : "rejected",
                 }
@@ -1148,6 +1233,7 @@ export function useSynapseBackend() {
     returnAcademicPlan,
     respondReplenishment,
     confirmPendingDistrictItems,
+    submitPlannerSelection,
     reviewChangeRequest,
     session,
     setDemoRole,
