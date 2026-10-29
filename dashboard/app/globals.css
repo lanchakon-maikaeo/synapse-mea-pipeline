@@ -880,3 +880,19 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .dash-follow-list button.warn:hover{border-color:var(--attn)}
 .dp-brand{color:var(--orange)!important}
 .dc-plan-status.wait{background:var(--attn-soft);color:var(--attn-ink)}
+/* Recommend / advisory intros as light cards (same as other secondary intros) */
+.content .recommend-banner{flex-direction:row;align-items:center;padding:18px 22px;border:1px solid var(--line);border-left:4px solid var(--orange);border-radius:18px;background:#fff!important;color:var(--navy);box-shadow:var(--shadow)!important}
+.content .recommend-banner>div>span{color:var(--orange)!important;font-size:11px;font-weight:700}
+.content .recommend-banner h3{color:var(--navy);font-size:17px}
+.content .recommend-banner p{color:var(--muted)!important;font-size:12px}
+.content .recommend-banner p strong{color:var(--navy)}
+.content .recommend-banner>div:last-child{border-left-color:var(--line)}
+.content .recommend-banner>div:last-child strong{color:var(--navy);font-size:26px}
+.content .recommend-banner>div:last-child small{color:var(--muted)!important}
+@media(max-width:760px){.content .recommend-banner{flex-direction:column;align-items:flex-start}.content .recommend-banner>div:last-child{padding-left:0;border-left:0;text-align:left}}
+.advisory-summary-card.warning,.advisory-detail.warning{border-top-color:var(--attn)}
+.dot.blue{background:var(--blue)}
+.dot.orange{background:var(--attn)}
+.badge.urgent{background:var(--attn-soft);color:var(--attn-ink)}
+.stack>*{min-width:0;max-width:100%}
+.panel{min-width:0}
