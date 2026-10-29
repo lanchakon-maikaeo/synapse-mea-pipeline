@@ -14,6 +14,7 @@ import {
   formatNumber,
   type Role,
 } from "./lib";
+import { PageHero } from "./page-hero";
 import type { RoadOptimizationResult } from "./route-optimizer";
 import type {
   RoadGeometry,
@@ -3453,13 +3454,12 @@ export function TransportModule({
   const [eyebrow, title, description] = transportTitles[view];
   return (
     <>
-      <header className="page-head user-page-head">
-        <div>
-          <span>{eyebrow}</span>
-          <h1>{title}</h1>
-          <p>{description}</p>
-        </div>
-      </header>
+      <PageHero
+        icon={transportNav.find(([key]) => key === view)?.[2] ?? "◆"}
+        eyebrow={eyebrow}
+        title={title}
+        description={description}
+      />
       <SourceTag
         source={source}
         loading={loading}
