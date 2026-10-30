@@ -34,10 +34,11 @@ const TransportRoadMap = dynamic<TransportRoadMapProps>(
   },
 );
 
-export type TransportView = "dashboard" | "planner" | "map" | "history";
+export type TransportView = "dashboard" | "dispatch" | "planner" | "map" | "history";
 
 export const transportNav: Array<[TransportView, string, string]> = [
   ["dashboard", "ภาพรวมขนส่ง", "⌂"],
+  ["dispatch", "จัดรถประจำสัปดาห์", "⛟"],
   ["planner", "วางแผนจัดรถ", "▤"],
   ["map", "แผนที่เส้นทาง", "◎"],
   ["history", "ประวัติการเดินรถ", "◷"],
@@ -55,6 +56,11 @@ export function transportNavForRole(role: Role) {
 
 const transportTitles: Record<TransportView, [string, string, string]> = {
   dashboard: ["TRANSPORT", "ภาพรวมการขนส่ง", "สรุปรถ คนขับ และงานที่รอจัดส่งจากแผนจริง"],
+  dispatch: [
+    "จัดรถ",
+    "จัดรถประจำสัปดาห์",
+    "จัดรถจากของจริงที่ต้องส่ง: นับพาเลทและน้ำหนัก จับเขตทางเดียวกันขึ้นรถเดียว ส่งไม่ช้ากว่าวันโซน และให้เขตมารับเองเฉพาะสัปดาห์ที่รถไม่พอ",
+  ],
   planner: [
     "TRANSPORT PLANNING",
     "นำแผนจ่ายมาวางแผนขนส่ง",
@@ -63,6 +69,10 @@ const transportTitles: Record<TransportView, [string, string, string]> = {
   map: ["ROAD MAP", "แผนที่เส้นทางการจ่าย", "แผนที่ OSM-derived พร้อม geometry จาก routing engine และสถานะรับรองพิกัด"],
   history: ["TRIP HISTORY", "ประวัติการเดินรถ", "เที่ยวรถที่บันทึกในระบบ พร้อมค่าน้ำมันจริงเทียบประมาณการ"],
 };
+
+export function transportTitleFor(view: TransportView) {
+  return transportTitles[view];
+}
 
 // ---- Normalised transport data ----
 type GeocodeStatus = "candidate" | "verified" | "quarantined";

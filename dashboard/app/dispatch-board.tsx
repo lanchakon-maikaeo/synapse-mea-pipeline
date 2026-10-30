@@ -258,7 +258,7 @@ export function DispatchBoardView({ token, role, demoMode }: { token: string | n
         <WeekSwitch week={week} offset={weekOffset} setOffset={setWeekOffset} onRefresh={() => void load()} />
         {error && <p className="pk-error">{error}</p>}
         {loading && !confirmed ? <p className="panel pk-empty">กำลังโหลด…</p> : !confirmed ? (
-          <p className="panel pk-empty">คลังยังไม่ยืนยันการจัดรถของสัปดาห์นี้ · ดูวันส่งประจำโซนได้ที่แท็บถัดไป</p>
+          <p className="panel pk-empty">คลังยังไม่ยืนยันการจัดรถของสัปดาห์นี้ · ดูวันส่งประจำโซนได้ที่เมนูคลังพัสดุ › วันส่งของประจำเขต</p>
         ) : (
           <section className="dp-district-list">
             {confirmed.trips.map((t) => (
@@ -283,6 +283,14 @@ export function DispatchBoardView({ token, role, demoMode }: { token: string | n
   }
 
   if (loading && !plan) return <p className="panel pk-empty">{error || "กำลังโหลดของที่ต้องส่ง…"}</p>;
+  if (!plan && !demand) {
+    return (
+      <div className="stack dp-page">
+        <WeekSwitch week={week} offset={weekOffset} setOffset={setWeekOffset} onRefresh={() => void load()} />
+        <p className="panel pk-empty">{error || "ยังไม่มีแผนจัดรถที่ยืนยันแล้วของสัปดาห์นี้"}</p>
+      </div>
+    );
+  }
 
   const days = [1, 2, 3, 4, 5].map((wd) => ({ wd, iso: addDays(week, wd - 1) }));
   const vehicles = demand?.vehicles ?? [];

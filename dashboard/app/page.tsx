@@ -63,6 +63,7 @@ import { DEMO_MODE } from "./demo-data";
 import {
   TransportModule,
   transportNavForRole,
+  transportTitleFor,
   type TransportView,
 } from "./transport";
 
@@ -87,7 +88,6 @@ type ViewKey =
   | "history"
   | "users"
   | "delivery"
-  | "dispatch"
   | "alerts"
   | "input"
   | "operations"
@@ -171,7 +171,6 @@ const navByRole: Record<Role, NavGroup[]> = {
     {
       label: "คลังสินค้า",
       items: [
-        ["dispatch", "จัดรถประจำสัปดาห์", "⛟"],
         ["delivery", "ปฏิทินส่งของ", "▣"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
@@ -215,7 +214,6 @@ const navByRole: Record<Role, NavGroup[]> = {
     {
       label: "คลังสินค้า",
       items: [
-        ["dispatch", "จัดรถประจำสัปดาห์", "⛟"],
         ["delivery", "ปฏิทินส่งของ", "▣"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
@@ -253,7 +251,6 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "แผนที่ล็อกแล้ว", "▤"],
-        ["dispatch", "จัดรถประจำสัปดาห์", "⛟"],
         ["delivery", "ปฏิทินส่งของ", "▣"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
@@ -272,8 +269,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["weekly", "ยืนยันรายการพัสดุ", "✓"],
         ["changes", "คำขอเปลี่ยนของฉัน", "!"],
         ["adhoc", "ขอจ่ายกรณีพิเศษ", "↗"],
-        ["dispatch", "รอบส่งของเขต", "⛟"],
-        ["delivery", "วันส่งประจำโซน", "▣"],
+        ["delivery", "วันส่งของประจำเขต", "▣"],
         ["stock", "Stock เขต", "◫"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
         ["history", "ประวัติการดำเนินงาน", "☷"],
@@ -302,7 +298,6 @@ const VIEW_GROUPS: Array<{ keys: ViewKey[]; navLabel?: string }> = [
   { keys: ["weekly", "summary"] },
   { keys: ["history", "approvals", "trace"] },
   { keys: ["changes", "alerts"] },
-  { keys: ["dispatch", "delivery"] },
   { keys: ["import", "legacy_history", "data"], navLabel: "นำเข้าข้อมูล" },
   { keys: ["packing", "fifo_setup"] },
   { keys: ["stock", "input"], navLabel: "Stock (ดู / อัปเดต)" },
@@ -434,11 +429,6 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "ข้อมูล Packing",
     "ข้อมูล Packing รายสัญญา",
     "กรอกขนาดกล่องและพาเลทของของที่รับเข้าแล้ว (105) แยกตามผู้ขาย/สัญญา/PO · ใช้คำนวณการจัดรถ",
-  ],
-  dispatch: [
-    "จัดรถ",
-    "จัดรถประจำสัปดาห์",
-    "จัดรถจากของจริงที่ต้องส่ง: นับพาเลทและน้ำหนัก จับเขตทางเดียวกันขึ้นรถเดียว ส่งไม่ช้ากว่าวันโซน และให้เขตมารับเองเฉพาะสัปดาห์ที่รถไม่พอ",
   ],
   delivery: [
     "ปฏิทินส่งของ",
@@ -6237,15 +6227,6 @@ function PageContent({
       />
     );
   }
-  if (view === "dispatch") {
-    return (
-      <DispatchBoardView
-        token={backend.session?.access_token ?? null}
-        role={role}
-        demoMode={DEMO_MODE}
-      />
-    );
-  }
   if (view === "delivery") {
     return (
       <DeliveryCalendarView
@@ -6421,7 +6402,21 @@ export default function Home() {
           snapshot={snapshot}
         />
         <main id="content" className="content">
-          {moduleKey === "transport" ? (
+          {moduleKey === "transport" && activeTransportView === "dispatch" ? (
+            <>
+              <PageHero
+                icon="⛟"
+                eyebrow={transportTitleFor("dispatch")[0]}
+                title={transportTitleFor("dispatch")[1]}
+                description={transportTitleFor("dispatch")[2]}
+              />
+              <DispatchBoardView
+                token={backend.session?.access_token ?? null}
+                role={role}
+                demoMode={DEMO_MODE}
+              />
+            </>
+          ) : moduleKey === "transport" ? (
             <TransportModule
               view={activeTransportView}
               token={backend.session?.access_token ?? null}
