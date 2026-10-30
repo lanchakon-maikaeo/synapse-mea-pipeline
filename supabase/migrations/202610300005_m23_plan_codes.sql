@@ -1,9 +1,9 @@
 -- M23: short, readable plan codes.
 --
---   KT-001-W33-10/08/69   (shown with the version: KT-001-W33-10/08/69-V1)
---   │  │   │   └ Monday of the delivery week, dd/mm/yy (Buddhist year)
---   │  │   └ ISO week of the delivery week
---   │  └ running number of plans for this warehouse within the Buddhist year
+--   KT01-W33-100869   (shown with the version: KT01-W33-100869-V1)
+--   │ │   │   └ Monday of the delivery week, ddmmyy (Buddhist year)
+--   │ │   └ ISO week of the delivery week
+--   │ └ running number of plans for this warehouse within the Buddhist year (2 digits, grows past 99)
 --   └ warehouse code (WH-KT → KT), so a second warehouse gets its own series
 --
 -- A revision keeps the code of its root plan; only version_no changes.
@@ -17,9 +17,9 @@ language sql
 stable
 set search_path = pg_catalog, core
 as $$
-  select upper(regexp_replace(coalesce(
+  select upper(regexp_replace(regexp_replace(coalesce(
     (select l.warehouse_id from core.locations l where l.location_id = p_location_id),
-    p_location_id, 'WH-KT'), '^WH-', ''));
+    p_location_id, 'WH-KT'), '^WH-', ''), '[^A-Za-z]', '', 'g'));
 $$;
 
 create or replace function core.m23_plan_code(p_wh text, p_seq integer, p_week date)
@@ -28,9 +28,9 @@ language sql
 immutable
 set search_path = pg_catalog
 as $$
-  select p_wh || '-' || lpad(p_seq::text, 3, '0')
+  select p_wh || case when p_seq < 100 then lpad(p_seq::text, 2, '0') else p_seq::text end
     || '-W' || to_char(p_week, 'IW')
-    || '-' || to_char(p_week, 'DD/MM/') || lpad(((extract(year from p_week)::int + 543) % 100)::text, 2, '0');
+    || '-' || to_char(p_week, 'DDMM') || lpad(((extract(year from p_week)::int + 543) % 100)::text, 2, '0');
 $$;
 
 create or replace function core.m23_next_plan_seq(p_wh text, p_week date)
@@ -39,9 +39,9 @@ language sql
 stable
 set search_path = pg_catalog, core
 as $$
-  select coalesce(max(substring(p.plan_number from '^[A-Z0-9]+-(\d+)-')::int), 0) + 1
+  select coalesce(max(substring(p.plan_number from '^[A-Z]+(\d+)-W')::int), 0) + 1
   from core.replenishment_plans p
-  where p.plan_number like p_wh || '-%'
+  where p.plan_number ~ ('^' || p_wh || '\d+-W\d{2}-\d{6}$')
     and right(p.plan_number, 2) = lpad(((extract(year from p_week)::int + 543) % 100)::text, 2, '0');
 $$;
 

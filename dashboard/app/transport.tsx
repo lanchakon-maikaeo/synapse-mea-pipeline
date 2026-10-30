@@ -828,8 +828,8 @@ function queueGroups(rows: QueueRow[]): QueueGroup[] {
 }
 
 function friendlyPlanName(planNumber: string) {
-  // New codes: KT-001-W33-10/08/69(-V1)
-  if (/^[A-Z0-9]+-\d{3}-W\d{2}-\d{2}\/\d{2}\/\d{2}/.test(planNumber)) {
+  // New codes: KT01-W33-100869(-V1)
+  if (/^[A-Z]+\d+-W\d{2}-\d{6}/.test(planNumber)) {
     return /-V\d+$/.test(planNumber) ? planNumber : `${planNumber}-V1`;
   }
   const match = planNumber.match(/^RP-(\d{4})-(\d{1,2})-/i);

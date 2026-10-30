@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- M23: plan codes KT-001-W33-10/08/69, running per warehouse and Buddhist year, revisions keep the root code.
+-- M23: plan codes KT01-W33-100869, running per warehouse and Buddhist year, revisions keep the root code.
 begin;
 
 create temporary table m23_checks (check_name text primary key, passed boolean not null);
@@ -34,18 +34,19 @@ create temporary table m23_p as
 select replenishment_plan_id::text as id, plan_number, version_no from core.replenishment_plans
 where replenishment_plan_id::text like '23000000-%';
 
-insert into m23_checks select 'format KT-seq-Wweek-dd/mm/yy (Buddhist year)',
-  plan_number ~ '^KT-\d{3}-W33-12/08/73$' from m23_p where id like '%0201';
+insert into m23_checks select 'format KTnn-Wweek-ddmmyy (Buddhist year)',
+  plan_number ~ '^KT\d{2}-W33-120873$' from m23_p where id like '%0201';
 insert into m23_checks select 'running number increments',
-  (select substring(plan_number from '^KT-(\d+)-')::int from m23_p where id like '%0202')
-  = (select substring(plan_number from '^KT-(\d+)-')::int from m23_p where id like '%0201') + 1
-  and (select plan_number from m23_p where id like '%0202') like '%-W34-19/08/73';
+  (select substring(plan_number from '^KT(\d+)-')::int from m23_p where id like '%0202')
+  = (select substring(plan_number from '^KT(\d+)-')::int from m23_p where id like '%0201') + 1
+  and (select plan_number from m23_p where id like '%0202') like '%-W34-190873';
 insert into m23_checks select 'revision keeps root code',
   (select plan_number from m23_p where id like '%0203') = (select plan_number from m23_p where id like '%0202');
 insert into m23_checks select 'new Buddhist year restarts numbering',
-  plan_number = 'KT-001-W02-06/01/74' from m23_p where id like '%0204';
+  plan_number = 'KT01-W02-060174' from m23_p where id like '%0204';
 insert into m23_checks select 'code helper',
-  core.m23_plan_code('KT', 7, '2026-08-10') = 'KT-007-W33-10/08/69';
+  core.m23_plan_code('KT', 7, '2026-08-10') = 'KT07-W33-100869'
+  and core.m23_plan_code('KT', 123, '2026-08-10') = 'KT123-W33-100869';
 insert into m23_checks select 'warehouse code from location', core.m23_warehouse_code('WH-KT') = 'KT';
 insert into m23_checks select 'hand-set numbers are kept',
   core.m23_plan_code('KT', 1, '2026-08-10') <> 'RP-M21' and 'RP-M21' !~ '^RP-\d{4}-\d{2}-[0-9A-F]{8}$';
