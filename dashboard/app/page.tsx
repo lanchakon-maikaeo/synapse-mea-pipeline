@@ -1108,7 +1108,7 @@ function DashboardView({
               <select value={effectivePlanId} onChange={(event) => setSelectedPlanId(event.target.value)}>
                 {plans.length ? plans.map((row) => (
                   <option key={text(row.replenishment_plan_id)} value={text(row.replenishment_plan_id)}>
-                    {text(row.plan_number) || text(row.replenishment_plan_id).slice(0, 8)} · V{formatNumber(row.version_no ?? 1)} · {planStatusLabel[text(row.plan_status)] ?? text(row.plan_status)}
+                    {text(row.plan_number) || text(row.replenishment_plan_id).slice(0, 8)}-V{formatNumber(row.version_no ?? 1)} · {planStatusLabel[text(row.plan_status)] ?? text(row.plan_status)}
                   </option>
                 )) : <option value="">ยังไม่มีแผนการจ่าย</option>}
               </select>
@@ -2837,7 +2837,7 @@ function WeeklyPlanView({
               rows={plans}
               empty="ยังไม่มีแผน"
               columns={[
-                ["แผน", (row) => `${text(row.plan_number)} · V${text(row.version_no)}`],
+                ["แผน", (row) => `${text(row.plan_number)}-V${text(row.version_no)}`],
                 ["สัปดาห์", (row) => row.week_start_date],
                 ["สถานะ", (row) => <Badge>{text(row.plan_status)}</Badge>],
                 ["Planner", (row) => formatDateTime(row.planner_approved_at)],
@@ -2930,7 +2930,7 @@ function WeeklyPlanView({
 
       {submitOpen && onSubmitSelection && (
         <PlanSubmitModal
-          planLabel={`${text(targetPlan?.plan_number ?? targetPlan?.plan_code)} · V${text(targetPlan?.version_no, "1")}`}
+          planLabel={`${text(targetPlan?.plan_number ?? targetPlan?.plan_code)}-V${text(targetPlan?.version_no, "1")}`}
           weekLabel={`สัปดาห์ ${text(targetPlan?.week_start_date)}`}
           payload={selectionPayload}
           unconfirmedDistricts={unconfirmedSendDistricts}

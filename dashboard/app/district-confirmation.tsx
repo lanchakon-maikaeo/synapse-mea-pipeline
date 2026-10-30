@@ -324,14 +324,14 @@ export function DistrictConfirmationBoard({
             <select value={currentPlanId} onChange={(event) => setPlanId(event.target.value)}>
               {plans.map((row) => (
                 <option key={text(row.replenishment_plan_id)} value={text(row.replenishment_plan_id)}>
-                  {text(row.plan_number ?? row.plan_code)} · V{text(row.version_no, "1")} ·{" "}
+                  {text(row.plan_number ?? row.plan_code)}-V{text(row.version_no, "1")} ·{" "}
                   {PLAN_LABEL[text(row.plan_status, "")] ?? text(row.plan_status)}
                 </option>
               ))}
             </select>
           ) : (
             <strong>
-              {text(plan.plan_number ?? plan.plan_code)} · V{text(plan.version_no, "1")}
+              {text(plan.plan_number ?? plan.plan_code)}-V{text(plan.version_no, "1")}
             </strong>
           )}
           <small>
