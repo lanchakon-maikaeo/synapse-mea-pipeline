@@ -47,6 +47,7 @@ import { UserManagementView } from "./user-management";
 import { AccessRequestForm } from "./access-request-form";
 import { CheckSummary, RequestAlertsView, type RequestCheck } from "./request-alerts";
 import { DeliveryCalendarView, MODE_LABEL, URGENCY_LABEL } from "./delivery-calendar";
+import { DispatchBoardView } from "./dispatch-board";
 
 type SlotPreview = {
   mode: string;
@@ -62,6 +63,7 @@ import { DEMO_MODE } from "./demo-data";
 import {
   TransportModule,
   transportNavForRole,
+  transportTitleFor,
   type TransportView,
 } from "./transport";
 
@@ -6400,7 +6402,21 @@ export default function Home() {
           snapshot={snapshot}
         />
         <main id="content" className="content">
-          {moduleKey === "transport" ? (
+          {moduleKey === "transport" && activeTransportView === "dispatch" ? (
+            <>
+              <PageHero
+                icon="⛟"
+                eyebrow={transportTitleFor("dispatch")[0]}
+                title={transportTitleFor("dispatch")[1]}
+                description={transportTitleFor("dispatch")[2]}
+              />
+              <DispatchBoardView
+                token={backend.session?.access_token ?? null}
+                role={role}
+                demoMode={DEMO_MODE}
+              />
+            </>
+          ) : moduleKey === "transport" ? (
             <TransportModule
               view={activeTransportView}
               token={backend.session?.access_token ?? null}
