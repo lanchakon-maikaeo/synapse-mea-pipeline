@@ -64,6 +64,8 @@ export type AdHocIssuePayload = {
   reason: string;
   requester_name: string;
   idempotency_key?: string;
+  urgency_code?: string;
+  urgency_note?: string;
 };
 
 export type DashboardData = {
