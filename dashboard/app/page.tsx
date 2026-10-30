@@ -12,7 +12,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { formatDateTime, formatNumber, type Role } from "./lib";
+import { apiRequest, formatDateTime, formatNumber, type Role } from "./lib";
 import {
   parseVmiHistory,
   snapshotIso,
@@ -45,6 +45,18 @@ import { OperationHistoryView } from "./operation-history";
 import { demoHistoryPayload } from "./history-demo";
 import { UserManagementView } from "./user-management";
 import { AccessRequestForm } from "./access-request-form";
+import { CheckSummary, RequestAlertsView, type RequestCheck } from "./request-alerts";
+import { DeliveryCalendarView, MODE_LABEL, URGENCY_LABEL } from "./delivery-calendar";
+
+type SlotPreview = {
+  mode: string;
+  delivery_date: string | null;
+  cutoff_at: string | null;
+  zone: string | null;
+  zone_name?: string;
+  vehicle?: string | null;
+  message: string;
+};
 import { demoUsersPayload } from "./users-demo";
 import { DEMO_MODE } from "./demo-data";
 import {
@@ -73,6 +85,8 @@ type ViewKey =
   | "legacy_history"
   | "history"
   | "users"
+  | "delivery"
+  | "alerts"
   | "input"
   | "operations"
   | "release";
@@ -146,6 +160,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["weekly", "คำนวณการจ่าย", "▤"],
         ["summary", "สรุปการจ่าย", "☰"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
+        ["alerts", "แจ้งเตือนเบิกผิดปกติ", "⚠"],
         ["history", "ประวัติการดำเนินงาน", "☷"],
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
@@ -154,6 +169,7 @@ const navByRole: Record<Role, NavGroup[]> = {
     {
       label: "คลังสินค้า",
       items: [
+        ["delivery", "ปฏิทินส่งของ", "▣"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
@@ -185,6 +201,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["weekly", "คำนวณการจ่าย", "▤"],
         ["summary", "สรุปการจ่าย", "☰"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
+        ["alerts", "แจ้งเตือนเบิกผิดปกติ", "⚠"],
         ["history", "ประวัติการดำเนินงาน", "☷"],
         ["approvals", "ประวัติแผนการจ่าย", "✓"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
@@ -195,6 +212,7 @@ const navByRole: Record<Role, NavGroup[]> = {
     {
       label: "คลังสินค้า",
       items: [
+        ["delivery", "ปฏิทินส่งของ", "▣"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
         ["packing", "ข้อมูล Packing", "▧"],
@@ -210,6 +228,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "อนุมัติวิชาการ", "✓"],
         ["changes", "หลักฐานคำขอผิดปกติ", "!"],
+        ["alerts", "แจ้งเตือนเบิกผิดปกติ", "⚠"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
         ["approvals", "ประวัติการอนุมัติ", "◷"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
@@ -230,6 +249,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "แผนที่ล็อกแล้ว", "▤"],
+        ["delivery", "ปฏิทินส่งของ", "▣"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
         ["packing", "ข้อมูล Packing", "▧"],
@@ -247,6 +267,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["weekly", "ยืนยันรายการพัสดุ", "✓"],
         ["changes", "คำขอเปลี่ยนของฉัน", "!"],
         ["adhoc", "ขอจ่ายกรณีพิเศษ", "↗"],
+        ["delivery", "วันส่งของประจำเขต", "▣"],
         ["stock", "Stock เขต", "◫"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
         ["history", "ประวัติการดำเนินงาน", "☷"],
@@ -274,6 +295,7 @@ const navByRole: Record<Role, NavGroup[]> = {
 const VIEW_GROUPS: Array<{ keys: ViewKey[]; navLabel?: string }> = [
   { keys: ["weekly", "summary"] },
   { keys: ["history", "approvals", "trace"] },
+  { keys: ["changes", "alerts"] },
   { keys: ["import", "legacy_history", "data"], navLabel: "นำเข้าข้อมูล" },
   { keys: ["packing", "fifo_setup"] },
   { keys: ["stock", "input"], navLabel: "Stock (ดู / อัปเดต)" },
@@ -405,6 +427,16 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "ข้อมูล Packing",
     "ข้อมูล Packing รายสัญญา",
     "กรอกขนาดกล่องและพาเลทของของที่รับเข้าแล้ว (105) แยกตามผู้ขาย/สัญญา/PO · ใช้คำนวณการจัดรถ",
+  ],
+  delivery: [
+    "ปฏิทินส่งของ",
+    "ปฏิทินส่งของรายสัปดาห์",
+    "วันส่งประจำโซน เวลาตัดรอบคำขอเพิ่ม คำขอที่พ่วงแต่ละรอบ และรายงานเขตที่ขอเพิ่มบ่อย",
+  ],
+  alerts: [
+    "แจ้งเตือน",
+    "แจ้งเตือนเบิกผิดปกติ",
+    "คำขอที่มากกว่าที่เคยจ่าย มากกว่า CMP หรือทำให้เขตมีของเกิน 6 เดือน พร้อมประวัติการตรวจ",
   ],
   users: [
     "ผู้ดูแลระบบ",
@@ -3934,6 +3966,7 @@ function AdHocView({
   actionBusy,
   data,
   role,
+  token,
   onApprove,
   onCreate,
   onIssue,
@@ -3941,6 +3974,7 @@ function AdHocView({
   actionBusy: boolean;
   data: DashboardData;
   role: Role;
+  token: string | null;
   onApprove: (issueId: string, note: string) => Promise<boolean>;
   onCreate: (payload: AdHocIssuePayload) => Promise<boolean>;
   onIssue: (issueId: string) => Promise<boolean>;
@@ -3950,6 +3984,26 @@ function AdHocView({
   const [quantity, setQuantity] = useState("");
   const [requester, setRequester] = useState("");
   const [reason, setReason] = useState("");
+  const [urgency, setUrgency] = useState("normal");
+  const [urgencyNote, setUrgencyNote] = useState("");
+  const [preview, setPreview] = useState<{ slot: SlotPreview; check: RequestCheck } | null>(null);
+  const effectiveDistrict = districtId;
+  useEffect(() => {
+    const qty = Number(quantity);
+    if (!token || !materialId || !effectiveDistrict || !Number.isFinite(qty) || qty <= 0) {
+      const reset = window.setTimeout(() => setPreview(null), 0);
+      return () => window.clearTimeout(reset);
+    }
+    const timer = window.setTimeout(() => {
+      apiRequest<{ slot: SlotPreview; check: RequestCheck }>("/v1/ad-hoc/preview", token, {
+        method: "POST",
+        body: JSON.stringify({ material_id: materialId, district_id: effectiveDistrict, requested_qty: qty, urgency_code: urgency }),
+      })
+        .then(setPreview)
+        .catch(() => setPreview(null));
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [token, materialId, effectiveDistrict, quantity, urgency]);
   const [approveRow, setApproveRow] = useState<RecordRow | null>(null);
   const [approvalNote, setApprovalNote] = useState("");
   const canCreate = ["admin", "planner", "district"].includes(role);
@@ -3957,7 +4011,9 @@ function AdHocView({
     event.preventDefault();
     const payload: AdHocIssuePayload = {
       material_id: materialId,
-      district_id: districtId,
+      district_id: effectiveDistrict,
+      urgency_code: urgency,
+      urgency_note: urgency === "normal" ? "" : urgencyNote.trim(),
       requested_qty: Number(quantity),
       requester_name: requester.trim(),
       reason: reason.trim(),
@@ -3966,6 +4022,7 @@ function AdHocView({
     if (
       !payload.material_id ||
       !payload.district_id ||
+      (urgency !== "normal" && urgencyNote.trim().length < 5) ||
       !Number.isFinite(payload.requested_qty) ||
       payload.requested_qty <= 0
     ) {
@@ -3975,6 +4032,9 @@ function AdHocView({
     if (ok) {
       setQuantity("");
       setReason("");
+      setUrgency("normal");
+      setUrgencyNote("");
+      setPreview(null);
     }
   };
   const approve = async (event: FormEvent) => {
@@ -4040,6 +4100,25 @@ function AdHocView({
                 required
               />
             </label>
+            <label>
+              ความเร่งด่วน
+              <select value={urgency} onChange={(event) => setUrgency(event.target.value)}>
+                {Object.entries(URGENCY_LABEL).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </label>
+            {urgency !== "normal" && (
+              <label>
+                รายละเอียดความเร่งด่วน (จำเป็น)
+                <input
+                  value={urgencyNote}
+                  onChange={(event) => setUrgencyNote(event.target.value)}
+                  placeholder="เช่น สายขาดจากพายุ ถ.ร่มเกล้า เลขงานซ่อม …"
+                  required
+                />
+              </label>
+            )}
             <label className="wide">
               เหตุผลกรณีพิเศษ / หลักฐาน
               <textarea
@@ -4049,6 +4128,23 @@ function AdHocView({
               />
             </label>
           </div>
+          {preview && (
+            <div className="ah-preview">
+              <div className={`ah-slot ${preview.slot.mode}`}>
+                <small>วันที่ของจะไปถึง</small>
+                <strong>{preview.slot.delivery_date ? new Date(`${preview.slot.delivery_date}T00:00:00`).toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "short" }) : "—"}</strong>
+                <span>{MODE_LABEL[preview.slot.mode] ?? preview.slot.mode}{preview.slot.vehicle ? ` · ${preview.slot.vehicle}` : ""}</span>
+                <p>{preview.slot.message}</p>
+                {preview.slot.cutoff_at && (
+                  <small>ตัดรอบ {new Date(preview.slot.cutoff_at).toLocaleString("th-TH", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })}</small>
+                )}
+              </div>
+              <CheckSummary
+                check={preview.check}
+                unit={text(data.materials.find((row) => text(row.material_id) === materialId)?.unit ?? "", "")}
+              />
+            </div>
+          )}
           <div className="pipeline-actions">
             <button className="btn primary" disabled={actionBusy}>
               สร้างรายการจ่ายกรณีพิเศษ
@@ -4066,6 +4162,22 @@ function AdHocView({
             ["เขต", (row) => row.district_id],
             ["จำนวน", (row) => formatNumber(row.requested_qty, 2)],
             ["จ่ายแล้ว", (row) => formatNumber(row.allocated_qty, 2)],
+            [
+              "ส่งรอบ",
+              (row) => (
+                <span>
+                  {row.delivery_date ? new Date(`${text(row.delivery_date)}T00:00:00`).toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" }) : "—"}
+                  <small>{MODE_LABEL[text(row.delivery_mode, "")] ?? ""}{row.urgency_code && row.urgency_code !== "normal" ? ` · ${URGENCY_LABEL[text(row.urgency_code)] ?? ""}` : ""}</small>
+                </span>
+              ),
+            ],
+            [
+              "ตรวจปริมาณ",
+              (row) =>
+                row.alert_level === "high" ? <Badge>ผิดปกติมาก</Badge>
+                : row.alert_level === "medium" ? <Badge>สูงกว่าปกติ</Badge>
+                : row.alert_level === "normal" ? "ปกติ" : "—",
+            ],
             ["ผู้ขอ", (row) => row.requester_name],
             ["สถานะ", (row) => <Badge>{text(row.status)}</Badge>],
             [
@@ -6064,6 +6176,7 @@ function PageContent({
         actionBusy={backend.actionBusy}
         data={backend.data}
         role={role}
+        token={backend.session?.access_token ?? null}
         onApprove={backend.approveAdHocIssue}
         onCreate={backend.createAdHocIssue}
         onIssue={backend.issueAdHocIssue}
@@ -6109,6 +6222,24 @@ function PageContent({
         role={role}
         demoMode={DEMO_MODE}
         demoRows={backend.data.receiptOptions}
+      />
+    );
+  }
+  if (view === "delivery") {
+    return (
+      <DeliveryCalendarView
+        token={backend.session?.access_token ?? null}
+        role={role}
+        demoMode={DEMO_MODE}
+      />
+    );
+  }
+  if (view === "alerts") {
+    return (
+      <RequestAlertsView
+        token={backend.session?.access_token ?? null}
+        role={role}
+        demoMode={DEMO_MODE}
       />
     );
   }
