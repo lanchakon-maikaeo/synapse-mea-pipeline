@@ -104,13 +104,30 @@ function headerMatches(row: string[] | undefined, expected: string[]) {
   return expected.every((label, index) => headerCell(row?.[index]) === label);
 }
 
-function findSheet(bytes: Uint8Array, expected: string[], preferredName: string) {
+function findSheet(
+  bytes: Uint8Array,
+  expected: string[],
+  preferredName: string,
+  accept: (row: string[] | undefined, name: string) => boolean = () => false,
+) {
   const sheets = readAllWorksheets(bytes);
   const ordered = [
     ...sheets.filter((sheet) => sheet.name === preferredName),
     ...sheets.filter((sheet) => sheet.name !== preferredName),
   ];
-  return ordered.find((sheet) => headerMatches(sheet.matrix[0], expected));
+  return ordered.find((sheet) => headerMatches(sheet.matrix[0], expected))
+    ?? ordered.find((sheet) => accept(sheet.matrix[0], sheet.name));
+}
+
+/**
+ * ชีท "Stock" ในไฟล์คลังคลองเตย.xlsx: วางยอดจาก SAP ไว้โดยไม่มีหัวคอลัมน์ A–H
+ * (มีแค่ I = วัสดุ + โรงงาน, J = วัสดุ + โรงงาน + ที่เก็บ) คอลัมน์เรียงแบบเดียวกับไฟล์ SAP
+ * 8 คอลัมน์: โรงงาน / ที่เก็บ / วัสดุ / คำอธิบาย / ไม่จำกัด / หน่วย / ไม่จำกัดค่า / การส่ง/การโอน
+ */
+export function isHeaderlessStockSheet(row: string[] | undefined, name = "Stock") {
+  if (!/^stock$/i.test(name.trim())) return false;
+  const cells = (row ?? []).map((cell) => headerCell(cell));
+  return cells.slice(0, 8).every((cell) => cell === "") && cells[8] === "วัสดุ + โรงงาน";
 }
 
 function monthPeriod(label: string): string | null {
@@ -127,10 +144,11 @@ export function parseStockMatrix(
   options: { snapshotDate?: string | null } = {},
 ): ParsedSource {
   const header = matrix[0] ?? [];
-  if (!headerMatches(header, STOCK_HEADERS)) {
+  const headerless = isHeaderlessStockSheet(header, sheet);
+  if (!headerless && !headerMatches(header, STOCK_HEADERS)) {
     throw new Error("Stock: หัวตารางไม่ตรงกับไฟล์ Stock ที่ส่งออกจาก SAP (โรงงาน / ที่เก็บสินค้า / วัสดุ / คำอธิบายวัสดุ / ไม่จำกัด / หน่วยนับพื้นฐาน)");
   }
-  const extended = headerMatches(header, STOCK_EXTENDED_HEADERS);
+  const extended = headerless || headerMatches(header, STOCK_EXTENDED_HEADERS);
   const fileDate = excelDate(String(header[10] ?? "").trim());
   const snapshot = /^\d{4}-\d{2}-\d{2}/.test(fileDate) ? fileDate : (options.snapshotDate ?? "");
   if (!/^\d{4}-\d{2}-\d{2}/.test(snapshot)) {
@@ -205,7 +223,7 @@ export function parseStockMatrix(
       snapshot_date: snapshot.slice(0, 10),
       quantity_rule: "Unrestricted only; stock in transfer retained as evidence",
       snapshot_date_source: /^\d{4}-\d{2}-\d{2}/.test(fileDate) ? "workbook K1" : "operator / file name",
-      layout: extended ? "prepared_11_columns" : "sap_6_columns",
+      layout: headerless ? "warehouse_workbook_stock_sheet" : extended ? "prepared_11_columns" : "sap_6_columns",
       district_rows: rows.filter((row) => row.payload.district_id).length,
       warehouse_rows: rows.filter((row) => row.payload.warehouse_id).length,
       material_codes_padded_to_12_digits: paddedMaterials,
@@ -310,8 +328,8 @@ export function readStockWorkbook(
   bytes: Uint8Array,
   options: { snapshotDate?: string | null } = {},
 ): ParsedSource {
-  const sheet = findSheet(bytes, STOCK_HEADERS, "update-stock");
-  if (!sheet) throw new Error("Stock: ไม่พบชีทที่มีหัวตาราง โรงงาน / ที่เก็บสินค้า / วัสดุ / ไม่จำกัด");
+  const sheet = findSheet(bytes, STOCK_HEADERS, "update-stock", isHeaderlessStockSheet);
+  if (!sheet) throw new Error("Stock: ไม่พบชีทที่มีหัวตาราง โรงงาน / ที่เก็บสินค้า / วัสดุ / ไม่จำกัด หรือชีท Stock ของไฟล์คลังคลองเตย");
   return parseStockMatrix(sheet.matrix, sheet.name, options);
 }
 
