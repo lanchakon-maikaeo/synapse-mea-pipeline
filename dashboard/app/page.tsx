@@ -30,6 +30,7 @@ import {
 } from "./use-synapse-backend";
 import FifoPackagingSetupView from "./fifo-packaging-setup";
 import SourceImportCenter from "./import-center";
+import { ImportPromotionPanel } from "./import-promotion";
 import {
   DistrictPlanner,
   DistrictProgress,
@@ -6201,6 +6202,11 @@ function PageContent({
       <SourceImportCenter
         token={backend.session?.access_token ?? null}
         role={role}
+      />
+      <ImportPromotionPanel
+        token={backend.session?.access_token ?? null}
+        role={role}
+        demoMode={DEMO_MODE}
       />
       <details className="sap-legacy-preview">
         <summary>เครื่องมือทดลองนำเข้าชุดเดิม (เก็บเฉพาะในเบราว์เซอร์ ไม่บันทึกฐานข้อมูล)</summary>
