@@ -312,7 +312,7 @@ begin
     end if;
     select role::text, display_name into v_role, v_name
     from public.user_profiles where user_id = v_user_id and is_active;
-    if v_role not in ('admin', 'planner') then
+    if coalesce(v_role, '') not in ('admin', 'planner') then
       return public.m09_error(403, 'forbidden', 'Admin or planner role is required', p_request_id);
     end if;
     if upper(p_method) = 'GET' then
