@@ -79,7 +79,7 @@ create temporary table m24_health as
 select * from analytics.stock_health_at(now()) where material_id in ('M24-A', 'M24-B') and district_id = '5501';
 
 insert into m24_checks select 'warehouse-only stock file is blocked',
-  jsonb_array_length(blocked -> 'blocking') = 1 and blocked #>> '{blocking,0}' like '%ไม่มี Stock ของเขต%' from m24_state;
+  jsonb_array_length(blocked -> 'blocking') = 1 and blocked #>> '{blocking,0}' like '%ยังไม่มี Stock เขต%' from m24_state;
 insert into m24_checks select 'readiness sees district stock',
   jsonb_array_length(ready -> 'blocking') = 0 and (ready ->> 'stock_districts')::int = 1
   and ready -> 'warnings' @> '["ไฟล์ Stock มี Stock เขตไม่ครบ 18 เขต: เขตที่ไม่มีในไฟล์จะถูกคิดว่ามีของ 0"]'
@@ -92,7 +92,7 @@ insert into m24_checks select 'planner promotes',
   and (promoted #>> '{body,counts,stock_rows_skipped}')::int = 1
   and (promoted #>> '{body,counts,plans_cancelled}')::int = 1 from m24_state;
 insert into m24_checks select 'import recorded as latest succeeded',
-  exists (select 1 from ops.actual_workbook_imports where stock_checksum = repeat('c', 64) and usage_checksum = repeat('b', 64)
+  exists (select 1 from ops.actual_workbook_imports where source_counts ->> 'stock_file_sha256' = repeat('c', 64) and usage_checksum = repeat('b', 64)
     and status = 'succeeded' and attested_by = 'M24 Planner');
 insert into m24_checks select 'calculation uses new district stock (storage locations summed)',
   current_stock_qty = 42 and not source_stock_missing and snapshot_at = '2026-10-20 23:59+07'

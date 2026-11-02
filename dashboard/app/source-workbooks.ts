@@ -139,10 +139,14 @@ function monthPeriod(label: string): string | null {
   return `${cleaned.slice(2)}-${cleaned.slice(0, 2)}`;
 }
 
+/** warehouse = เฉพาะคลังคลองเตย (โรงงาน 2401) · district = เฉพาะ 18 เขต · all = ทุกแถว */
+export type StockScope = "all" | "warehouse" | "district";
+export type StockOptions = { snapshotDate?: string | null; scope?: StockScope };
+
 export function parseStockMatrix(
   matrix: string[][],
   sheet = "update-stock",
-  options: { snapshotDate?: string | null } = {},
+  options: StockOptions = {},
 ): ParsedSource {
   const header = matrix[0] ?? [];
   const headerless = isHeaderlessStockSheet(header, sheet);
@@ -150,6 +154,7 @@ export function parseStockMatrix(
     throw new Error("Stock: หัวตารางไม่ตรงกับไฟล์ Stock ที่ส่งออกจาก SAP (โรงงาน / ที่เก็บสินค้า / วัสดุ / คำอธิบายวัสดุ / ไม่จำกัด / หน่วยนับพื้นฐาน)");
   }
   const extended = headerless || headerMatches(header, STOCK_EXTENDED_HEADERS);
+  const scope = options.scope ?? "all";
   const fileDate = excelDate(String(header[10] ?? "").trim());
   const snapshot = /^\d{4}-\d{2}-\d{2}/.test(fileDate) ? fileDate : (options.snapshotDate ?? "");
   if (!/^\d{4}-\d{2}-\d{2}/.test(snapshot)) {
@@ -171,6 +176,8 @@ export function parseStockMatrix(
     const storage = cleanIdentifier(values[1], 4);
     const material = normalizeMaterial(values[2]);
     if (!plant) throw new Error(`Stock แถว ${rowNumber}: ไม่มีรหัสโรงงาน`);
+    if (scope === "warehouse" && plant !== "2401") continue;
+    if (scope === "district" && !PLANT_TO_DISTRICT[plant]) continue;
     if (material !== rawMaterial) paddedMaterials += 1;
     if (!storage) missingStorage += 1;
     const transfer = extended ? parseNumber(values[7]) ?? 0 : 0;
@@ -206,7 +213,11 @@ export function parseStockMatrix(
       },
     });
   }
-  if (!rows.length) throw new Error("Stock: ไม่พบรายการข้อมูล");
+  if (!rows.length) {
+    throw new Error(scope === "warehouse" ? "Stock คลังคลองเตย: ไม่พบแถวของโรงงาน 2401 ในไฟล์"
+      : scope === "district" ? "Stock เขต: ไม่พบแถวของโรงงาน 18 เขตในไฟล์ (ไฟล์นี้อาจเป็น Stock คลังอย่างเดียว)"
+      : "Stock: ไม่พบรายการข้อมูล");
+  }
   const warnings: string[] = [];
   if (missingStorage) warnings.push(`Stock ${missingStorage} แถวไม่มีที่เก็บสินค้า: เก็บไว้ด้วยรหัส <missing>`);
   if (duplicates) {
@@ -223,6 +234,7 @@ export function parseStockMatrix(
     metadata: {
       snapshot_date: snapshot.slice(0, 10),
       quantity_rule: "Unrestricted only; stock in transfer retained as evidence",
+      scope,
       snapshot_date_source: /^\d{4}-\d{2}-\d{2}/.test(fileDate) ? "workbook K1" : "operator / file name",
       layout: headerless ? "warehouse_workbook_stock_sheet" : extended ? "prepared_11_columns" : "sap_6_columns",
       district_rows: rows.filter((row) => row.payload.district_id).length,
@@ -327,7 +339,7 @@ export function parseUsageMatrix(matrix: string[][], sheet = "Check CMP"): Parse
 
 export function readStockWorkbook(
   bytes: Uint8Array,
-  options: { snapshotDate?: string | null } = {},
+  options: StockOptions = {},
 ): ParsedSource {
   const sheet = findSheet(bytes, STOCK_HEADERS, "update-stock", isHeaderlessStockSheet);
   if (!sheet) throw new Error("Stock: ไม่พบชีทที่มีหัวตาราง โรงงาน / ที่เก็บสินค้า / วัสดุ / ไม่จำกัด หรือชีท Stock ของไฟล์คลังคลองเตย");

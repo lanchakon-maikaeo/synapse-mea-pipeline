@@ -494,7 +494,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,te
 .sap-legacy-preview>summary{cursor:pointer;color:#134f99;font-size:13px;font-weight:600}
 .sap-legacy-preview>.import-page{margin-top:16px}
 @media(max-width:900px){.sap-import-files,.sap-import-files.single{grid-template-columns:1fr}.sap-import-counts{grid-template-columns:1fr}.sap-import-changes>div,.sap-import-history-detail>div{grid-template-columns:1fr}.sap-import-run{align-items:start;flex-direction:column}}
-.source-import-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.source-import-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
 .source-import-card{display:grid;align-content:start;gap:8px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fbfdff}
 .source-import-card.is-ready{border-color:#9fd9bd;background:#f6fcf9}
 .source-import-card.has-error{border-color:#f1b3ab;background:#fff7f6}
@@ -569,7 +569,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,te
 .summary-table>thead th small{display:block;font-weight:400;color:#798ba0;font-size:9.5px}
 @media(max-width:1300px){.summary-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:900px){.summary-files{grid-template-columns:repeat(2,minmax(0,1fr))}.summary-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.summary-tools>input{min-width:0;width:100%}}
-@media(max-width:1100px){.source-import-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.source-diff-counts{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1300px){.source-import-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:1100px){.source-import-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.source-diff-counts{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:560px){.source-import-grid,.source-diff-counts{grid-template-columns:1fr}.source-import-actions .btn,.source-commit-row .btn{width:100%}}
 
 /* District-by-district planning (คำนวณการจ่ายทีละเขต) */

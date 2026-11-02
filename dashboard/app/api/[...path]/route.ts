@@ -453,7 +453,8 @@ async function handle(request: Request) {
     path === "/v1/data-inputs/vmi" ||
     path === "/v1/data-inputs/vmi/context";
   const transportPath = path.startsWith("/v1/transport/");
-  const sourceImportPath = path.startsWith("/v1/source-imports/");
+  // /v1/source-imports/promotion (M24) lives in m09_dispatch; the rest is the Import Center dispatcher.
+  const sourceImportPath = path.startsWith("/v1/source-imports/") && path !== "/v1/source-imports/promotion";
   const dispatcher = sourceImportPath
     ? "srcimp_dispatch"
     : transportPath

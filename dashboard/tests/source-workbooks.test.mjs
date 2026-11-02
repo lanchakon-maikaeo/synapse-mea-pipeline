@@ -207,3 +207,19 @@ test("warehouse workbook: headerless Stock sheet among many sheets, date from th
   assert.equal(warehouse.warehouse_id, "WH-KT");
   assert.equal(warehouse.stock_in_transfer_qty, 4);
 });
+
+test("stock scope: warehouse card keeps plant 2401, district card keeps the 18 district plants", () => {
+  const matrix = [
+    stockHeader,
+    ["5501", "1", "15800100148", "TR", "12", "EA", "100", "0"],
+    ["2401", "0001", "592038410000", "Fuse", "655", "EA", "", "0"],
+    ["2401", "0002", "592038410000", "Fuse", "5", "EA", "", "0"],
+    ["9999", "", "1", "Other", "3", "EA", "", "0"],
+  ];
+  const wh = parseStockMatrix(matrix, "update-stock", { scope: "warehouse" });
+  assert.deepEqual(wh.rows.map((r) => r.payload.sap_plant_code), ["2401", "2401"]);
+  const district = parseStockMatrix(matrix, "update-stock", { scope: "district" });
+  assert.deepEqual(district.rows.map((r) => r.payload.district_id), ["5501"]);
+  assert.equal(district.metadata.scope, "district");
+  assert.throws(() => parseStockMatrix([stockHeader, ["2401", "0001", "1", "x", "1", "EA"]], "s", { scope: "district" }), /Stock เขต/);
+});
