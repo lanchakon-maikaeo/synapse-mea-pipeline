@@ -36,7 +36,7 @@ type Slot = {
   progress: string;
 };
 
-const ORDER: SourceKind[] = ["stock", "contracts", "receipts_105", "usage"];
+const ORDER: SourceKind[] = ["stock", "district_stock", "contracts", "receipts_105", "usage"];
 
 const SOURCES: Record<SourceKind, {
   title: string;
@@ -46,11 +46,18 @@ const SOURCES: Record<SourceKind, {
   hint: string;
 }> = {
   stock: {
-    title: "Stock (SAP)",
+    title: "Stock คลังคลองเตย",
     cadence: "ทุกวัน",
-    use: "Stock ทุกโรงงาน: คลังคลองเตย + 18 เขต · ต้องมี Stock เขตจึงคำนวณการจ่ายได้",
+    use: "Stock คลังคลองเตย (โรงงาน 2401) · ใช้ดูของพร้อมจ่าย · ระบบเก็บเฉพาะแถวโรงงาน 2401",
     accept: ".xlsx",
-    hint: "Stock.xlsx ชีท update-stock (วันที่ในช่อง K1) หรือไฟล์ SAP ทุกโรงงาน",
+    hint: "Stock_update_วว.ดด.ปป.XLSX จาก SAP (คลังคลองเตย 2401)",
+  },
+  district_stock: {
+    title: "Stock เขต",
+    cadence: "ก่อนคำนวณ",
+    use: "Stock ที่ 18 เขต · ใช้คำนวณว่าเขตมีของพอใช้กี่เดือน · ระบบเก็บเฉพาะแถวโรงงานของเขต",
+    accept: ".xlsx",
+    hint: "Stock.xlsx ชีท update-stock (วันที่ในช่อง K1)",
   },
   contracts: {
     title: "รวมสัญญา",
@@ -143,7 +150,7 @@ function statusLabel(run: ImportRun) {
 
 export default function SourceImportCenter({ token, role }: { token: string | null; role: Role }) {
   const [slots, setSlots] = useState<Record<SourceKind, Slot>>(() => ({
-    stock: emptySlot(), contracts: emptySlot(), receipts_105: emptySlot(), usage: emptySlot(),
+    stock: emptySlot(), district_stock: emptySlot(), contracts: emptySlot(), receipts_105: emptySlot(), usage: emptySlot(),
   }));
   const [busy, setBusy] = useState(false);
   const [backend, setBackend] = useState<"checking" | "ready" | "missing">("checking");
@@ -198,7 +205,7 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
       ? slots[kind].parsed.rows.map((row) => row.payload)
       : savedRows[kind] ?? [];
     const input: SummaryInput = {
-      stock: rowsFor("stock"),
+      stock: [...rowsFor("stock"), ...rowsFor("district_stock")],
       contracts: rowsFor("contracts"),
       receipts: rowsFor("receipts_105"),
       usage: rowsFor("usage"),
@@ -243,8 +250,11 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
           };
         } else {
           const bytes = await file.arrayBuffer();
-          const result = kind === "stock"
-            ? readStockWorkbook(new Uint8Array(bytes), { snapshotDate: slots.stock.snapshotDate || null })
+          const result = kind === "stock" || kind === "district_stock"
+            ? readStockWorkbook(new Uint8Array(bytes), {
+                snapshotDate: slots[kind].snapshotDate || null,
+                scope: kind === "stock" ? "warehouse" : "district",
+              })
             : readUsageWorkbook(new Uint8Array(bytes));
           parsed = {
             name: file.name, size: file.size, sha256: await sha256Hex(bytes),
@@ -388,16 +398,16 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
                       const file = event.target.files?.[0] ?? null;
                       patch(kind, {
                         file, parsed: null, run: null, error: "", progress: "",
-                        ...(kind === "stock" ? { snapshotDate: file ? dateFromFileName(file.name) ?? "" : "" } : {}),
+                        ...(kind === "stock" || kind === "district_stock" ? { snapshotDate: file ? dateFromFileName(file.name) ?? "" : "" } : {}),
                       });
                     }} />
                 </label>
                 <small>{slot.file?.name ?? source.hint}</small>
-                {kind === "stock" && slot.file && (
+                {(kind === "stock" || kind === "district_stock") && slot.file && (
                   <label className="source-date">
-                    วันที่ของข้อมูล Stock
+                    วันที่ของข้อมูล Stock (เว้นว่างได้ถ้าไฟล์มีวันที่ในช่อง K1)
                     <input type="date" value={slot.snapshotDate} disabled={busy}
-                      onChange={(event) => patch("stock", { snapshotDate: event.target.value, parsed: null, run: null })} />
+                      onChange={(event) => patch(kind, { snapshotDate: event.target.value, parsed: null, run: null })} />
                   </label>
                 )}
                 {slot.progress && <small className="source-progress">{slot.progress}</small>}

@@ -1,6 +1,6 @@
 import { publicConfig } from "./lib";
 
-export type SourceKind = "stock" | "contracts" | "receipts_105" | "usage";
+export type SourceKind = "stock" | "district_stock" | "contracts" | "receipts_105" | "usage";
 export type ChangeType = "new" | "changed" | "reappeared" | "missing";
 
 export type ImportSummary = {
