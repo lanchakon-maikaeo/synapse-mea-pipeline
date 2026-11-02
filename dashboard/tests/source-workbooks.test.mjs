@@ -177,3 +177,33 @@ test("18-digit contract materials are normalized to 12 digits", async () => {
   assert.equal(rows[0].payload.material_code, "597031193600");
   assert.equal(rows[0].payload.source_material_code, "000000597031193600");
 });
+
+test("warehouse workbook: headerless Stock sheet among many sheets, date from the card", () => {
+  const cell = (ref, value) => typeof value === "number"
+    ? `<c r="${ref}"><v>${value}</v></c>`
+    : `<c r="${ref}" t="inlineStr"><is><t>${value}</t></is></c>`;
+  const letters = "ABCDEFGHIJK";
+  const row = (number, values) => `<row r="${number}">${values.map((value, index) =>
+    value === "" ? "" : cell(`${letters[index]}${number}`, value)).join("")}</row>`;
+  const sheet = (rows) => `<worksheet><sheetData>${rows}</sheetData></worksheet>`;
+  const bytes = zipSync({
+    "xl/workbook.xml": strToU8('<workbook><sheets><sheet name="ตารางเดินรถ ต.ค." r:id="rId1"/><sheet name="Stock" r:id="rId2"/></sheets></workbook>'),
+    "xl/_rels/workbook.xml.rels": strToU8('<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>'),
+    "xl/worksheets/sheet1.xml": strToU8(sheet(row(1, ["วัน", "รถ"]))),
+    "xl/worksheets/sheet2.xml": strToU8(sheet(
+      row(1, ["", "", "", "", "", "", "", "", "วัสดุ + โรงงาน", "วัสดุ + โรงงาน + ที่เก็บ"])
+      + row(2, [5501, 1, 15800100148, "TR", 12, "EA", 100, 0, "158001001485501", "1580010014855011"])
+      + row(3, [2401, 1, 592038410000, "Fuse", 655, "EA", 0, 4, "x", "y"]))),
+  });
+  assert.throws(() => readStockWorkbook(bytes), /วันที่/);
+  const parsed = readStockWorkbook(bytes, { snapshotDate: "2026-10-31" });
+  assert.equal(parsed.sheet, "Stock");
+  assert.equal(parsed.metadata.layout, "warehouse_workbook_stock_sheet");
+  assert.equal(parsed.metadata.snapshot_date, "2026-10-31");
+  const [district, warehouse] = parsed.rows.map((r) => r.payload);
+  assert.equal(district.district_id, "5501");
+  assert.equal(district.material_id, "015800100148");
+  assert.equal(district.unrestricted_qty, 12);
+  assert.equal(warehouse.warehouse_id, "WH-KT");
+  assert.equal(warehouse.stock_in_transfer_qty, 4);
+});

@@ -279,6 +279,7 @@ export const m09OpenApi = {
     "/v1/history": get("Unified operation history (events, weekly, by district)"),
     "/v1/delivery/calendar": { ...get("Delivery calendar, settings and upcoming extra requests"), ...post("Update zone weekdays and cut-off settings") },
     "/v1/ad-hoc/preview": post("Preview delivery slot and abnormal-quantity check for an extra request"),
+    "/v1/source-imports/promotion": { ...get("Readiness of the latest committed Stock + CMP files"), ...post("Send them to the calculation") },
     "/v1/dispatch/demand": get("Week demand per district: pallets, weight, promise day, distance (query: week)"),
     "/v1/dispatch/plans": { ...get("Saved dispatch plans for a week; districts see their own confirmed trips"), ...post("Save a dispatch draft or confirm it") },
     "/v1/dispatch/config": post("Update dispatch settings, truck payload and district pick-up profile"),
