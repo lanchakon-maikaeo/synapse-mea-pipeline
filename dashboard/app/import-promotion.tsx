@@ -8,8 +8,10 @@ import { apiRequest, formatNumber } from "./lib";
 type FileInfo = { import_run_id: string; file_name: string; committed_at: string; sha256: string } | null;
 type Readiness = {
   stock_file: FileInfo;
+  district_stock_file?: FileInfo;
   usage_file: FileInfo;
   stock_date: string | null;
+  district_stock_date?: string | null;
   usage_as_of: string | null;
   stock_rows: number;
   stock_district_rows: number;
@@ -52,11 +54,12 @@ export function ImportPromotionPanel({ token, role, demoMode }: { token: string 
       setReady({
         stock_file: { import_run_id: "d1", file_name: "Stock update 20.10.69.XLSX", committed_at: new Date().toISOString(), sha256: "" },
         usage_file: { import_run_id: "d2", file_name: "อัตราการใช้งาน.xlsx", committed_at: new Date().toISOString(), sha256: "" },
+        district_stock_file: null, district_stock_date: null,
         stock_date: "2026-10-20", usage_as_of: "2026-09-30", stock_rows: 250, stock_district_rows: 0, stock_districts: 0,
         stock_warehouse_rows: 250, usage_rows: 6164, usage_district_rows: 5926, usage_districts: 18, materials_not_in_master: 0,
         current_import: { finished_at: "2026-07-24T10:00:00+07:00", attested_by: "pipeline", source: "workbook_pipeline" },
         already_promoted: false,
-        blocking: ["ไฟล์ Stock ไม่มี Stock ของเขต (มีเฉพาะคลัง) ถ้าส่งเข้าไป ระบบจะคิดว่าทุกเขตมีของ 0 และสั่งจ่ายเต็ม 6 เดือน ต้องใช้ไฟล์ Stock ทุกโรงงาน"],
+        blocking: ["ยังไม่มี Stock เขต: นำเข้าไฟล์ Stock (ชีท update-stock) ที่การ์ด Stock เขต แล้วกดบันทึก"],
         warnings: [],
       });
       return;
@@ -117,11 +120,16 @@ export function ImportPromotionPanel({ token, role, demoMode }: { token: string 
 
       <div className="ip-grid">
         <article>
-          <small>ไฟล์ Stock ล่าสุด</small>
+          <small>Stock คลังคลองเตย</small>
           <b>{ready.stock_file?.file_name ?? "—"}</b>
-          <p>ยอด ณ {thaiDate(ready.stock_date)} · คลัง {formatNumber(ready.stock_warehouse_rows)} รายการ</p>
+          <p>ยอด ณ {thaiDate(ready.stock_date)} · {formatNumber(ready.stock_warehouse_rows)} รายการ</p>
+        </article>
+        <article>
+          <small>Stock เขต</small>
+          <b>{ready.district_stock_file?.file_name ?? (ready.stock_district_rows ? ready.stock_file?.file_name : "ยังไม่มี")}</b>
+          <p>ยอด ณ {thaiDate(ready.district_stock_date ?? null)}</p>
           <p className={ready.stock_districts === 18 ? "ok" : "bad"}>
-            Stock เขต {formatNumber(ready.stock_district_rows)} รายการ · {ready.stock_districts}/18 เขต
+            {formatNumber(ready.stock_district_rows)} รายการ · {ready.stock_districts}/18 เขต
           </p>
         </article>
         <article>
@@ -150,7 +158,7 @@ export function ImportPromotionPanel({ token, role, demoMode }: { token: string 
       {!ready.already_promoted && !blocked && (
         confirming ? (
           <div className="ip-confirm">
-            <p>ยืนยันส่ง Stock ยอด ณ {thaiDate(ready.stock_date)} และ CMP ถึง {thaiDate(ready.usage_as_of)} เข้าระบบคำนวณ? แผนที่ยังไม่ล็อกซึ่งคำนวณจากข้อมูลชุดเก่าจะถูกยกเลิก</p>
+            <p>ยืนยันส่ง Stock คลัง ณ {thaiDate(ready.stock_date)}, Stock เขต ณ {thaiDate(ready.district_stock_date ?? null)} และ CMP ถึง {thaiDate(ready.usage_as_of)} เข้าระบบคำนวณ? แผนที่ยังไม่ล็อกซึ่งคำนวณจากข้อมูลชุดเก่าจะถูกยกเลิก</p>
             <div className="um-actions">
               <button type="button" className="btn ghost" onClick={() => setConfirming(false)}>ยกเลิก</button>
               <button type="button" className="btn primary" disabled={busy} onClick={() => void promote()}>ยืนยันส่ง</button>
