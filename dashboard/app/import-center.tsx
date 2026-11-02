@@ -48,9 +48,9 @@ const SOURCES: Record<SourceKind, {
   stock: {
     title: "Stock (SAP)",
     cadence: "ทุกวัน",
-    use: "Stock คลังคลองเตย (และ Stock เขตถ้าไฟล์มี) · ใช้ดูของพร้อมจ่ายและคำนวณการเติม",
+    use: "Stock ทุกโรงงาน: คลังคลองเตย + 18 เขต · ต้องมี Stock เขตจึงคำนวณการจ่ายได้",
     accept: ".xlsx",
-    hint: "Stock_update_วว.ดด.ปป.XLSX จาก SAP (คลังคลองเตย 2401/0001)",
+    hint: "Stock.xlsx ชีท update-stock (วันที่ในช่อง K1) หรือไฟล์ SAP ทุกโรงงาน",
   },
   contracts: {
     title: "รวมสัญญา",
