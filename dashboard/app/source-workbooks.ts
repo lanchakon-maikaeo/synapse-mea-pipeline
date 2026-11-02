@@ -120,12 +120,13 @@ function findSheet(
 }
 
 /**
- * ชีท "Stock" ในไฟล์คลังคลองเตย.xlsx: วางยอดจาก SAP ไว้โดยไม่มีหัวคอลัมน์ A–H
+ * ชีท "update-stock" (Google Sheets ที่ทีมวางยอด SAP) และชีท "Stock" ในไฟล์คลังคลองเตย.xlsx
+ * ที่ดึงมาจากชีทนั้น: วางยอดจาก SAP ไว้โดยไม่มีหัวคอลัมน์ A–H, K1 = วันที่ของยอด (ถ้ามี)
  * (มีแค่ I = วัสดุ + โรงงาน, J = วัสดุ + โรงงาน + ที่เก็บ) คอลัมน์เรียงแบบเดียวกับไฟล์ SAP
  * 8 คอลัมน์: โรงงาน / ที่เก็บ / วัสดุ / คำอธิบาย / ไม่จำกัด / หน่วย / ไม่จำกัดค่า / การส่ง/การโอน
  */
 export function isHeaderlessStockSheet(row: string[] | undefined, name = "Stock") {
-  if (!/^stock$/i.test(name.trim())) return false;
+  if (!/^(stock|update-stock)$/i.test(name.trim())) return false;
   const cells = (row ?? []).map((cell) => headerCell(cell));
   return cells.slice(0, 8).every((cell) => cell === "") && cells[8] === "วัสดุ + โรงงาน";
 }
