@@ -1360,3 +1360,13 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .cl-form label{display:grid;gap:3px;font-size:11px;color:#41556b}
 .cl-form input{min-height:34px;padding:0 10px;border:1px solid #cfdbe8;border-radius:9px;font:inherit;font-size:12px}
 @media (max-width:900px){.cl-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.source-history-filters{display:flex;flex-wrap:wrap;gap:12px}
+.source-history-filters label{display:grid;gap:4px;color:#475569;font-size:12px;font-weight:600}
+.source-history-filters select{min-width:240px;min-height:38px;padding:0 10px;border:1px solid #cfdbe8;border-radius:10px;background:#fff;font:inherit;font-size:13px}
+.source-history-table{display:grid;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+.source-history-head,.source-history-row{display:grid;grid-template-columns:minmax(200px,2fr) 110px 130px 80px 150px minmax(160px,1.4fr);gap:10px;align-items:center;padding:10px 12px;font-size:12px;color:#334155}
+.source-history-head{background:#f8fafc;color:#64748b;font-weight:700}
+.source-history-row{border-top:1px solid #edf2f7}
+.source-history-row small{display:block;color:#64748b;font-size:11px;overflow-wrap:anywhere}
+.source-history-row b{color:#0f172a}
+@media (max-width:900px){.source-history-head{display:none}.source-history-row{grid-template-columns:1fr 1fr}}
