@@ -445,7 +445,6 @@ async function handle(request: Request) {
   const query = Object.fromEntries(url.searchParams.entries());
   const legacySourcePath =
     path === "/v1/reference/materials" ||
-    path === "/v1/warehouse-stock" ||
     path === "/v1/data-sources/legacy/status" ||
     path === "/v1/admin/import/legacy";
   const inputPipelinePath =
@@ -453,6 +452,7 @@ async function handle(request: Request) {
     path === "/v1/data-inputs/vmi" ||
     path === "/v1/data-inputs/vmi/context";
   const transportPath = path.startsWith("/v1/transport/");
+  // /v1/warehouse-stock goes to m09_dispatch (M26 adds released passed-inspection quantity to the M11 result).
   // /v1/source-imports/promotion (M24) lives in m09_dispatch; the rest is the Import Center dispatcher.
   const sourceImportPath = path.startsWith("/v1/source-imports/") && path !== "/v1/source-imports/promotion";
   const dispatcher = sourceImportPath

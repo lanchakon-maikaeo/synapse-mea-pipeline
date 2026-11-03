@@ -233,7 +233,10 @@ export const m09OpenApi = {
     "/v1/contracts": get("Contract status"),
     "/v1/data-quality": get("Data quality summary"),
     "/v1/reference/materials": get("Supabase material master"),
-    "/v1/warehouse-stock": get("Latest real warehouse stock snapshots"),
+    "/v1/warehouse-stock": get("Latest real warehouse stock snapshots, plus planner-released passed-inspection quantity"),
+    "/v1/contract-lots": get("Contract installments matched with 105 and Khlong Toei stock"),
+    "/v1/contract-lots/confirm": post("Planner releases a passed-inspection installment without 105"),
+    "/v1/contract-lots/cancel": post("Cancel a passed-inspection release"),
     "/v1/data-sources/legacy/status": get(
       "Legacy actual-source lineage and readiness",
     ),

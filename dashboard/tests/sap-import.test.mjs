@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { zipSync, strToU8 } from "fflate";
 import { parseSapCsv, parseSapMatrix, sapColumns } from "../app/sap-import.ts";
-import { parseReceipt14, readSapWorkbook } from "../app/sap-xlsx.ts";
+import { parseReceipt13, parseReceipt14, parseReceipt17, readSapWorkbook, receipt13, receipt17 } from "../app/sap-xlsx.ts";
 
 const csvLine = (values) => values.map((value) =>
   `"${String(value).replaceAll('"', '""')}"`).join(",");
@@ -103,4 +103,26 @@ test("raw 14-column SAP 105 workbook maps without treating SLoc as warehouse loc
   assert.equal(parsed.rows[0].payload.unit, "EA");
   assert.equal(parsed.rows[0].payload.sap_sloc, "00001");
   assert.equal(parsed.rows[0].payload.storage_location, "");
+});
+
+test("17-column SAP 105 workbook keeps the PO line (งวด) and the same receipt key as the 13-column export", () => {
+  const values17 = ["614526030700", "STR JOINT", "1400005806", "1", "500", "KIT", "2401", "ฝพด.พัสดุกลาง",
+    "2026-07-14", "2026-07-14", "2026-07-10", "2", "DDS69109", "0", "5000784534", "", "105"];
+  const file = readSapWorkbook(workbook(receipt17, values17), "receipts_105");
+  assert.equal(file.layout, "sap_105_17");
+  const parsed = parseReceipt17(file.matrix);
+  assert.equal(parsed.rows.length, 1);
+  const payload = parsed.rows[0].payload;
+  assert.equal(payload.po_item, "2");
+  assert.equal(payload.material_document, "5000784534");
+  assert.equal(payload.gr_gi_slip_no, "DDS69109");
+  assert.equal(payload.source_layout, "sap_105_17");
+  const values13 = [...values17.slice(0, 12), "5000784534"];
+  const same = parseReceipt13([receipt13, values13]).rows[0].payload;
+  for (const key of ["material_document", "material_code", "purchase_order", "gr_gi_slip", "item", "storage_location", "posting_date"]) {
+    assert.equal(payload[key], same[key], key);
+  }
+  const other = parseReceipt17([receipt17, values17, [...values17.slice(0, 14), "5000784535", "", "106"]]);
+  assert.equal(other.rows.length, 1);
+  assert.equal(other.warnings.at(-1), "รับเข้า 105: ข้าม 1 แถวที่ประเภทการเคลื่อนย้ายไม่ใช่ 105");
 });
