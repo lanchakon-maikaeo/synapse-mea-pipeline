@@ -1,5 +1,5 @@
 import { parseSapCsv, parseSapMatrix, type SapKind, type SapRow } from "./sap-import";
-import { parseReceipt13, parseReceipt14, readSapWorkbook } from "./sap-xlsx";
+import { parseReceipt13, parseReceipt14, parseReceipt17, readSapWorkbook } from "./sap-xlsx";
 
 export async function readSourceFile(file: File, kind: SapKind, contractRows: SapRow[] = []) {
   const xlsx = file.name.toLowerCase().endsWith(".xlsx");
@@ -14,7 +14,11 @@ export async function readSourceFile(file: File, kind: SapKind, contractRows: Sa
   let warnings: string[] = [];
   if (xlsx) {
     const workbook = readSapWorkbook(new Uint8Array(bytes), kind);
-    if (workbook.layout === "sap_105_13") {
+    if (workbook.layout === "sap_105_17") {
+      const parsed = parseReceipt17(workbook.matrix);
+      rows = parsed.rows;
+      warnings = parsed.warnings;
+    } else if (workbook.layout === "sap_105_13") {
       const parsed = parseReceipt13(workbook.matrix);
       rows = parsed.rows;
       warnings = parsed.warnings;
