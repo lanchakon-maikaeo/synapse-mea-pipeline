@@ -111,6 +111,11 @@ const FIELD_LABELS: Record<string, string> = {
   as_of_date: "ข้อมูลถึง",
 };
 
+const dayKey = (value: string) =>
+  new Date(value).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+const dayLabel = (key: string) =>
+  new Date(`${key}T00:00:00`).toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+
 const emptySlot = (): Slot => ({ file: null, snapshotDate: "", parsed: null, error: "", run: null, progress: "" });
 
 async function sha256Hex(bytes: ArrayBuffer) {
@@ -161,12 +166,14 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
   const [viewer, setViewer] = useState<{ runId: string; type: ChangeType; rows: ChangeRow[]; loading: boolean } | null>(null);
   const [notice, setNotice] = useState("");
   const [savedRows, setSavedRows] = useState<Partial<Record<SourceKind, Array<Record<string, unknown>>>>>({});
+  const [historyDay, setHistoryDay] = useState("");
+  const [historyKind, setHistoryKind] = useState<SourceKind | "all">("all");
   const canCommit = role === "admin";
 
   const patch = (kind: SourceKind, value: Partial<Slot>) =>
     setSlots((existing) => ({ ...existing, [kind]: { ...existing[kind], ...value } }));
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (kinds: SourceKind[] = ORDER) => {
     if (!token) {
       setBackend("missing");
       return;
@@ -174,16 +181,29 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
     try {
       const [state, runs] = await Promise.all([
         sourceImportApi.current(token),
-        sourceImportApi.runs(token, 30),
+        sourceImportApi.runs(token, 100),
       ]);
       setCurrent(state);
       setHistory(runs);
       setBackend("ready");
       setBackendError("");
+      // Files uploaded earlier and still waiting for confirmation come back
+      // after a page reload, so they can be confirmed without uploading again.
+      setSlots((existing) => {
+        const next = { ...existing };
+        for (const kind of ORDER) {
+          if (next[kind].run || next[kind].parsed) continue;
+          const waiting = runs
+            .filter((run) => run.source_kind === kind && run.status === "staged" && !run.is_stale)
+            .sort((left, right) => right.created_at.localeCompare(left.created_at))[0];
+          if (waiting) next[kind] = { ...next[kind], run: waiting };
+        }
+        return next;
+      });
       // Accepted rows feed the material summary when no file is selected.
-      const loaded = await Promise.all(ORDER.map(async (kind) =>
+      const loaded = await Promise.all(kinds.map(async (kind) =>
         [kind, state[kind]?.accepted_rows ? await sourceImportApi.currentRows(token, kind).catch(() => []) : []] as const));
-      setSavedRows(Object.fromEntries(loaded));
+      setSavedRows((existing) => ({ ...existing, ...Object.fromEntries(loaded) }));
     } catch (reason) {
       if (isImportBackendMissing(reason)) {
         setBackend("missing");
@@ -293,15 +313,16 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
     const run = slots[kind].run;
     if (!token || !run) return;
     setBusy(true);
+    patch(kind, { error: "", progress: "กำลังบันทึกลงฐานข้อมูล… (ไฟล์ใหญ่อาจใช้เวลา 1–2 นาที อย่าปิดหน้านี้)" });
     try {
       const committed = await sourceImportApi.commit(token, run.import_run_id, Boolean(acknowledged[run.import_run_id]));
-      patch(kind, { run: committed });
+      patch(kind, { run: committed, progress: "" });
       setNotice(`${SOURCES[kind].title}: บันทึกลงฐานข้อมูลพร้อมประวัติแล้ว`);
     } catch (reason) {
-      patch(kind, { error: reason instanceof Error ? reason.message : "ยืนยันไม่สำเร็จ" });
+      patch(kind, { error: reason instanceof Error ? reason.message : "ยืนยันไม่สำเร็จ", progress: "" });
     }
     setBusy(false);
-    void refresh();
+    void refresh([kind]);
   };
 
   const discard = async (kind: SourceKind) => {
@@ -311,6 +332,7 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
     try {
       await sourceImportApi.discard(token, run.import_run_id, "ผู้ใช้ยกเลิกหลังตรวจผลเทียบ");
       patch(kind, { run: null, parsed: null, file: null });
+      setSlots((existing) => ({ ...existing, [kind]: { ...existing[kind], run: null } }));
     } catch (reason) {
       patch(kind, { error: reason instanceof Error ? reason.message : "ยกเลิกไม่สำเร็จ" });
     }
@@ -493,6 +515,7 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
                   </button>
                 </div>
               )}
+              {slots[kind].progress && <p className="source-progress" role="status">{slots[kind].progress}</p>}
               {slots[kind].error && <p className="form-error" role="alert">{slots[kind].error}</p>}
             </div>
           );
@@ -503,28 +526,69 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
         {backend === "ready" && (
           <div className="sap-import-history">
             <h4>ประวัติการนำเข้า</h4>
-            <p>ทุกรอบเก็บชื่อไฟล์ รหัสตรวจสอบไฟล์ (SHA-256) ผู้นำเข้า ผู้ยืนยัน และรายการที่เปลี่ยน</p>
-            {history.length === 0 ? <p>ยังไม่มีประวัติ</p> : history.map((run) => (
-              <div key={run.import_run_id}>
-                <div className="sap-import-run">
-                  <div>
-                    <strong>
-                      {SOURCES[run.source_kind].title} · {run.file_name}{" "}
-                      <span className={`sap-state ${statusLabel(run)[1]}`}>{statusLabel(run)[0]}</span>
-                    </strong>
-                    <small>
-                      {formatDateTime(run.committed_at ?? run.created_at)} · {run.committed_by_name ?? run.created_by_name ?? "—"}
-                      {" · "}{formatNumber(run.expected_row_count)} รายการ
-                      {run.status !== "uploading" && run.summary.total_rows !== undefined &&
-                        ` · ใหม่ ${formatNumber(run.summary.new)} · เปลี่ยน ${formatNumber(run.summary.changed)} · ไม่พบ ${formatNumber(run.summary.missing)}`}
-                    </small>
-                    <small>SHA-256 {run.file_sha256.slice(0, 16)}…</small>
+            <p>ทุกรอบเก็บชื่อไฟล์ รหัสตรวจสอบไฟล์ (SHA-256) ผู้นำเข้า ผู้ยืนยัน และรายการที่เปลี่ยน · เลือกวันที่เพื่อดูรอบนำเข้าของวันนั้น</p>
+            {history.length === 0 ? <p>ยังไม่มีประวัติ</p> : (() => {
+              const days = [...new Set(history.map((run) => dayKey(run.committed_at ?? run.created_at)))].sort().reverse();
+              const day = days.includes(historyDay) ? historyDay : days[0];
+              const runs = history
+                .filter((run) => dayKey(run.committed_at ?? run.created_at) === day)
+                .filter((run) => historyKind === "all" || run.source_kind === historyKind)
+                .sort((left, right) => ORDER.indexOf(left.source_kind) - ORDER.indexOf(right.source_kind) ||
+                  (right.committed_at ?? right.created_at).localeCompare(left.committed_at ?? left.created_at));
+              return (
+                <>
+                  <div className="source-history-filters">
+                    <label>
+                      <span>วันที่นำเข้า</span>
+                      <select value={day} onChange={(event) => setHistoryDay(event.target.value)}>
+                        {days.map((key) => {
+                          const count = history.filter((run) => dayKey(run.committed_at ?? run.created_at) === key);
+                          const done = count.filter((run) => run.status === "committed").length;
+                          return <option key={key} value={key}>{dayLabel(key)} · {count.length} ไฟล์ (บันทึกแล้ว {done})</option>;
+                        })}
+                      </select>
+                    </label>
+                    <label>
+                      <span>ประเภทไฟล์</span>
+                      <select value={historyKind} onChange={(event) => setHistoryKind(event.target.value as SourceKind | "all")}>
+                        <option value="all">ทุกประเภท</option>
+                        {ORDER.map((kind) => <option key={kind} value={kind}>{SOURCES[kind].title}</option>)}
+                      </select>
+                    </label>
                   </div>
-                  {run.status === "committed" && changeButtons(run)}
-                </div>
-                {changeList(run)}
-              </div>
-            ))}
+                  {runs.length === 0 ? <p>ไม่มีไฟล์ประเภทนี้ในวันที่เลือก</p> : (
+                    <div className="source-history-table">
+                      <div className="source-history-head">
+                        <span>ไฟล์</span><span>สถานะ</span><span>เวลา · ผู้ทำ</span><span>รายการ</span><span>ใหม่ / เปลี่ยน / ไม่พบ</span><span></span>
+                      </div>
+                      {runs.map((run) => (
+                        <div key={run.import_run_id}>
+                          <div className="source-history-row">
+                            <span>
+                              <b>{SOURCES[run.source_kind].title}</b>
+                              <small title={`SHA-256 ${run.file_sha256}`}>{run.file_name}</small>
+                            </span>
+                            <span><span className={`sap-state ${statusLabel(run)[1]}`}>{statusLabel(run)[0]}</span></span>
+                            <span>
+                              {new Date(run.committed_at ?? run.created_at).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                              <small>{run.committed_by_name ?? run.created_by_name ?? "—"}</small>
+                            </span>
+                            <span>{formatNumber(run.expected_row_count)}</span>
+                            <span>
+                              {run.status !== "uploading" && run.summary.total_rows !== undefined
+                                ? `${formatNumber(run.summary.new)} / ${formatNumber(run.summary.changed)} / ${formatNumber(run.summary.missing)}`
+                                : "—"}
+                            </span>
+                            <span>{run.status === "committed" && changeButtons(run)}</span>
+                          </div>
+                          {changeList(run)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
       </div>
