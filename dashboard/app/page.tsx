@@ -41,6 +41,7 @@ import { DistrictConfirmationBoard } from "./district-confirmation";
 import { PlanSubmitModal, type PlannerSelectionPayload } from "./plan-submit";
 import { PageHero } from "./page-hero";
 import { PackingEntryView } from "./packing-entry";
+import { ContractLotsView } from "./contract-lots";
 import { LegacyHistoryImportView } from "./legacy-history-import";
 import { OperationHistoryView } from "./operation-history";
 import { demoHistoryPayload } from "./history-demo";
@@ -85,6 +86,7 @@ type ViewKey =
   | "import"
   | "fifo_setup"
   | "packing"
+  | "lots"
   | "legacy_history"
   | "history"
   | "users"
@@ -172,6 +174,7 @@ const navByRole: Record<Role, NavGroup[]> = {
     {
       label: "คลังสินค้า",
       items: [
+        ["lots", "ของเข้าคลังตามสัญญา", "▧"],
         ["delivery", "ปฏิทินส่งของ", "▣"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
@@ -203,6 +206,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "คำนวณการจ่าย", "▤"],
         ["summary", "สรุปการจ่าย", "☰"],
+        ["lots", "ของเข้าคลังตามสัญญา", "▧"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
         ["alerts", "แจ้งเตือนเบิกผิดปกติ", "⚠"],
         ["history", "ประวัติการดำเนินงาน", "☷"],
@@ -255,6 +259,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["delivery", "ปฏิทินส่งของ", "▣"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["receiving", "รับพัสดุเข้าคลัง", "＋"],
+        ["lots", "ของเข้าคลังตามสัญญา", "▧"],
         ["packing", "ข้อมูล Packing", "▧"],
         ["adhoc", "จ่ายกรณีพิเศษ", "↗"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
@@ -283,6 +288,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "แผนการจ่าย", "▤"],
+        ["lots", "ของเข้าคลังตามสัญญา", "▧"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
         ["fifo", "FIFO & พาเลท", "▦"],
         ["stock", "ข้อมูล Stock", "◫"],
@@ -425,6 +431,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "FIFO Setup",
     "FIFO, Packaging & Opening Setup",
     "ตรวจ Packing เริ่มต้นหน่วยขนถ่าย กระทบยอด และ Publish หลักฐาน FIFO ก่อนเริ่มใช้งานจริง",
+  ],
+  lots: [
+    "ของเข้าคลัง",
+    "ของเข้าคลังตามสัญญา (รวมสัญญา × 105 × Stock)",
+    "คัดเฉพาะสัญญาที่เกี่ยวกับคลองเตย · ผ่านตรวจรับและมี 105 = จ่ายได้ · ผ่านตรวจรับแต่ยังไม่ Key 105 ผู้วางแผนยืนยันจ่ายได้ และระบบบวกเข้า Stock คลองเตยให้",
   ],
   packing: [
     "ข้อมูล Packing",
@@ -3645,6 +3656,8 @@ function FifoView({
               ["วัสดุ", (row) => row.material_id],
               ["รายละเอียด", (row) => row.material_name],
               ["จำนวน", (row) => formatNumber(row.quantity_on_hand, 2)],
+              ["รวมผ่านตรวจรับ (รอ 105)", (row) =>
+                row.passed_test_qty ? `+${formatNumber(Number(row.passed_test_qty), 2)} (SAP ${formatNumber(Number(row.sap_quantity ?? 0), 2)})` : "—"],
               ["หน่วย", (row) => row.unit],
               ["สถานที่", (row) => row.location_name_th],
               ["เวลาข้อมูล", (row) => formatDateTime(row.snapshot_at)],
@@ -6220,6 +6233,15 @@ function PageContent({
         contractRows={backend.data.receiptOptions}
         materialRows={backend.data.materials}
         onPublishOpening={backend.publishFifoOpening}
+      />
+    );
+  }
+  if (view === "lots") {
+    return (
+      <ContractLotsView
+        token={backend.session?.access_token ?? null}
+        role={role}
+        demoMode={DEMO_MODE}
       />
     );
   }

@@ -1345,3 +1345,18 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .ip-confirm{display:grid;gap:8px;padding:12px 14px;border:1px solid #cfe0f5;border-radius:12px;background:#f4f9ff}
 .ip-confirm p{margin:0;font-size:13px}
 @media (max-width:900px){.ip-grid{grid-template-columns:1fr}}
+.cl-summary{grid-template-columns:repeat(5,minmax(0,1fr))}
+.cl-warn{border-color:var(--attn-line);background:#fffaf6}
+.cl-warn strong{color:var(--attn)}
+.cl-ok strong{color:var(--green)}
+.cl-bad strong{color:#b83227}
+.cl-status{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+.cl-status.warn{background:var(--attn-soft);color:var(--attn-ink)}
+.cl-status.ok{background:#eaf8f0;color:#18794e}
+.cl-status.bad{background:#fff1ef;color:#b83227}
+.cl-status.idle{background:#eef2f7;color:#506174}
+.cl-other td{opacity:.62}
+.cl-form{display:grid;gap:6px;min-width:200px}
+.cl-form label{display:grid;gap:3px;font-size:11px;color:#41556b}
+.cl-form input{min-height:34px;padding:0 10px;border:1px solid #cfdbe8;border-radius:9px;font:inherit;font-size:12px}
+@media (max-width:900px){.cl-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
