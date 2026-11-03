@@ -11,6 +11,11 @@ export const receipt13 = ["วัสดุ", "คำอธิบายวัส�
   "ปริมาณในหน่วยบันทึก", "หน่วยนับพื้นฐาน", "โรงงาน", "ชื่อ 1", "วันที่ผ่านรายการ",
   "วันที่บันทึก", "วันที่ในเอกสาร", "รายการ", "เอกสารทางวัสดุ"];
 
+// SAP 105 export (2026-11): the 13-column layout with GR/GI slip, reservation,
+// order and movement type added; material document moves to column 15.
+export const receipt17 = [...receipt13.slice(0, 12), "ใบรับ/เบิกจ่ายสินค้า", "เลขที่จอง",
+  "เอกสารทางวัสดุ", "ใบสั่ง", "ประเภทการเคลื่อนย้าย"];
+
 function xmlText(value: string): string {
   return value.replace(/&#(x[\da-f]+|\d+);|&(amp|lt|gt|quot|apos);/gi,
     (match, numeric: string | undefined, named: string | undefined) => {
@@ -96,7 +101,7 @@ function matches(headers: string[], expected: string[]): boolean {
 }
 
 export function readSapWorkbook(bytes: Uint8Array, kind: SapKind): {
-  matrix: string[][]; layout: "standard" | "sap_105_14" | "sap_105_13";
+  matrix: string[][]; layout: "standard" | "sap_105_14" | "sap_105_13" | "sap_105_17";
 } {
   const files = unzipSync(bytes);
   const sharedXml = files["xl/sharedStrings.xml"];
@@ -108,18 +113,21 @@ export function readSapWorkbook(bytes: Uint8Array, kind: SapKind): {
   for (const name of sheetNames) {
     const matrix = readWorksheet(strFromU8(files[name]), shared);
     const headerIndex = matrix.findIndex((row) => matches(row ?? [], expected) ||
-      (kind === "receipts_105" && (matches(row ?? [], receipt14) || matches(row ?? [], receipt13))));
+      (kind === "receipts_105" && (matches(row ?? [], receipt14) || matches(row ?? [], receipt13) ||
+        matches(row ?? [], receipt17))));
     if (headerIndex < 0) continue;
     const header = matrix[headerIndex];
     const layout = matches(header, expected) ? "standard"
+      : matches(header, receipt17) ? "sap_105_17"
       : matches(header, receipt13) ? "sap_105_13" : "sap_105_14";
     const width = layout === "standard" ? expected.length
+      : layout === "sap_105_17" ? receipt17.length
       : layout === "sap_105_13" ? receipt13.length : receipt14.length;
     const selected = [header.slice(0, width), ...matrix.slice(headerIndex + 1).map((row) =>
       (row ?? []).slice(0, width))];
     const dateIndexes = layout === "standard"
       ? (kind === "contracts" ? [8, 10, 11, 12, 13, 14, 15] : [12, 13, 14])
-      : layout === "sap_105_13" ? [8, 9, 10] : [11, 12];
+      : layout === "sap_105_13" || layout === "sap_105_17" ? [8, 9, 10] : [11, 12];
     for (const row of selected.slice(1)) {
       for (const index of dateIndexes) row[index] = excelDate(row[index] ?? "");
     }
@@ -199,4 +207,31 @@ export function parseReceipt13(matrix: string[][]): { rows: SapRow[]; warnings: 
     ? [`รับเข้า 105: ข้ามแถวผลรวมท้ายไฟล์ของ SAP ${subtotalRows} แถว (ไม่มีรหัสวัสดุ)`]
     : [];
   return { rows, warnings };
+}
+
+/**
+ * 17-column 105 export: read as the 13-column layout (same receipt keys, so
+ * a receipt imported from either export is the same row) and keep the extra
+ * columns. Rows that are not movement type 105 are skipped.
+ */
+export function parseReceipt17(matrix: string[][]): { rows: SapRow[]; warnings: string[] } {
+  if (!matches(matrix[0] ?? [], receipt17)) throw new Error("หัวตารางรับเข้า 105 แบบ 17 ช่องไม่ถูกต้อง");
+  const extras = new Map<number, Record<string, string>>();
+  let otherMovement = 0;
+  const as13 = [receipt13, ...matrix.slice(1).map((row, index) => {
+    if (!row?.[0]) return row ?? [];
+    const movement = (row[16] ?? "").trim();
+    if (movement && movement !== "105") {
+      otherMovement += 1;
+      return [];
+    }
+    extras.set(index + 2, { source_layout: "sap_105_17", gr_gi_slip_no: row[12] ?? "",
+      reservation_no: row[13] ?? "", order_number: row[15] ?? "", movement_type: movement });
+    return [...row.slice(0, 12), row[14] ?? ""];
+  })];
+  const parsed = parseReceipt13(as13);
+  for (const row of parsed.rows) Object.assign(row.payload, extras.get(row.row_number));
+  const warnings = [...parsed.warnings];
+  if (otherMovement) warnings.push(`รับเข้า 105: ข้าม ${otherMovement} แถวที่ประเภทการเคลื่อนย้ายไม่ใช่ 105`);
+  return { rows: parsed.rows, warnings };
 }
