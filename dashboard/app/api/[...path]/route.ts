@@ -11,6 +11,8 @@ import {
 } from "../../route-optimizer";
 
 export const dynamic = "force-dynamic";
+// "ส่งข้อมูลเข้าระบบคำนวณ" and large Import Center commits can run longer than the default.
+export const maxDuration = 60;
 
 const maxBodyBytes = 1_048_576;
 
@@ -214,7 +216,7 @@ async function dispatchRpc({
           p_request_id: id,
         }),
         redirect: "error",
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(65_000),
       },
     );
   } catch {
