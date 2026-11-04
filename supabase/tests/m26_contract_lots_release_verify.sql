@@ -64,6 +64,9 @@ insert into ops.source_current_rows (source_kind, business_key, payload, row_has
 -- the old 105 export was replaced by a newer one covering fewer dates
 update ops.source_current_rows set missing_since_run_id = '26000000-0000-4000-8000-000000000103'
 where source_kind = 'receipts_105' and business_key = 'r2';
+-- a shorter รวมสัญญา export left out installment 3: it keeps its last values (M26b)
+update ops.source_current_rows set missing_since_run_id = '26000000-0000-4000-8000-000000000103'
+where source_kind = 'contracts' and business_key = 'c3';
 
 insert into core.stock_snapshots (material_id, location_id, quantity_on_hand, snapshot_at, source_batch_id, data_class, source_quality)
 values ('260000000001', 'WH-KT', 100, '2026-10-25 12:00+07', '26000000-0000-4000-8000-000000000010', 'actual', 'source_observed');
@@ -116,7 +119,7 @@ insert into m26_checks select 'installment with 105 is ready',
 from m26_rows where purchase_order = '1400000001' and line_item = '1';
 insert into m26_checks select 'accepted without 105 awaits planner',
   status = 'awaiting_105' from m26_rows where purchase_order = '1400000001' and line_item = '2';
-insert into m26_checks select 'not accepted and late is overdue',
+insert into m26_checks select 'not accepted and late is overdue, kept when missing from a newer export',
   status = 'overdue' from m26_rows where purchase_order = '1400000001' and line_item = '3';
 insert into m26_checks select 'order without contract number, 105 kept from older export, counted once',
   status = 'ready' and order_kind = 'order' and relevant and received_qty = 10 and receipt_count = 1
