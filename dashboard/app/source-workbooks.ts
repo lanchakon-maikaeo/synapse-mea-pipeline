@@ -351,3 +351,77 @@ export function readUsageWorkbook(bytes: Uint8Array): ParsedSource {
   if (!sheet) throw new Error("อัตราการใช้งาน: ไม่พบชีท Check CMP");
   return parseUsageMatrix(sheet.matrix, sheet.name);
 }
+
+// ---------------------------------------------------------------------------
+// Material Master: ชีท MASTER (รหัส / InventoryName / UNIT / กลุ่ม / MP / MA / หมวด)
+// + ชีท "VMI คลองเตย" (รหัสพัสดุ / ชื่อพัสดุ ...) ในไฟล์เดียวกัน. รหัสที่อยู่ในชีท VMI คือ
+// พัสดุที่ระบบคำนวณการจ่าย (is_vmi). ชีทอื่นในไฟล์ไม่ถูกอ่าน
+const MASTER_HEADERS = ["รหัส", "InventoryName", "UNIT"];
+
+export function readMaterialWorkbook(bytes: Uint8Array): ParsedSource {
+  const sheets = readAllWorksheets(bytes, (name) => /^master$/i.test(name.trim()) || /^vmi/i.test(name.trim()));
+  const master = sheets.find((sheet) => headerMatches(sheet.matrix[0], MASTER_HEADERS));
+  if (!master) throw new Error("Material Master: ไม่พบชีท MASTER ที่มีหัวตาราง รหัส / InventoryName / UNIT");
+  const vmiSheet = sheets.find((sheet) => /^vmi\s*คลองเตย$/i.test(sheet.name.trim()))
+    ?? sheets.find((sheet) => sheet.matrix.slice(0, 5).some((row) => headerCell(row?.[0]) === "รหัสพัสดุ"));
+  if (!vmiSheet) throw new Error("Material Master: ไม่พบชีท VMI คลองเตย (รายการพัสดุที่ระบบคำนวณการจ่าย)");
+
+  const warnings: string[] = [];
+  const headerRow = vmiSheet.matrix.findIndex((row) => headerCell(row?.[0]) === "รหัสพัสดุ");
+  const vmi = new Map<string, string>();
+  for (const row of vmiSheet.matrix.slice(headerRow + 1)) {
+    const code = normalizeMaterial(row?.[0]);
+    if (/^\d{12}$/.test(code) && !vmi.has(code)) vmi.set(code, String(row?.[1] ?? "").trim());
+  }
+  if (!vmi.size) throw new Error(`Material Master: ชีท ${vmiSheet.name} ไม่มีรหัสพัสดุ`);
+
+  const header = master.matrix[0].map(headerCell);
+  const col = (label: string, fallback: number) => {
+    const found = header.indexOf(label);
+    return found >= 0 ? found : fallback;
+  };
+  const cGroup = col("กลุ่ม", 3);
+  const cMpMa = col("MP / MA", 4);
+  const rows: SourceRow[] = [];
+  const seen = new Set<string>();
+  let duplicates = 0;
+  let badCodes = 0;
+  master.matrix.slice(1).forEach((row, index) => {
+    if (!row?.some((cell) => String(cell ?? "").trim())) return;
+    const code = normalizeMaterial(row[0]);
+    if (!/^\d{12}$/.test(code)) {
+      badCodes += 1;
+      return;
+    }
+    if (seen.has(code)) {
+      duplicates += 1;
+      return;
+    }
+    seen.add(code);
+    rows.push({ row_number: index + 2, payload: {
+      material_id: code,
+      material_name: String(row[1] ?? "").trim(),
+      unit: String(row[2] ?? "").trim(),
+      group_code: headerCell(row[cGroup]),
+      mp_ma: String(row[cMpMa] ?? "").trim(),
+      category: String(row[5] ?? "").trim(),
+      is_vmi: vmi.has(code),
+      in_master: true,
+    } });
+  });
+  let vmiOnly = 0;
+  for (const [code, name] of vmi) {
+    if (seen.has(code)) continue;
+    vmiOnly += 1;
+    rows.push({ row_number: 900000 + vmiOnly, payload: { material_id: code, material_name: name, unit: "", is_vmi: true, in_master: false } });
+  }
+  if (duplicates) warnings.push(`Material Master: รหัสซ้ำในชีท MASTER ${duplicates} แถว ใช้แถวแรก`);
+  if (badCodes) warnings.push(`Material Master: ข้าม ${badCodes} แถวที่รหัสไม่ใช่ตัวเลข 12 หลัก`);
+  if (vmiOnly) warnings.push(`Material Master: มี ${vmiOnly} รหัสในชีท ${vmiSheet.name} ที่ไม่อยู่ในชีท MASTER (ใช้ชื่อจากชีท VMI)`);
+  return {
+    rows,
+    warnings,
+    sheet: master.name,
+    metadata: { vmi_sheet: vmiSheet.name, vmi_materials: vmi.size, master_rows: seen.size },
+  };
+}

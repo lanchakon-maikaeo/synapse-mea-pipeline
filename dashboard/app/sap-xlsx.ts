@@ -74,7 +74,8 @@ function readWorksheet(xml: string, shared: string[]): string[][] {
 export { excelDate };
 
 /** Every worksheet in an .xlsx with its tab name, as raw text matrices. */
-export function readAllWorksheets(bytes: Uint8Array): Array<{ name: string; matrix: string[][] }> {
+export function readAllWorksheets(bytes: Uint8Array,
+  only?: (name: string) => boolean): Array<{ name: string; matrix: string[][] }> {
   const files = unzipSync(bytes);
   const sharedXml = files["xl/sharedStrings.xml"];
   const shared = sharedXml ? Array.from(strFromU8(sharedXml).matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g),
@@ -90,7 +91,7 @@ export function readAllWorksheets(bytes: Uint8Array): Array<{ name: string; matr
   const listed = sheets.length ? sheets : Object.keys(files)
     .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))
     .map((path) => ({ name: path, path }));
-  return listed.map((sheet) => ({
+  return listed.filter((sheet) => !only || only(sheet.name)).map((sheet) => ({
     name: sheet.name,
     matrix: readWorksheet(strFromU8(files[sheet.path]), shared),
   }));

@@ -15,7 +15,7 @@ import {
   type ImportRun,
   type SourceKind,
 } from "./source-import-client";
-import { dateFromFileName, readStockWorkbook, readUsageWorkbook } from "./source-workbooks";
+import { dateFromFileName, readMaterialWorkbook, readStockWorkbook, readUsageWorkbook } from "./source-workbooks";
 
 type Parsed = {
   name: string;
@@ -36,7 +36,9 @@ type Slot = {
   progress: string;
 };
 
-const ORDER: SourceKind[] = ["stock", "district_stock", "contracts", "receipts_105", "usage"];
+const ORDER: SourceKind[] = ["stock", "district_stock", "contracts", "receipts_105", "usage", "materials"];
+// Material Master does not feed the summary table below
+const SUMMARY_KINDS = ORDER.filter((kind) => kind !== "materials");
 
 const SOURCES: Record<SourceKind, {
   title: string;
@@ -80,6 +82,13 @@ const SOURCES: Record<SourceKind, {
     accept: ".xlsx",
     hint: "อัตราการใช้งาน.xlsx ชีท Check CMP (12 เดือนขึ้นไป)",
   },
+  materials: {
+    title: "Material Master",
+    cadence: "เมื่อรายการเปลี่ยน",
+    use: "รายการพัสดุ + พัสดุ VMI ที่ระบบคำนวณการจ่าย · ยืนยันแล้วอัปเดต Material Master ทันที",
+    accept: ".xlsx",
+    hint: "ไฟล์คลังคลองเตย.xlsx (ชีท MASTER + ชีท VMI คลองเตย)",
+  },
 };
 
 const CHANGE_LABELS: Record<ChangeType, string> = {
@@ -95,6 +104,9 @@ const FIELD_LABELS: Record<string, string> = {
   unrestricted_value: "มูลค่า",
   base_unit: "หน่วย",
   material_name: "ชื่อวัสดุ",
+  is_vmi: "VMI",
+  category: "หมวด",
+  in_master: "อยู่ในชีท MASTER",
   snapshot_date: "วันที่ข้อมูล",
   cmp_monthly: "CMP",
   source_cmp: "CMP ในไฟล์",
@@ -125,6 +137,7 @@ async function sha256Hex(bytes: ArrayBuffer) {
 
 function display(value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "ใช่" : "ไม่ใช่";
   if (typeof value === "number") return formatNumber(value, 2);
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
@@ -156,6 +169,7 @@ function statusLabel(run: ImportRun) {
 export default function SourceImportCenter({ token, role }: { token: string | null; role: Role }) {
   const [slots, setSlots] = useState<Record<SourceKind, Slot>>(() => ({
     stock: emptySlot(), district_stock: emptySlot(), contracts: emptySlot(), receipts_105: emptySlot(), usage: emptySlot(),
+    materials: emptySlot(),
   }));
   const [busy, setBusy] = useState(false);
   const [backend, setBackend] = useState<"checking" | "ready" | "missing">("checking");
@@ -173,7 +187,7 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
   const patch = (kind: SourceKind, value: Partial<Slot>) =>
     setSlots((existing) => ({ ...existing, [kind]: { ...existing[kind], ...value } }));
 
-  const refresh = useCallback(async (kinds: SourceKind[] = ORDER) => {
+  const refresh = useCallback(async (kinds: SourceKind[] = SUMMARY_KINDS) => {
     if (!token) {
       setBackend("missing");
       return;
@@ -201,7 +215,7 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
         return next;
       });
       // Accepted rows feed the material summary when no file is selected.
-      const loaded = await Promise.all(kinds.map(async (kind) =>
+      const loaded = await Promise.all(kinds.filter((kind) => kind !== "materials").map(async (kind) =>
         [kind, state[kind]?.accepted_rows ? await sourceImportApi.currentRows(token, kind).catch(() => []) : []] as const));
       setSavedRows((existing) => ({ ...existing, ...Object.fromEntries(loaded) }));
     } catch (reason) {
@@ -230,7 +244,7 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
       receipts: rowsFor("receipts_105"),
       usage: rowsFor("usage"),
     };
-    const files: FileFact[] = ORDER.map((kind) => {
+    const files: FileFact[] = SUMMARY_KINDS.map((kind) => {
       const parsed = slots[kind].parsed;
       const latest = current?.[kind]?.latest_commit;
       return {
@@ -275,7 +289,9 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
                 snapshotDate: slots[kind].snapshotDate || null,
                 scope: kind === "stock" ? "warehouse" : "district",
               })
-            : readUsageWorkbook(new Uint8Array(bytes));
+            : kind === "materials"
+              ? readMaterialWorkbook(new Uint8Array(bytes))
+              : readUsageWorkbook(new Uint8Array(bytes));
           parsed = {
             name: file.name, size: file.size, sha256: await sha256Hex(bytes),
             sheet: result.sheet, metadata: result.metadata, warnings: result.warnings,
@@ -317,7 +333,9 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
     try {
       const committed = await sourceImportApi.commit(token, run.import_run_id, Boolean(acknowledged[run.import_run_id]));
       patch(kind, { run: committed, progress: "" });
-      setNotice(`${SOURCES[kind].title}: บันทึกลงฐานข้อมูลพร้อมประวัติแล้ว`);
+      setNotice(kind === "materials"
+        ? "Material Master: บันทึกแล้ว และอัปเดตรายการพัสดุ / VMI ที่ใช้คำนวณการจ่ายแล้ว · รหัสที่เพิ่งเพิ่มใหม่จะมี Stock ในการคำนวณเมื่อส่ง Stock ชุดถัดไปเข้าระบบคำนวณ"
+        : `${SOURCES[kind].title}: บันทึกลงฐานข้อมูลพร้อมประวัติแล้ว`);
     } catch (reason) {
       patch(kind, { error: reason instanceof Error ? reason.message : "ยืนยันไม่สำเร็จ", progress: "" });
     }

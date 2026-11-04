@@ -223,3 +223,36 @@ test("stock scope: warehouse card keeps plant 2401, district card keeps the 18 d
   assert.equal(district.metadata.scope, "district");
   assert.throws(() => parseStockMatrix([stockHeader, ["2401", "0001", "1", "x", "1", "EA"]], "s", { scope: "district" }), /Stock เขต/);
 });
+
+test("Material Master reads MASTER and marks codes listed in the VMI sheet", async () => {
+  const { zipSync, strToU8 } = await import("fflate");
+  const { readMaterialWorkbook } = await import("../app/source-workbooks.ts");
+  const sheetXml = (rows) => strToU8(`<worksheet><sheetData>${rows.map((row, r) =>
+    `<row r="${r + 1}">${row.map((value, c) =>
+      `<c r="${String.fromCharCode(65 + c)}${r + 1}" t="inlineStr"><is><t>${value}</t></is></c>`).join("")}</row>`).join("")}</sheetData></worksheet>`);
+  const bytes = zipSync({
+    "xl/workbook.xml": strToU8('<workbook><sheets><sheet name="MASTER" r:id="rId1"/><sheet name="VMI คลองเตย" r:id="rId2"/><sheet name="อื่น" r:id="rId3"/></sheets></workbook>'),
+    "xl/_rels/workbook.xml.rels": strToU8('<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Target="worksheets/sheet3.xml"/></Relationships>'),
+    "xl/worksheets/sheet1.xml": sheetXml([
+      ["รหัส", "InventoryName", "UNIT", "กลุ่ม", "MP / MA", "CONNECTORS"],
+      ["560500440200", "MACHINE BOLT 1/2X2 IN", "EA", "1", "MA Q", "MACHINE BOLT"],
+      ["560500150800", "ANCHOR ROD", "EA", "3", "MP", "POLE LINE"],
+      ["560500150800", "ANCHOR ROD dup", "EA", "3", "MP", "POLE LINE"],
+    ]),
+    "xl/worksheets/sheet2.xml": sheetXml([
+      ["26/10/2026"],
+      ["รหัสพัสดุ", "ชื่อพัสดุ", "STOCK"],
+      ["560500440200", "MACHINE BOLT", "10"],
+      ["471050004000", "PVC CONDUIT", "5"],
+    ]),
+    "xl/worksheets/sheet3.xml": sheetXml([["x"]]),
+  });
+  const parsed = readMaterialWorkbook(bytes);
+  const byCode = Object.fromEntries(parsed.rows.map((row) => [row.payload.material_id, row.payload]));
+  assert.equal(parsed.rows.length, 3);
+  assert.equal(byCode["560500440200"].is_vmi, true);
+  assert.equal(byCode["560500150800"].is_vmi, false);
+  assert.equal(byCode["471050004000"].in_master, false);
+  assert.equal(parsed.metadata.vmi_materials, 2);
+  assert.ok(parsed.warnings.some((warning) => warning.includes("รหัสซ้ำ")));
+});
