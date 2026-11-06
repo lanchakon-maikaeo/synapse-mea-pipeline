@@ -1095,6 +1095,16 @@ export function useSynapseBackend() {
     [runAction],
   );
 
+  const recalculateReplenishmentPlan = useCallback(
+    async (planId: string) =>
+      (await runAction(
+        `/v1/replenishment/plans/${planId}/recalculate`,
+        {},
+        "คำนวณใหม่ด้วย Stock ล่าสุดแล้ว (รายการที่เขตยืนยันแล้วคงไว้ตามเดิม)",
+      )) !== null,
+    [runAction],
+  );
+
   const versionReplenishmentPlan = useCallback(
     async (planId: string, reason: string) =>
       (await runAction(
@@ -1230,6 +1240,7 @@ export function useSynapseBackend() {
     publishFifoOpening,
     publishPackagingProfiles,
     publishVmiInput,
+    recalculateReplenishmentPlan,
     receiveHandlingUnit,
     reconcileHandlingUnit,
     recordInventoryReturn,

@@ -1329,6 +1329,7 @@ function WeeklyPlanView({
   onConfirmPending,
   onOpenTransport,
   onSubmitSelection,
+  onRecalculate,
   actionError = "",
 }: {
   actionBusy: boolean;
@@ -1349,6 +1350,7 @@ function WeeklyPlanView({
   onApprove: (planId: string, note?: string) => Promise<boolean>;
   onCancel: (planId: string, reason: string) => Promise<boolean>;
   onCreate: () => Promise<boolean>;
+  onRecalculate?: (planId: string) => Promise<boolean>;
   onIssue: (planId: string) => Promise<boolean>;
   onReview: (
     requestId: string,
@@ -1646,6 +1648,25 @@ function WeeklyPlanView({
           text(stock.location_id) === "WH-KT",
       )
       .reduce((sum, stock) => sum + Number(stock.quantity_on_hand ?? 0), 0);
+  // All districts together must not take more than Khlong Toei holds
+  const plannedTotalByMaterial = selectedRows.reduce<Map<string, number>>(
+    (totals, row) =>
+      totals.set(
+        text(row.material_id),
+        (totals.get(text(row.material_id)) ?? 0) + plannerQuantity(row),
+      ),
+    new Map(),
+  );
+  const overWarehouse = (row: RecordRow) =>
+    (plannedTotalByMaterial.get(text(row.material_id)) ?? 0) >
+    warehouseQuantity(row);
+  const overWarehouseMaterials = [
+    ...new Map(
+      selectedRows
+        .filter(overWarehouse)
+        .map((row) => [text(row.material_id), row]),
+    ).values(),
+  ];
   const packagingLabel = (row: RecordRow) => {
     const labels: Record<string, string> = {
       FULL_PALLET: "Full Pallet",
@@ -2179,6 +2200,18 @@ function WeeklyPlanView({
                 เริ่มรอบแผนจากข้อมูลล่าสุด
               </button>
             ) : (
+              <>
+              {canCreate && onRecalculate && targetPlanId && (
+                <button
+                  type="button"
+                  className="btn ghost"
+                  disabled={actionBusy}
+                  title="ใช้ Stock คลังคลองเตย / Stock เขต / อัตราการใช้ที่ยืนยันล่าสุด กับรายการที่เขตยังไม่ยืนยัน"
+                  onClick={() => void onRecalculate(targetPlanId)}
+                >
+                  {actionBusy ? "กำลังคำนวณใหม่…" : "คำนวณใหม่ด้วย Stock ล่าสุด"}
+                </button>
+              )}
               <button
                 type="button"
                 className="btn primary"
@@ -2189,6 +2222,7 @@ function WeeklyPlanView({
                   ? `สรุปการจ่าย (${formatNumber(selectedRows.length)}) →`
                   : `ยืนยันรายการที่เลือก (${formatNumber(selectedRows.length)})`}
               </button>
+              </>
             )}
           </section>
           )}
@@ -2710,6 +2744,27 @@ function WeeklyPlanView({
               ],
             ]}
           />
+          {overWarehouseMaterials.length > 0 && (
+            <div className="kt-over-box" role="alert">
+              <strong>
+                รวมทุกเขตเกิน Stock คลังคลองเตย {formatNumber(overWarehouseMaterials.length)} รายการ
+              </strong>
+              <span>
+                {overWarehouseMaterials
+                  .slice(0, 8)
+                  .map(
+                    (row) =>
+                      `${text(row.material_id)} (ต้องการ ${formatNumber(
+                        plannedTotalByMaterial.get(text(row.material_id)) ?? 0,
+                        0,
+                      )} · มี ${formatNumber(warehouseQuantity(row), 0)})`,
+                  )
+                  .join(" · ")}
+                {overWarehouseMaterials.length > 8 ? " …" : ""} — ปรับ Planner Qty ให้ไม่เกินของที่มี
+                ส่วนที่เกินจะขึ้นเป็น “ขาด” ตอนล็อกแผน
+              </span>
+            </div>
+          )}
           <div className="plan-line-summary">
             <strong>รายการทั้งหมดในแผน</strong>
             <LiveTable
@@ -2729,7 +2784,21 @@ function WeeklyPlanView({
                     </span>
                   ),
                 ],
-                ["Stock คลังกลาง", (row) => formatNumber(warehouseQuantity(row), 0)],
+                [
+                  "Stock คลังกลาง",
+                  (row) => (
+                    <span>
+                      {formatNumber(warehouseQuantity(row), 0)}
+                      {overWarehouse(row) && (
+                        <small className="shortage-text">
+                          รวมทุกเขต{" "}
+                          {formatNumber(plannedTotalByMaterial.get(text(row.material_id)) ?? 0, 0)}{" "}
+                          เกิน Stock
+                        </small>
+                      )}
+                    </span>
+                  ),
+                ],
                 ["Stock เขต", (row) => formatNumber(row.current_stock_qty, 0)],
                 ["MIN", (row) => formatNumber(row.min_fill_qty, 0)],
                 ["MAX", (row) => formatNumber(row.max_fill_qty, 0)],
@@ -6186,6 +6255,7 @@ function PageContent({
         onConfirmPending={backend.confirmPendingDistrictItems}
         onOpenTransport={openTransport}
         onSubmitSelection={backend.submitPlannerSelection}
+        onRecalculate={backend.recalculateReplenishmentPlan}
         actionError={backend.error}
       />
     );
