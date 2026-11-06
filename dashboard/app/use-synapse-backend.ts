@@ -504,7 +504,9 @@ export function useSynapseBackend() {
         path.startsWith("/v1/ad-hoc/");
       if (
         operationalMutation &&
-        data.readiness?.operational_writes_enabled !== true
+        // Only block when readiness has loaded and says writes are off;
+        // the API refuses the write itself (423) in every other case.
+        data.readiness?.operational_writes_enabled === false
       ) {
         setError(
           "ขณะนี้ยังไม่เปิดให้บันทึกข้อมูลจริง เปิดให้อ่านและตรวจข้อมูลได้เท่านั้น",
@@ -857,7 +859,7 @@ export function useSynapseBackend() {
       }
 
       if (!session) return false;
-      if (data.readiness?.operational_writes_enabled !== true) {
+      if (data.readiness?.operational_writes_enabled === false) {
         setError(
           "ขณะนี้ยังไม่เปิดให้บันทึกข้อมูลจริง เปิดให้อ่านและตรวจข้อมูลได้เท่านั้น",
         );

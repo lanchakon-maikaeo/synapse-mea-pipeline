@@ -1310,6 +1310,7 @@ function DashboardView({
 
 function WeeklyPlanView({
   actionBusy,
+  dataLoading = false,
   data,
   role,
   mode,
@@ -1331,6 +1332,7 @@ function WeeklyPlanView({
   actionError = "",
 }: {
   actionBusy: boolean;
+  dataLoading?: boolean;
   data: DashboardData;
   role: Role;
   /**
@@ -2028,11 +2030,20 @@ function WeeklyPlanView({
           <button
             type="button"
             className="btn primary plan-start-button"
-            disabled={actionBusy}
+            disabled={actionBusy || dataLoading}
             onClick={() => void onCreate()}
           >
-            {actionBusy ? "กำลังคำนวณ…" : "เริ่มรอบแผนจากข้อมูลล่าสุด"}
+            {actionBusy
+              ? "กำลังคำนวณและโหลดรายการ…"
+              : dataLoading
+                ? "กำลังโหลดข้อมูล…"
+                : "เริ่มรอบแผนจากข้อมูลล่าสุด"}
           </button>
+          {actionBusy && (
+            <p className="plan-start-wait" role="status">
+              ระบบกำลังคำนวณจาก Stock เขต 18 เขตและ CMP ใช้เวลาประมาณ 10–30 วินาที เสร็จแล้วรายการจะขึ้นเอง
+            </p>
+          )}
         </section>
       </div>
     );
@@ -6156,6 +6167,7 @@ function PageContent({
       <WeeklyPlanView
         key={mode}
         actionBusy={backend.actionBusy}
+        dataLoading={backend.loading}
         data={backend.data}
         role={role}
         mode={mode}
