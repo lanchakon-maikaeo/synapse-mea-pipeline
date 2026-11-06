@@ -1370,3 +1370,16 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .source-history-row small{display:block;color:#64748b;font-size:11px;overflow-wrap:anywhere}
 .source-history-row b{color:#0f172a}
 @media (max-width:900px){.source-history-head{display:none}.source-history-row{grid-template-columns:1fr 1fr}}
+.plan-start{display:grid;gap:14px;justify-items:start;padding:28px 30px}
+.plan-start-step{padding:4px 10px;border-radius:999px;background:#e8f1ff;color:#1d5fd1;font-size:12px;font-weight:700}
+.plan-start h3{margin:0;font-size:22px;color:#0f172a}
+.plan-start p{margin:0;max-width:760px;color:#475569;font-size:14px;line-height:1.6}
+.plan-start-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;width:100%;margin:4px 0;padding:0;list-style:none}
+.plan-start-flow li{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.plan-start-flow li:first-child{border-color:#9cc2ff;background:#eef5ff}
+.plan-start-flow b{display:grid;place-items:center;flex:none;width:26px;height:26px;border-radius:50%;background:#1d5fd1;color:#fff;font-size:12px}
+.plan-start-flow li:not(:first-child) b{background:#cbd5e1}
+.plan-start-flow span{display:grid;gap:2px;font-size:13px;font-weight:700;color:#0f172a}
+.plan-start-flow small{font-size:11px;font-weight:500;color:#64748b}
+.plan-start-button{min-height:48px;padding:0 28px;font-size:15px}
+@media (max-width:900px){.plan-start-flow{grid-template-columns:1fr 1fr}}
