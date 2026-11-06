@@ -2582,7 +2582,7 @@ function WeeklyPlanView({
                           return (
                           <article
                             className={plannedPick > 0 ? "planned-pick" : ""}
-                            key={text(row.handling_unit_id)}
+                            key={`${text(row.handling_unit_id ?? row.lot_code, "")}-${text(row.material_id)}-${text(row.fifo_sequence)}`}
                           >
                             <div>
                               <strong>
