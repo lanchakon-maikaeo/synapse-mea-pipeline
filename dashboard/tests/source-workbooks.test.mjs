@@ -270,5 +270,5 @@ test("Material Master list without a VMI sheet leaves VMI out of the payload", a
   assert.equal(parsed.rows.length, 1);
   assert.equal(parsed.rows[0].payload.material_id, "560500150800");
   assert.equal("is_vmi" in parsed.rows[0].payload, false);
-  assert.ok(parsed.warnings[0].includes("ไม่มีชีท VMI"));
+  assert.equal(parsed.warnings.length, 0);
 });

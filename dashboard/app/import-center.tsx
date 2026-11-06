@@ -50,7 +50,7 @@ const SOURCES: Record<SourceKind, {
   stock: {
     title: "Stock คลังคลองเตย",
     cadence: "ทุกวัน",
-    use: "Stock คลังคลองเตย (โรงงาน 2401) · ใช้ดูของพร้อมจ่าย · ระบบเก็บเฉพาะแถวโรงงาน 2401",
+    use: "Stock คลังคลองเตย (โรงงาน 2401) · รหัสในไฟล์นี้คือรายการ VMI ที่ระบบคำนวณการจ่าย · ต้องเป็นไฟล์เต็มทุกครั้ง",
     accept: ".xlsx",
     hint: "Stock_update_วว.ดด.ปป.XLSX จาก SAP (คลังคลองเตย 2401)",
   },
@@ -85,9 +85,9 @@ const SOURCES: Record<SourceKind, {
   materials: {
     title: "Material Master",
     cadence: "เมื่อรายการเปลี่ยน",
-    use: "รายการพัสดุ + พัสดุ VMI ที่ระบบคำนวณการจ่าย · ยืนยันแล้วอัปเดต Material Master ทันที",
+    use: "รหัส / ชื่อ / หน่วยของพัสดุ · ยืนยันแล้วอัปเดต Material Master ทันที · รายการ VMI มาจากไฟล์ Stock คลังคลองเตย",
     accept: ".xlsx",
-    hint: "คลังคลองเตย.xlsx (MASTER + VMI คลองเตย) หรือ Master Material.xlsx (เพิ่มรหัส/แก้ชื่อ ไม่เปลี่ยน VMI)",
+    hint: "Master Material.xlsx (ชีท Master material) หรือคลังคลองเตย.xlsx (ชีท MASTER)",
   },
 };
 
@@ -333,8 +333,10 @@ export default function SourceImportCenter({ token, role }: { token: string | nu
     try {
       const committed = await sourceImportApi.commit(token, run.import_run_id, Boolean(acknowledged[run.import_run_id]));
       patch(kind, { run: committed, progress: "" });
-      setNotice(kind === "materials"
-        ? "Material Master: บันทึกแล้ว และอัปเดตรายการพัสดุ / VMI ที่ใช้คำนวณการจ่ายแล้ว · รหัสที่เพิ่งเพิ่มใหม่จะมี Stock ในการคำนวณเมื่อส่ง Stock ชุดถัดไปเข้าระบบคำนวณ"
+      setNotice(kind === "stock"
+        ? "Stock คลังคลองเตย: บันทึกแล้ว · รายการ VMI อัปเดตตามรหัสในไฟล์นี้แล้ว · กด 3. ส่งข้อมูลเข้าระบบคำนวณ เพื่อใช้ยอดชุดนี้"
+        : kind === "materials"
+        ? "Material Master: บันทึกแล้ว · เพิ่มรหัสใหม่และอัปเดตชื่อ/หน่วยแล้ว"
         : `${SOURCES[kind].title}: บันทึกลงฐานข้อมูลพร้อมประวัติแล้ว`);
     } catch (reason) {
       patch(kind, { error: reason instanceof Error ? reason.message : "ยืนยันไม่สำเร็จ", progress: "" });

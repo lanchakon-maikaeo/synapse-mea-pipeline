@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 
--- M27: Material Master card — confirming a materials file updates core.materials and the VMI list.
+-- M27: Material Master card — confirming a materials file adds codes and updates names / units in core.materials.
 begin;
 
 create temporary table m27_checks (check_name text primary key, passed boolean not null);
@@ -51,49 +51,37 @@ reset role;
 insert into m27_checks select 'run created, staged and committed',
   (select (v ->> 'status')::int from m27_state where k = 'run') = 201
   and (select v #>> '{body,status}' from m27_state where k = 'commit') = 'committed';
-insert into m27_checks select 'existing material renamed and turned VMI, lot size kept',
-  material_name = 'CLAMP NEW' and category = 'POLE LINE' and is_vmi and lot_size = 100
+-- Since M28 the VMI list comes from the Stock คลังคลองเตย file; a materials
+-- file (with or without a VMI sheet) only adds codes and updates names / units.
+insert into m27_checks select 'existing material renamed, VMI and lot size kept',
+  material_name = 'CLAMP NEW' and category = 'POLE LINE' and not is_vmi and lot_size = 100
 from core.materials where material_id = '270000000001';
-insert into m27_checks select 'new VMI material added',
-  material_name = 'NEW VMI ITEM' and unit = 'M' and is_vmi and master_source = 'material_master'
+insert into m27_checks select 'new material added without VMI',
+  material_name = 'NEW VMI ITEM' and unit = 'M' and not is_vmi and master_source = 'material_master'
 from core.materials where material_id = '270000000003';
 insert into m27_checks select 'master-only material added without VMI',
   not is_vmi from core.materials where material_id = '270000000004';
-insert into m27_checks select 'VMI not in the file is turned off',
-  not is_vmi from core.materials where material_id = '270000000002';
+insert into m27_checks select 'VMI not in the file is kept',
+  is_vmi from core.materials where material_id = '270000000002';
 insert into m27_checks select 'current lists the materials card',
   (v #>> '{body,materials,accepted_rows}')::int = 3 from m27_state where k = 'current';
 
--- A file with no VMI rows must not switch every material off
-do $$
-begin
-  update ops.source_current_rows set payload = payload || '{"is_vmi":false}' where source_kind = 'materials';
-  begin
-    perform core.m27_apply_material_master((select import_run_id from ops.source_import_runs where source_kind = 'materials' limit 1));
-    insert into m27_checks values ('empty VMI list raises', false);
-  exception when others then
-    insert into m27_checks values ('empty VMI list raises', sqlerrm like '%ไม่มีรายการ VMI%');
-  end;
-end
-$$;
-
--- A Master material list without the VMI sheet: names update, VMI flags stay (M27b)
+-- A Master material list without the VMI sheet: names update, VMI flags stay
 update ops.source_current_rows set payload = (payload - 'is_vmi') || '{"material_name":"CLAMP RENAMED"}'
 where source_kind = 'materials' and business_key = '270000000001';
 update ops.source_current_rows set payload = payload - 'is_vmi'
 where source_kind = 'materials' and business_key <> '270000000001';
 select core.m27_apply_material_master((select import_run_id from ops.source_import_runs where source_kind = 'materials' limit 1));
 insert into m27_checks select 'list without VMI sheet keeps VMI flags',
-  (select material_name = 'CLAMP RENAMED' and is_vmi from core.materials where material_id = '270000000001')
-  and (select is_vmi from core.materials where material_id = '270000000003')
-  and (select not is_vmi from core.materials where material_id = '270000000004');
+  (select material_name = 'CLAMP RENAMED' and not is_vmi from core.materials where material_id = '270000000001')
+  and (select is_vmi from core.materials where material_id = '270000000002');
 
 do $$
 declare v_failed text;
 begin
   select string_agg(check_name, ', ') into v_failed from m27_checks where not passed;
   if v_failed is not null then raise exception 'M27 checks failed: %', v_failed; end if;
-  if (select count(*) from m27_checks) <> 9 then raise exception 'M27: expected 9 checks, got %', (select count(*) from m27_checks); end if;
+  if (select count(*) from m27_checks) <> 8 then raise exception 'M27: expected 8 checks, got %', (select count(*) from m27_checks); end if;
 end
 $$;
 
