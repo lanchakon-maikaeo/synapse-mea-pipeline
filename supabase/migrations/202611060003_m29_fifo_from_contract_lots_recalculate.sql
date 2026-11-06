@@ -94,10 +94,12 @@ as $$
   with lots as (
     select * from core.m26_lot_rows()
   ), kt as (
-    select distinct on (s.material_id) s.material_id, s.quantity_on_hand as qty, s.snapshot_at
+    -- only the latest Stock คลังคลองเตย file: a code missing from it has no stock
+    select s.material_id, sum(s.quantity_on_hand) as qty, max(s.snapshot_at) as snapshot_at
     from core.stock_snapshots s
     where s.location_id = 'WH-KT'
-    order by s.material_id, s.snapshot_at desc
+      and s.snapshot_at = (select max(x.snapshot_at) from core.stock_snapshots x where x.location_id = 'WH-KT')
+    group by s.material_id
   ), receipts as (
     select l.material_id, l.purchase_order, l.line_item, l.contract_number,
       coalesce(l.first_receipt, l.acceptance_date) as lot_date,
@@ -624,7 +626,13 @@ begin
   -- Plan lines: Khlong Toei stock and FIFO guidance
   if p_path = '/v1/replenishment/queue' then
     return jsonb_set(v_result, '{body}', coalesce((
-      with passed as (select * from core.m26_passed_test_qty())
+      with passed as (select * from core.m26_passed_test_qty()),
+      kt_latest as (
+        select s.material_id, sum(s.quantity_on_hand) as qty, max(s.snapshot_at) as snapshot_at
+        from core.stock_snapshots s
+        where s.location_id = 'WH-KT'
+          and s.snapshot_at = (select max(x.snapshot_at) from core.stock_snapshots x where x.location_id = 'WH-KT')
+        group by s.material_id)
       select jsonb_agg(
         r || jsonb_build_object(
           'kt_stock_qty', coalesce(k.qty, 0) + coalesce(pt.passed_test_qty, 0),
@@ -635,10 +643,7 @@ begin
           'allocated_qty', coalesce((r ->> 'allocated_qty')::numeric, 0) + coalesce(g.qty, 0))
         order by ord)
       from jsonb_array_elements(v_result -> 'body') with ordinality as e(r, ord)
-      left join lateral (
-        select s.quantity_on_hand as qty, s.snapshot_at from core.stock_snapshots s
-        where s.material_id = r ->> 'material_id' and s.location_id = 'WH-KT'
-        order by s.snapshot_at desc limit 1) k on true
+      left join kt_latest k on k.material_id = r ->> 'material_id'
       left join passed pt on pt.material_id = r ->> 'material_id'
       left join lateral (
         select sum(x.quantity) filter (where x.lot_kind <> 'short') as qty,
