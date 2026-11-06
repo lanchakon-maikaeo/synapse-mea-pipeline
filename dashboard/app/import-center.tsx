@@ -87,7 +87,7 @@ const SOURCES: Record<SourceKind, {
     cadence: "เมื่อรายการเปลี่ยน",
     use: "รายการพัสดุ + พัสดุ VMI ที่ระบบคำนวณการจ่าย · ยืนยันแล้วอัปเดต Material Master ทันที",
     accept: ".xlsx",
-    hint: "ไฟล์คลังคลองเตย.xlsx (ชีท MASTER + ชีท VMI คลองเตย)",
+    hint: "คลังคลองเตย.xlsx (MASTER + VMI คลองเตย) หรือ Master Material.xlsx (เพิ่มรหัส/แก้ชื่อ ไม่เปลี่ยน VMI)",
   },
 };
 

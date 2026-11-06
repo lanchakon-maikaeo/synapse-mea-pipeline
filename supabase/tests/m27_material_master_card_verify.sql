@@ -77,12 +77,23 @@ begin
 end
 $$;
 
+-- A Master material list without the VMI sheet: names update, VMI flags stay (M27b)
+update ops.source_current_rows set payload = (payload - 'is_vmi') || '{"material_name":"CLAMP RENAMED"}'
+where source_kind = 'materials' and business_key = '270000000001';
+update ops.source_current_rows set payload = payload - 'is_vmi'
+where source_kind = 'materials' and business_key <> '270000000001';
+select core.m27_apply_material_master((select import_run_id from ops.source_import_runs where source_kind = 'materials' limit 1));
+insert into m27_checks select 'list without VMI sheet keeps VMI flags',
+  (select material_name = 'CLAMP RENAMED' and is_vmi from core.materials where material_id = '270000000001')
+  and (select is_vmi from core.materials where material_id = '270000000003')
+  and (select not is_vmi from core.materials where material_id = '270000000004');
+
 do $$
 declare v_failed text;
 begin
   select string_agg(check_name, ', ') into v_failed from m27_checks where not passed;
   if v_failed is not null then raise exception 'M27 checks failed: %', v_failed; end if;
-  if (select count(*) from m27_checks) <> 8 then raise exception 'M27: expected 8 checks, got %', (select count(*) from m27_checks); end if;
+  if (select count(*) from m27_checks) <> 9 then raise exception 'M27: expected 9 checks, got %', (select count(*) from m27_checks); end if;
 end
 $$;
 

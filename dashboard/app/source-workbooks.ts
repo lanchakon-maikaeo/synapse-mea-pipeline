@@ -353,27 +353,31 @@ export function readUsageWorkbook(bytes: Uint8Array): ParsedSource {
 }
 
 // ---------------------------------------------------------------------------
-// Material Master: ชีท MASTER (รหัส / InventoryName / UNIT / กลุ่ม / MP / MA / หมวด)
-// + ชีท "VMI คลองเตย" (รหัสพัสดุ / ชื่อพัสดุ ...) ในไฟล์เดียวกัน. รหัสที่อยู่ในชีท VMI คือ
-// พัสดุที่ระบบคำนวณการจ่าย (is_vmi). ชีทอื่นในไฟล์ไม่ถูกอ่าน
+// Material Master: ชีท MASTER หรือ "Master material" (รหัส / InventoryName / UNIT ...)
+// + ชีท "VMI คลองเตย" (รหัสพัสดุ / ชื่อพัสดุ ...) ถ้ามีในไฟล์เดียวกัน. รหัสที่อยู่ในชีท VMI
+// คือพัสดุที่ระบบคำนวณการจ่าย (is_vmi). ไฟล์ที่ไม่มีชีท VMI อัปเดตเฉพาะรหัส ชื่อ หน่วย
+// โดยไม่เปลี่ยนสถานะ VMI. ชีทอื่นในไฟล์ไม่ถูกอ่าน
 const MASTER_HEADERS = ["รหัส", "InventoryName", "UNIT"];
 
 export function readMaterialWorkbook(bytes: Uint8Array): ParsedSource {
-  const sheets = readAllWorksheets(bytes, (name) => /^master$/i.test(name.trim()) || /^vmi/i.test(name.trim()));
-  const master = sheets.find((sheet) => headerMatches(sheet.matrix[0], MASTER_HEADERS));
-  if (!master) throw new Error("Material Master: ไม่พบชีท MASTER ที่มีหัวตาราง รหัส / InventoryName / UNIT");
+  const sheets = readAllWorksheets(bytes, (name) => /^master/i.test(name.trim()) || /^vmi/i.test(name.trim()));
+  const master = sheets.find((sheet) => /^master$/i.test(sheet.name.trim()) && headerMatches(sheet.matrix[0], MASTER_HEADERS))
+    ?? sheets.find((sheet) => headerMatches(sheet.matrix[0], MASTER_HEADERS));
+  if (!master) throw new Error("Material Master: ไม่พบชีท MASTER หรือ Master material ที่มีหัวตาราง รหัส / InventoryName / UNIT");
   const vmiSheet = sheets.find((sheet) => /^vmi\s*คลองเตย$/i.test(sheet.name.trim()))
     ?? sheets.find((sheet) => sheet.matrix.slice(0, 5).some((row) => headerCell(row?.[0]) === "รหัสพัสดุ"));
-  if (!vmiSheet) throw new Error("Material Master: ไม่พบชีท VMI คลองเตย (รายการพัสดุที่ระบบคำนวณการจ่าย)");
-
   const warnings: string[] = [];
-  const headerRow = vmiSheet.matrix.findIndex((row) => headerCell(row?.[0]) === "รหัสพัสดุ");
   const vmi = new Map<string, string>();
-  for (const row of vmiSheet.matrix.slice(headerRow + 1)) {
-    const code = normalizeMaterial(row?.[0]);
-    if (/^\d{12}$/.test(code) && !vmi.has(code)) vmi.set(code, String(row?.[1] ?? "").trim());
+  if (vmiSheet) {
+    const headerRow = vmiSheet.matrix.findIndex((row) => headerCell(row?.[0]) === "รหัสพัสดุ");
+    for (const row of vmiSheet.matrix.slice(headerRow + 1)) {
+      const code = normalizeMaterial(row?.[0]);
+      if (/^\d{12}$/.test(code) && !vmi.has(code)) vmi.set(code, String(row?.[1] ?? "").trim());
+    }
+    if (!vmi.size) throw new Error(`Material Master: ชีท ${vmiSheet.name} ไม่มีรหัสพัสดุ`);
+  } else {
+    warnings.push("Material Master: ไฟล์นี้ไม่มีชีท VMI คลองเตย · ระบบจะเพิ่มรหัสใหม่และอัปเดตชื่อ/หน่วยเท่านั้น สถานะ VMI เดิมไม่เปลี่ยน");
   }
-  if (!vmi.size) throw new Error(`Material Master: ชีท ${vmiSheet.name} ไม่มีรหัสพัสดุ`);
 
   const header = master.matrix[0].map(headerCell);
   const col = (label: string, fallback: number) => {
@@ -405,7 +409,7 @@ export function readMaterialWorkbook(bytes: Uint8Array): ParsedSource {
       group_code: headerCell(row[cGroup]),
       mp_ma: String(row[cMpMa] ?? "").trim(),
       category: String(row[5] ?? "").trim(),
-      is_vmi: vmi.has(code),
+      ...(vmiSheet ? { is_vmi: vmi.has(code) } : {}),
       in_master: true,
     } });
   });
@@ -417,11 +421,11 @@ export function readMaterialWorkbook(bytes: Uint8Array): ParsedSource {
   }
   if (duplicates) warnings.push(`Material Master: รหัสซ้ำในชีท MASTER ${duplicates} แถว ใช้แถวแรก`);
   if (badCodes) warnings.push(`Material Master: ข้าม ${badCodes} แถวที่รหัสไม่ใช่ตัวเลข 12 หลัก`);
-  if (vmiOnly) warnings.push(`Material Master: มี ${vmiOnly} รหัสในชีท ${vmiSheet.name} ที่ไม่อยู่ในชีท MASTER (ใช้ชื่อจากชีท VMI)`);
+  if (vmiOnly) warnings.push(`Material Master: มี ${vmiOnly} รหัสในชีท ${vmiSheet?.name ?? "VMI"} ที่ไม่อยู่ในชีท MASTER (ใช้ชื่อจากชีท VMI)`);
   return {
     rows,
     warnings,
     sheet: master.name,
-    metadata: { vmi_sheet: vmiSheet.name, vmi_materials: vmi.size, master_rows: seen.size },
+    metadata: { vmi_sheet: vmiSheet?.name ?? null, vmi_materials: vmiSheet ? vmi.size : null, master_rows: seen.size },
   };
 }

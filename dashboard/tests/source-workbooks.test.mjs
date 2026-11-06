@@ -256,3 +256,19 @@ test("Material Master reads MASTER and marks codes listed in the VMI sheet", asy
   assert.equal(parsed.metadata.vmi_materials, 2);
   assert.ok(parsed.warnings.some((warning) => warning.includes("รหัสซ้ำ")));
 });
+
+test("Material Master list without a VMI sheet leaves VMI out of the payload", async () => {
+  const { zipSync, strToU8 } = await import("fflate");
+  const { readMaterialWorkbook } = await import("../app/source-workbooks.ts");
+  const sheet = strToU8('<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>รหัส</t></is></c><c r="B1" t="inlineStr"><is><t>InventoryName</t></is></c><c r="C1" t="inlineStr"><is><t>UNIT</t></is></c></row><row r="2"><c r="A2"><v>560500150800</v></c><c r="B2" t="inlineStr"><is><t>ANCHOR ROD</t></is></c><c r="C2" t="inlineStr"><is><t>EA</t></is></c></row></sheetData></worksheet>');
+  const bytes = zipSync({
+    "xl/workbook.xml": strToU8('<workbook><sheets><sheet name="Master material" r:id="rId1"/></sheets></workbook>'),
+    "xl/_rels/workbook.xml.rels": strToU8('<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>'),
+    "xl/worksheets/sheet1.xml": sheet,
+  });
+  const parsed = readMaterialWorkbook(bytes);
+  assert.equal(parsed.rows.length, 1);
+  assert.equal(parsed.rows[0].payload.material_id, "560500150800");
+  assert.equal("is_vmi" in parsed.rows[0].payload, false);
+  assert.ok(parsed.warnings[0].includes("ไม่มีชีท VMI"));
+});
