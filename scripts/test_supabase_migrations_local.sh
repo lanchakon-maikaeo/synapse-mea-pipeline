@@ -172,6 +172,10 @@ docker exec "$container" psql -U postgres -d synapse \
   --set=ON_ERROR_STOP=1 \
   --file=/work/supabase/tests/m27_material_master_card_verify.sql
 
+docker exec "$container" psql -U postgres -d synapse \
+  --set=ON_ERROR_STOP=1 \
+  --file=/work/supabase/tests/m28_vmi_from_kt_stock_verify.sql
+
 contract_database_url="postgresql://postgres:synapse-test@${container}:5432/synapse"
 echo "forecasting and routing worker execution intentionally excluded"
 

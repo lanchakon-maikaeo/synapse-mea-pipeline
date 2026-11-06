@@ -376,7 +376,6 @@ export function readMaterialWorkbook(bytes: Uint8Array): ParsedSource {
     }
     if (!vmi.size) throw new Error(`Material Master: ชีท ${vmiSheet.name} ไม่มีรหัสพัสดุ`);
   } else {
-    warnings.push("Material Master: ไฟล์นี้ไม่มีชีท VMI คลองเตย · ระบบจะเพิ่มรหัสใหม่และอัปเดตชื่อ/หน่วยเท่านั้น สถานะ VMI เดิมไม่เปลี่ยน");
   }
 
   const header = master.matrix[0].map(headerCell);
