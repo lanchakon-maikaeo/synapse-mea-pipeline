@@ -295,6 +295,7 @@ export const m09OpenApi = {
     "/v1/replenishment/plans/{plan_id}/planner-selection": post(
       "Send the planner's selection to districts before they confirm",
     ),
+    "/v1/replenishment/plans/{plan_id}/recalculate": post("Recalculate lines the district has not confirmed with the latest stock"),
     "/v1/replenishment/plans/{plan_id}/approve": post(
       "Advance Planner or Academic approval",
     ),
