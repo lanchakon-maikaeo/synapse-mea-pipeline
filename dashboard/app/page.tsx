@@ -2008,6 +2008,36 @@ function WeeklyPlanView({
     (material) => `${material.id} : ${material.name}`,
   );
 
+  // No plan round yet: show only the start step, the rest opens after it.
+  if (mode === "calculate" && canCreate && data.replenishment.length === 0 && workflowStep < 2) {
+    return (
+      <div className="stack">
+        <section className="panel plan-start" aria-label="เริ่มรอบแผน">
+          <span className="plan-start-step">ขั้นแรก</span>
+          <h3>เริ่มรอบแผนการจ่ายสัปดาห์นี้</h3>
+          <p>
+            ระบบจะคำนวณรายการที่เขตต้องเติมจาก Stock เขตและ CMP ชุดที่ส่งเข้าระบบคำนวณล่าสุด
+            เมื่อกดแล้วจึงจะแสดงรายการให้เลือกพัสดุ กรอก Planner Qty และสรุปการจ่าย
+          </p>
+          <ol className="plan-start-flow">
+            <li><b>1</b><span>เริ่มรอบแผน<small>คำนวณจากข้อมูลล่าสุด</small></span></li>
+            <li><b>2</b><span>Build Plan<small>เลือกพัสดุ · กำหนดจำนวน</small></span></li>
+            <li><b>3</b><span>District Review<small>เขตยืนยันรายรายการ</small></span></li>
+            <li><b>4</b><span>Approve &amp; Lock<small>Planner → วิชาการ → Lock FIFO</small></span></li>
+          </ol>
+          <button
+            type="button"
+            className="btn primary plan-start-button"
+            disabled={actionBusy}
+            onClick={() => void onCreate()}
+          >
+            {actionBusy ? "กำลังคำนวณ…" : "เริ่มรอบแผนจากข้อมูลล่าสุด"}
+          </button>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="stack">
       <section className="workflow planner-workflow" aria-label="ขั้นตอนแผนการจ่าย">
