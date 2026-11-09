@@ -10,7 +10,7 @@ create temporary table local_schema_checks (
 insert into local_schema_checks (check_name, passed)
 values
   ('all_migrations_registered',
-    (select count(*) = 38 from ops.schema_migrations)),
+    (select count(*) = 39 from ops.schema_migrations)),
   ('greenfield_bootstrap_registered',
     exists (
       select 1 from ops.schema_migrations

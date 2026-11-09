@@ -56,6 +56,7 @@ type SlotPreview = {
 };
 import { demoUsersPayload } from "./users-demo";
 import { DEMO_MODE } from "./demo-data";
+import ChatWidget from "./chat-widget";
 import {
   TransportModule,
   transportNavForRole,
@@ -3367,6 +3368,9 @@ export default function Home() {
           <span>✓</span>
           {backend.notice}
         </div>
+      )}
+      {!DEMO_MODE && backend.session && (
+        <ChatWidget token={backend.session.access_token} />
       )}
     </div>
   );

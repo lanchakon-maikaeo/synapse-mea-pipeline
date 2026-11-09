@@ -867,4 +867,6 @@ begin
 end
 $$;
 
+\ir chat_assistant_verify.sql
+
 rollback;
