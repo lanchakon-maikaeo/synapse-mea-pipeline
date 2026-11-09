@@ -2,6 +2,7 @@
 
 import {
   isValidElement,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -98,6 +99,22 @@ type ViewKey =
   | "input"
   | "operations"
   | "release";
+
+type PageState = {
+  moduleKey: "warehouse" | "transport";
+  view: ViewKey;
+  transportView: TransportView;
+};
+
+function pageLabel(state: PageState, role: Role) {
+  if (state.moduleKey === "transport") return `ระบบขนส่ง · ${transportTitleFor(state.transportView)[1]}`;
+  if (state.view === "dashboard") return "แดชบอร์ด";
+  return (
+    navByRole[role].flatMap((group) => group.items).find(([key]) => key === state.view)?.[1] ??
+    titles[state.view]?.[1] ??
+    ""
+  );
+}
 
 type PlannerDraft = {
   quantities: Record<string, string>;
@@ -6491,6 +6508,44 @@ export default function Home() {
     "warehouse",
   );
   const [transportView, setTransportView] = useState<TransportView>("dashboard");
+  // Pages visited before, for the back button and the browser back button
+  const [backStack, setBackStack] = useState<PageState[]>([]);
+  const current: PageState = { moduleKey, view, transportView };
+  const sameState = (left: PageState, right: PageState) =>
+    left.moduleKey === right.moduleKey &&
+    (left.moduleKey === "transport" ? left.transportView === right.transportView : left.view === right.view);
+  const goTo = (next: Partial<PageState>) => {
+    const target = { ...current, ...next };
+    if (sameState(target, current)) return;
+    setBackStack((stack) => [...stack.slice(-29), current]);
+    try {
+      window.history.pushState({ synapse: true }, "");
+    } catch {
+      // history is not available (e.g. sandboxed preview): the button still works
+    }
+    if (next.moduleKey) setModule(next.moduleKey);
+    if (next.view) setView(next.view);
+    if (next.transportView) setTransportView(next.transportView);
+    window.scrollTo({ top: 0 });
+  };
+  const navigateView = (next: ViewKey) => goTo({ moduleKey: "warehouse", view: next });
+  const goBack = useCallback(() => {
+    setBackStack((stack) => {
+      const previous = stack.at(-1);
+      if (!previous) return stack;
+      setModule(previous.moduleKey);
+      setView(previous.view);
+      setTransportView(previous.transportView);
+      window.scrollTo({ top: 0 });
+      return stack.slice(0, -1);
+    });
+  }, []);
+  useEffect(() => {
+    const onPop = () => goBack();
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [goBack]);
+  const resetNavigation = () => setBackStack([]);
 
   if (!backend.session || !backend.identity) {
     return (
@@ -6546,13 +6601,13 @@ export default function Home() {
         hiddenViews={hiddenViews}
         role={role}
         open={menuOpen}
-        navigate={setView}
+        navigate={navigateView}
         close={() => setMenuOpen(false)}
         snapshot={snapshot}
         moduleKey={moduleKey}
-        setModule={setModule}
+        setModule={(next) => goTo({ moduleKey: next })}
         transportView={activeTransportView}
-        setTransportView={setTransportView}
+        setTransportView={(next) => goTo({ moduleKey: "transport", transportView: next })}
       />
       <div className="shell">
         {backend.demoMode && (
@@ -6570,6 +6625,7 @@ export default function Home() {
                   setPlannerDraft(emptyPlannerDraft);
                   setView("dashboard");
                   setModule("warehouse");
+                  resetNavigation();
                 }}
               >
                 <option value="planner">ผู้วางแผนคลังคลองเตย</option>
@@ -6589,13 +6645,28 @@ export default function Home() {
           logout={() => {
             setPlannerDraft(emptyPlannerDraft);
             setView("dashboard");
+            resetNavigation();
             void backend.signOut();
           }}
-          navigate={setView}
+          navigate={navigateView}
           refresh={() => void backend.refresh()}
           snapshot={snapshot}
         />
         <main id="content" className="content">
+          {backStack.length > 0 && (
+            <button type="button" className="page-back" onClick={() => {
+              try {
+                window.history.back();
+              } catch {
+                goBack();
+              }
+            }}>
+              <span aria-hidden="true">←</span> ย้อนกลับ
+              <small>
+                {pageLabel(backStack[backStack.length - 1], role)}
+              </small>
+            </button>
+          )}
           {moduleKey === "transport" && activeTransportView === "dispatch" ? (
             <>
               <PageHero
@@ -6662,19 +6733,16 @@ export default function Home() {
                     </div>
                   </aside>
                 )}
-              <ViewTabs view={activeView} role={role} hiddenViews={hiddenViews} navigate={setView} />
+              <ViewTabs view={activeView} role={role} hiddenViews={hiddenViews} navigate={navigateView} />
               <PageContent
                 view={activeView}
                 role={role}
                 backend={backend}
-                navigate={setView}
+                navigate={navigateView}
                 plannerDraft={plannerDraft}
                 setPlannerDraft={setPlannerDraft}
                 summaryAvailable={summaryAvailable}
-                openTransport={() => {
-                  setModule("transport");
-                  setTransportView("planner");
-                }}
+                openTransport={() => goTo({ moduleKey: "transport", transportView: "planner" })}
               />
             </>
           )}
