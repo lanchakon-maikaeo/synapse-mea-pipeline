@@ -38,6 +38,8 @@ test("legacy workbook: history + district sheets become issue events with flags"
   assert.ok(first.review_flags.includes("duplicate_in_file"));
   const adjusted = result.rows.find((row) => row.outcome === "adjusted");
   assert.equal(adjusted.issued_qty, 600);
+  // M_Districts lists plant 5701; the system district for นนทบุรี is 5503
+  assert.equal(adjusted.district_id, "5503");
   assert.equal(adjusted.fill_type, "district_request");
   const mismatch = result.rows.find((row) => row.material_id === "614525500750");
   assert.ok(mismatch.review_flags.includes("qty_differs_but_marked_full"));
@@ -50,4 +52,18 @@ test("legacy workbook: history + district sheets become issue events with flags"
   const fromDistrictSheet = result.rows.find((row) => row.source_sheet === "นวลจันทร์");
   assert.equal(fromDistrictSheet.fill_type, "passed_test");
   assert.equal(fromDistrictSheet.source_row, 6);
+});
+
+test("xlsx writer: written workbook reads back", async () => {
+  const { buildXlsx } = await import("../app/xlsx-writer.ts");
+  const { readAllWorksheets } = await import("../app/sap-xlsx.ts");
+  const bytes = buildXlsx([
+    { name: "สรุป", rows: [["รหัส", "จำนวน"], ["471050004000", 12.5], ["<&>", null]] },
+    { name: "ประวัติ", rows: [["a"], ["b"]] },
+  ]);
+  const sheets = readAllWorksheets(bytes);
+  assert.deepEqual(sheets.map((sheet) => sheet.name), ["สรุป", "ประวัติ"]);
+  assert.equal(sheets[0].matrix[1][0], "471050004000");
+  assert.equal(Number(sheets[0].matrix[1][1]), 12.5);
+  assert.equal(sheets[0].matrix[2][0], "<&>");
 });

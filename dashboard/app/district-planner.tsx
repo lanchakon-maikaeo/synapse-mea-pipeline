@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatNumber } from "./lib";
+import { RULE_LABELS, recommendedQty } from "./usage-bars";
 import type { RecordRow } from "./use-synapse-backend";
 
 // District-by-district planning: work one district at a time (system
@@ -323,7 +324,7 @@ export function DistrictPlanner(props: Props) {
                     <th>CMP</th>
                     <th>MIN–MAX</th>
                     <th>เหลือ</th>
-                    <th>AI</th>
+                    <th>✦ แนะนำ</th>
                     <th>Planner Qty</th>
                     <th>FIFO</th>
                   </tr>
@@ -370,7 +371,16 @@ export function DistrictPlanner(props: Props) {
                         </td>
                         <td>{formatNumber(row.months_available, 1)}M</td>
                         <td className="recommend">
-                          <span className="ai-suggestion">✦ {formatNumber(row.suggested_qty, 0)}</span>
+                          <span className="ai-suggestion" title={text(row.ai_reason)}>
+                            ✦ {formatNumber(recommendedQty(row), 0)}
+                          </span>
+                          {row.ai_rule != null && (
+                            <small className="ai-rule" title={text(row.ai_reason)}>
+                              {RULE_LABELS[text(row.ai_rule)] ?? text(row.ai_rule)}
+                              {recommendedQty(row) !== Number(row.suggested_qty ?? 0) &&
+                                ` · MAX ${formatNumber(row.suggested_qty, 0)}`}
+                            </small>
+                          )}
                         </td>
                         <td>{quantityInput(row)}</td>
                         <td>{fifoCell(row)}</td>
@@ -652,7 +662,7 @@ export function DistrictPlanner(props: Props) {
                       <span>
                         <b>{text(row.material_id)}</b> {text(row.material_name)}
                       </span>
-                      <span className="dp-muted">ระบบเสนอ {formatNumber(row.suggested_qty, 0)}</span>
+                      <span className="dp-muted">ระบบเสนอ {formatNumber(recommendedQty(row), 0)}</span>
                       <button
                         type="button"
                         className="btn ghost"
