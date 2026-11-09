@@ -30,7 +30,7 @@ release scope.
 
 - Canonical source: `lanchakon-maikaeo/synapse-mea-pipeline`, branch `main`.
 - Web release target: Vercel Production URL
-  <https://mea-synapse-production.vercel.app>.
+  <https://mea-synapse-web.vercel.app>.
 - Vercel Git source: the canonical repository above, with Root Directory
   `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase Production project

@@ -37,8 +37,8 @@ Environment ที่ deploy อยู่: **Production operational ผ่าน
 | Canonical repository | `lanchakon-maikaeo/synapse-mea-pipeline` |
 | Branch | `main` |
 | Database release revision | `f238e9e` |
-| Web application | <https://mea-synapse-production.vercel.app> |
-| Vercel project | `spaiss-6/synapse-mea` |
+| Web application | <https://mea-synapse-web.vercel.app> |
+| Vercel project | `synapse01/mea-synapse-web` |
 | Vercel Root Directory | `dashboard` |
 | Database/Auth | Supabase project `fvdfduuanfrncrwuareb` |
 | Supabase project name | `synapse-01` |
@@ -833,7 +833,7 @@ HTTP boundary:
 |---|---|
 | Production data package | ผ่าน owner approval และ checksum verification |
 | M24 local acceptance evidence | ผ่าน 27 migrations, 69 schema checks, 20 workflow checks |
-| Vercel Production | Deploy แล้วที่ `https://mea-synapse-production.vercel.app` |
+| Vercel Production | Deploy แล้วที่ `https://mea-synapse-web.vercel.app` |
 | Supabase Production identity | Project `fvdfduuanfrncrwuareb`, environment `production` |
 | Supabase migration | ทั้ง 32 migration ถึง M13e deploy และตรวจ contract แล้ว |
 | Production data import | ผ่าน governed import + M22 completion attestation |
