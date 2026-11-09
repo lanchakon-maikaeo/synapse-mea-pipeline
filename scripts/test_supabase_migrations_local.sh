@@ -19,7 +19,7 @@ docker run -d --name "$container" --network "$network" \
   -e POSTGRES_PASSWORD=synapse-test \
   -e POSTGRES_DB=synapse \
   -v "$root:/work:ro" \
-  postgres:17-bookworm >/dev/null
+  pgvector/pgvector:pg17 >/dev/null
 
 for _ in {1..60}; do
   docker exec "$container" psql -U postgres -d synapse --tuples-only --no-align \
