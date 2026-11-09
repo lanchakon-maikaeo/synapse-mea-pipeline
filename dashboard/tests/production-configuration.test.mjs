@@ -27,7 +27,7 @@ test("production configuration guard accepts the approved Supabase origin and a 
   assert.deepEqual(
     validateProductionSupabaseConfiguration({
       VERCEL_ENV: "production",
-      VERCEL_PROJECT_PRODUCTION_URL: "mea-synapse-production.vercel.app",
+      VERCEL_PROJECT_PRODUCTION_URL: "mea-synapse-web.vercel.app",
       NEXT_PUBLIC_SUPABASE_URL: canonicalUrl,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_example",
     }),
@@ -38,7 +38,7 @@ test("production configuration guard accepts the approved Supabase origin and a 
 test("production configuration guard rejects a legacy project or a missing key", () => {
   const result = validateProductionSupabaseConfiguration({
     VERCEL_ENV: "production",
-    VERCEL_PROJECT_PRODUCTION_URL: "mea-synapse-production.vercel.app",
+    VERCEL_PROJECT_PRODUCTION_URL: "mea-synapse-web.vercel.app",
     NEXT_PUBLIC_SUPABASE_URL: "https://jbwbmrizawxcrtliozqt.supabase.co",
     NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder",
   });
@@ -53,7 +53,7 @@ test("production configuration guard rejects a legacy project or a missing key",
 test("production configuration guard rejects local demo mode", () => {
   const result = validateProductionSupabaseConfiguration({
     VERCEL_ENV: "production",
-    VERCEL_PROJECT_PRODUCTION_URL: "mea-synapse-production.vercel.app",
+    VERCEL_PROJECT_PRODUCTION_URL: "mea-synapse-web.vercel.app",
     NEXT_PUBLIC_SUPABASE_URL: canonicalUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_example",
     NEXT_PUBLIC_SYNAPSE_DEMO_MODE: "true",

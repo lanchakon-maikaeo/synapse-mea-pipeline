@@ -22,7 +22,7 @@ smart-logistics release approval.
 2. Apply Supabase migrations with
    `scripts/deploy_database_migrations.sh`, using an off-repository backup
    directory and explicit deployment confirmation.
-3. Deploy the verified `main` commit to `spaiss-6/synapse-mea` with Root
+3. Deploy the verified `main` commit to `synapse01/mea-synapse-web` with Root
    Directory `dashboard`.
 4. Run the authenticated read-only deployment smoke suite.
 5. Preserve backup, release, CI and Vercel evidence.

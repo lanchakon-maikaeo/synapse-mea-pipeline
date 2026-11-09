@@ -13,10 +13,10 @@ Create four Git-backed Vercel projects from this repository:
 
 | Project | Root Directory | Purpose |
 | --- | --- | --- |
-| `synapse-routing-osrm` | `deploy/vercel/osrm` | authenticated OSRM Table + Route preview |
-| `synapse-routing-valhalla` | `deploy/vercel/valhalla` | authenticated truck matrix and route evidence |
-| `synapse-optimization-worker` | `intelligence` | authenticated on-demand OR-Tools worker |
-| `synapse-map-tiles` | `deploy/vercel/map-tiles` | self-hosted BMR PMTiles basemap |
+| `mea-synapse-routing-osrm` | `deploy/vercel/osrm` | authenticated OSRM Table + Route preview |
+| `mea-synapse-routing-valhalla` | `deploy/vercel/valhalla` | authenticated truck matrix and route evidence |
+| `mea-synapse-optimization-worker` | `intelligence` | authenticated on-demand OR-Tools worker |
+| `mea-synapse-map-tiles` | `deploy/vercel/map-tiles` | self-hosted BMR PMTiles basemap |
 
 Both routing images use the repository-pinned BMR extract
 `bmr-2026-08-20.osm.pbf` (SHA-256
@@ -35,27 +35,27 @@ UI attribution remains `© OpenStreetMap contributors`.
 Generate independent high-entropy values for every token. Never expose them as
 `NEXT_PUBLIC_*` variables.
 
-`synapse-routing-osrm`:
+`mea-synapse-routing-osrm`:
 
 ```text
 ROUTING_PROXY_AUTH_TOKEN=<random server-only token>
 VERCEL_SUPPORT_LARGE_FUNCTIONS=1
 ```
 
-`synapse-routing-valhalla`:
+`mea-synapse-routing-valhalla`:
 
 ```text
 ROUTING_PROXY_AUTH_TOKEN=<different random server-only token>
 VERCEL_SUPPORT_LARGE_FUNCTIONS=1
 ```
 
-`synapse-optimization-worker`:
+`mea-synapse-optimization-worker`:
 
 ```text
 DATABASE_URL=<production Supabase pooler URL with sslmode=require>
 WORKER_API_KEY=<different random server-only token>
 WORKER_ID=vercel-worker-01
-VALHALLA_URL=https://<synapse-routing-valhalla production domain>
+VALHALLA_URL=https://<mea-synapse-routing-valhalla production domain>
 VALHALLA_AUTH_TOKEN=<matching Valhalla proxy token>
 VALHALLA_TILESET_VERSION=valhalla-bmr-2026-08-20-sha256-b41ce7d5c5f2782fe4af222efede4edab366822cec0c3ed47dbc5c503b429351
 VALHALLA_OSM_CHANGESET=0
@@ -66,16 +66,16 @@ The worker also accepts `POSTGRES_URL_NON_POOLING` and then `POSTGRES_URL` when
 the Supabase Marketplace integration injects those values; explicit
 `DATABASE_URL` takes precedence.
 
-`mea-synapse-production`:
+`mea-synapse-web`:
 
 ```text
-ROUTING_ENGINE_URL=https://<synapse-routing-osrm production domain>
+ROUTING_ENGINE_URL=https://<mea-synapse-routing-osrm production domain>
 ROUTING_ENGINE_PROFILE=driving
 ROUTING_ENGINE_DATA_VERSION=osm-bmr-2026-08-20-sha256-b41ce7d5c5f2782fe4af222efede4edab366822cec0c3ed47dbc5c503b429351
 ROUTING_ENGINE_AUTH_TOKEN=<matching OSRM proxy token>
-OPTIMIZATION_WORKER_URL=https://<synapse-optimization-worker production domain>
+OPTIMIZATION_WORKER_URL=https://<mea-synapse-optimization-worker production domain>
 OPTIMIZATION_WORKER_AUTH_TOKEN=<matching worker token>
-NEXT_PUBLIC_MAP_TILE_URL=https://synapse-map-tiles.vercel.app/bmr.pmtiles
+NEXT_PUBLIC_MAP_TILE_URL=https://mea-synapse-map-tiles.vercel.app/bmr.pmtiles
 NEXT_PUBLIC_MAP_ATTRIBUTION=&copy; OpenStreetMap contributors &middot; Protomaps
 ```
 
