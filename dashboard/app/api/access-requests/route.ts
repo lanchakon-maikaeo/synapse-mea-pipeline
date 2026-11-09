@@ -1,4 +1,5 @@
 import { publicConfig } from "../../lib";
+import { controlledSupabaseOrigin, requestId } from "../route-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +19,6 @@ type AccessRequestBody = {
   requestedRole?: unknown;
   reason?: unknown;
 };
-
-function requestId(request: Request) {
-  const supplied = request.headers.get("x-request-id") ?? "";
-  return supplied.length > 0 &&
-    supplied.length <= 64 &&
-    /^[A-Za-z0-9_-]+$/.test(supplied)
-    ? supplied
-    : crypto.randomUUID();
-}
 
 function json(body: unknown, status: number, id: string) {
   return Response.json(body, {
@@ -48,26 +40,6 @@ function error(status: number, code: string, message: string, id: string) {
 
 function field(value: unknown, maximum: number) {
   return typeof value === "string" ? value.trim().slice(0, maximum) : "";
-}
-
-function supabaseOrigin() {
-  try {
-    const url = new URL(publicConfig.supabaseUrl);
-    if (
-      !/^https:$/.test(url.protocol) ||
-      !/^[a-z0-9]{20}\.supabase\.co$/i.test(url.hostname) ||
-      url.username ||
-      url.password ||
-      url.pathname !== "/" ||
-      url.search ||
-      url.hash
-    ) {
-      return null;
-    }
-    return url.origin;
-  } catch {
-    return null;
-  }
 }
 
 export async function POST(request: Request) {
@@ -112,7 +84,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const origin = supabaseOrigin();
+  const origin = controlledSupabaseOrigin();
   if (!origin || !publicConfig.supabaseAnonKey) {
     return error(
       503,

@@ -1,4 +1,5 @@
 import { publicConfig } from "../../../lib";
+import { controlledSupabaseOrigin, requestId } from "../../route-helpers";
 
 // Admin-only account provisioning (create login, reset password) using the
 // Supabase Auth admin API. The service role key lives only in the server
@@ -9,11 +10,6 @@ import { publicConfig } from "../../../lib";
 export const dynamic = "force-dynamic";
 
 const ASSIGNABLE = new Set(["planner", "academic", "picker", "district", "viewer"]);
-
-function requestId(request: Request) {
-  const supplied = request.headers.get("x-request-id") ?? "";
-  return /^[A-Za-z0-9_-]{1,64}$/.test(supplied) ? supplied : crypto.randomUUID();
-}
 
 function json(body: unknown, status: number, id: string) {
   return Response.json(body, {
@@ -31,21 +27,6 @@ function json(body: unknown, status: number, id: string) {
 
 function error(status: number, code: string, message: string, id: string) {
   return json({ error: { code, message, request_id: id } }, status, id);
-}
-
-function supabaseOrigin() {
-  try {
-    const url = new URL(publicConfig.supabaseUrl);
-    if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) return null;
-    if (process.env.NODE_ENV === "production") {
-      if (url.protocol !== "https:") return null;
-      const allowed = process.env.SUPABASE_ALLOWED_ORIGIN?.trim();
-      if (!/^[a-z0-9]{20}\.supabase\.co$/i.test(url.hostname) && url.origin !== allowed) return null;
-    }
-    return url.origin;
-  } catch {
-    return null;
-  }
 }
 
 function serviceKey() {
@@ -80,7 +61,7 @@ async function authorise(request: Request, id: string) {
   if (!/^Bearer [A-Za-z0-9._-]{20,}$/.test(authorization)) {
     return { failure: error(401, "unauthorized", "Missing or invalid bearer token", id) };
   }
-  const origin = supabaseOrigin();
+  const origin = controlledSupabaseOrigin();
   if (!origin || !publicConfig.supabaseAnonKey) {
     return { failure: error(503, "service_unavailable", "Supabase is not configured", id) };
   }

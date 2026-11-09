@@ -20,10 +20,16 @@ test("renders the MEA Synapse operational workspace in Thai", async () => {
 });
 
 test("keeps the UI aligned with the frozen production operations scope", async () => {
-  const [page, layout] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
+  // page.tsx is split by job; the screens it renders are read together.
+  const [pageParts, layout] = await Promise.all([
+    Promise.all(
+      ["page.tsx", "weekly-plan-view.tsx", "data-import-view.tsx", "view-helpers.tsx"].map((file) =>
+        readFile(new URL(`app/${file}`, root), "utf8"),
+      ),
+    ),
     readFile(new URL("app/layout.tsx", root), "utf8"),
   ]);
+  const page = pageParts.join("\n");
   // Localized (Thai) surface for the frozen operational scope.
   for (const required of [
     "แผนการจ่ายรายสัปดาห์",
