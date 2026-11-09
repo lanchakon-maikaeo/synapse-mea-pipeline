@@ -1,4 +1,4 @@
-.PHONY: test ci workspace-ci api-test pipeline-test intelligence-test dashboard-test openapi openapi-check shell-check secrets-check geo-source-check compose-check worker-image database-contract-local delivery-check
+.PHONY: test ci workspace-ci api-test pipeline-test intelligence-test dashboard-test openapi openapi-check shell-check secrets-check geo-source-check migration-check compose-check worker-image database-contract-local delivery-check
 
 COMPOSE ?= $(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; fi)
 
@@ -29,13 +29,16 @@ openapi-check:
 	.venv/bin/python api/scripts/export_openapi.py --check
 
 shell-check:
-	bash -n scripts/backup_database.sh scripts/deploy_database_migrations.sh scripts/prepare_osrm_graph.sh scripts/restore_database.sh scripts/restore_drill.sh scripts/scan_secrets.sh scripts/test_restore_drill_local.sh scripts/test_supabase_migrations_local.sh
+	bash -n scripts/backup_database.sh scripts/check_migrations.sh scripts/deploy_database_migrations.sh scripts/prepare_osrm_graph.sh scripts/restore_database.sh scripts/restore_drill.sh scripts/scan_secrets.sh scripts/test_restore_drill_local.sh scripts/test_supabase_migrations_local.sh
 
 secrets-check:
 	bash scripts/scan_secrets.sh
 
 geo-source-check:
 	python3 scripts/verify_transport_geocodes.py
+
+migration-check:
+	bash scripts/check_migrations.sh
 
 compose-check:
 	@test -n "$(COMPOSE)" || { echo "Docker Compose is required (docker compose or docker-compose)"; exit 1; }
@@ -51,4 +54,4 @@ worker-image:
 database-contract-local:
 	bash scripts/test_supabase_migrations_local.sh
 
-delivery-check: shell-check compose-check secrets-check geo-source-check
+delivery-check: shell-check migration-check compose-check secrets-check geo-source-check
