@@ -379,6 +379,9 @@ export function DistrictPlanner(props: Props) {
                               {RULE_LABELS[text(row.ai_rule)] ?? text(row.ai_rule)}
                               {recommendedQty(row) !== Number(row.suggested_qty ?? 0) &&
                                 ` · MAX ${formatNumber(row.suggested_qty, 0)}`}
+                              {Number(row.ai_kt_short ?? 0) > 0 && (
+                                <b className="shortage-text"> · คลองเตยขาด {formatNumber(row.ai_kt_short, 0)}</b>
+                              )}
                             </small>
                           )}
                         </td>

@@ -15,11 +15,11 @@
 --         adjusted CMP = (median month + mean of the last 4 months) / 2,
 --         months above 3x the median count as 3x the median
 --      refused before ("ไม่รับของ")            -> at most 4 x adjusted CMP
---    The plan queue caps it at the Khlong Toei stock.
+--    The plan queue keeps the full quantity and shows what Khlong Toei lacks.
 -- 4. GET /v1/district-usage?district_id=5502|all
 --    GET /v1/district-usage/history?district_id=&material_id=
 --    GET /v1/district-usage/summary
---    GET /v1/replenishment/queue adds ai_qty / ai_reason / ai_rule / usage.
+--    GET /v1/replenishment/queue adds ai_qty / ai_reason / ai_rule / ai_kt_short / usage.
 
 begin;
 
@@ -345,13 +345,15 @@ begin
         group by 1, 2
       )
       select jsonb_agg(r || jsonb_build_object(
-          'ai_qty', case when s.v ->> 'qty' is null then null
-            else least((s.v ->> 'qty')::numeric,
-              coalesce((r ->> 'kt_stock_qty')::numeric, (s.v ->> 'qty')::numeric)) end,
+          -- what the district really needs; a shortage stays visible
+          'ai_qty', (s.v ->> 'qty')::numeric,
           'ai_rule', s.v ->> 'rule',
           'ai_reason', (s.v ->> 'reason') || case
             when (s.v ->> 'qty')::numeric > coalesce((r ->> 'kt_stock_qty')::numeric, (s.v ->> 'qty')::numeric)
-            then format(' · คำนวณได้ %s แต่ Stock คลองเตยมี %s', s.v ->> 'qty', r ->> 'kt_stock_qty') else '' end,
+            then format(' · Stock คลองเตยมี %s ขาด %s', r ->> 'kt_stock_qty',
+              (s.v ->> 'qty')::numeric - (r ->> 'kt_stock_qty')::numeric) else '' end,
+          'ai_kt_short', greatest(0::numeric, coalesce((s.v ->> 'qty')::numeric, 0)
+            - coalesce((r ->> 'kt_stock_qty')::numeric, coalesce((s.v ->> 'qty')::numeric, 0))),
           'ai_usage', s.v -> 'usage_12m',
           'ai_usage_labels', s.v -> 'usage_labels',
           'ai_typical', s.v -> 'typical',
