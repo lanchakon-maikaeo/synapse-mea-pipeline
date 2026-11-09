@@ -10,8 +10,8 @@ coordinates are promoted through the production release gates.
 ## Modules
 
 - `pipeline/` — source connectors, ingestion, checksum and idempotency
-- `dashboard/` — Next.js Web App and Supabase Auth; the verified live contract
-  is SYNAPSE API `1.3.0` with 48 paths, matching the working tree
+- `dashboard/` — Next.js Web App and Supabase Auth; its API paths are listed in
+  `dashboard/app/m09-openapi.ts` (SYNAPSE API `1.3.0`)
 - `supabase/` — ordered database migrations, RLS, audit, backup evidence and
   acceptance SQL
 - `api/` — optional self-host compatibility adapter; not the Vercel runtime
@@ -35,10 +35,10 @@ release scope.
   `dashboard` and Production branch `main`.
 - Database/Auth target: managed Supabase Production project
   `fvdfduuanfrncrwuareb` (`synapse-01`, `ap-southeast-1`).
-- Release code contains 32 ordered additive migrations. The verified live head
-  is M13e (`202607250005`), applied 26 July 2026; M13–M13e
-  (`202607250001`–`202607250005`) are live. Transport schema and API are
-  deployed. Owner-attested depot and partial fleet evidence makes the transport
+- Release code contains the ordered additive migrations in
+  `supabase/migrations/` (M01–M34 on 9 November 2026). Which of them are live is
+  recorded in `ops.schema_migrations` of the Production database; check there
+  rather than in this file. Transport schema and API are deployed. Owner-attested depot and partial fleet evidence makes the transport
   input readiness gate report `ready`, but real route planning remains blocked
   until controlled routing services, a locked replenishment plan, packaging
   evidence and route-plan activation are available. The approved
@@ -55,10 +55,12 @@ release target.
 The former `lanchakon-maikaeo/synapse-mea-dashboard` deployment mirror is
 retained only as an archived migration record and is not connected to Vercel.
 
-Run `make workspace-ci` before release. The current database contract starts a
-clean PostgreSQL 17 instance and applies all 32 working-tree migrations; the 69
-schema/RLS/privilege controls plus 20 authenticated workflows are the verified
-M24 baseline, with additional M13/M13e contracts required for transport. The
+Run `make workspace-ci` before release. The database contract
+(`scripts/test_supabase_migrations_local.sh`) starts a clean PostgreSQL 17
+instance, applies every working-tree migration and runs each verify script in
+`supabase/tests/`. `make migration-check` rejects a migration that is not named
+`<12-digit version>_<name>.sql` (the release script needs that) or that patches
+a function's text; write the whole function with `create or replace`. The
 dashboard gate runs lint, TypeScript, a production Next.js build, rendered
 screen/API tests and the Drizzle database contract. Local success is not live
 deployment evidence.
