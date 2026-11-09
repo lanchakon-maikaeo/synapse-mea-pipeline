@@ -26,11 +26,11 @@ export function UsageBars({
   const median = (sorted[5] + sorted[6]) / 2 || 0;
   const max = Math.max(...values, 1);
   const width = compact ? 120 : 360;
-  const height = compact ? 28 : 120;
+  const height = compact ? 28 : 132;
   const gap = compact ? 2 : 6;
   const bar = (width - gap * (values.length - 1)) / values.length;
   const top = compact ? 2 : 16;
-  const bottom = compact ? 0 : 18;
+  const bottom = compact ? 0 : 30;
   const plot = height - top - bottom;
   return (
     <svg
@@ -62,9 +62,14 @@ export function UsageBars({
               </text>
             )}
             {!compact && (
-              <text x={x + bar / 2} y={height - 4} textAnchor="middle" className="axis">
-                {monthLabel(labels[index] ?? "").split(" ")[0]}
-              </text>
+              <>
+                <text x={x + bar / 2} y={height - 16} textAnchor="middle" className="axis">
+                  {monthLabel(labels[index] ?? "").split(" ")[0]}
+                </text>
+                <text x={x + bar / 2} y={height - 4} textAnchor="middle" className="axis year">
+                  {monthLabel(labels[index] ?? "").split(" ")[1]}
+                </text>
+              </>
             )}
           </g>
         );
