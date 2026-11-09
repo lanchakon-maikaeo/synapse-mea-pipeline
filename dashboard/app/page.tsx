@@ -1863,6 +1863,11 @@ function WeeklyPlanView({
       ),
     )[0];
   const targetPlanId = text(targetPlan?.replenishment_plan_id, "");
+  const planStartedAt = data.replenishment
+    .filter((row) => text(row.replenishment_plan_id) === targetPlanId)
+    .map((row) => text(row.created_at, ""))
+    .filter(Boolean)
+    .sort()[0];
   const lineKey = (row: RecordRow) => `${text(row.district_id)}|${text(row.material_id)}`;
   const targetItems = data.replenishment.filter(
     (row) =>
@@ -2149,19 +2154,23 @@ function WeeklyPlanView({
         ))}
       </section>
 
-      {!(workflowStep === 3 && canCreate) && (
-      <section className="user-status">
-        {[
-          ["รายการที่เลือก", selectedRows.length, "รายการที่เลือกเข้าแผนในรอบคำนวณนี้"],
-          ["เขตในแผน", districtSummary.length, "จำนวนเขตในรายการที่เลือก"],
-        ].map(([label, value, note]) => (
-          <article key={String(label)}>
-            <span>{label}</span>
-            <strong>{formatNumber(value)}</strong>
-            <small>{note}</small>
-          </article>
-        ))}
-      </section>
+      {targetPlan && (
+        <section className="plan-banner" aria-label="แผนที่กำลังทำ">
+          <span className="plan-banner-label">แผนที่กำลังทำ</span>
+          <strong>
+            {text(targetPlan.plan_number)}-V{text(targetPlan.version_no, "1")}
+          </strong>
+          <span className="plan-banner-meta">
+            สัปดาห์จ่าย {new Date(`${text(targetPlan.week_start_date, "")}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
+            {planStartedAt ? ` · เริ่มรอบ ${formatDateTime(planStartedAt)}` : ""}
+            {" · "}
+            {{
+              draft: "ร่าง",
+              pending_district_confirmation: "รอเขตยืนยัน",
+              district_review: "รอเขตยืนยัน",
+            }[text(targetPlan.plan_status, "")] ?? text(targetPlan.plan_status)}
+          </span>
+        </section>
       )}
 
       {(workflowStep === 0 || workflowStep === 1) && (
