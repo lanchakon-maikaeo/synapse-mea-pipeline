@@ -2,7 +2,7 @@
 
 const CANONICAL_PRODUCTION_SUPABASE_REF = "fvdfduuanfrncrwuareb";
 const CANONICAL_PRODUCTION_SUPABASE_ORIGIN = `https://${CANONICAL_PRODUCTION_SUPABASE_REF}.supabase.co`;
-const PRODUCTION_VERCEL_HOST = "mea-synapse-production.vercel.app";
+const PRODUCTION_VERCEL_HOST = "mea-synapse-web.vercel.app";
 
 function isSupabasePublishableKey(value) {
   return (

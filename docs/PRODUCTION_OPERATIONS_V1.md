@@ -27,11 +27,11 @@ User browser
   -> append-only movement, approval and audit evidence
 ```
 
-The Production web target is Vercel project `spaiss-6/synapse-mea`.
+The Production web target is Vercel project `synapse01/mea-synapse-web`.
 The Production database/Auth target is Supabase project `fvdfduuanfrncrwuareb`
 (`synapse-01`, `ap-southeast-1`); Test/UAT
 remains `mklnbumfwojxhqscthjd`.
-The Production web target is `https://mea-synapse-production.vercel.app`.
+The Production web target is `https://mea-synapse-web.vercel.app`.
 Vercel deploys branch `main` from the canonical
 `lanchakon-maikaeo/synapse-mea-pipeline` repository with Root Directory
 `dashboard`.
@@ -161,7 +161,7 @@ Deploy a GitHub-verified commit from `main`, wait for Vercel `READY`, then run:
 
 ```bash
 cd dashboard
-SMOKE_BASE_URL='https://mea-synapse-production.vercel.app' \
+SMOKE_BASE_URL='https://mea-synapse-web.vercel.app' \
 SYNAPSE_ACCESS_TOKEN='<temporary-masked-token>' \
 npm run smoke:deployment
 ```
