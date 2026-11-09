@@ -44,12 +44,21 @@ export type LegacyParseResult = {
   warnings: string[];
 };
 
+// SYNAPSE district codes (core.districts.district_id), not SAP plant codes
 export const LEGACY_DISTRICTS: Record<string, string> = {
-  นวลจันทร์: "5501", สามเสน: "5601", นนทบุรี: "5701", ธนบุรี: "5801",
-  บางใหญ่: "5901", ลาดกระบัง: "6001", บางนา: "6501", วัดเลียบ: "6601",
-  คลองเตย: "6701", ราษฎร์บูรณะ: "6801", ยานนาวา: "6901", บางขุนเทียน: "7001",
-  บางบัวทอง: "7501", บางกะปิ: "7601", สมุทรปราการ: "7701", บางพลี: "7801",
-  มีนบุรี: "7901", บางเขน: "8001",
+  นวลจันทร์: "5501", สามเสน: "5502", นนทบุรี: "5503", ธนบุรี: "5504",
+  บางใหญ่: "5505", ลาดกระบัง: "5506", บางนา: "5507", วัดเลียบ: "5508",
+  คลองเตย: "5509", ราษฎร์บูรณะ: "5510", ยานนาวา: "5511", บางขุนเทียน: "5512",
+  บางบัวทอง: "5513", บางกะปิ: "5514", สมุทรปราการ: "5515", บางพลี: "5516",
+  มีนบุรี: "5517", บางเขน: "5518",
+};
+
+const PLANT_DISTRICT: Record<string, string> = {
+  "5501": "5501", "5601": "5502", "5701": "5503", "5801": "5504",
+  "5901": "5505", "6001": "5506", "6501": "5507", "6601": "5508",
+  "6701": "5509", "6801": "5510", "6901": "5511", "7001": "5512",
+  "7501": "5513", "7601": "5514", "7701": "5515", "7801": "5516",
+  "7901": "5517", "8001": "5518",
 };
 
 export const FLAG_LABELS: Record<LegacyFlag, string> = {
@@ -150,7 +159,8 @@ export function parseLegacyWorkbook(
   master?.matrix.slice(1).forEach((row) => {
     const code = clean(row?.[0]).replace(/\.0+$/, "");
     const name = districtName(row?.[1] ?? "");
-    if (/^\d{4}$/.test(code) && name) lookup[name] = code;
+    // M_Districts lists SAP plant codes; the system keys districts 5501–5518
+    if (/^\d{4}$/.test(code) && name) lookup[name] = PLANT_DISTRICT[code] ?? code;
   });
 
   const historySheets = ["History จ่ายได้ตามแผน", "History ไม่รับของ"];

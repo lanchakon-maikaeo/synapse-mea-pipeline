@@ -42,6 +42,8 @@ import { PlanSubmitModal, type PlannerSelectionPayload } from "./plan-submit";
 import { PageHero } from "./page-hero";
 import { PackingEntryView } from "./packing-entry";
 import { ContractLotsView } from "./contract-lots";
+import { DistrictUsageView } from "./district-usage";
+import { RULE_LABELS, UsageBars, recommendedQty } from "./usage-bars";
 import { LegacyHistoryImportView } from "./legacy-history-import";
 import { OperationHistoryView } from "./operation-history";
 import { demoHistoryPayload } from "./history-demo";
@@ -87,6 +89,7 @@ type ViewKey =
   | "fifo_setup"
   | "packing"
   | "lots"
+  | "usage"
   | "legacy_history"
   | "history"
   | "users"
@@ -164,6 +167,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "คำนวณการจ่าย", "▤"],
         ["summary", "สรุปการจ่าย", "☰"],
+        ["usage", "การใช้งานรายเขต", "▥"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
         ["alerts", "แจ้งเตือนเบิกผิดปกติ", "⚠"],
         ["history", "ประวัติการดำเนินงาน", "☷"],
@@ -206,6 +210,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "คำนวณการจ่าย", "▤"],
         ["summary", "สรุปการจ่าย", "☰"],
+        ["usage", "การใช้งานรายเขต", "▥"],
         ["lots", "ของเข้าคลังตามสัญญา", "▧"],
         ["changes", "ตรวจคำขอผิดปกติ", "!"],
         ["alerts", "แจ้งเตือนเบิกผิดปกติ", "⚠"],
@@ -237,6 +242,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["changes", "หลักฐานคำขอผิดปกติ", "!"],
         ["alerts", "แจ้งเตือนเบิกผิดปกติ", "⚠"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
+        ["usage", "การใช้งานรายเขต", "▥"],
         ["approvals", "ประวัติการอนุมัติ", "◷"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
         ["history", "ประวัติการดำเนินงาน", "☷"],
@@ -277,6 +283,7 @@ const navByRole: Record<Role, NavGroup[]> = {
         ["adhoc", "ขอจ่ายกรณีพิเศษ", "↗"],
         ["delivery", "วันส่งของประจำเขต", "▣"],
         ["stock", "Stock เขต", "◫"],
+        ["usage", "การใช้งานของเขต", "▥"],
         ["trace", "สอบกลับการจ่าย", "⌕"],
         ["history", "ประวัติการดำเนินงาน", "☷"],
       ],
@@ -288,6 +295,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["dashboard", "แดชบอร์ด", "⌂"],
         ["weekly", "แผนการจ่าย", "▤"],
+        ["usage", "การใช้งานรายเขต", "▥"],
         ["lots", "ของเข้าคลังตามสัญญา", "▧"],
         ["recommendations", "หลักฐานปริมาณ", "✦"],
         ["fifo", "FIFO & พาเลท", "▦"],
@@ -431,6 +439,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "FIFO Setup",
     "FIFO, Packaging & Opening Setup",
     "ตรวจ Packing เริ่มต้นหน่วยขนถ่าย กระทบยอด และ Publish หลักฐาน FIFO ก่อนเริ่มใช้งานจริง",
+  ],
+  usage: [
+    "การใช้งานรายเขต",
+    "ยอดใช้จริง ประวัติการจ่าย และยอดแนะนำ รายเขต รายพัสดุ",
+    "ดูยอดเบิกใช้ 12 เดือน ประวัติจ่าย / ไม่รับของ จากไฟล์คลังคลองเตยและ SYNAPSE พร้อมเหตุผลของยอดแนะนำ · ส่งออก Excel ได้",
   ],
   lots: [
     "ของเข้าคลัง",
@@ -1561,7 +1574,7 @@ function WeeklyPlanView({
   );
   const isPicked = (row: RecordRow) =>
     Boolean(selectedPlanningIds[itemId(row)]) &&
-    Number(plannerQuantities[itemId(row)] ?? (row.replenishment_item_id ? Number(row.suggested_qty ?? 0) : 0)) > 0;
+    Number(plannerQuantities[itemId(row)] ?? (row.replenishment_item_id ? recommendedQty(row) : 0)) > 0;
   const districtStats = (districtId: string): DistrictStats => {
     const systemRows = systemRowsByDistrict[districtId] ?? [];
     const needs = systemRows.filter(rowNeedsFill);
@@ -1618,7 +1631,7 @@ function WeeklyPlanView({
   );
 
   const defaultPlannerQuantity = (row: RecordRow) =>
-    row.replenishment_item_id ? Number(row.planner_qty ?? row.suggested_qty ?? 0) : 0;
+    row.replenishment_item_id ? Number(row.planner_qty ?? recommendedQty(row)) : 0;
   const focusedRow =
     rows.find((row) => itemId(row) === focusedItemId) ?? rows[0] ?? null;
   const plannerQuantity = (row: RecordRow) => {
@@ -2363,7 +2376,7 @@ function WeeklyPlanView({
                         <th>MIN</th>
                         <th>MAX</th>
                         <th>เหลือ (เดือน)</th>
-                        <th>AI Suggestion</th>
+                        <th>✦ แนะนำ</th>
                         <th>Planner Qty</th>
                       </tr>
                     </thead>
@@ -2432,7 +2445,19 @@ function WeeklyPlanView({
                             <td>{formatNumber(row.max_fill_qty, 0)}</td>
                             <td>{formatNumber(row.months_available, 1)}M</td>
                             <td className="recommend">
-                              <span className="ai-suggestion">✦ AI {formatNumber(row.suggested_qty, 0)}</span>
+                              <span className="ai-suggestion" title={text(row.ai_reason, "")}>
+                                ✦ {formatNumber(recommendedQty(row), 0)}
+                              </span>
+                              {row.ai_rule != null && (
+                                <small className="ai-rule">
+                                  {RULE_LABELS[text(row.ai_rule)] ?? text(row.ai_rule)}
+                                  {recommendedQty(row) !== Number(row.suggested_qty ?? 0) &&
+                                    ` · MAX ${formatNumber(row.suggested_qty, 0)}`}
+                              {Number(row.ai_kt_short ?? 0) > 0 && (
+                                <b className="shortage-text"> · คลองเตยขาด {formatNumber(row.ai_kt_short, 0)}</b>
+                              )}
+                                </small>
+                              )}
                             </td>
                             <td>
                               <input
@@ -2509,14 +2534,28 @@ function WeeklyPlanView({
               {focusedRow ? (
                 <div className="evidence-body">
                   <div className="suggestion-card">
-                    <span>AI / Rule Suggestion</span>
-                    <strong>{formatNumber(focusedRow.suggested_qty, 0)}</strong>
+                    <span>
+                      ✦ แนะนำจากการใช้จริง
+                      {focusedRow.ai_rule != null &&
+                        ` · ${RULE_LABELS[text(focusedRow.ai_rule)] ?? text(focusedRow.ai_rule)}`}
+                    </span>
+                    <strong>{formatNumber(recommendedQty(focusedRow), 0)}</strong>
                     <small>
                       {text(
-                        focusedRecommendation?.method,
-                        "ยังไม่มีผล AI จากประวัติ — ใช้ Business Rule",
+                        focusedRow.ai_reason,
+                        text(focusedRecommendation?.method, "ยังไม่มีข้อมูลการใช้ — ใช้สูตรเติมถึง MAX"),
                       )}
+                      {focusedRow.ai_rule != null &&
+                        ` · สูตรเดิม (MAX) ${formatNumber(focusedRow.suggested_qty, 0)}`}
                     </small>
+                    {Array.isArray(focusedRow.ai_usage) && (
+                      <div className="suggestion-usage">
+                        <UsageBars
+                          values={(focusedRow.ai_usage as unknown[]).map(Number)}
+                          labels={(focusedRow.ai_usage_labels as unknown[] | undefined ?? []).map(String)}
+                        />
+                      </div>
+                    )}
                     <Badge>
                       {text(
                         focusedRecommendation?.source_freshness_status,
@@ -2807,7 +2846,7 @@ function WeeklyPlanView({
                 ["Stock เขต", (row) => formatNumber(row.current_stock_qty, 0)],
                 ["MIN", (row) => formatNumber(row.min_fill_qty, 0)],
                 ["MAX", (row) => formatNumber(row.max_fill_qty, 0)],
-                ["✦ AI Suggestion", (row) => formatNumber(row.suggested_qty, 0)],
+                ["✦ แนะนำ", (row) => formatNumber(recommendedQty(row), 0)],
                 ["Planner Qty", (row) => formatNumber(plannerQuantity(row), 0)],
                 [
                   "สถานะ",
@@ -6350,6 +6389,16 @@ function PageContent({
         contractRows={backend.data.receiptOptions}
         materialRows={backend.data.materials}
         onPublishOpening={backend.publishFifoOpening}
+      />
+    );
+  }
+  if (view === "usage") {
+    return (
+      <DistrictUsageView
+        token={backend.session?.access_token ?? null}
+        role={role}
+        ownDistrict={null}
+        demoMode={DEMO_MODE}
       />
     );
   }

@@ -1387,3 +1387,69 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 /* M29: all districts above Khlong Toei stock */
 .kt-over-box{display:flex;flex-direction:column;gap:4px;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#fff3f1;border:1px solid #f0c2bb;color:#9a2b20;font-size:13px}
 .kt-over-box strong{font-size:14px}
+/* M31: recommendation from real usage + district usage page */
+.ai-rule{display:block;margin-top:2px;font-size:11px;color:var(--muted);white-space:nowrap}
+.suggestion-usage{margin-top:10px;background:#ffffff14;border-radius:10px;padding:6px 4px 0}
+.suggestion-card .suggestion-usage .usage-bars text{fill:#dbe7f7}
+.suggestion-card .suggestion-usage .usage-bars text.axis{fill:#9fb3cc}
+.usage-bars{display:block;max-width:100%;height:auto}
+.usage-bars rect.used{fill:var(--blue)}
+.usage-bars rect.spike{fill:var(--amber)}
+.usage-bars rect.zero{fill:var(--line)}
+.usage-bars text{font-size:10px;fill:var(--ink)}
+.usage-bars text.axis{fill:var(--muted);font-size:9px}
+.usage-bars-empty{color:var(--muted)}
+.du-page{display:flex;flex-direction:column;gap:14px}
+.du-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;background:var(--white);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.du-head h2{margin:2px 0 4px;font-size:20px}
+.du-head p{margin:0;color:var(--muted);max-width:760px}
+.du-actions{display:flex;gap:8px;flex-wrap:wrap}
+.du-notice{background:#fff8ec;border:1px solid #f3d7a6;color:#7a4b06;border-radius:12px;padding:10px 14px}
+.du-error{background:#fff3f1;border:1px solid #f0c2bb;color:#9a2b20;border-radius:12px;padding:10px 14px}
+.du-districts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.du-districts button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;background:var(--white);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
+.du-districts button small{color:var(--muted);font-size:11px}
+.du-districts button span{color:var(--muted);font-size:12px}
+.du-districts button.active{border-color:var(--blue);box-shadow:0 0 0 2px #2f78c433;background:#f3f8ff}
+.du-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.du-tiles div{background:var(--white);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column}
+.du-tiles span{color:var(--muted);font-size:12px}
+.du-tiles strong{font-size:22px}
+.du-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.du-filters button{border:1px solid var(--line);background:var(--white);border-radius:999px;padding:5px 12px;font-size:13px}
+.du-filters button.active{background:#eaf2fd;border-color:var(--blue);color:var(--purple);font-weight:600}
+.du-filters input{margin-left:auto;min-width:220px;border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.du-body{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;align-items:start}
+@media (max-width:1100px){.du-body{grid-template-columns:1fr}}
+.du-table-wrap{background:var(--white);border:1px solid var(--line);border-radius:16px;overflow:auto;max-height:70vh}
+.du-table{width:100%;border-collapse:collapse;font-size:13px}
+.du-table th{position:sticky;top:0;background:#f6f9fd;text-align:left;font-size:11px;letter-spacing:.04em;color:var(--muted);padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.du-table td{padding:8px 10px;border-bottom:1px solid #edf2f8;vertical-align:top}
+.du-table td small{display:block;color:var(--muted);font-size:11px}
+.du-table tbody tr{cursor:pointer}
+.du-table tbody tr:hover{background:#f7faff}
+.du-table tbody tr.focused{background:#eef5ff}
+.du-suggest strong{font-size:15px;color:var(--purple)}
+.du-bad{color:var(--red)}
+.du-rule{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;background:#eef2f7;color:var(--muted);white-space:nowrap}
+.du-rule.regular{background:#e7f6ee;color:#17784a}
+.du-rule.occasional{background:#fff3e0;color:#a35d00}
+.du-rule.once,.du-rule.none{background:#f3f4f6;color:#6b7280}
+.du-detail{background:var(--white);border:1px solid var(--line);border-radius:16px;padding:16px;position:sticky;top:12px;max-height:80vh;overflow:auto}
+.du-detail h3{margin:2px 0 0}
+.du-detail h4{margin:16px 0 6px}
+.du-name{margin:0 0 10px;color:var(--muted)}
+.du-reco{margin-top:12px;background:#f3f8ff;border:1px solid #d6e6fb;border-radius:12px;padding:10px 12px}
+.du-reco span{font-size:12px;color:var(--purple)}
+.du-reco strong{display:block;font-size:22px}
+.du-reco p{margin:4px 0 0;font-size:12.5px}
+.du-metrics{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0 0}
+.du-metrics div{border:1px solid var(--line);border-radius:10px;padding:6px 10px}
+.du-metrics dt{font-size:11px;color:var(--muted)}
+.du-metrics dd{margin:0;font-weight:600}
+.du-history{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.du-history li{border-left:3px solid var(--green);background:#f8fbf9;border-radius:8px;padding:6px 10px;display:flex;flex-direction:column}
+.du-history li.refused{border-left-color:var(--red);background:#fff7f6}
+.du-history small{color:var(--muted);font-size:11.5px}
+.du-history .du-source{font-size:10.5px}
+.du-empty{color:var(--muted);padding:16px;margin:0}
