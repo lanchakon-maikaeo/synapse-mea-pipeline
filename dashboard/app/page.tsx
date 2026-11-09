@@ -1698,7 +1698,19 @@ function WeeklyPlanView({
         .map((row) => [text(row.material_id), row]),
     ).values(),
   ];
+  // Contract-lot rows (M29) carry no packing data: quantities are in the
+  // material's own unit (EA / SET / KG ... from Material Master)
+  const isContractLot = (row: RecordRow) => text(row.fifo_source, "") === "contract_lots";
+  const unitOf = (row: RecordRow) =>
+    text(
+      row.unit ??
+        data.materials.find((material) => text(material.material_id) === text(row.material_id))?.unit ??
+        data.warehouseStock.find((stock) => text(stock.material_id) === text(row.material_id))?.unit ??
+        data.warehouseStock.find((stock) => text(stock.material_id) === text(row.material_id))?.base_unit,
+      "",
+    );
   const packagingLabel = (row: RecordRow) => {
+    if (isContractLot(row)) return unitOf(row);
     const labels: Record<string, string> = {
       FULL_PALLET: "Full Pallet",
       BOX: "Box",
@@ -1716,6 +1728,7 @@ function WeeklyPlanView({
     return Number.isFinite(value) && value > 0 ? value : 1;
   };
   const packingText = (row: RecordRow, quantity: number) => {
+    if (isContractLot(row)) return `${formatNumber(quantity, 2)} ${unitOf(row)}`;
     const label = packagingLabel(row);
     const size = packSize(row);
     if (size <= 1 || ["LOOSE", "LONG_MATERIAL"].includes(text(row.unit_type))) {
@@ -2683,9 +2696,9 @@ function WeeklyPlanView({
                                   Number(row.allocatable_qty ?? 0) -
                                     Number(row.preview_allocated_qty ?? 0),
                                   0,
-                                )} EA
+                                )} {unitOf(row)}
                               </small>
-                              {plannedPick > 0 &&
+                              {plannedPick > 0 && !isContractLot(row) &&
                                 plannedPick < Number(row.allocatable_qty ?? 0) && (
                                   <small className="packing-opened">
                                     เปิด {packagingLabel(row)} แล้ว ต้องเก็บ Remain
