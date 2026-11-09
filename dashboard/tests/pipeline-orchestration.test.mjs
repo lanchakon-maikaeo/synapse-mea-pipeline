@@ -4,6 +4,8 @@ import test from "node:test";
 
 const apiRoute = readFileSync("app/api/[...path]/route.ts", "utf8");
 const accessRequestRoute = readFileSync("app/api/access-requests/route.ts", "utf8");
+const adminAccountsRoute = readFileSync("app/api/admin/accounts/route.ts", "utf8");
+const routeHelpers = readFileSync("app/api/route-helpers.ts", "utf8");
 const hook = readFileSync("app/use-synapse-backend.ts", "utf8");
 const openapi = readFileSync("app/m09-openapi.ts", "utf8");
 const page = readFileSync("app/page.tsx", "utf8");
@@ -123,14 +125,20 @@ test("optimization queue OpenAPI declares idempotency and concrete job schemas",
 });
 
 test("same-origin proxy pins a controlled Supabase origin and blocks redirects", () => {
-  assert.match(apiRoute, /function controlledSupabaseOrigin\(\)/);
-  assert.match(apiRoute, /process\.env\.NODE_ENV === "production"/);
-  assert.match(apiRoute, /url\.protocol !== "https:"/);
-  assert.match(apiRoute, /url\.username/);
-  assert.match(apiRoute, /url\.password/);
-  assert.match(apiRoute, /isLoopbackHost\(url\.hostname\)/);
-  assert.match(apiRoute, /SUPABASE_ALLOWED_ORIGIN/);
-  assert.match(apiRoute, /\[a-z0-9\]\{20\}\\\.supabase\\\.co/);
+  assert.match(routeHelpers, /export function controlledSupabaseOrigin\(\)/);
+  assert.match(routeHelpers, /process\.env\.NODE_ENV === "production"/);
+  assert.match(routeHelpers, /url\.protocol !== "https:"/);
+  assert.match(routeHelpers, /url\.username/);
+  assert.match(routeHelpers, /url\.password/);
+  assert.match(routeHelpers, /isLoopbackHost\(url\.hostname\)/);
+  assert.match(routeHelpers, /SUPABASE_ALLOWED_ORIGIN/);
+  assert.match(routeHelpers, /\[a-z0-9\]\{20\}\\\.supabase\\\.co/);
+  // Every route that calls Supabase uses the same origin rule.
+  for (const route of [apiRoute, accessRequestRoute, adminAccountsRoute]) {
+    assert.match(route, /controlledSupabaseOrigin\(\)/);
+    assert.match(route, /from "(\.\.\/)+route-helpers"/);
+    assert.doesNotMatch(route, /function (controlled)?[sS]upabaseOrigin\(/);
+  }
   assert.match(apiRoute, /hasValidSuppliedRequestId\(request\)/);
   assert.match(apiRoute, /A valid X-Request-ID header is required/);
   // Every outbound proxy fetch must block redirects (SSRF guard). Assert the
