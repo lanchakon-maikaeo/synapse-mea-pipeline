@@ -118,6 +118,25 @@ const browserSupabase = !DEMO_MODE && isAuthConfigured()
   ? createClient(publicConfig.supabaseUrl, publicConfig.supabaseAnonKey)
   : null;
 
+// A code missing from the latest Stock คลังคลองเตย file has no SAP stock there:
+// older Khlong Toei snapshots only keep the passed-inspection quantity.
+export function currentWarehouseStock(rows: RecordRow[]): RecordRow[] {
+  const time = (row: RecordRow) => new Date(String(row.snapshot_at ?? "")).getTime();
+  const latest = Math.max(
+    ...rows
+      .filter((row) => String(row.location_id) === "WH-KT")
+      .map(time)
+      .filter(Number.isFinite),
+  );
+  if (!Number.isFinite(latest)) return rows;
+  return rows.map((row) => {
+    const at = time(row);
+    if (String(row.location_id) !== "WH-KT" || !Number.isFinite(at) || at >= latest) return row;
+    const passed = Number(row.passed_test_qty ?? 0);
+    return { ...row, quantity_on_hand: passed, sap_quantity: 0, not_in_latest_file: true };
+  });
+}
+
 export function useSynapseBackend() {
   const authConfigured = !DEMO_MODE && isAuthConfigured();
   const [session, setSession] = useState<Session | null>(DEMO_MODE ? demoSession : null);
@@ -345,7 +364,7 @@ export function useSynapseBackend() {
         materials,
         districts,
         inputSubmissions,
-        warehouseStock,
+        warehouseStock: currentWarehouseStock(warehouseStock),
         legacyStatus,
       });
       if (failures.length) {

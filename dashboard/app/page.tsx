@@ -1472,6 +1472,7 @@ function WeeklyPlanView({
     const byKey = new Map<string, RecordRow>();
     data.replenishment.forEach((row) => {
       if (text(row.item_status, "") === "cancelled") return;
+      if (["cancelled", "completed"].includes(text(row.plan_status, ""))) return;
       const key = `${text(row.district_id)}|${text(row.material_id)}`;
       const current = byKey.get(key);
       if (!current || order(row) > order(current)) byKey.set(key, row);
@@ -2032,7 +2033,11 @@ function WeeklyPlanView({
   );
 
   // No plan round yet: show only the start step, the rest opens after it.
-  if (mode === "calculate" && canCreate && data.replenishment.length === 0 && workflowStep < 2) {
+  // A cancelled or finished round does not count: the planner starts a new one
+  const hasOpenRound = data.replenishment.some(
+    (row) => !["cancelled", "completed"].includes(text(row.plan_status, "")),
+  );
+  if (mode === "calculate" && canCreate && !hasOpenRound && workflowStep < 2) {
     return (
       <div className="stack">
         <section className="panel plan-start" aria-label="เริ่มรอบแผน">
@@ -2191,7 +2196,7 @@ function WeeklyPlanView({
                 </datalist>
               </>
             )}
-            {canCreate && data.replenishment.length === 0 ? (
+            {canCreate && !hasOpenRound ? (
               <button
                 className="btn primary"
                 disabled={actionBusy}
