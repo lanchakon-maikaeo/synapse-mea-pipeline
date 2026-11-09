@@ -112,12 +112,32 @@ from core.replenishment_plans where replenishment_plan_id = '24000000-0000-4000-
 insert into m24_checks select 'old data is kept',
   exists (select 1 from core.stock_snapshots where material_id = 'M24-B' and quantity_on_hand = 999);
 
+-- M30: a new stock file with the same CMP file keeps CMP in the calculation
+insert into ops.source_import_runs (import_run_id, source_kind, file_name, file_sha256, file_size_bytes, source_sheet,
+  expected_row_count, status, created_by, committed_by, committed_at) values
+  ('24000000-0000-4000-8000-000000000104', 'stock', 'Stock next day.xlsx', repeat('d', 64), 10, 'Sheet1', 2, 'committed',
+   '24000000-0000-4000-8000-000000000001', '24000000-0000-4000-8000-000000000001', now() - interval '10 minutes');
+update ops.source_current_rows set payload = jsonb_set(payload, '{snapshot_date}', '"2026-10-21"'),
+  last_changed_run_id = '24000000-0000-4000-8000-000000000104'
+where source_kind = 'stock' and business_key like '%M24-A';
+-- each promotion runs in its own transaction in production
+drop table if exists pg_temp.m24_stock, pg_temp.m24_usage;
+update ops.actual_workbook_imports set started_at = started_at - interval '1 hour', finished_at = finished_at - interval '1 hour';
+select set_config('request.jwt.claim.sub', '24000000-0000-4000-8000-000000000001', true);
+set local role authenticated;
+update m24_state set again = public.m09_dispatch('POST', '/v1/source-imports/promotion', '{}', '{}', 'm24-3');
+reset role;
+insert into m24_checks select 'new stock file with the same CMP file keeps CMP',
+  (select (again #>> '{body,promoted}')::boolean from m24_state)
+  and exists (select 1 from analytics.stock_health_at(now()) h where h.material_id = 'M24-A' and h.district_id = '5501'
+    and h.cmp_monthly = 75 and h.snapshot_at = '2026-10-21 23:59+07');
+
 do $$
 declare v_failed text;
 begin
   select string_agg(check_name, ', ') into v_failed from m24_checks where not passed;
   if v_failed is not null then raise exception 'M24 checks failed: %', v_failed; end if;
-  if (select count(*) from m24_checks) <> 12 then raise exception 'M24: expected 12 checks, got %', (select count(*) from m24_checks); end if;
+  if (select count(*) from m24_checks) <> 13 then raise exception 'M24: expected 13 checks, got %', (select count(*) from m24_checks); end if;
 end
 $$;
 
