@@ -229,6 +229,38 @@ begin
     insert into p01_checks values('audit_append_only',true);
   end;
 end $$;
+-- Overview, database catalog and knowledge search, as the local admin.
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
+set local role authenticated;
+do $$
+declare r jsonb; request uuid := gen_random_uuid();
+begin
+  r := public.vmi_chat_overview('get_operations_overview','{"view":"risk"}',request);
+  insert into p01_checks values('overview_requires_admission', r->>'status'='forbidden');
+  insert into p01_checks values('admin_admission', public.vmi_chat_admit(request)->>'status'='ok');
+  r := public.vmi_chat_overview('get_operations_overview','{"view":"risk"}',request);
+  insert into p01_checks values('overview_after_admission', r->>'status' in ('ok','no_data'));
+  r := public.vmi_chat_overview('get_operations_overview','{"view":"risk","actor_id":"spoof"}',request);
+  insert into p01_checks values('overview_identity_injection', r->>'status'='invalid_input');
+  r := public.vmi_chat_database('discover_database','{}',request);
+  insert into p01_checks values('database_catalog', r->>'status'='ok'
+    and jsonb_array_length(r->'data') > 0
+    and not exists(select 1 from jsonb_array_elements(r->'data') x where x->>'source_id' like 'auth.%'));
+  r := public.vmi_chat_database('query_database','{"source_id":"core.districts","columns":["district_id; drop table core.districts"]}',request);
+  insert into p01_checks values('database_column_injection', r->>'status'='invalid_input');
+  r := public.vmi_chat_database('query_database','{"source_id":"core.districts","sql":"select 1"}',request);
+  insert into p01_checks values('database_raw_sql_rejected', r->>'status'='invalid_input');
+  r := public.vmi_chat_database('query_database','{"source_id":"auth.users"}',request);
+  insert into p01_checks values('database_unregistered_source', r->>'status'='forbidden');
+  r := public.vmi_chat_knowledge_bge_m3(array_fill(0.01::real, array[1024])::extensions.vector, 3);
+  insert into p01_checks values('knowledge_search_runs', r is not null);
+end $$;
+reset role;
+insert into p01_checks values
+  ('chat_rpcs_anon_denied',
+    not has_function_privilege('anon','public.vmi_chat_overview(text,jsonb,uuid)','execute')
+    and not has_function_privilege('anon','public.vmi_chat_database(text,jsonb,uuid)','execute')
+    and not has_function_privilege('anon','public.vmi_chat_knowledge_bge_m3(extensions.vector,integer)','execute'));
 table p01_checks;
 do $$
 begin

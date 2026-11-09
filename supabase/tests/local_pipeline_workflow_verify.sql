@@ -867,6 +867,6 @@ begin
 end
 $$;
 
-\ir p01_vmi_chat_verify.sql
+\ir chat_assistant_verify.sql
 
 rollback;

@@ -15,8 +15,6 @@ build/
 # Local Codex/runtime state
 .agents/
 .synapse-cache/
-supabase/.temp/
-.DS_Store
 skills-lock.json
 
 # Historical workspaces and recoverable local Git metadata

@@ -35,7 +35,11 @@ create role authenticated nologin;
 create role service_role nologin bypassrls;
 
 create schema extensions;
+-- Supabase grants these by default: pgvector types live in extensions and
+-- security-invoker functions call auth.uid().
+grant usage on schema extensions to anon, authenticated, service_role;
 create schema auth;
+grant usage on schema auth to anon, authenticated, service_role;
 
 create table auth.users (
   id uuid primary key,

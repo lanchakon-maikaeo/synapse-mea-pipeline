@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "npm run build",
-  "crons": [{ "path": "/api/internal/agentic-alerts", "schedule": "30 0 * * *" }]
+  "buildCommand": "npm run build"
 }

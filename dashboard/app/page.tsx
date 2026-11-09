@@ -57,7 +57,6 @@ type SlotPreview = {
 import { demoUsersPayload } from "./users-demo";
 import { DEMO_MODE } from "./demo-data";
 import ChatWidget from "./chat-widget";
-import AlertPanel from "./alert-panel";
 import {
   TransportModule,
   transportNavForRole,
@@ -736,9 +735,7 @@ function Header({
   navigate,
   refresh,
   snapshot,
-  alerts,
 }: {
-  alerts: ReactNode;
   title: string;
   loading: boolean;
   openMenu: () => void;
@@ -808,7 +805,6 @@ function Header({
         >
           <i /> {loading ? "กำลังซิงก์…" : snapshot}
         </button>
-        {alerts}
         <button type="button" className="btn ghost logout" onClick={logout}>
           ออกจากระบบ
         </button>
@@ -3119,7 +3115,6 @@ function PageContent({
 
 export default function Home() {
   const backend = useSynapseBackend();
-  const [alertQuestion, setAlertQuestion] = useState<{ question: string; id: number } | null>(null);
   const [view, setView] = useState<ViewKey>("dashboard");
   const [plannerDraft, setPlannerDraft] =
     useState<PlannerDraft>(emptyPlannerDraft);
@@ -3271,19 +3266,6 @@ export default function Home() {
           navigate={navigateView}
           refresh={() => void backend.refresh()}
           snapshot={snapshot}
-          alerts={
-            <AlertPanel
-              token={backend.session?.access_token ?? null}
-              role={role}
-              demo={DEMO_MODE}
-              onNavigate={(target) => {
-                // Alert targets come from the worker; dev's "warehouses" screen is "stock" here.
-                const next = (target === "warehouses" ? "stock" : target) as ViewKey;
-                navigateView(allowedViews.has(next) ? next : "dashboard");
-              }}
-              onAsk={(question) => setAlertQuestion({ question, id: Date.now() })}
-            />
-          }
         />
         <main id="content" className="content">
           {backStack.length > 0 && (
@@ -3388,7 +3370,7 @@ export default function Home() {
         </div>
       )}
       {!DEMO_MODE && backend.session && (
-        <ChatWidget token={backend.session.access_token} suggestedQuestion={alertQuestion} />
+        <ChatWidget token={backend.session.access_token} />
       )}
     </div>
   );

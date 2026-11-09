@@ -1,19 +1,43 @@
-# Chat knowledge retrieval
+# Chat assistant
 
-Chat generation, tool selection, reranking and answer review all use `LLM_MODEL` through `https://openrouter.ai/api/v1/chat/completions`. It defaults to `openai/gpt-4o-mini` when unset or blank. Use an OpenRouter `provider/model` ID that supports tool calling. Set the OpenRouter key as server-only `LLM_API_KEY`. Google API keys are rejected for chat. The adapter retains the existing validated tool contract and passes tool call IDs back with their results. It rejects parallel calls, truncated results and malformed arguments.
+The chat widget (`app/chat-widget.tsx`) shows for signed-in users outside demo mode and posts to `/api/chat`. The route uses the caller's Supabase JWT. Every database read goes through SECURITY DEFINER or RLS-checked functions that take identity from `auth.uid()`, never from model output.
 
-For dev, edit `LLM_MODEL` in Vercel project `mea-synapse-production` → Settings → Environment Variables, scoped to Preview / branch `dev`. Keep `LLM_API_KEY` in that same scope. Redeploy after changing an env value, or push a commit to `dev`; the existing GitHub integration automatically creates a Preview deployment. Production remains on `main`. Changing `LLM_MODEL` does not change the BGE-M3 embedding model or its corpus dimensions.
+## Configuration
 
-Do not set `provider.require_parameters: true` for this request: GPT-4o-mini endpoint metadata does not list `parallel_tool_calls`, so that filter can exclude every endpoint and return HTTP 404. The request still sends `parallel_tool_calls: false`, and the adapter rejects multiple calls before executing any tool.
+Server-only Vercel variables on `mea-synapse-web`, Production:
 
-Document and question embeddings use OpenRouter `baai/bge-m3` (1024 dense dimensions) with the same server-only `LLM_API_KEY` as chat. No Gemini key is needed on dev. Requests use `/api/v1/embeddings`, `encoding_format: float` and no dimension reduction or query/document instruction prefix. The shared `embedText` validates and normalizes each vector.
+- `LLM_API_KEY`: OpenRouter key (`sk-or-...`). It is used for chat and for embeddings. Never prefix it with `NEXT_PUBLIC_`.
+- `LLM_MODEL`: an OpenRouter `provider/model` ID that supports tool calling. Default: `openai/gpt-4o-mini`.
+- `LLM_TEMPERATURE` (default `0`), `LLM_TIMEOUT_MS` (default `30000`).
 
-OpenRouter may return a provider model name (`BAAI/bge-m3` or `parasail-bge-m3`) rather than the requested routing slug. The adapter accepts these BGE-M3 names while storing the canonical `baai/bge-m3` corpus label and still requiring 1024 finite values.
+Redeploy after changing a value. Every question is a paid OpenRouter call. `public.vmi_chat_admit` allows 10 questions per user per minute before any model call.
 
-`search_knowledge` calls `public.vmi_chat_knowledge_bge_m3` under the user's JWT. This SECURITY INVOKER function searches only `rag.knowledge_chunks_bge_m3`. RLS preserves active profile, allowed roles and district restrictions; chat users can only read. The 768-dimensional Gemini table and RPC are retained for the existing main deployment. Never compare or copy vectors between these two embedding spaces.
+Do not set `provider.require_parameters: true`. GPT-4o-mini endpoint metadata does not list `parallel_tool_calls`, so that filter can exclude every endpoint. The request still sends `parallel_tool_calls: false`, and the adapter rejects multiple calls before running any tool.
 
-The initial BGE-M3 corpus is empty. Import reviewed chunks by generating fresh vectors with `embedText({text: content, apiKey, taskType: 'RETRIEVAL_DOCUMENT'})`, then inserting content, source_id, title, chunk_index, embedding and explicit allowed_roles into `rag.knowledge_chunks_bge_m3` using a trusted database connection. The default role is admin. Copy the same role/district metadata when re-embedding an existing corpus, generate embeddings from its content, and preserve source_id/chunk_index. Do not copy old numeric vectors or insert changing stock balances into document knowledge; use live database tools for those values.
+## Database (migration `202611100001_chat_assistant.sql`)
 
-Deploy the additive BGE-M3 migration before the dev dashboard. Apply only this migration to the approved Supabase target; do not run unrelated pending migrations. Verify with `supabase/tests/p03_bge_m3_knowledge_verify.sql`. The initial similarity cutoff is 0.5; evaluate it against reviewed Thai queries when documents are imported.
+| Function | Tool |
+| --- | --- |
+| `vmi_chat_admit` | per-user admission before a model call |
+| `vmi_chat_read` | stock, replenishment, plan, contract and traceability reads |
+| `vmi_chat_overview` | stock risk and delivery overview |
+| `vmi_chat_database` | `discover_database` / `query_database` over the reviewed `ops.chat_sources` catalog |
+| `vmi_chat_knowledge_bge_m3` | `search_knowledge` over `rag.knowledge_chunks_bge_m3` |
 
-Checks: `npm run test:agent`, `npm run build`, and `supabase/tests/p03_bge_m3_knowledge_verify.sql` (rollback-only SQL check requiring active admin and district profiles).
+`ops.chat_sources` is seeded once from the tables that exist when the migration first runs. New tables are not readable by chat until a reviewed change adds them.
+
+## Document knowledge
+
+Embeddings use OpenRouter `baai/bge-m3` (1024 dimensions) through `/api/v1/embeddings` with `encoding_format: float`. OpenRouter may answer with a provider model name (`BAAI/bge-m3`, `parasail-bge-m3`). The adapter accepts these names, stores the canonical `baai/bge-m3` label, and still requires 1024 finite values.
+
+The corpus starts empty. To import reviewed documents:
+- Generate each vector with `embedText({ text: content, apiKey, taskType: 'RETRIEVAL_DOCUMENT' })`.
+- Insert `source_id`, `title`, `chunk_index`, `content`, `embedding`, `allowed_roles` and an optional `district_id` into `rag.knowledge_chunks_bge_m3` over a trusted connection. The default role is admin.
+- Do not store changing stock balances as documents; chat reads those live.
+
+The similarity cutoff starts at 0.5. Tune it against reviewed Thai questions once documents exist.
+
+## Checks
+
+- `npm run test:agent`: route, tools, retrieval, answer review and OpenRouter adapter.
+- `supabase/tests/chat_assistant_verify.sql`: runs inside the local workflow contract (`make database-contract-local`). It checks reads, admission and rate limits, overview, the catalog, knowledge search and anon denial.
