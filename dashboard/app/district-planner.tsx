@@ -26,6 +26,7 @@ export const ADD_REASONS = [
   "สำรองกรณีฉุกเฉิน",
   "เขตร้องขอ",
   "ทดแทนพัสดุที่ขาด",
+  "ผ่านทดสอบ",
 ];
 
 export const OTHER_REASON = "__other";
