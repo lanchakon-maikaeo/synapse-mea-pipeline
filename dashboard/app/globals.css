@@ -1474,3 +1474,6 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 
 .synapse-chat-panel form>div:focus-within{border-color:#3476b8;box-shadow:0 0 0 3px #3476b81a}
 .synapse-chat-panel textarea:focus{outline:none!important;box-shadow:none}
+
+.reason-picker{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
+.reason-other{min-height:32px;min-width:180px;padding:0 8px;border:1px solid #bac7d8;border-radius:8px;background:#fff;font:inherit;font-size:12px}

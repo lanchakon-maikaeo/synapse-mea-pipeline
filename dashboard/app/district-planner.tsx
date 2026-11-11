@@ -28,6 +28,78 @@ export const ADD_REASONS = [
   "ทดแทนพัสดุที่ขาด",
 ];
 
+export const OTHER_REASON = "__other";
+
+/** A reason dropdown with "อื่น ๆ (ระบุเอง)" that opens a text box. */
+function ReasonPicker({
+  value,
+  options,
+  disabled,
+  missing,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  disabled?: boolean;
+  missing?: boolean;
+  onChange: (reason: string) => void;
+}) {
+  const custom = Boolean(value) && !options.includes(value);
+  const [otherOpen, setOtherOpen] = useState(custom);
+  const [draft, setDraft] = useState(custom ? value : "");
+  const showOther = otherOpen || custom;
+  const commit = () => {
+    const next = draft.trim();
+    if (next && next !== value) onChange(next);
+  };
+  return (
+    <span className="reason-picker">
+      <select
+        value={showOther ? OTHER_REASON : value}
+        disabled={disabled}
+        className={missing && !value ? "missing" : ""}
+        onClick={(event) => event.stopPropagation()}
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === OTHER_REASON) {
+            setOtherOpen(true);
+            return;
+          }
+          setOtherOpen(false);
+          setDraft("");
+          onChange(next);
+        }}
+      >
+        <option value="">— เลือกเหตุผล —</option>
+        {options.map((reason) => (
+          <option key={reason} value={reason}>{reason}</option>
+        ))}
+        <option value={OTHER_REASON}>อื่น ๆ (ระบุเอง)</option>
+      </select>
+      {showOther && (
+        <input
+          className="reason-other"
+          type="text"
+          autoFocus={!custom}
+          disabled={disabled}
+          maxLength={200}
+          value={draft}
+          placeholder="พิมพ์เหตุผล แล้วกด Enter"
+          onClick={(event) => event.stopPropagation()}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commit();
+            }
+          }}
+        />
+      )}
+    </span>
+  );
+}
+
 export type DistrictOption = { id: string; name: string };
 
 export type DistrictStats = {
@@ -554,17 +626,13 @@ export function DistrictPlanner(props: Props) {
                         <td>
                           <label className="dp-reason">
                             <span>เหตุผลที่เพิ่ม</span>
-                            <select
+                            <ReasonPicker
                               value={addReasons[id] ?? ""}
+                              options={ADD_REASONS}
                               disabled={!canCreate}
-                              onChange={(event) => onAddReason(row, event.target.value)}
-                              className={addReasons[id] ? "" : "missing"}
-                            >
-                              <option value="">— เลือกเหตุผล —</option>
-                              {ADD_REASONS.map((reason) => (
-                                <option key={reason} value={reason}>{reason}</option>
-                              ))}
-                            </select>
+                              missing
+                              onChange={(reason) => onAddReason(row, reason)}
+                            />
                           </label>
                         </td>
                         <td>{fifoCell(row)}</td>
@@ -707,16 +775,12 @@ export function DistrictPlanner(props: Props) {
                       </button>
                       <label className="dp-reason inline">
                         <span>ไม่เติมรอบนี้ เพราะ</span>
-                        <select
+                        <ReasonPicker
                           value=""
+                          options={SKIP_REASONS}
                           disabled={!canCreate}
-                          onChange={(event) => event.target.value && onSkip(row, event.target.value)}
-                        >
-                          <option value="">— เลือกเหตุผล —</option>
-                          {SKIP_REASONS.map((reason) => (
-                            <option key={reason} value={reason}>{reason}</option>
-                          ))}
-                        </select>
+                          onChange={(reason) => reason && onSkip(row, reason)}
+                        />
                       </label>
                     </div>
                   ))}
