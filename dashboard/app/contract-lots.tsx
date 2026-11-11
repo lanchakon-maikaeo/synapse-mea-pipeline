@@ -141,10 +141,13 @@ export function ContractLotsView({ token, role, demoMode }: { token: string | nu
   const visible = useMemo(() => {
     const needle = deferred.trim().toLowerCase();
     return rows.filter((row) => {
-      if (filter === "todo" && row.status !== "awaiting_105") return false;
-      if (filter === "no_contract" && row.order_kind !== "no_contract") return false;
-      if (!["todo", "all", "no_contract"].includes(filter) && row.status !== filter) return false;
-      if (!needle) return true;
+      // typing a search looks through every status, not only the chosen tab
+      if (!needle) {
+        if (filter === "todo" && row.status !== "awaiting_105") return false;
+        if (filter === "no_contract" && row.order_kind !== "no_contract") return false;
+        if (!["todo", "all", "no_contract"].includes(filter) && row.status !== filter) return false;
+        return true;
+      }
       return [row.material_id, row.material_name, row.purchase_order, row.contract_number, row.vendor]
         .some((value) => String(value ?? "").toLowerCase().includes(needle));
     });
@@ -237,7 +240,7 @@ export function ContractLotsView({ token, role, demoMode }: { token: string | nu
             ))}
           </div>
           <input className="pk-search" value={query} onChange={(event) => setQuery(event.target.value)}
-            placeholder="ค้นหารหัสพัสดุ ชื่อ PO สัญญา หรือผู้ขาย" aria-label="ค้นหา" />
+            placeholder="ค้นหารหัสพัสดุ ชื่อ PO สัญญา หรือผู้ขาย (ค้นทุกสถานะ)" aria-label="ค้นหา" />
           <label className="pk-toggle">
             <input type="checkbox" checked={showAll} onChange={(event) => setShowAll(event.target.checked)} />
             แสดงสัญญาที่ไม่เกี่ยวกับคลองเตยด้วย
