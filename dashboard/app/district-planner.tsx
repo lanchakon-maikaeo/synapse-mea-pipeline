@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatNumber } from "./lib";
 import { RULE_LABELS, recommendedQty } from "./usage-bars";
 import type { RecordRow } from "./use-synapse-backend";
@@ -69,6 +69,8 @@ type Props = {
   addReasons: Record<string, string>;
   onAddReason: (row: RecordRow, reason: string) => void;
   materialCatalog: Array<{ id: string; name: string }>;
+  /** whole Material Master, contract number or PO, searched on the server */
+  searchRemote?: (term: string) => Promise<Array<{ id: string; name: string }>>;
   buildMaterialRow: (materialId: string) => RecordRow | null;
   onAddMaterial: (row: RecordRow, quantity: number) => void;
   onRemoveAdded: (row: RecordRow) => void;
@@ -178,6 +180,7 @@ export function DistrictPlanner(props: Props) {
     addReasons,
     onAddReason,
     materialCatalog,
+    searchRemote,
     buildMaterialRow,
     onAddMaterial,
     onRemoveAdded,
@@ -199,8 +202,35 @@ export function DistrictPlanner(props: Props) {
   );
   const addedIds = new Set(addedRows.map(itemId));
   const term = search.trim().toLowerCase();
+  const [remote, setRemote] = useState<{ term: string; rows: Array<{ id: string; name: string }> }>({ term: "", rows: [] });
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  // the parent passes a new function every render: search only when the term changes
+  const searchRemoteRef = useRef(searchRemote);
+  useEffect(() => {
+    searchRemoteRef.current = searchRemote;
+  });
+  const canSearchRemote = Boolean(searchRemote);
+  useEffect(() => {
+    const searchFn = searchRemoteRef.current;
+    if (!searchFn || term.length < 3) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setRemoteBusy(true);
+      try {
+        const rows = await searchFn(term);
+        if (!cancelled) setRemote({ term, rows });
+      } finally {
+        if (!cancelled) setRemoteBusy(false);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [canSearchRemote, term]);
+  const remoteRows = remote.term === term ? remote.rows : [];
   const searchResults = term.length >= 2
-    ? materialCatalog
+    ? [...new Map([...materialCatalog, ...remoteRows].map((m) => [m.id, m])).values()]
         .filter((m) => `${m.id} ${m.name}`.toLowerCase().includes(term))
         .slice(0, 20)
         .map((m) => districtRows.find((r) => text(r.material_id) === m.id) ?? buildMaterialRow(m.id))
@@ -413,7 +443,7 @@ export function DistrictPlanner(props: Props) {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="พิมพ์รหัสหรือชื่อพัสดุ อย่างน้อย 2 ตัวอักษร"
+              placeholder="พิมพ์รหัส / ชื่อพัสดุ / เลขสัญญา / PO อย่างน้อย 2 ตัวอักษร"
             />
             <small>แสดง Stock และ CMP ของเขตนี้ พร้อมเหตุผลที่ระบบไม่ได้เสนอ</small>
           </label>
@@ -499,7 +529,8 @@ export function DistrictPlanner(props: Props) {
               </table>
             </div>
           )}
-          {term.length >= 2 && searchResults.length === 0 && (
+          {remoteBusy && <p className="dp-muted">กำลังค้นใน Material Master และรวมสัญญา…</p>}
+          {term.length >= 2 && !remoteBusy && searchResults.length === 0 && (
             <p className="dp-muted">ไม่พบพัสดุที่ตรงกับ “{search}”</p>
           )}
 

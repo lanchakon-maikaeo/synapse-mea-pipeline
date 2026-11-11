@@ -2913,6 +2913,7 @@ function PageContent({
         key={mode}
         actionBusy={backend.actionBusy}
         dataLoading={backend.loading}
+        token={backend.session?.access_token ?? null}
         data={backend.data}
         role={role}
         mode={mode}

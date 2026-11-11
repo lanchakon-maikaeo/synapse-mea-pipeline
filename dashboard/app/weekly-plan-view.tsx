@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import { formatDateTime, formatNumber, type Role } from "./lib";
+import { apiRequest, formatDateTime, formatNumber, type Role } from "./lib";
 import { type DashboardData, type RecordRow, type ReplenishmentResponsePayload } from "./use-synapse-backend";
 import {
   DistrictPlanner,
@@ -63,6 +63,7 @@ export function hasPlannerSelection(draft: PlannerDraft) {
 export function WeeklyPlanView({
   actionBusy,
   dataLoading = false,
+  token = null,
   data,
   role,
   mode,
@@ -86,6 +87,7 @@ export function WeeklyPlanView({
 }: {
   actionBusy: boolean;
   dataLoading?: boolean;
+  token?: string | null;
   data: DashboardData;
   role: Role;
   /**
@@ -196,9 +198,41 @@ export function WeeklyPlanView({
       row.replenishment_item_id,
       `${text(row.district_id, "")}|${text(row.material_id, "")}`,
     );
+  // Materials found by searching the server (whole Material Master, contract
+  // number or PO) for "เพิ่มรายการพัสดุ"
+  const [remoteCatalog, setRemoteCatalog] = useState<RecordRow[]>([]);
+  const [contractLots, setContractLots] = useState<RecordRow[] | null>(null);
+  const searchRemote = async (term: string) => {
+    if (!token || term.trim().length < 3) return [];
+    const needle = term.trim();
+    const [materials, lots] = await Promise.all([
+      apiRequest<RecordRow[]>(`/v1/reference/materials?search=${encodeURIComponent(needle)}&limit=20`, token).catch(() => []),
+      // contract number / PO: look up the contract lots once
+      /^(M[A-Z]\d|\d{6,})/i.test(needle) || needle.includes("-")
+        ? contractLots ?? apiRequest<RecordRow[]>("/v1/contract-lots?scope=all", token).catch(() => [])
+        : Promise.resolve([] as RecordRow[]),
+    ]);
+    if (lots.length && !contractLots) setContractLots(lots);
+    const upper = needle.toUpperCase();
+    const fromContracts = lots
+      .filter((lot) =>
+        text(lot.contract_number, "").toUpperCase().includes(upper) ||
+        text(lot.purchase_order, "").includes(needle))
+      .map((lot) => ({
+        material_id: lot.material_id,
+        material_name: `${text(lot.material_name, "")} · สัญญา ${text(lot.contract_number, text(lot.purchase_order))}`,
+        search_key: `${text(lot.contract_number, "")} ${text(lot.purchase_order, "")}`,
+      }));
+    const found = [...materials, ...fromContracts];
+    setRemoteCatalog((current) => [...current, ...found].slice(-200));
+    return found.map((row) => ({
+      id: text(row.material_id),
+      name: `${text(row.material_name)} ${text(row.search_key, "")}`.trim(),
+    }));
+  };
   const materialCatalog = [
     ...new Map(
-      [...data.materials, ...data.replenishment, ...data.stock].map((row) => [
+      [...data.materials, ...data.replenishment, ...data.stock, ...remoteCatalog].map((row) => [
         text(row.material_id),
         {
           id: text(row.material_id),
@@ -1059,6 +1093,7 @@ export function WeeklyPlanView({
                   addReasons={draft.addReasons}
                   onAddReason={districtPlannerHandlers.onAddReason}
                   materialCatalog={materialCatalog}
+                  searchRemote={token ? searchRemote : undefined}
                   buildMaterialRow={(materialId) => {
                     const material = materialCatalog.find((item) => item.id === materialId);
                     return material ? materialRowFor(material, activeDistrictInfo) : null;
