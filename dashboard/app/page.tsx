@@ -3163,6 +3163,64 @@ export default function Home() {
   }, [goBack]);
   const resetNavigation = () => setBackStack([]);
 
+  // Keep the planner's work and the open page across a browser refresh.
+  // The draft is saved per user and per open plan, in this browser only.
+  const draftOwner = backend.identity?.user_id ?? "";
+  const openPlanId = useMemo(() => {
+    const open = backend.data.replenishment.filter((row) =>
+      ["draft", "pending_district_confirmation", "district_review"].includes(text(row.plan_status, "")),
+    );
+    return [...new Set(open.map((row) => text(row.replenishment_plan_id, "")))].sort().join(",");
+  }, [backend.data.replenishment]);
+  const draftKey = draftOwner ? `synapse.plannerDraft.v1.${draftOwner}` : "";
+  const pageKey = draftOwner ? `synapse.page.v1.${draftOwner}` : "";
+  const [restoredFor, setRestoredFor] = useState("");
+  useEffect(() => {
+    if (!draftKey || backend.loading || restoredFor === draftKey) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem(draftKey) ?? "null") as
+          | { planId?: string; draft?: PlannerDraft }
+          | null;
+        if (saved?.draft && openPlanId && saved.planId === openPlanId) {
+          setPlannerDraft({ ...emptyPlannerDraft, ...saved.draft });
+        } else {
+          setPlannerDraft(emptyPlannerDraft);
+        }
+        const page = JSON.parse(window.sessionStorage.getItem(pageKey) ?? "null") as PageState | null;
+        if (page?.moduleKey) {
+          setModule(page.moduleKey);
+          if (page.view) setView(page.view);
+          if (page.transportView) setTransportView(page.transportView);
+        }
+      } catch {
+        // storage blocked or unreadable: start fresh
+      }
+      setRestoredFor(draftKey);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, pageKey, backend.loading, openPlanId, restoredFor]);
+  useEffect(() => {
+    if (!draftKey || restoredFor !== draftKey) return;
+    try {
+      if (hasPlannerSelection(plannerDraft) || Object.keys(plannerDraft.skipReasons).length || Object.keys(plannerDraft.addedIds).length) {
+        window.localStorage.setItem(draftKey, JSON.stringify({ planId: openPlanId, savedAt: new Date().toISOString(), draft: plannerDraft }));
+      } else {
+        window.localStorage.removeItem(draftKey);
+      }
+    } catch {
+      // storage full or blocked: the draft still lives in memory
+    }
+  }, [draftKey, restoredFor, plannerDraft, openPlanId]);
+  useEffect(() => {
+    if (!pageKey || restoredFor !== draftKey) return;
+    try {
+      window.sessionStorage.setItem(pageKey, JSON.stringify({ moduleKey, view, transportView }));
+    } catch {
+      // ignore
+    }
+  }, [pageKey, draftKey, restoredFor, moduleKey, view, transportView]);
+
   if (!backend.session || !backend.identity) {
     return (
       <Login
@@ -3259,6 +3317,8 @@ export default function Home() {
           loading={backend.loading}
           openMenu={() => setMenuOpen(true)}
           logout={() => {
+            // keep the saved draft for the next sign-in, clear only this screen
+            setRestoredFor("");
             setPlannerDraft(emptyPlannerDraft);
             setView("dashboard");
             resetNavigation();
