@@ -4,7 +4,7 @@ import { formatDateTime } from "./lib";
 import type { DraftSyncStatus } from "./planner-draft-sync";
 
 /** Where the planner's work is saved, shown on คำนวณการจ่าย. */
-export function DraftSyncBadge({ status }: { status: DraftSyncStatus }) {
+export function DraftSyncBadge({ status, onSave }: { status: DraftSyncStatus; onSave?: () => void }) {
   if (status.state === "off") return null;
   const label =
     status.state === "loading"
@@ -12,7 +12,7 @@ export function DraftSyncBadge({ status }: { status: DraftSyncStatus }) {
       : status.state === "saving"
         ? "กำลังบันทึก…"
         : status.state === "saved"
-          ? `บันทึกในระบบกลางแล้ว${status.at ? ` · ${formatDateTime(status.at)}` : ""} · ทุกคนในทีมเห็นงานเดียวกัน`
+          ? `บันทึกในระบบกลางแล้ว${status.at ? ` · ${formatDateTime(status.at)}` : ""}${status.mine && status.byMe ? ` โดย ${status.byMe}` : ""} · ทุกคนในทีมเห็นงานเดียวกัน`
           : status.state === "local"
             ? status.message ?? "บันทึกไว้ในเครื่องนี้"
             : status.message ?? "บันทึกไม่สำเร็จ";
@@ -25,6 +25,11 @@ export function DraftSyncBadge({ status }: { status: DraftSyncStatus }) {
       <span>{label}</span>
       {status.state === "saved" && status.message && <b>{status.message}</b>}
       {others.length > 0 && <small title={others.join("\n")}>มีงานบันทึก {others.length} เขต</small>}
+      {onSave && status.state !== "loading" && status.state !== "local" && (
+        <button type="button" className="btn ghost" disabled={status.state === "saving"} onClick={onSave}>
+          {status.state === "saving" ? "กำลังบันทึก…" : "💾 บันทึก"}
+        </button>
+      )}
     </div>
   );
 }

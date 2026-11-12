@@ -24,6 +24,8 @@ export type DraftSyncStatus = {
   at?: string;
   message?: string;
   planId?: string;
+  byMe?: string;
+  mine?: boolean;
   by?: Record<string, { name: string; at: string }>;
 };
 
@@ -150,6 +152,9 @@ export function usePlannerDraftSync({
   const localKey = userId && planId ? `synapse.plannerDraft.v2.${userId}.${planId}` : "";
   const [restored, setRestored] = useState("");
   const [status, setStatus] = useState<DraftSyncStatus>({ state: "off" });
+  const [flushTick, setFlushTick] = useState(0);
+  const flushed = useRef(0);
+  const unsaved = useRef(false);
   const synced = useRef<Record<string, string>>({});
   const baseAt = useRef<Record<string, string>>({});
   const serverOn = useRef(false);
@@ -243,7 +248,21 @@ export function usePlannerDraftSync({
     const changed = DISTRICT_IDS.map((district) => ({ district, slice: sliceOf(draft, district, byId) })).filter(
       ({ district, slice }) => sig(slice) !== (synced.current[district] ?? ""),
     );
-    if (!changed.length) return;
+    unsaved.current = changed.length > 0;
+    if (!changed.length) {
+      if (flushTick !== flushed.current) {
+        flushed.current = flushTick;
+        setStatus((current) => ({ ...current, state: "saved", mine: true, at: new Date().toISOString() }));
+      }
+      return;
+    }
+    // a district confirmation, or the บันทึก button, saves at once
+    const confirmChanged = changed.some(
+      ({ district, slice }) =>
+        (slice?.confirmed ?? "") !== ((JSON.parse(synced.current[district] || "{}") as DraftSlice).confirmed ?? ""),
+    );
+    const now = confirmChanged || flushTick !== flushed.current;
+    flushed.current = flushTick;
     setStatus((current) => ({ ...current, state: "saving" }));
     const timer = window.setTimeout(async () => {
       pushing.current = true;
@@ -284,10 +303,14 @@ export function usePlannerDraftSync({
           }
         });
         if (result.conflicts.length) setDraft(merged);
+        unsaved.current = DISTRICT_IDS.some(
+          (district) => sig(sliceOf(draftRef.current, district, byId)) !== (synced.current[district] ?? ""),
+        );
         setStatus({
           state: "saved",
           planId,
           by,
+          mine: true,
           at: new Date().toISOString(),
           message: result.conflicts.length
             ? `เขต ${result.conflicts.join(", ")} มีคนอื่นบันทึกก่อน ระบบโหลดงานล่าสุดของเขามาให้แล้ว`
@@ -302,9 +325,21 @@ export function usePlannerDraftSync({
       } finally {
         pushing.current = false;
       }
-    }, 1200);
+    }, now ? 0 : 1200);
     return () => window.clearTimeout(timer);
-  }, [draft, sessionKey, restored, localKey, token, planId, byId, remember, setDraft]);
+  }, [draft, flushTick, sessionKey, restored, localKey, token, planId, byId, remember, setDraft]);
+
+  // ask before closing the page while work is not on the server yet
+  useEffect(() => {
+    if (!sessionKey) return;
+    const onLeave = (event: BeforeUnloadEvent) => {
+      if (!serverOn.current || (!unsaved.current && !pushing.current)) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onLeave);
+    return () => window.removeEventListener("beforeunload", onLeave);
+  }, [sessionKey]);
 
   // 3. Every 20 s pull what other planners saved, for districts this
   //    browser has not changed since its last save.
@@ -359,5 +394,6 @@ export function usePlannerDraftSync({
   }, [status.state, setDraft]);
 
   const reset = useCallback(() => setRestored(""), []);
-  return { status, planId, reset };
+  const saveNow = useCallback(() => setFlushTick((tick) => tick + 1), []);
+  return { status, planId, reset, saveNow };
 }

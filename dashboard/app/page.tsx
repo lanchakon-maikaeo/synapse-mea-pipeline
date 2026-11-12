@@ -3395,7 +3395,10 @@ export default function Home() {
                 )}
               <ViewTabs view={activeView} role={role} hiddenViews={hiddenViews} navigate={navigateView} />
               {activeView === "weekly" && (role === "planner" || role === "admin") && (
-                <DraftSyncBadge status={draftSync.status} />
+                <DraftSyncBadge
+                  status={{ ...draftSync.status, byMe: backend.identity.display_name ?? undefined }}
+                  onSave={draftSync.saveNow}
+                />
               )}
               <PageContent
                 view={activeView}

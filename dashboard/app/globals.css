@@ -1484,3 +1484,6 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .draft-sync.saving,.draft-sync.loading{border-color:#d7e3f6;background:#f2f6fd;color:#315e9d}.draft-sync.saving>i,.draft-sync.loading>i{background:#3d72df}
 .draft-sync.local{border-color:#f0dfbf;background:#fff8ec;color:#8a5a12}.draft-sync.local>i{background:#d99a1e}
 .draft-sync.error{border-color:#f3c9cf;background:#ffeef0;color:#b42335}.draft-sync.error>i{background:#d63b4e}
+.draft-sync .btn{min-height:28px;padding:3px 10px;font-size:12px}
+.draft-sync small+.btn,.draft-sync span+.btn{margin-left:auto}
+.draft-sync small+.btn{margin-left:8px}
