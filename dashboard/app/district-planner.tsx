@@ -348,7 +348,24 @@ export function DistrictPlanner(props: Props) {
     );
   };
 
-  const quantityInput = (row: RecordRow) => (
+  // Move between the quantity boxes of the fill list with Enter / ↑ / ↓.
+  const focusQty = (id: string, step: number) => {
+    const boxes = [...document.querySelectorAll<HTMLInputElement>("input[data-fill-qty]")];
+    const index = boxes.findIndex((box) => box.dataset.fillQty === id);
+    const next = boxes[index + step];
+    if (next) {
+      next.focus();
+      next.select();
+    }
+  };
+  const focusOwnQty = (id: string) =>
+    window.setTimeout(() => {
+      const box = document.querySelector<HTMLInputElement>(`input[data-fill-qty="${CSS.escape(id)}"]`);
+      box?.focus();
+      box?.select();
+    }, 0);
+
+  const quantityInput = (row: RecordRow, fillList = false) => (
     <input
       className="planner-qty"
       type="number"
@@ -356,10 +373,28 @@ export function DistrictPlanner(props: Props) {
       step="1"
       disabled={!canCreate}
       value={quantityValue(row)}
-      onFocus={() => onFocus(itemId(row))}
-      onChange={(event) =>
-        onQuantity(row, Math.max(0, Math.round(Number(event.target.value) || 0)))
-      }
+      data-fill-qty={fillList ? itemId(row) : undefined}
+      onFocus={(event) => {
+        onFocus(itemId(row));
+        event.currentTarget.select();
+      }}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => {
+        const next = Math.max(0, Math.round(Number(event.target.value) || 0));
+        onQuantity(row, next);
+        // typing a quantity puts the line in the plan
+        if (fillList && next > 0 && !isSelected(itemId(row))) onToggle(row, true);
+      }}
+      onKeyDown={(event) => {
+        if (!fillList) return;
+        if (event.key === "Enter" || event.key === "ArrowDown") {
+          event.preventDefault();
+          focusQty(itemId(row), 1);
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          focusQty(itemId(row), -1);
+        }
+      }}
       aria-label={`จำนวนจ่าย ${text(row.material_id)} เขต ${activeDistrict}`}
     />
   );
@@ -420,7 +455,7 @@ export function DistrictPlanner(props: Props) {
               <table className="live-table planner-item-table district-table">
                 <thead>
                   <tr>
-                    <th>เลือก</th>
+                    <th>เลือก · จำนวนจ่าย</th>
                     <th>พัสดุ</th>
                     <th>สถานะ</th>
                     <th>Stock คลัง</th>
@@ -429,7 +464,6 @@ export function DistrictPlanner(props: Props) {
                     <th>MIN–MAX</th>
                     <th>เหลือ</th>
                     <th>✦ แนะนำ</th>
-                    <th>Planner Qty</th>
                     <th>FIFO</th>
                   </tr>
                 </thead>
@@ -446,16 +480,32 @@ export function DistrictPlanner(props: Props) {
                         onClick={() => onFocus(id)}
                       >
                         <td className="plan-select-cell">
-                          <label>
+                          <div className="pick-qty">
                             <input
                               type="checkbox"
                               checked={selected}
-                              disabled={!canCreate || quantity <= 0}
-                              onChange={(event) => onToggle(row, event.target.checked)}
+                              disabled={!canCreate}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) => {
+                                const checked = event.target.checked;
+                                if (checked && quantity <= 0) {
+                                  // no quantity yet: take the recommendation, or ask for one
+                                  const suggested = Math.round(recommendedQty(row));
+                                  if (suggested > 0) {
+                                    onQuantity(row, suggested);
+                                    onToggle(row, true);
+                                  }
+                                  focusOwnQty(id);
+                                  return;
+                                }
+                                onToggle(row, checked);
+                                if (checked) focusOwnQty(id);
+                              }}
                               aria-label={`เลือกพัสดุ ${text(row.material_id)} เข้าแผน`}
                             />
-                            <span>{selected ? "เลือกแล้ว" : quantity > 0 ? "เลือก" : "ใส่ Qty"}</span>
-                          </label>
+                            {quantityInput(row, true)}
+                          </div>
+                          {!selected && quantity <= 0 && <small className="dp-muted">พิมพ์จำนวนได้เลย</small>}
                         </td>
                         <td>
                           <strong>{text(row.material_id)}</strong>
@@ -489,7 +539,6 @@ export function DistrictPlanner(props: Props) {
                             </small>
                           )}
                         </td>
-                        <td>{quantityInput(row)}</td>
                         <td>{fifoCell(row)}</td>
                       </tr>
                     );

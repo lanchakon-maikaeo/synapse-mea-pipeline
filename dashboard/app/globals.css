@@ -1487,3 +1487,7 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .draft-sync .btn{min-height:28px;padding:3px 10px;font-size:12px}
 .draft-sync small+.btn,.draft-sync span+.btn{margin-left:auto}
 .draft-sync small+.btn{margin-left:8px}
+.plan-select-cell .pick-qty{display:flex;align-items:center;gap:8px}
+.plan-select-cell .pick-qty input[type=checkbox]{flex:none;width:18px;height:18px}
+.plan-select-cell .pick-qty input.planner-qty{width:96px;height:34px;accent-color:auto}
+.plan-select-cell>small{display:block;margin-top:3px;font-size:10px}
