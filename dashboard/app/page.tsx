@@ -43,6 +43,8 @@ import { DeliveryCalendarView, MODE_LABEL, URGENCY_LABEL } from "./delivery-cale
 import { DispatchBoardView } from "./dispatch-board";
 import { text, bool, record, rows, latestSnapshot, Badge, LiveTable, exportCsv } from "./view-helpers";
 import { ChangeReviewView, WeeklyPlanView, emptyPlannerDraft, hasPlannerSelection, SUMMARY_PLAN_STATUSES, type PlannerDraft } from "./weekly-plan-view";
+import { usePlannerDraftSync } from "./planner-draft-sync";
+import { DraftSyncBadge } from "./draft-sync-badge";
 import { DataImportView } from "./data-import-view";
 
 type SlotPreview = {
@@ -3163,30 +3165,24 @@ export default function Home() {
   }, [goBack]);
   const resetNavigation = () => setBackStack([]);
 
-  // Keep the planner's work and the open page across a browser refresh.
-  // The draft is saved per user and per open plan, in this browser only.
+  // The planner's work is saved on the server per plan and district (M36),
+  // with a copy in this browser; the open page is kept across a refresh.
   const draftOwner = backend.identity?.user_id ?? "";
-  const openPlanId = useMemo(() => {
-    const open = backend.data.replenishment.filter((row) =>
-      ["draft", "pending_district_confirmation", "district_review"].includes(text(row.plan_status, "")),
-    );
-    return [...new Set(open.map((row) => text(row.replenishment_plan_id, "")))].sort().join(",");
-  }, [backend.data.replenishment]);
-  const draftKey = draftOwner ? `synapse.plannerDraft.v1.${draftOwner}` : "";
+  const draftSync = usePlannerDraftSync({
+    token: backend.session?.access_token ?? null,
+    userId: draftOwner,
+    canEdit: backend.identity?.role === "planner" || backend.identity?.role === "admin",
+    loading: backend.loading,
+    rows: backend.data.replenishment,
+    draft: plannerDraft,
+    setDraft: setPlannerDraft,
+  });
   const pageKey = draftOwner ? `synapse.page.v1.${draftOwner}` : "";
-  const [restoredFor, setRestoredFor] = useState("");
+  const [pageRestored, setPageRestored] = useState("");
   useEffect(() => {
-    if (!draftKey || backend.loading || restoredFor === draftKey) return;
+    if (!pageKey || pageRestored === pageKey) return;
     const timer = window.setTimeout(() => {
       try {
-        const saved = JSON.parse(window.localStorage.getItem(draftKey) ?? "null") as
-          | { planId?: string; draft?: PlannerDraft }
-          | null;
-        if (saved?.draft && openPlanId && saved.planId === openPlanId) {
-          setPlannerDraft({ ...emptyPlannerDraft, ...saved.draft });
-        } else {
-          setPlannerDraft(emptyPlannerDraft);
-        }
         const page = JSON.parse(window.sessionStorage.getItem(pageKey) ?? "null") as PageState | null;
         if (page?.moduleKey) {
           setModule(page.moduleKey);
@@ -3194,32 +3190,20 @@ export default function Home() {
           if (page.transportView) setTransportView(page.transportView);
         }
       } catch {
-        // storage blocked or unreadable: start fresh
+        // storage blocked or unreadable
       }
-      setRestoredFor(draftKey);
+      setPageRestored(pageKey);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [draftKey, pageKey, backend.loading, openPlanId, restoredFor]);
+  }, [pageKey, pageRestored]);
   useEffect(() => {
-    if (!draftKey || restoredFor !== draftKey) return;
-    try {
-      if (hasPlannerSelection(plannerDraft) || Object.keys(plannerDraft.skipReasons).length || Object.keys(plannerDraft.addedIds).length) {
-        window.localStorage.setItem(draftKey, JSON.stringify({ planId: openPlanId, savedAt: new Date().toISOString(), draft: plannerDraft }));
-      } else {
-        window.localStorage.removeItem(draftKey);
-      }
-    } catch {
-      // storage full or blocked: the draft still lives in memory
-    }
-  }, [draftKey, restoredFor, plannerDraft, openPlanId]);
-  useEffect(() => {
-    if (!pageKey || restoredFor !== draftKey) return;
+    if (!pageKey || pageRestored !== pageKey) return;
     try {
       window.sessionStorage.setItem(pageKey, JSON.stringify({ moduleKey, view, transportView }));
     } catch {
       // ignore
     }
-  }, [pageKey, draftKey, restoredFor, moduleKey, view, transportView]);
+  }, [pageKey, pageRestored, moduleKey, view, transportView]);
 
   if (!backend.session || !backend.identity) {
     return (
@@ -3318,7 +3302,7 @@ export default function Home() {
           openMenu={() => setMenuOpen(true)}
           logout={() => {
             // keep the saved draft for the next sign-in, clear only this screen
-            setRestoredFor("");
+            draftSync.reset();
             setPlannerDraft(emptyPlannerDraft);
             setView("dashboard");
             resetNavigation();
@@ -3410,6 +3394,9 @@ export default function Home() {
                   </aside>
                 )}
               <ViewTabs view={activeView} role={role} hiddenViews={hiddenViews} navigate={navigateView} />
+              {activeView === "weekly" && (role === "planner" || role === "admin") && (
+                <DraftSyncBadge status={draftSync.status} />
+              )}
               <PageContent
                 view={activeView}
                 role={role}

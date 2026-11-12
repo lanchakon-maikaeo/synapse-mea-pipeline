@@ -1477,3 +1477,10 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 
 .reason-picker{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center}
 .reason-other{min-height:32px;min-width:180px;padding:0 8px;border:1px solid #bac7d8;border-radius:8px;background:#fff;font:inherit;font-size:12px}
+.draft-sync{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;padding:7px 12px;border:1px solid #d6e6dc;border-radius:9px;background:#f1faf5;color:#1d6b4a;font-size:12px}
+.draft-sync>i{width:8px;height:8px;border-radius:50%;background:#22a06b}
+.draft-sync small{margin-left:auto;color:#5c6a7a}
+.draft-sync b{font-weight:600;color:#8a5a12}
+.draft-sync.saving,.draft-sync.loading{border-color:#d7e3f6;background:#f2f6fd;color:#315e9d}.draft-sync.saving>i,.draft-sync.loading>i{background:#3d72df}
+.draft-sync.local{border-color:#f0dfbf;background:#fff8ec;color:#8a5a12}.draft-sync.local>i{background:#d99a1e}
+.draft-sync.error{border-color:#f3c9cf;background:#ffeef0;color:#b42335}.draft-sync.error>i{background:#d63b4e}
