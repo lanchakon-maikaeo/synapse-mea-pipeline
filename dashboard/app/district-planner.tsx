@@ -19,6 +19,7 @@ export const SKIP_REASONS = [
   "รอสัญญาใหม่",
   "Stock คลังไม่พอ",
   "รวมไปรอบหน้า",
+  "ไม่ใช่งาน/ใช้งานน้อย",
 ];
 
 export const ADD_REASONS = [
