@@ -455,7 +455,7 @@ export function DistrictPlanner(props: Props) {
               <table className="live-table planner-item-table district-table">
                 <thead>
                   <tr>
-                    <th>เลือก · จำนวนจ่าย</th>
+                    <th>เลือก · จำนวนจ่าย · ✦ แนะนำ</th>
                     <th>พัสดุ</th>
                     <th>สถานะ</th>
                     <th>Stock คลัง</th>
@@ -463,7 +463,6 @@ export function DistrictPlanner(props: Props) {
                     <th>CMP</th>
                     <th>MIN–MAX</th>
                     <th>เหลือ</th>
-                    <th>✦ แนะนำ</th>
                     <th>FIFO</th>
                   </tr>
                 </thead>
@@ -505,7 +504,32 @@ export function DistrictPlanner(props: Props) {
                             />
                             {quantityInput(row, true)}
                           </div>
-                          {!selected && quantity <= 0 && <small className="dp-muted">พิมพ์จำนวนได้เลย</small>}
+                          <div className="pick-ai" title={text(row.ai_reason, "")}>
+                            <button
+                              type="button"
+                              className="ai-suggestion"
+                              disabled={!canCreate || Math.round(recommendedQty(row)) <= 0}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                const suggested = Math.round(recommendedQty(row));
+                                onQuantity(row, suggested);
+                                if (suggested > 0 && !selected) onToggle(row, true);
+                                focusOwnQty(id);
+                              }}
+                            >
+                              ✦ แนะนำ {formatNumber(recommendedQty(row), 0)}
+                            </button>
+                            {row.ai_rule != null && (
+                              <small className="ai-rule">
+                                {RULE_LABELS[text(row.ai_rule)] ?? text(row.ai_rule)}
+                                {recommendedQty(row) !== Number(row.suggested_qty ?? 0) &&
+                                  ` · MAX ${formatNumber(row.suggested_qty, 0)}`}
+                                {Number(row.ai_kt_short ?? 0) > 0 && (
+                                  <b className="shortage-text"> · คลองเตยขาด {formatNumber(row.ai_kt_short, 0)}</b>
+                                )}
+                              </small>
+                            )}
+                          </div>
                         </td>
                         <td>
                           <strong>{text(row.material_id)}</strong>
@@ -524,21 +548,6 @@ export function DistrictPlanner(props: Props) {
                           {formatNumber(row.min_fill_qty, 0)}–{formatNumber(row.max_fill_qty, 0)}
                         </td>
                         <td>{formatNumber(row.months_available, 1)}M</td>
-                        <td className="recommend">
-                          <span className="ai-suggestion" title={text(row.ai_reason)}>
-                            ✦ {formatNumber(recommendedQty(row), 0)}
-                          </span>
-                          {row.ai_rule != null && (
-                            <small className="ai-rule" title={text(row.ai_reason)}>
-                              {RULE_LABELS[text(row.ai_rule)] ?? text(row.ai_rule)}
-                              {recommendedQty(row) !== Number(row.suggested_qty ?? 0) &&
-                                ` · MAX ${formatNumber(row.suggested_qty, 0)}`}
-                              {Number(row.ai_kt_short ?? 0) > 0 && (
-                                <b className="shortage-text"> · คลองเตยขาด {formatNumber(row.ai_kt_short, 0)}</b>
-                              )}
-                            </small>
-                          )}
-                        </td>
                         <td>{fifoCell(row)}</td>
                       </tr>
                     );

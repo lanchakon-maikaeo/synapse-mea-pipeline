@@ -1491,3 +1491,9 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .plan-select-cell .pick-qty input[type=checkbox]{flex:none;width:18px;height:18px}
 .plan-select-cell .pick-qty input.planner-qty{width:96px;height:34px;accent-color:auto}
 .plan-select-cell>small{display:block;margin-top:3px;font-size:10px}
+.plan-select-cell .pick-ai{display:grid;justify-items:start;gap:1px;margin-top:4px;padding-left:26px}
+.plan-select-cell .pick-ai button.ai-suggestion{border:0;background:none;padding:0;cursor:pointer;font-weight:700;font-size:11px}
+.plan-select-cell .pick-ai button.ai-suggestion:disabled{cursor:default;opacity:.7}
+.plan-select-cell .pick-ai button.ai-suggestion:not(:disabled):hover{text-decoration:underline}
+.plan-select-cell .pick-ai small{max-width:190px;font-size:10px;line-height:1.35;white-space:normal}
+.plan-select-cell{min-width:170px}
