@@ -118,7 +118,8 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
         if (!lot) plan.state = "unparsed";
         else if (profile) {
           const source = String(profile.source_reference ?? "");
-          if (!source.includes(UCI_TAG) && String(profile.assumption_status ?? "") === "VERIFIED") plan.state = "measured";
+          // Lot Size only fills a lot with no packing yet, or one filled from UCI before
+          if (!source.includes(UCI_TAG)) plan.state = "measured";
           else if (source === sourceText(plan)) plan.state = "same";
           else plan.state = "update";
         }
@@ -290,9 +291,9 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
             <>
               <div className="uci-tiles">
                 <div><b>{formatNumber(count("new"))}</b><span>ใหม่</span></div>
-                <div><b>{formatNumber(count("update"))}</b><span>อัปเดตจาก UCI</span></div>
+                <div><b>{formatNumber(count("update"))}</b><span>Lot Size ใน UCI เปลี่ยน · อัปเดต</span></div>
                 <div><b>{formatNumber(count("same"))}</b><span>เหมือนเดิม ข้าม</span></div>
-                <div><b>{formatNumber(count("measured"))}</b><span>มีข้อมูลวัดจริงแล้ว ไม่ทับ</span></div>
+                <div><b>{formatNumber(count("measured"))}</b><span>มี Packing ในระบบแล้ว · ไม่ทับ</span></div>
                 <div className={count("unparsed") ? "warn" : ""}><b>{formatNumber(count("unparsed"))}</b><span>อ่านไม่ออก</span></div>
               </div>
               <div className="uci-table">
@@ -321,7 +322,7 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
                             ) : "—"}
                           </td>
                           <td>
-                            {{ new: "ใหม่", update: "อัปเดต", same: "เหมือนเดิม", measured: "วัดจริงแล้ว · ไม่ทับ", unparsed: "อ่านไม่ออก · กรอกเองในหน้าข้อมูล Packing" }[plan.state]}
+                            {{ new: "ใหม่", update: "อัปเดต", same: "เหมือนเดิม", measured: "มี Packing ในระบบแล้ว · ไม่ทับ", unparsed: "อ่านไม่ออก · กรอกเองในหน้าข้อมูล Packing" }[plan.state]}
                           </td>
                         </tr>
                       ))}
@@ -330,7 +331,7 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
                 {packPlans.length > 300 && <p className="uci-file-line">แสดง 300 แถวแรก (รายการที่อ่านไม่ออกและรายการใหม่ขึ้นก่อน)</p>}
               </div>
               <footer className="uci-actions">
-                <small>บันทึกเป็น “ตามเอกสารผู้ขาย (UCI) · ยังไม่ได้วัดจริง” · ข้อมูลที่วัดจริงแล้วไม่ถูกทับ</small>
+                <small>บันทึกเฉพาะ Lot Size (จำนวนต่อหน่วยบรรจุ · ต่อพาเลท) เป็น “ตามเอกสารผู้ขาย (UCI) · ยังไม่ได้วัดจริง” · ขนาดและน้ำหนักเว้นว่างให้วัดเพิ่ม · รายการที่มี Packing ในระบบแล้วไม่ถูกทับ</small>
                 <button type="button" className="btn primary" disabled={!toSave.length || Boolean(busy) || !token || demoMode} onClick={savePacking}>
                   บันทึก Packing {formatNumber(toSave.length)} รายการ
                 </button>
