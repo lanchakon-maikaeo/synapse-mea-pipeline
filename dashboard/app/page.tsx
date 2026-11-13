@@ -34,6 +34,7 @@ import { PackingEntryView } from "./packing-entry";
 import { ContractLotsView } from "./contract-lots";
 import { DistrictUsageView } from "./district-usage";
 import { LegacyHistoryImportView } from "./legacy-history-import";
+import { UciImportView } from "./uci-import-view";
 import { OperationHistoryView } from "./operation-history";
 import { demoHistoryPayload } from "./history-demo";
 import { UserManagementView } from "./user-management";
@@ -86,6 +87,7 @@ type ViewKey =
   | "lots"
   | "usage"
   | "legacy_history"
+  | "uci_import"
   | "history"
   | "users"
   | "delivery"
@@ -122,6 +124,7 @@ const navByRole: Record<Role, NavGroup[]> = {
       items: [
         ["import", "Import Data", "⇧"],
         ["legacy_history", "ประวัติจากระบบเดิม", "⇣"],
+        ["uci_import", "นำเข้าจาก UCI", "⇣"],
         ["data", "ข้อมูล SAP / คุณภาพ", "▥"],
         ["packing", "ข้อมูล Packing", "▧"],
         ["fifo_setup", "FIFO / Packaging Setup", "▣"],
@@ -279,7 +282,7 @@ const VIEW_GROUPS: Array<{ keys: ViewKey[]; navLabel?: string }> = [
   { keys: ["weekly", "summary"] },
   { keys: ["history", "approvals", "trace"] },
   { keys: ["changes", "alerts"] },
-  { keys: ["import", "legacy_history", "data"], navLabel: "นำเข้าข้อมูล" },
+  { keys: ["import", "legacy_history", "uci_import", "data"], navLabel: "นำเข้าข้อมูล" },
   { keys: ["packing", "fifo_setup"] },
   { keys: ["stock", "input"], navLabel: "Stock (ดู / อัปเดต)" },
   { keys: ["recommendations", "advisory"], navLabel: "หลักฐาน & เฝ้าระวัง" },
@@ -440,6 +443,11 @@ const titles: Record<ViewKey, [string, string, string]> = {
     "ประวัติการดำเนินงาน",
     "ประวัติการดำเนินงานทั้งหมด",
     "รวมทุกเหตุการณ์ในที่เดียว: แผน การตอบของเขต คำขอผิดปกติ การจ่ายจริง จ่ายกรณีพิเศษ สต็อก ขนส่ง และประวัติจากระบบเดิม",
+  ],
+  uci_import: [
+    "นำเข้าจาก UCI",
+    "ยก Lot Size และผลทดสอบจาก UCI DATA",
+    "Lot Size ในการเบิกเป็นข้อมูล Packing · แถวที่ผ่านทดสอบและตรวจรับแล้วแต่ยังไม่คีย์ 105 ยืนยันจ่ายได้ทีละหลายรายการ",
   ],
   legacy_history: [
     "ประวัติจากระบบเดิม",
@@ -3092,6 +3100,9 @@ function PageContent({
         demoPayload={DEMO_MODE ? demoHistoryPayload() : undefined}
       />
     );
+  }
+  if (view === "uci_import") {
+    return <UciImportView token={backend.session?.access_token ?? null} demoMode={DEMO_MODE} />;
   }
   if (view === "legacy_history") {
     return (

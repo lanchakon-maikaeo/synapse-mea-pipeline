@@ -1497,3 +1497,32 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .plan-select-cell .pick-ai button.ai-suggestion:not(:disabled):hover{text-decoration:underline}
 .plan-select-cell .pick-ai small{max-width:190px;font-size:10px;line-height:1.35;white-space:normal}
 .plan-select-cell{min-width:170px}
+/* นำเข้าจาก UCI */
+.uci-import{display:grid;gap:12px}
+.uci-head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px}
+.uci-head>div{flex:1;min-width:280px;display:grid;gap:4px}
+.uci-head span{color:var(--orange);font-size:11px;font-weight:700}
+.uci-head h3{margin:0;font-size:17px}
+.uci-head p{margin:0;color:#5c6a7a;font-size:12px}
+.uci-file{position:relative;cursor:pointer}
+.uci-file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.uci-note{margin:0;padding:8px 12px;border-radius:8px;background:#f2f6fd;color:#315e9d;font-size:12px}
+.uci-note.ok{background:#eaf8f2;color:#1d6b4a}.uci-note.bad{background:#ffeef0;color:#b42335}
+.uci-note ul{margin:6px 0 0;padding-left:18px}
+.uci-file-line{margin:0;color:#68758a;font-size:12px}
+.uci-tabs{display:flex;flex-wrap:wrap;gap:6px}
+.uci-tabs button{padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:white;font-size:12px;cursor:pointer}
+.uci-tabs button.active{border-color:#3d72df;background:#eef3fd;color:#245bc7;font-weight:700}
+.uci-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.uci-tiles div{display:grid;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+.uci-tiles b{font-size:20px}.uci-tiles span{color:#68758a;font-size:11px}
+.uci-tiles div.warn{border-color:#f0dfbf;background:#fff8ec}
+.uci-table{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.uci-table table{width:100%;border-collapse:collapse;font-size:12px}
+.uci-table th{position:sticky;top:0;background:#f8f9fb;color:#758196;font-size:11px;text-align:left;padding:7px 10px}
+.uci-table td{padding:6px 10px;border-top:1px solid #eef1f4;vertical-align:top}
+.uci-table td small{display:block;color:#7a8698;font-size:11px}
+.uci-table tr.unparsed td{background:#fffaf0}
+.uci-table tr.same td,.uci-table tr.measured td{color:#8b95a5}
+.uci-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.uci-actions small{flex:1;color:#68758a;font-size:11px}
