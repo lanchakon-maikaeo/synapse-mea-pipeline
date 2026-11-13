@@ -28,6 +28,8 @@ type PackPlan = {
   key: string;
   row: UciRow;
   lot: ParsedLot | null;
+  lotText: string;
+  manual: boolean;
   vendor: string;
   purchase_order: string;
   state: "new" | "update" | "same" | "measured" | "unparsed";
@@ -38,7 +40,8 @@ const UCI_TAG = "UCI";
 
 function sourceText(plan: PackPlan) {
   const inner = plan.lot?.inner ? ` · ด้านใน ${plan.lot.inner}` : "";
-  return `[${plan.lot!.label}] ตามเอกสารผู้ขาย · ${UCI_TAG}: ${plan.row.lot_size}${inner}`.slice(0, 480);
+  const fixed = plan.manual ? ` (แก้จาก: ${plan.row.lot_size})` : "";
+  return `[${plan.lot!.label}] ตามเอกสารผู้ขาย · ${UCI_TAG}: ${plan.lotText}${inner}${fixed}`.slice(0, 480);
 }
 
 export function UciImportView({ token, demoMode }: { token: string | null; demoMode: boolean }) {
@@ -52,6 +55,8 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
   const [failed, setFailed] = useState<string[]>([]);
   const [releasePick, setReleasePick] = useState<Record<string, boolean>>({});
   const [tab, setTab] = useState<"packing" | "release">("packing");
+  // Lot Size typed here for rows UCI wrote in a way the reader does not know
+  const [fixes, setFixes] = useState<Record<string, string>>({});
 
   const load = async (file: File) => {
     setError("");
@@ -100,7 +105,9 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
     // one profile per receiving lot (PO) the packing page shows for this
     // material + contract, so every lot gets its packing
     return [...latest.entries()].flatMap(([key, row]) => {
-      const lot = parseLotSize(row.lot_size);
+      const manual = key in fixes;
+      const lotText = manual ? fixes[key] : row.lot_size;
+      const lot = parseLotSize(lotText);
       const matches = work.filter((item) => item.material_id === row.material_id && item.contract_no === row.contract_no);
       const targets = matches.length
         ? matches
@@ -110,6 +117,8 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
           key: `${key}|${target.purchase_order}`,
           row,
           lot,
+          lotText,
+          manual,
           vendor: target.vendor_name || row.vendor,
           purchase_order: target.purchase_order,
           state: "new",
@@ -126,7 +135,7 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
         return plan;
       });
     });
-  }, [rows, work]);
+  }, [rows, work, fixes]);
 
   const releasePlans = useMemo<ReleasePlan[]>(() => {
     return rows.filter(passedAwaiting105).map((row) => {
@@ -303,8 +312,11 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
                   </thead>
                   <tbody>
                     {[...packPlans]
-                      .sort((a, b) => ["unparsed", "new", "update", "measured", "same"].indexOf(a.state)
-                        - ["unparsed", "new", "update", "measured", "same"].indexOf(b.state))
+                      .sort((a, b) => {
+                        const rank = (plan: PackPlan) =>
+                          plan.manual ? 0 : ["unparsed", "new", "update", "measured", "same"].indexOf(plan.state);
+                        return rank(a) - rank(b);
+                      })
                       .slice(0, 300)
                       .map((plan) => (
                         <tr key={plan.key} className={plan.state}>
@@ -312,6 +324,24 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
                           <td>{plan.row.contract_no}<small>งวด {plan.row.installment || "—"}{plan.purchase_order ? ` · PO ${plan.purchase_order}` : ""}</small></td>
                           <td>{plan.row.lot_size}</td>
                           <td>
+                            {(plan.manual || plan.state === "unparsed") && (
+                              <input
+                                className="uci-fix"
+                                type="text"
+                                value={fixes[`${plan.row.material_id}|${plan.row.contract_no}`] ?? ""}
+                                placeholder="พิมพ์ เช่น กล่องละ 50 EA (พาเลทละ 1,000 EA)"
+                                onChange={(event) => {
+                                  const key = `${plan.row.material_id}|${plan.row.contract_no}`;
+                                  const value = event.target.value;
+                                  setFixes((current) => {
+                                    const next = { ...current };
+                                    if (value.trim()) next[key] = value;
+                                    else delete next[key];
+                                    return next;
+                                  });
+                                }}
+                              />
+                            )}
                             {plan.lot ? (
                               <>
                                 {plan.lot.word}ละ {formatNumber(plan.lot.units_per_package)}
@@ -322,7 +352,7 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
                             ) : "—"}
                           </td>
                           <td>
-                            {{ new: "ใหม่", update: "อัปเดต", same: "เหมือนเดิม", measured: "มี Packing ในระบบแล้ว · ไม่ทับ", unparsed: "อ่านไม่ออก · กรอกเองในหน้าข้อมูล Packing" }[plan.state]}
+                            {{ new: "ใหม่", update: "อัปเดต", same: "เหมือนเดิม", measured: "มี Packing ในระบบแล้ว · ไม่ทับ", unparsed: plan.manual ? "ยังอ่านไม่ออก · ลองเขียนแบบ กล่องละ 50 EA" : "อ่านไม่ออก · พิมพ์ Lot Size ในช่องซ้าย หรือข้ามไปก่อน" }[plan.state]}
                           </td>
                         </tr>
                       ))}

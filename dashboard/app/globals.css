@@ -1531,3 +1531,4 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .uci-table tr.same td,.uci-table tr.measured td{color:#8b95a5}
 .uci-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .uci-actions small{flex:1;color:#68758a;font-size:11px}
+.uci-fix{width:100%;min-width:220px;height:30px;margin-bottom:4px;padding:0 8px;border:1px solid #e3c78f;border-radius:7px;background:#fffdf7;font:inherit;font-size:12px}

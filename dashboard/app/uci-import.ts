@@ -148,7 +148,21 @@ function wordOf(raw: string) {
 /** "กล่องละ 25 EA (พาเลทละ 1,000 EA) 4*10*25", "500 m/REEL", "@ 1 EA" … */
 export function parseLotSize(input: string): ParsedLot | null {
   // collapse repeated Thai marks: "กล่่อง" -> "กล่อง", "ลููก" -> "ลูก"
-  const text = input.normalize("NFC").replace(/([ัิ-ฺ็-๎])\1+/g, "$1").trim();
+  const text = input
+    .normalize("NFC")
+    .replace(/([ัิ-ฺ็-๎])\1+/g, "$1")
+    // "19 กระสอบ ๆ ละ 20" -> "กระสอบละ 20"
+    .replace(/([ก-๙]+)\s*ๆ\s*ละ/g, "$1ละ")
+    // "กล่องเล็ก 50 EA (กล่องใหญ่ 250 EA)" -> "กล่องละ 250 … (ห่อละ 50)"
+    .replace(/กล่องเล็ก\s*(?:ละ)?\s*/g, "ห่อละ ")
+    .replace(/กล่องใหญ่\s*(?:ละ)?\s*/g, "กล่องละ ")
+    // "ลูก 1,000 M" -> "ลูกละ 1,000 M"
+    .replace(/^(ลูก|ม้วน|ขด|มัด|กล่อง|ลัง|กระสอบ)\s+(?=[0-9])/, "$1ละ ")
+    // "1 EA/ลัง" -> "ลังละ 1 EA"
+    .replace(/([0-9][0-9,]*)\s*[A-Za-z]+\s*\/\s*(ลัง|กล่อง|กระสอบ|มัด|ลูก)/g, "$2ละ $1")
+    // "1p=2160 ea" -> "พาเลทละ 2160"
+    .replace(/1\s*p\s*=\s*([0-9][0-9,]*)/i, "พาเลทละ $1")
+    .trim();
   if (!text) return null;
   const pairs: Array<{ word: string; qty: number }> = [];
   for (const match of text.matchAll(/([ก-๙A-Za-z]+)\s*ละ\s*([0-9][0-9,]*(?:\.[0-9]+)?)/g)) {
