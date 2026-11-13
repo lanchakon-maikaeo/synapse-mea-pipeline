@@ -1498,7 +1498,12 @@ td,.num,strong{font-variant-numeric:tabular-nums}
 .plan-select-cell .pick-ai small{max-width:190px;font-size:10px;line-height:1.35;white-space:normal}
 .plan-select-cell{min-width:170px}
 /* นำเข้าจาก UCI */
-.uci-import{display:grid;gap:12px}
+.uci-import{display:grid;gap:12px;padding:18px 22px}
+.uci-import.empty{display:none}
+.uci-steps{display:flex;flex-wrap:wrap;gap:8px 18px;margin:8px 0 0;padding:0;list-style:none;color:var(--muted);font-size:12px}
+.uci-steps li{display:flex;align-items:center;gap:7px}
+.uci-steps b{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#eef3fd;color:#245bc7;font-size:11px}
+.uci-steps strong{color:var(--navy)}
 .uci-head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px}
 .uci-head>div{flex:1;min-width:280px;display:grid;gap:4px}
 .uci-head span{color:var(--orange);font-size:11px;font-weight:700}

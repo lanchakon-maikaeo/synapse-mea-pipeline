@@ -225,30 +225,41 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
   };
 
   return (
-    <section className="panel uci-import">
-      <header className="uci-head">
+    <div className="stack uci-page">
+      <section className="panel lh-intro uci-intro">
         <div>
-          <span>นำเข้าจาก UCI DATA</span>
+          <span>อัปโหลดชีต DATA</span>
           <h3>Lot Size → ข้อมูล Packing · ผลทดสอบผ่าน → ยืนยันจ่ายได้</h3>
-          <p>
-            ใน Google Sheets เปิดชีต <b>DATA</b> แล้วเลือก ไฟล์ → ดาวน์โหลด → <b>CSV</b> (เฉพาะชีตนี้) แล้วเลือกไฟล์ที่นี่
-            · ระบบแสดงตัวอย่างก่อน ยังไม่บันทึกจนกว่าจะกดปุ่ม
-          </p>
+          <ol className="uci-steps">
+            <li><b>1</b>Google Sheets เปิดชีต <strong>DATA</strong> → ไฟล์ → ดาวน์โหลด → <strong>CSV</strong></li>
+            <li><b>2</b>เลือกไฟล์ที่ดาวน์โหลดมา</li>
+            <li><b>3</b>ตรวจตัวอย่าง แล้วกดบันทึก (ยังไม่บันทึกจนกว่าจะกดปุ่ม)</li>
+          </ol>
         </div>
-        <label className="btn primary uci-file">
-          {fileName ? "เลือกไฟล์ใหม่" : "เลือกไฟล์ DATA (.csv / .xlsx)"}
-          <input
-            type="file"
-            accept=".csv,.xlsx"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void load(file);
-              event.target.value = "";
-            }}
-          />
-        </label>
-      </header>
+        <div className="lh-intro-actions">
+          {fileName && (
+            <div className="hero-chip lh-current">
+              <span>ไฟล์ที่อ่าน</span>
+              <strong>{fileName}</strong>
+              <small>{formatNumber(rows.length)} แถว</small>
+            </div>
+          )}
+          <label className="btn primary uci-file">
+            {fileName ? "เลือกไฟล์ใหม่" : "เลือกไฟล์ DATA (.csv / .xlsx)"}
+            <input
+              type="file"
+              accept=".csv,.xlsx"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void load(file);
+                event.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+      </section>
 
+      <section className={`panel uci-import${rows.length || busy || error || done.length ? "" : " empty"}`}>
       {busy && <p className="uci-note">{busy}</p>}
       {error && <p className="uci-note bad">{error}</p>}
       {done.map((line) => (
@@ -264,7 +275,7 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
       {rows.length > 0 && (
         <>
           <p className="uci-file-line">
-            {fileName} · {formatNumber(rows.length)} แถว · Lot Size {formatNumber(new Set(packPlans.map((plan) => `${plan.row.material_id}|${plan.row.contract_no}`)).size)} รายการ (รหัส + สัญญา)
+            Lot Size {formatNumber(new Set(packPlans.map((plan) => `${plan.row.material_id}|${plan.row.contract_no}`)).size)} รายการ (รหัส + สัญญา)
           </p>
           <div className="uci-tabs" role="tablist">
             <button type="button" className={tab === "packing" ? "active" : ""} onClick={() => setTab("packing")}>
@@ -379,6 +390,7 @@ export function UciImportView({ token, demoMode }: { token: string | null; demoM
           )}
         </>
       )}
-    </section>
+      </section>
+    </div>
   );
 }
