@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import { formatDateTime, formatNumber } from "./lib";
 import type { RecordRow } from "./use-synapse-backend";
+import { contractSplit } from "./contract-split";
 
 // สรุปการจ่าย · District confirmation board.
 // Central staff check how each of the 18 districts answered every line of the
@@ -538,6 +539,7 @@ export function DistrictConfirmationBoard({
                               <th>แผน</th>
                               <th>เขตขอ</th>
                               <th>จำนวนสุดท้าย</th>
+                              <th>สัญญา (FIFO)</th>
                               <th>ผลตอบ</th>
                               <th>เหตุผล / หมายเหตุเขต</th>
                               <th>ผู้ขอ</th>
@@ -579,6 +581,15 @@ export function DistrictConfirmationBoard({
                                       : formatNumber(line.requested_qty ?? line.confirmed_qty, 0)}
                                   </td>
                                   <td>{state === "pending" ? "—" : formatNumber(answeredQty(line), 0)}</td>
+                                  <td className="dc-contracts">
+                                    {state === "rejected" || state === "cancelled"
+                                      ? "—"
+                                      : contractSplit(line, state === "pending" ? planQty(line) : answeredQty(line)).map((part) => (
+                                          <span key={`${part.contract}|${part.purchase_order}`} className={part.kind === "rest" ? "dp-bad" : ""}>
+                                            {part.contract} <b>× {formatNumber(part.quantity, 0)}</b>
+                                          </span>
+                                        ))}
+                                  </td>
                                   <td>
                                     <span className={`dc-line ${state}`}>{LINE_LABEL[state]}</span>
                                   </td>
