@@ -379,10 +379,13 @@ export function WeeklyPlanView({
     )?.id ||
     flowDistricts[0]?.id ||
     "";
-  const activeSystemRows = systemRowsByDistrict[activeDistrict] ?? [];
-  const activeAddedRows = addedRowsAll.filter(
-    (row) => text(row.district_id) === activeDistrict,
-  );
+  // material code order, as on the warehouse lists
+  const byMaterial = (left: RecordRow, right: RecordRow) =>
+    text(left.material_id).localeCompare(text(right.material_id));
+  const activeSystemRows = [...(systemRowsByDistrict[activeDistrict] ?? [])].sort(byMaterial);
+  const activeAddedRows = addedRowsAll
+    .filter((row) => text(row.district_id) === activeDistrict)
+    .sort(byMaterial);
   const activeDistrictInfo = districtReference.find(
     (district) => district.district_id === activeDistrict,
   ) ?? { district_id: activeDistrict, district_name_th: "" };
