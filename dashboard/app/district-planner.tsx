@@ -33,17 +33,22 @@ export const ADD_REASONS = [
 export const OTHER_REASON = "__other";
 
 /** A reason dropdown with "อื่น ๆ (ระบุเอง)" that opens a text box. */
+/** What a line the system proposed but nobody picked is saved with. */
+export const DEFAULT_SKIP_REASON = "ไม่ระบุเหตุผล";
+
 function ReasonPicker({
   value,
   options,
   disabled,
   missing,
+  emptyLabel = "— เลือกเหตุผล —",
   onChange,
 }: {
   value: string;
   options: string[];
   disabled?: boolean;
   missing?: boolean;
+  emptyLabel?: string;
   onChange: (reason: string) => void;
 }) {
   const custom = Boolean(value) && !options.includes(value);
@@ -72,7 +77,7 @@ function ReasonPicker({
           onChange(next);
         }}
       >
-        <option value="">— เลือกเหตุผล —</option>
+        <option value="">{emptyLabel}</option>
         {options.map((reason) => (
           <option key={reason} value={reason}>{reason}</option>
         ))}
@@ -322,8 +327,8 @@ export function DistrictPlanner(props: Props) {
     return max > 0 && plannerQuantity(row) > max;
   });
   const shortages = planRows.filter((row) => fifoShortage(row) > 0);
+  // lines left undecided are saved as "ไม่ระบุเหตุผล" when the district is confirmed
   const blockers =
-    undecidedRows.length +
     addedMissingReason.length +
     addedZeroQty.length +
     (shortages.length && !fifoAck ? 1 : 0);
@@ -728,7 +733,7 @@ export function DistrictPlanner(props: Props) {
             {stats.confirmed
               ? "เขตนี้ยืนยันแล้ว · ถ้าแก้รายการ ระบบจะยกเลิกการยืนยันให้อัตโนมัติ"
               : stats.undecided
-                ? `ยังไม่ตัดสินใจ ${formatNumber(stats.undecided)} รายการ — ต้องเลือกหรือระบุเหตุผลไม่เติมก่อนยืนยันเขต`
+                ? `ยังไม่ได้เลือก ${formatNumber(stats.undecided)} รายการ — ถ้าไม่เลือก ระบบบันทึกว่า “${DEFAULT_SKIP_REASON}” ตอนยืนยันเขต`
                 : "ตัดสินใจครบทุกรายการแล้ว"}
           </small>
         </div>
@@ -792,9 +797,9 @@ export function DistrictPlanner(props: Props) {
 
               <ul className="dr-checks">
                 <li className="ok">✓ ทุกรายการในแผนมี Planner Qty มากกว่า 0 ({formatNumber(planRows.length)} รายการ)</li>
-                <li className={undecidedRows.length ? "warn" : "ok"}>
+                <li className="ok">
                   {undecidedRows.length
-                    ? `! ระบบให้เติมแต่ยังไม่ตัดสินใจ ${formatNumber(undecidedRows.length)} รายการ — เลือกเข้าแผน หรือระบุเหตุผลที่ไม่เติม`
+                    ? `• ระบบให้เติมแต่ไม่ได้เลือก ${formatNumber(undecidedRows.length)} รายการ — จะบันทึกว่า “${DEFAULT_SKIP_REASON}” เปลี่ยนเหตุผลได้ถ้าต้องการ`
                     : "✓ ตัดสินใจครบทุกรายการที่ระบบให้เติม"}
                 </li>
                 <li className={addedMissingReason.length || addedZeroQty.length ? "warn" : "ok"}>
@@ -839,6 +844,7 @@ export function DistrictPlanner(props: Props) {
                           value=""
                           options={SKIP_REASONS}
                           disabled={!canCreate}
+                          emptyLabel={`${DEFAULT_SKIP_REASON} (ค่าเริ่มต้น)`}
                           onChange={(reason) => reason && onSkip(row, reason)}
                         />
                       </label>
@@ -935,6 +941,7 @@ export function DistrictPlanner(props: Props) {
                     className="btn primary"
                     disabled={!canConfirm}
                     onClick={() => {
+                      undecidedRows.forEach((row) => onSkip(row, DEFAULT_SKIP_REASON));
                       onConfirmDistrict();
                       setReviewOpen(false);
                       setFifoAck(false);
