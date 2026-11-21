@@ -179,6 +179,8 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
    if(calls===1)return tool('read_evidence',{sources:['policy']});
    if(calls===2)return tool('recommend',{summary,actions:['ยืนยันการจองและข้อมูลของเข้าก่อนยืนยันการจัดส่ง'],evidence_ids:['alert'],uncertainties:[]});
    assert.deepEqual(Object.keys(body.tools[0].functionDeclarations[0].parametersJsonSchema.properties),['explanation','unsupported_phrase','reason','supported']);
+   // Explanation-first Thai reviews ran past 400 tokens on Typhoon (finish_reason=length).
+   assert.ok(body.generationConfig.maxOutputTokens>=800);
    if(calls===3)return tool('check_recommendation',{supported:false,reason:'stale_current_claim',unsupported_phrase:phrase,explanation:'Claims current stock'});
    assert.match(reviewInput(body).server_check,/required disclaimer/);
    return tool('check_recommendation',{supported:true,reason:'supported',unsupported_phrase:'',explanation:''});
