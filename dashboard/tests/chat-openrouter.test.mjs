@@ -109,3 +109,17 @@ test('LLM_PROVIDER=typhoon sends Typhoon keys only to Typhoon and turns document
     error => error.message === 'provider_output_invalid' && error.cause.validation_code === 'provider_tool_not_allowed');
   assert.ok(seen.length && !seen.includes('search_knowledge'));
 });
+
+test('LLM_PROVIDER=openai-compatible takes any https chat-completions URL and model from Vercel env', () => {
+  const env = { LLM_PROVIDER: 'openai-compatible', LLM_API_KEY: 'together-key-0123456789',
+    LLM_API_URL: ' https://api.together.xyz/v1/chat/completions ', LLM_MODEL: 'scb10x/typhoon-2-1-gemma3-12b' };
+  const config = providerConfig(env);
+  assert.equal(config.provider, 'openai-compatible'); assert.equal(config.apiUrl, 'https://api.together.xyz/v1/chat/completions');
+  assert.equal(config.model, 'scb10x/typhoon-2-1-gemma3-12b'); assert.equal(config.embeddings, false);
+  for (const change of [{ LLM_API_URL: undefined }, { LLM_API_URL: 'http://api.together.xyz/v1/chat/completions' },
+    { LLM_API_URL: 'https://user:pw@api.together.xyz/v1/chat/completions' }, { LLM_API_URL: 'https://api.together.xyz/v1/models' },
+    { LLM_API_URL: 'https://api.together.xyz/v1/chat/completions?key=x' }, { LLM_MODEL: undefined }, { LLM_MODEL: 'bad model' },
+    { LLM_API_KEY: 'sk-or-should-stay-on-openrouter' }, { LLM_PROVIDER: 'unknown-provider' }]) {
+    assert.equal(providerConfig({ ...env, ...change }), null, JSON.stringify(change));
+  }
+});
