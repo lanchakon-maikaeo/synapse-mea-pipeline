@@ -14,7 +14,7 @@ The Agent analyses up to six changed candidates per run. Unchanged analysed cand
 
 The database side is `supabase/migrations/202611210001_agentic_alerts.sql`. It is safe to rerun and removes dev's preview scheduler.
 
-1. Vercel `mea-synapse-web`, Production, sensitive: `AGENTIC_ALERT_SERVICE_KEY` (Supabase service-role key) and `AGENTIC_ALERT_CRON_SECRET` (a long random string). Redeploy.
+1. Vercel `mea-synapse-web`, Production, sensitive: `AGENTIC_ALERT_SERVICE_KEY` (Supabase service-role key; optional, falls back to `SUPABASE_SERVICE_ROLE_KEY`) and `AGENTIC_ALERT_CRON_SECRET` (a long random string). Redeploy.
 2. Supabase SQL editor, the same random string:
    ```sql
    select vault.create_secret('<AGENTIC_ALERT_CRON_SECRET>', 'synapse-agentic-prod-cron');

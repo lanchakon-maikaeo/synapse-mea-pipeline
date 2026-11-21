@@ -9,7 +9,8 @@ export async function GET(request:Request) {
  const target=`Bearer ${expected}`;
  if(!expected||Buffer.byteLength(supplied)!==Buffer.byteLength(target)||!timingSafeEqual(Buffer.from(supplied),Buffer.from(target))) return new Response(null,{status:401});
  const origin=controlledSupabaseOrigin();
- const key=process.env.AGENTIC_ALERT_SERVICE_KEY?.trim();
+ // Same project service-role key; reuse the one admin accounts already use when no dedicated key is set.
+ const key=process.env.AGENTIC_ALERT_SERVICE_KEY?.trim()||process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
  if(!origin||!key) return Response.json({status:'not_configured'},{status:503});
  const rpc=async(name:string,body:unknown)=>{
    const response=await fetch(`${origin}/rest/v1/rpc/${name}`,{method:'POST',headers:{Authorization:`Bearer ${key}`,apikey:key,'Content-Type':'application/json'},
