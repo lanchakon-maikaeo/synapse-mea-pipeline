@@ -135,7 +135,9 @@ test("same-origin proxy pins a controlled Supabase origin and blocks redirects",
   assert.match(routeHelpers, /\[a-z0-9\]\{20\}\\\.supabase\\\.co/);
   // Every route that calls Supabase uses the same origin rule.
   const chatRoute = readFileSync("app/api/chat/route.ts", "utf8");
-  for (const route of [apiRoute, accessRequestRoute, adminAccountsRoute, chatRoute]) {
+  const alertRoutes = ["app/api/alerts/route.ts", "app/api/internal/agentic-alerts/route.ts"]
+    .map((file) => readFileSync(file, "utf8"));
+  for (const route of [apiRoute, accessRequestRoute, adminAccountsRoute, chatRoute, ...alertRoutes]) {
     assert.match(route, /controlledSupabaseOrigin\(\)/);
     assert.match(route, /from "(\.\.\/)+route-helpers"/);
     assert.doesNotMatch(route, /function (controlled)?[sS]upabaseOrigin\(/);

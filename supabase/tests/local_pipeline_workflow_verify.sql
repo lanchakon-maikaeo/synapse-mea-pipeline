@@ -868,5 +868,6 @@ end
 $$;
 
 \ir chat_assistant_verify.sql
+\ir agentic_alerts_verify.sql
 
 rollback;
