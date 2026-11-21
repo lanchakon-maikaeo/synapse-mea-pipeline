@@ -2,16 +2,25 @@ import { DB_TOOLS } from './tools.mjs';
 // Keep the existing agent's validated tool contract while using OpenRouter on the wire.
 export const CHAT_MODEL = 'openai/gpt-4o-mini';
 export const CHAT_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+// LLM_PROVIDER=typhoon: Typhoon's OpenAI-compatible API (docs.opentyphoon.ai). It has
+// no embeddings endpoint, so document search (BGE-M3 via OpenRouter) is off.
+export const TYPHOON_API_URL = 'https://api.opentyphoon.ai/v1/chat/completions';
+export const TYPHOON_MODEL = 'typhoon-v2.5-30b-a3b-instruct';
 
 export function providerConfig(env = process.env) {
+  const typhoon = env.LLM_PROVIDER?.trim().toLowerCase() === 'typhoon';
   const apiKey = env.LLM_API_KEY?.trim() || '';
-  const model = env.LLM_MODEL?.trim() || CHAT_MODEL;
+  const model = env.LLM_MODEL?.trim() || (typhoon ? TYPHOON_MODEL : CHAT_MODEL);
   const temperature = Number(env.LLM_TEMPERATURE?.trim() || '0');
   const timeoutMs = Number(env.LLM_TIMEOUT_MS?.trim() || '30000');
-  if (!apiKey.startsWith('sk-or-') || model.length > 200 || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i.test(model) ||
+  const keyValid = typhoon ? /^[\x21-\x7e]{16,256}$/.test(apiKey) && !apiKey.startsWith('sk-or-') : apiKey.startsWith('sk-or-');
+  const modelValid = typhoon ? /^typhoon-[a-z0-9._-]{1,100}$/i.test(model)
+    : model.length <= 200 && /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i.test(model);
+  if (!keyValid || !modelValid ||
       !Number.isFinite(temperature) || temperature < 0 || temperature > 2 ||
       !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 40000) return null;
-  return { apiKey, model, temperature, timeoutMs, apiUrl: CHAT_API_URL };
+  return { provider: typhoon ? 'typhoon' : 'openrouter', apiKey, model, temperature, timeoutMs,
+    apiUrl: typhoon ? TYPHOON_API_URL : CHAT_API_URL, embeddings: !typhoon };
 }
 
 export function openRouterRequest(body, model = CHAT_MODEL) {

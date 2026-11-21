@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CHAT_API_URL, providerConfig, openRouterRequest, openRouterResponse } from '../app/api/chat/openrouter.mjs';
+import { CHAT_API_URL, TYPHOON_API_URL, TYPHOON_MODEL, providerConfig, openRouterRequest, openRouterResponse } from '../app/api/chat/openrouter.mjs';
 import { runAgent } from '../app/api/chat/harness.mjs';
 import { composeAnswer } from '../app/api/chat/answer.mjs';
 import { parseToolDecision } from '../app/api/chat/tools.mjs';
@@ -82,4 +82,30 @@ test('parallel read proposals execute one at a time and every unused call receiv
  assert.deepEqual(reads,['risk','delivery']);assert.equal(result.stop_reason,'complete');
  const duplicate=structuredClone(first);duplicate.choices[0].message.tool_calls[1].id='risk-1';assert.throws(()=>openRouterResponse(duplicate),/invalid_call/);
  const unsafe=structuredClone(first);unsafe.choices[0].message.tool_calls[1].function.name='write_database';assert.throws(()=>openRouterResponse(unsafe),/invalid_parallel/);
+});
+
+test('LLM_PROVIDER=typhoon sends Typhoon keys only to Typhoon and turns document search off', async () => {
+  const key = 'typhoon-test-key-0123456789';
+  const config = providerConfig({ LLM_PROVIDER: ' Typhoon ', LLM_API_KEY: key });
+  assert.equal(config.provider, 'typhoon'); assert.equal(config.apiUrl, TYPHOON_API_URL);
+  assert.equal(config.model, TYPHOON_MODEL); assert.equal(config.embeddings, false);
+  assert.equal(providerConfig({ LLM_PROVIDER: 'typhoon', LLM_API_KEY: key, LLM_MODEL: 'typhoon-v2.1-12b-instruct' }).model, 'typhoon-v2.1-12b-instruct');
+  // OpenRouter stays the default, and neither provider accepts the other's key or model.
+  assert.equal(providerConfig({ LLM_API_KEY: key }), null);
+  assert.equal(providerConfig({ LLM_API_KEY: 'sk-or-test' }).embeddings, true);
+  for (const env of [{ LLM_PROVIDER: 'typhoon', LLM_API_KEY: 'sk-or-test-0123456789' },
+    { LLM_PROVIDER: 'typhoon', LLM_API_KEY: key, LLM_MODEL: 'openai/gpt-4o-mini' },
+    { LLM_PROVIDER: 'typhoon', LLM_API_KEY: 'short' }, { LLM_PROVIDER: 'typhoon', LLM_API_KEY: 'has space 0123456789' }]) {
+    assert.equal(providerConfig(env), null);
+  }
+  assert.equal(openRouterRequest({contents:[],tools:[],generationConfig:{temperature:0,maxOutputTokens:100}}, config.model).provider, undefined);
+
+  // Without embeddings the model never sees search_knowledge, and a call to it is refused.
+  const seen = [];
+  await assert.rejects(runAgent({ message: 'หลักการเติมวัสดุคืออะไร', temperature: 0, scope: { role: 'admin' },
+    hiddenTools: ['search_knowledge'], read: async () => assert.fail('hidden tool executed'),
+    generate: async body => { seen.push(...body.tools[0].functionDeclarations.map(fn => fn.name));
+      return openRouterResponse(response('search_knowledge', { query: 'หลักการเติม' })); } }),
+    error => error.message === 'provider_output_invalid' && error.cause.validation_code === 'provider_tool_not_allowed');
+  assert.ok(seen.length && !seen.includes('search_knowledge'));
 });

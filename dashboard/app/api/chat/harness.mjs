@@ -4,9 +4,10 @@ export const HARNESS_VERSION = "v4";
 export const MAX_READS = 6;
 
 // Model decisions are proposals. This loop owns execution, budgets and completion.
-export async function runAgent({ message, history = /** @type {{ role: string, text: string }[]} */ ([]), temperature, scope, signal, generate, read }) {
+export async function runAgent({ message, history = /** @type {{ role: string, text: string }[]} */ ([]), temperature, scope, signal, generate, read, hiddenTools = /** @type {string[]} */ ([]) }) {
   const body = buildProviderBody(message, temperature, history);
-  const declarations = body.tools[0].functionDeclarations;
+  // A provider without a capability (e.g. embeddings) never sees that tool.
+  const declarations = body.tools[0].functionDeclarations.filter(fn => !hiddenTools.includes(fn.name));
   const evidence = [];
   const trace = [];
   const seen = new Set();
@@ -33,7 +34,10 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       break;
     }
     let decision;
-    try { decision = bindDistrictScope(parseToolDecision(response), scope); }
+    try {
+      decision = bindDistrictScope(parseToolDecision(response), scope);
+      if (hiddenTools.includes(decision.name)) throw new Error("provider_tool_not_allowed");
+    }
     catch (error) {
       if (!evidence.length) {
         const proposedName = response?.candidates?.[0]?.content?.parts?.find(p => p.functionCall)?.functionCall?.name;

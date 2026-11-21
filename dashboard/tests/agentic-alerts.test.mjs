@@ -173,3 +173,12 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
  assert.deepEqual(reads.warehouse.rows.map(x=>[x.location_id,x.material_id]),[['W','A']]);
  assert.equal(saved.find(x=>x.key.includes('proactive:workflow:P:')).details.analysis_status,'analyzed');
  });
+
+ test('with LLM_PROVIDER=typhoon the worker calls Typhoon with its model and key, and a 429 keeps evidence-only alerts',async()=>{
+ let saved;const seen=[];
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?context:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const result=await runAlertWorker({rpc,env:{LLM_PROVIDER:'typhoon',LLM_API_KEY:'typhoon-test-key-0123456789'},now,signal:new AbortController().signal,
+  fetcher:async(url,init)=>{seen.push({url,model:JSON.parse(init.body).model,auth:init.headers.Authorization});return new Response('{}',{status:429});}});
+ assert.deepEqual(seen,[{url:'https://api.opentyphoon.ai/v1/chat/completions',model:'typhoon-v2.5-30b-a3b-instruct',auth:'Bearer typhoon-test-key-0123456789'}]);
+ assert.equal(result.errors.provider_rate_limited,1);assert.ok(saved.every(x=>x.details.analysis_status==='evidence_only'));
+ });
