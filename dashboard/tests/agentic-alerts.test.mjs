@@ -167,6 +167,26 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
  assert.equal(calls,7);
  });
 
+ test('quoting the required "cannot be confirmed" disclaimer is not a current claim; the reviewer reasons before its verdict',async()=>{
+ // Real drafts from the 2026-11-21 21:22 production run: the reviewer quoted the disclaimer itself.
+ for(const [summary,phrase] of [
+  ['ข้อมูลยอดคงคลังปัจจุบันและลำดับการจัดส่งสำหรับวันนี้ยังไม่ได้รับการยืนยัน เนื่องจากข้อมูลล่าช้า','ยอดคงคลังปัจจุบัน'],
+  ['ยอดคงคลังปัจจุบันและลำดับความสำคัญการจัดส่งวันนี้ยังไม่สามารถยืนยันได้ เนื่องจากข้อมูลสต็อก รายการจอง และของเข้ายังไม่ครบถ้วน','ยอดคงคลังปัจจุบันและลำดับความสำคัญการจัดส่งวันนี้ยังไม่สามารถยืนยันได้ เนื่องจากข้อมูลสต็อก รายการจอง และของเข้ายังไม่ครบถ้วน'],
+ ]) {
+  let calls=0;
+  const result=await analyzeAlert(snapshotAlert,{policy},async body=>{
+   const tool=reviewTool(++calls);
+   if(calls===1)return tool('read_evidence',{sources:['policy']});
+   if(calls===2)return tool('recommend',{summary,actions:['ยืนยันการจองและข้อมูลของเข้าก่อนยืนยันการจัดส่ง'],evidence_ids:['alert'],uncertainties:[]});
+   assert.deepEqual(Object.keys(body.tools[0].functionDeclarations[0].parametersJsonSchema.properties),['explanation','unsupported_phrase','reason','supported']);
+   if(calls===3)return tool('check_recommendation',{supported:false,reason:'stale_current_claim',unsupported_phrase:phrase,explanation:'Claims current stock'});
+   assert.match(reviewInput(body).server_check,/required disclaimer/);
+   return tool('check_recommendation',{supported:true,reason:'supported',unsupported_phrase:'',explanation:''});
+  },now);
+  assert.equal(result.details.analysis_status,'analyzed');assert.equal(calls,4);
+ }
+ });
+
  test('review of a current workflow cites its own facts, not unused historical stock',async()=>{
  const alert={key:'workflow',details:{evidence:{plan_status:'pending_district_confirmation',item_count:6}}};let calls=0;
  const related={queue:{rows:[{plan_status:'pending_district_confirmation'}]},stock:{rows:[{snapshot_at:'2026-07-21',current_stock_qty:0}]}};
