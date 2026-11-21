@@ -141,7 +141,7 @@ export async function POST(request: Request) {
   try {
     result = await runAgent({
       message, history, temperature: config.temperature, scope: admission.scope, signal: overall,
-      generate,
+      generate, hiddenTools: config.embeddings ? [] : ["search_knowledge"],
       read: async (decision: ToolDecision) => decision.name === "search_knowledge"
         ? supabaseRpc<ToolEnvelope>("vmi_chat_knowledge_bge_m3", {
           p_embedding: await embedText({ text: String(decision.args.query), apiKey: config.apiKey,
