@@ -60,6 +60,7 @@ type SlotPreview = {
 import { demoUsersPayload } from "./users-demo";
 import { DEMO_MODE } from "./demo-data";
 import ChatWidget from "./chat-widget";
+import AlertPanel from "./alert-panel";
 import {
   TransportModule,
   transportNavForRole,
@@ -745,6 +746,7 @@ function Header({
   navigate,
   refresh,
   snapshot,
+  alerts,
 }: {
   title: string;
   loading: boolean;
@@ -753,6 +755,7 @@ function Header({
   navigate: (view: ViewKey) => void;
   refresh: () => void;
   snapshot: string;
+  alerts?: ReactNode;
 }) {
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -815,6 +818,7 @@ function Header({
         >
           <i /> {loading ? "กำลังซิงก์…" : snapshot}
         </button>
+        {alerts}
         <button type="button" className="btn ghost logout" onClick={logout}>
           ออกจากระบบ
         </button>
@@ -3133,6 +3137,7 @@ export default function Home() {
   const [plannerDraft, setPlannerDraft] =
     useState<PlannerDraft>(emptyPlannerDraft);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [alertQuestion, setAlertQuestion] = useState<{ question: string; id: number } | null>(null);
   const [moduleKey, setModule] = useState<"warehouse" | "transport">(
     "warehouse",
   );
@@ -3322,6 +3327,17 @@ export default function Home() {
           navigate={navigateView}
           refresh={() => void backend.refresh()}
           snapshot={snapshot}
+          alerts={
+            !DEMO_MODE && backend.session ? (
+              <AlertPanel
+                token={backend.session.access_token}
+                role={role}
+                // the worker's "warehouses" target is the stock page here
+                onNavigate={(target) => navigateView((target === "warehouses" ? "stock" : target) as ViewKey)}
+                onAsk={(question) => setAlertQuestion({ question, id: Date.now() })}
+              />
+            ) : null
+          }
         />
         <main id="content" className="content">
           {backStack.length > 0 && (
@@ -3432,7 +3448,7 @@ export default function Home() {
         </div>
       )}
       {!DEMO_MODE && backend.session && (
-        <ChatWidget token={backend.session.access_token} />
+        <ChatWidget token={backend.session.access_token} suggestedQuestion={alertQuestion} />
       )}
     </div>
   );
