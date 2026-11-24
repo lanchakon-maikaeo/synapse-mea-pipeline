@@ -1,0 +1,30 @@
+{
+  "name": "chat-heldout-v1",
+  "about": "Locked business questions over evals/fixture.mjs. A case is grounded when every expect group has a match in the final answer, no forbid pattern matches, and the status is the one listed. Patterns are case-insensitive regular expressions; the answer is read with Thai digits as Arabic and without thousands separators.",
+  "pass": { "grounded_min": 0.85, "no_worse_than_baseline": true },
+  "cases": [
+    { "id": "district-name", "role": "planner", "question": "เขต 5507 คือเขตอะไร", "expect": [["บางนา"]] },
+    { "id": "material-name-unit", "role": "planner", "question": "รหัสวัสดุ 020300400512 คืออะไร ใช้หน่วยอะไร", "expect": [["สายอะลูมิเนียม"], ["เมตร"]] },
+    { "id": "district-stock", "role": "planner", "question": "สต็อกสายอะลูมิเนียมหุ้มฉนวน 185 ตร.มม. ของเขตบางนาเหลือเท่าไร", "expect": [["1250"]], "forbid": ["5200"] },
+    { "id": "material-count", "role": "planner", "question": "ทะเบียนวัสดุมีทั้งหมดกี่รายการ", "expect": [["\\b7\\s*(รายการ|ชนิด|ประเภท|sku|วัสดุ)", "(จำนวนรายการ|count_rows)\\s*:?\\s*7\\b", "เจ็ด\\s*รายการ"]] },
+    { "id": "risk-overview", "role": "planner", "question": "ตอนนี้คลังเขตไหนใกล้หมดบ้าง", "expect": [["บางนา|5507"], ["ลูกถ้วยแขวน"]] },
+    { "id": "delivery-district", "role": "planner", "question": "ควรส่งวัสดุอะไรไปเขตนนทบุรีบ้าง", "expect": [["ลูกถ้วยแขวน"], ["\\b1000\\b"]] },
+    { "id": "contract-vendor", "role": "planner", "question": "สัญญา MP4-2611-QXA ผู้ขายคือใคร", "expect": [["ไทยพาวเวอร์ซัพพลาย"]] },
+    { "id": "po-items", "role": "planner", "question": "PO 1300004521 มีวัสดุอะไรบ้าง จำนวนเท่าไร", "expect": [["ลูกถ้วยแขวน"], ["\\b12000\\b"], ["กับดักเสิร์จ"], ["\\b300\\b"]] },
+    { "id": "plan-status", "role": "planner", "question": "แผน KT01-W47-000214 อยู่สถานะอะไร", "expect": [["pending_planner_approval", "รอ\\S{0,20}อนุมัติ"]], "forbid": ["(?<!ยังไม่ได้)(?<!ยังไม่)อนุมัติแล้ว"] },
+    { "id": "aggregate-sum", "role": "planner", "question": "ยอด final_qty รวมของลูกถ้วยแขวน 030500100077 ในคิวแผนเติมทุกเขตเป็นเท่าไร", "expect": [["\\b4600\\b"]] },
+    { "id": "adhoc-count", "role": "planner", "question": "เขตบางนามีคำขอเบิกนอกแผน (ad hoc) กี่รายการ", "expect": [["\\b2\\s*(รายการ|คำขอ)", "(จำนวนรายการ|count_rows)\\s*:?\\s*2\\b", "สอง\\s*(รายการ|คำขอ)"]] },
+    { "id": "vehicle-capacity", "role": "planner", "question": "รถคันไหนบรรทุกน้ำหนักได้มากที่สุด", "expect": [["10 ล้อ|V-101|70-4581"], ["\\b15000\\b"]] },
+    { "id": "greeting", "role": "planner", "question": "สวัสดีครับ", "expect": [["SYNAPSE"]], "status": "ok" },
+    { "id": "approve-unsupported", "role": "planner", "question": "ช่วยอนุมัติแผน KT01-W47-000214 ให้หน่อย", "expect": [["ไม่สามารถ|ไม่ได้|ไม่รองรับ|ยังไม่"]], "forbid": ["อนุมัติ\\S{0,20}เรียบร้อย", "ได้อนุมัติ\\S{0,30}แล้ว"] },
+    { "id": "own-district-stock", "role": "district", "district": "5503", "question": "สต็อกลูกถ้วยแขวนของเขตเราเหลือเท่าไร", "expect": [["\\b640\\b"]], "forbid": ["1873"] },
+    { "id": "follow-up", "role": "planner", "history": [{ "role": "user", "text": "เขต 5509 คือเขตอะไร" }, { "role": "assistant", "text": "เขต 5509 คือเขตคลองเตย" }], "question": "แล้วมีวัสดุไหนที่สต็อกอยู่ในระดับ critical บ้าง", "expect": [["กับดักเสิร์จ"]] },
+    { "id": "warehouse-stock", "role": "planner", "question": "หม้อแปลงไฟฟ้า 3 เฟส 250kVA ที่คลัง VMI คลองเตยเหลือกี่เครื่อง", "expect": [["\\b27\\b"]] },
+    { "id": "stale-stock", "role": "planner", "question": "สต็อกมิเตอร์ไฟฟ้า 1 เฟสที่เขตบางกะปิตอนนี้เหลือเท่าไร", "expect": [["\\b420\\b"], ["ยืนยัน|ข้อมูลเก่า|ณ วันที่|ไม่เป็นปัจจุบัน|ที่บันทึกไว้"]] },
+    { "id": "requester-plans", "role": "planner", "question": "คุณวิภาวรรณขอเติมวัสดุอะไรไว้บ้าง", "expect": [["สายอะลูมิเนียม"], ["ลูกถ้วยแขวน"]] },
+    { "id": "who-requested", "role": "planner", "question": "ใครเป็นผู้ขอเติมหม้อแปลงของเขตบางนา", "expect": [["ธนพล"]] },
+    { "id": "lowest-transformer", "role": "planner", "question": "เขตไหนมีหม้อแปลงไฟฟ้า 3 เฟส 250kVA คงเหลือน้อยที่สุด", "expect": [["บางนา|5507"]] },
+    { "id": "contact-from-evidence", "role": "planner", "question": "เบอร์ติดต่อผู้ขอเติมในแผน KT01-W47-000214 คืออะไร", "expect": [["081-555-0142|0815550142"]] },
+    { "id": "individual-vendor", "role": "planner", "question": "สัญญา MP4-2612-RBT ทำกับผู้ขายรายไหน", "expect": [["ประยูร"]] }
+  ]
+}

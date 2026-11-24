@@ -80,6 +80,8 @@ export function openRouterResponse(payload) {
   if (!Array.isArray(payload?.choices) || payload.choices.length !== 1) throw Error('provider_output_invalid_choices');
   const choice = payload.choices[0];
   const calls = choice.message?.tool_calls;
+  // Typhoon does not enforce tool_choice "required" and may answer in plain text instead.
+  if (choice.finish_reason === 'stop' && !calls?.length && typeof choice.message?.content === 'string' && choice.message.content.trim()) throw Error('provider_text_reply');
   if (choice.finish_reason !== 'tool_calls') throw Error(choice.finish_reason === 'length' ? 'provider_output_invalid_length' : 'provider_output_invalid_finish');
   if(!Array.isArray(calls)||!calls.length||calls.length>6)throw Error('provider_output_invalid_call');
   if(calls.length>1&&!calls.every(call=>DB_TOOLS.has(call.function?.name)||call.function?.name==='read_evidence'))throw Error('provider_output_invalid_parallel');

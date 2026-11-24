@@ -82,7 +82,7 @@ test('warehouse covered demand does not create a missing-stock alert; busy worke
 });
 test('failed analysis yields its next slot to an untouched alert',async()=>{
  const sample={...context,stock:[...context.stock,{...context.stock[0],district_id:'5502'}]};let saved;const attempted=[];
- const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='ai_privacy_terms'?{names:[],words:[]}:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
  const fetcher=async(_,init)=>{attempted.push(JSON.parse(JSON.parse(init.body).messages[1].content).alert.key);return new Response('',{status:503});};
  for(let run=0;run<2;run++){await runAlertWorker({rpc,env:{LLM_API_KEY:'sk-or-test'},now:new Date(now.getTime()+run*900000),signal:new AbortController().signal,maxAnalyses:1,fetcher});sample.existing=saved.map(x=>({...x,status:'open'}));}
  assert.equal(new Set(attempted).size,2);
@@ -206,7 +206,7 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
  });
  test('a billing refusal stops further model calls while every alert is still saved',async()=>{
  const sample={...context,stock:[...context.stock,{...context.stock[0],district_id:'5502'}]};let requests=0;let saved;
- const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='ai_privacy_terms'?{names:[],words:[]}:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
  const result=await runAlertWorker({rpc,env:{LLM_API_KEY:'sk-or-test'},now,signal:new AbortController().signal,fetcher:async()=>{requests++;return new Response(JSON.stringify({error:{message:'insufficient credits'}}),{status:402});}});
  assert.equal(requests,1);assert.equal(saved.length,2);assert.equal(result.errors.provider_billing_required,1);
  assert.ok(saved.every(x=>x.details.analysis_status==='evidence_only'));
@@ -214,7 +214,7 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
 
  test('an in-flight capacity hold stops a run without skipping its alert persistence',async()=>{
  const sample={...context,stock:[...context.stock,{...context.stock[0],district_id:'5502'}]};let requests=0;let saved;
- const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='ai_privacy_terms'?{names:[],words:[]}:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
  const result=await runAlertWorker({rpc,env:{LLM_API_KEY:'sk-or-test'},now,signal:new AbortController().signal,fetcher:async()=>{requests++;return new Response(JSON.stringify({error:{metadata:{limit_source:'openrouter_in_flight_budget'}}}),{status:402,headers:{'retry-after':'60'}});}});
  assert.equal(requests,1);assert.equal(saved.length,2);assert.equal(result.retry_after_seconds,60);
  assert.equal(result.errors.provider_capacity_budget,1);
@@ -222,7 +222,7 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
  test('workflow reads cannot mix another plan, material or origin into their evidence',async()=>{
  const item={replenishment_plan_id:'P',replenishment_item_id:'I',district_id:'5501',material_id:'A',origin_location_id:'W',plan_status:'pending_district_confirmation',item_status:'draft',input_data_class:'actual',suggested_qty:0,allocated_qty:0};
  const sample={...context,queue:[item,{...item,replenishment_plan_id:'OTHER',material_id:'B',origin_location_id:'OTHER'}],warehouse:[{material_id:'A',location_id:'W'},{material_id:'B',location_id:'W'},{material_id:'A',location_id:'OTHER'}],stock:[...context.stock,{...context.stock[0],material_id:'B'}]};let reads;let saved;
- const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='ai_privacy_terms'?{names:[],words:[]}:name==='agentic_alert_context'?sample:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
  const fetcher=async(_,init)=>{
   const body=JSON.parse(init.body);const name=body.tools[0].function.name;const initial=JSON.parse(body.messages[1].content);
   if(initial.alert&&!initial.alert.key.includes('proactive:workflow:P:'))return new Response('{}',{status:503});
@@ -241,7 +241,7 @@ test('agent reads a bounded evidence batch before publishing reviewed advice',as
 
  test('with LLM_PROVIDER=typhoon the worker calls Typhoon with its model and key, and a 429 keeps evidence-only alerts',async()=>{
  let saved;const seen=[];
- const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='agentic_alert_context'?context:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
+ const rpc=async(name,args)=>name==='agentic_alert_claim'?true:name==='ai_privacy_terms'?{names:[],words:[]}:name==='agentic_alert_context'?context:name==='agentic_alert_save'?(saved=args.p_alerts,{saved:saved.length}):null;
  const result=await runAlertWorker({rpc,env:{LLM_PROVIDER:'typhoon',LLM_API_KEY:'typhoon-test-key-0123456789'},now,signal:new AbortController().signal,
   fetcher:async(url,init)=>{seen.push({url,model:JSON.parse(init.body).model,auth:init.headers.Authorization});return new Response('{}',{status:429});}});
  assert.deepEqual(seen,[{url:'https://api.opentyphoon.ai/v1/chat/completions',model:'typhoon-v2.5-30b-a3b-instruct',auth:'Bearer typhoon-test-key-0123456789'}]);
