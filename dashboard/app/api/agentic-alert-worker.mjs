@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { districtRisk, warehouseSupply } from '../agentic-alerts.mjs';
 import { fetchProvider } from './chat/embedding.mjs';
 import { providerConfig, openRouterRequest, openRouterResponse } from './chat/openrouter.mjs';
+import { createMasker, privacyTerms } from './chat/masking.mjs';
 
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const validDate = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
@@ -203,11 +204,14 @@ export async function runAlertWorker({ rpc, env=process.env, signal, now=new Dat
     const pack = rows => ({rows:rows.slice(0,15),truncated:rows.length>15});
     const alerts=buildCandidates(context,now);
     const config=providerConfig(env);
-    let attempted=0;let analyzed=0;let providerAvailable=true;let retryAfter;const errors={};
-    const generate=async body=>{
+    let attempted=0;let analyzed=0;let providerAvailable=true;let retryAfter;const errors={};const counts={};
+    // Fail closed (ADR 0001): without the masking terms no alert goes to a provider.
+    const terms=config?await privacyTerms(rpc).catch(()=>{providerAvailable=false;errors.privacy_terms_unavailable=1;}):undefined;
+    // Each alert analysis is one AI run with its own labels.
+    const analyst=masker=>async body=>{
       const response=await fetchProvider(config.apiUrl,{method:'POST',headers:{Authorization:`Bearer ${config.apiKey}`,'Content-Type':'application/json'},
-        body:JSON.stringify(openRouterRequest(body,config.model)),redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(config.timeoutMs)])},fetcher);
-      return openRouterResponse(await response.json());
+        body:JSON.stringify(openRouterRequest(masker.maskBody(body),config.model)),redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(config.timeoutMs)])},fetcher);
+      return masker.restore(openRouterResponse(await response.json()));
     };
     // Oldest attempt first keeps a failed recommendation from starving untouched alerts.
     const order=alerts.map((_,index)=>index).sort((a,b)=>(Date.parse(alerts[a].details.analysis_attempted_at)||0)-(Date.parse(alerts[b].details.analysis_attempted_at)||0));
@@ -226,18 +230,27 @@ export async function runAlertWorker({ rpc, env=process.env, signal, now=new Dat
         warehouse:pack(context.warehouse.filter(x=>(!d.material_id||x.material_id===d.material_id)&&(!d.location_id||x.location_id===d.location_id)&&(d.scope!=='workflow'||origins.has(`${x.location_id}:${x.material_id}`)))),
       };
       attempted++; alert.details.analysis_attempted_at=now.toISOString();
-      try { alerts[index]=await analyzeAlert(alert,related,generate,now); alerts[index].details.model=config.model; analyzed++; }
+      const masker=createMasker(terms);
+      try {
+        const result=await analyzeAlert(alert,related,analyst(masker),now);
+        // การตรวจขาออก: contact details must come from this alert's evidence.
+        const a=result.details.analysis;const check=text=>masker.guard(text,[alert,related]);
+        result.details.analysis={...a,summary:check(a.summary),actions:a.actions.map(check),uncertainties:a.uncertainties.map(check)};
+        alerts[index]=result; alerts[index].details.model=config.model; analyzed++; }
       catch(error) {const code=error instanceof Error && /^[a-z_0-9]{1,80}$/.test(error.message)?error.message:'analysis_unavailable';errors[code]=(errors[code]??0)+1;alert.details.analysis_status='evidence_only';alert.details.analysis_error=code;
         if(['provider_billing_required','provider_capacity_budget'].includes(code))providerAvailable=false;
         if(code==='provider_capacity_budget')retryAfter=error.cause?.retry_after_seconds;
         // Rejected proposals stay in private operator logs, never in the alert feed.
+        // Logs keep this run's labels, never the values (ADR 0001 Q7).
         if(error?.cause?.draft) {
-          const safe=value=>typeof value==='string'?value.replace(/sk-[\w-]+|Bearer\s+\S+|eyJ[\w.-]+/g,'[redacted]').slice(0,700):'';
+          const safe=value=>typeof value==='string'?masker.mask(value).slice(0,700):'';
           console.warn(JSON.stringify({event:'agentic_alert_review_rejected',candidate:hash(alert.key),code,
             summary:safe(error.cause.draft.summary),actions:error.cause.draft.actions.map(safe),phrase:safe(error.cause.phrase),explanation:safe(error.cause.explanation)}));
         }
       }
+      finally { for(const [kind,count] of Object.entries(masker.counts())) counts[kind]=(counts[kind]??0)+count; }
     }
+    if(Object.keys(counts).length) await rpc('ai_record_mask_counts',{p_task:'alerts',p_counts:counts}).catch(()=>{});
     const result=await rpc('agentic_alert_save',{p_run_id:id,p_alerts:alerts,p_model:config?.model??null,p_analyzed:analyzed});
     return {status:'succeeded',...result,attempted,analyzed,errors,...(retryAfter?{retry_after_seconds:retryAfter}:{})};
   } catch(error) {await rpc('agentic_alert_fail',{p_run_id:id}).catch(()=>{});throw error;}

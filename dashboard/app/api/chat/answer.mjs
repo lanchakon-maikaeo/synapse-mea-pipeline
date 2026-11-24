@@ -61,7 +61,8 @@ export async function composeAnswer({ result, question, history = /** @type {{ r
     ]))];
     return { ...result, answer: [draft.answer.trim(), ...(includeSources && sources.length ? [`แหล่งข้อมูล: ${sources.join(', ')}`] : []), ...notices].join('\n\n'),
       answer_mode: 'synthesized', answer_validation: 'accepted' };
-  } catch {
-    return fallback(signal?.aborted ? 'deadline' : 'unavailable');
+  } catch (error) {
+    // unknown_label: the draft cited a label this run never issued (ADR 0001).
+    return fallback(signal?.aborted ? 'deadline' : error?.message === 'unknown_label' ? 'unknown_label' : 'unavailable');
   }
 }

@@ -1,21 +1,20 @@
+import { after } from "next/server";
 import { publicConfig } from "../../lib";
-import { controlledSupabaseOrigin } from "../route-helpers";
+import { controlledSupabaseOrigin, serviceRoleRpc } from "../route-helpers";
 import {
   validateHistory,
 } from "./tools.mjs";
 
-import { runAgent, HARNESS_VERSION } from "./harness.mjs";
-import { retrieveDatabase } from "./retrieval.mjs";
-import { embedText, fetchProvider } from "./embedding.mjs";
-import { composeAnswer } from "./answer.mjs";
-import { providerConfig, openRouterRequest, openRouterResponse } from "./openrouter.mjs";
+import { HARNESS_VERSION } from "./harness.mjs";
+import { providerConfig } from "./openrouter.mjs";
+import { runChat } from "./run.mjs";
+import { privacyTerms } from "./masking.mjs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 type Scope = { role?: string; district_id?: string | null };
 type Admission = { status?: string; scope?: Scope; warnings?: string[] };
-type ToolDecision = { name: string; args: Record<string, unknown> };
 type ToolEnvelope = {
   request_id?: string;
   view?: string;
@@ -35,6 +34,9 @@ const headers = {
   "X-Frame-Options": "DENY",
   Vary: "Authorization",
 };
+
+// ชื่อที่ระบบรู้จัก and คำที่ต้องปิดเสมอ, kept for five minutes per server instance.
+const termsCache = {};
 
 function reply(body: unknown, status = 200) {
   return Response.json(body, { status, headers });
@@ -118,48 +120,27 @@ export async function POST(request: Request) {
   if (admission.status === "forbidden") return failure(403, "forbidden", "บัญชีนี้ไม่มีสิทธิ์ใช้แชท", requestId);
   if (admission.status !== "ok") return failure(429, "rate_limited", "ใช้งานครบ 10 ครั้งต่อนาที กรุณารอสักครู่", requestId);
 
+  // Fail closed (ADR 0001): without the masking terms nothing goes to the provider.
+  const service = serviceRoleRpc(5_000);
+  let terms;
+  try {
+    if (!service) throw new Error("privacy_terms_unavailable");
+    terms = await privacyTerms(service, termsCache);
+  } catch {
+    return failure(503, "privacy_unavailable", "ระบบปิดข้อมูลก่อนส่ง AI ยังไม่พร้อม กรุณาลองใหม่ภายหลัง", requestId);
+  }
+
   let result;
-  let modelCalls = 0;
-  let totalTokens = 0;
+  const stats: { modelCalls: number; totalTokens: number; counts?: Record<string, number> } = { modelCalls: 0, totalTokens: 0 };
+  // How much was hidden, never what; written after the reply so it adds no wait.
+  after(async () => {
+    if (Object.keys(stats.counts ?? {}).length) await service("ai_record_mask_counts", { p_task: "chat", p_counts: stats.counts }).catch(() => undefined);
+  });
   const topK = Number(process.env.LLM_RETRIEVAL_TOP_K ?? "6");
   if (!Number.isInteger(topK) || topK < 1 || topK > 12) return failure(503, "retrieval_not_configured", "ค่า retrieval top-k ต้องเป็นจำนวนเต็ม 1–12", requestId);
-  const generate = async (body: unknown, limit = 12) => {
-    if (modelCalls >= limit) throw new Error("model_call_limit");
-    const response = await fetchProvider(config.apiUrl, {
-      method: "POST", headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(openRouterRequest(body, config.model)), redirect: "error",
-      signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]),
-    },async(input:RequestInfo|URL,init?:RequestInit)=>{
-      if(modelCalls>=limit)throw new Error('model_call_limit');
-      modelCalls++;return fetch(input,init);
-    });
-    const payload = openRouterResponse(await response.json());
-    const tokens = payload?.usageMetadata?.totalTokenCount;
-    if (Number.isSafeInteger(tokens) && tokens >= 0) totalTokens += tokens;
-    return payload;
-  };
   try {
-    result = await runAgent({
-      message, history, temperature: config.temperature, scope: admission.scope, signal: overall,
-      generate, hiddenTools: config.embeddings ? [] : ["search_knowledge"],
-      read: async (decision: ToolDecision) => decision.name === "search_knowledge"
-        ? supabaseRpc<ToolEnvelope>("vmi_chat_knowledge_bge_m3", {
-          p_embedding: await embedText({ text: String(decision.args.query), apiKey: config.apiKey,
-            signal: AbortSignal.any([overall, AbortSignal.timeout(config.timeoutMs)]) }),
-          p_limit: topK,
-        }, authorization, overall)
-        : ["discover_database", "query_database"].includes(decision.name)
-        ? retrieveDatabase({ decision, question: message, generate, topK,
-          rpc: (query: ToolDecision) => supabaseRpc("vmi_chat_database", {
-            p_tool: query.name, p_args: query.args, p_request_id: requestId,
-          }, authorization, overall) })
-        : supabaseRpc<ToolEnvelope>(decision.name === "get_operations_overview" ? "vmi_chat_overview" : "vmi_chat_read", {
-          p_tool: decision.name, p_args: decision.args, p_request_id: requestId,
-        }, authorization, overall),
-    });
-    // Reserve at most two extra calls for writing/review; same overall deadline.
-    result = await composeAnswer({ result, question: message, history, signal: overall,
-      generate: (body: unknown) => generate(body, 14) });
+    ({ result } = await runChat({ message, history, scope: admission.scope, requestId, config, topK, terms, stats, signal: overall,
+      rpc: (name: string, args: unknown) => supabaseRpc(name, args, authorization, overall) }));
   } catch (error) {
     const code = error instanceof Error ? error.message : "agent_unavailable";
     const validation = code === "provider_output_invalid" && error instanceof Error
@@ -172,7 +153,7 @@ export async function POST(request: Request) {
       validation_code: validation?.validation_code, decision_tool: validation?.tool,
       embedding_validation: embedding?.embedding_validation, embedding_response_model: embedding?.response_model,
       embedding_dimensions: embedding?.vector_dimensions,
-      http_status: status, model_calls: modelCalls, total_tokens: totalTokens, duration_ms: Date.now() - startedAt }));
+      http_status: status, model_calls: stats.modelCalls, total_tokens: stats.totalTokens, duration_ms: Date.now() - startedAt }));
     const message = code === "provider_billing_required"
       ? "บริการ AI ยังใช้งานไม่ได้ กรุณาให้ผู้ดูแลระบบตรวจ billing และโควตาของผู้ให้บริการ"
       : code === "provider_capacity_budget"
@@ -184,9 +165,9 @@ export async function POST(request: Request) {
   }
   // Operational trace excludes prompts, keys, JWTs, tool arguments and business rows.
   console.info(JSON.stringify({ event: "chat_run", request_id: requestId, harness: HARNESS_VERSION,
-    model: config.model, model_calls: modelCalls, top_k: topK, status: result.status, stop_reason: result.stop_reason,
+    model: config.model, model_calls: stats.modelCalls, top_k: topK, status: result.status, stop_reason: result.stop_reason,
     answer_mode: result.answer_mode, answer_validation: result.answer_validation,
-    total_tokens: totalTokens, duration_ms: Date.now() - startedAt, steps: result.trace }));
+    total_tokens: stats.totalTokens, duration_ms: Date.now() - startedAt, steps: result.trace }));
   const evidence = result.evidence as ToolEnvelope[];
   const envelope = evidence[0];
 
@@ -198,7 +179,7 @@ export async function POST(request: Request) {
     answer_mode: result.answer_mode,
     answer_validation: result.answer_validation,
     harness: HARNESS_VERSION,
-    model_calls: modelCalls,
+    model_calls: stats.modelCalls,
     stop_reason: result.stop_reason,
     steps: result.trace,
     data_as_of: evidence.map((item) => item.data_as_of),
