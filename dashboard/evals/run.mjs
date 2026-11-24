@@ -95,10 +95,27 @@ async function unmaskedChat({ message, history, scope, rpc, signal, fetcher, sta
   return { result: await composeAnswer({ result, question: message, history, signal, generate: body => generate(body, 14) }) };
 }
 
-async function chatCase(c) {
+// What the provider answered and what each read asked the fixture, in order (labels only in the report).
+const traced = (trace, fetcher) => async (url, init) => {
+  const response = await fetcher(url, init);
+  trace.push(response.clone().text().then(body => {
+    let json;
+    try { json = JSON.parse(body); } catch { json = undefined; }
+    const choice = json?.choices?.[0];
+    return { status: response.status, finish: choice?.finish_reason, text: choice?.message?.content ?? null,
+      calls: (choice?.message?.tool_calls ?? []).map(call => `${call.function?.name}(${call.function?.arguments})`),
+      ...(response.ok ? {} : { body: body.slice(0, 400) }) };
+  }, () => ({ status: response.status })));
+  return response;
+};
+
+async function chatAttempt(c) {
   const sent = [];
-  const fetcher = async (url, init) => { sent.push(String(init?.body ?? '')); return fetch(url, init); };
-  const { rpc, terms } = fixtureDatabase({ role: c.role, district: c.district ?? null, after });
+  const trace = [];
+  const fetcher = traced(trace, async (url, init) => { sent.push(String(init?.body ?? '')); return fetch(url, init); });
+  const fixture = fixtureDatabase({ role: c.role, district: c.district ?? null, after });
+  const { terms } = fixture;
+  const rpc = async (name, args) => { trace.push({ read: name, tool: args.p_tool, args: args.p_args }); return fixture.rpc(name, args); };
   const scope = { role: c.role, district_id: c.district ?? null };
   const history = c.history ?? [];
   const stats = { modelCalls: 0, totalTokens: 0 };
@@ -123,13 +140,25 @@ async function chatCase(c) {
     !(c.forbid ?? []).some(pattern => matches(answer, pattern)) && (!c.status || c.status === result?.status) : undefined;
   return { id: c.id, role: c.role, grounded, leaks, error, status: result?.status, stop_reason: result?.stop_reason, answer_mode: result?.answer_mode,
     answer_validation: result?.answer_validation, steps: (result?.trace ?? []).map(step => `${step.tool}:${step.status}`), model_calls: stats.modelCalls,
-    tokens: stats.totalTokens, seconds: Math.round((Date.now() - started) / 100) / 10, answer: forReport(result?.answer ?? '', c.pii) };
+    tokens: stats.totalTokens, seconds: Math.round((Date.now() - started) / 100) / 10, answer: forReport(result?.answer ?? '', c.pii),
+    trace: forReport(await Promise.all(trace), c.pii) };
+}
+
+// A provider answering 5xx or 429 measures its availability, not the answers: the case runs again.
+const unavailable = trace => trace.some(t => t.status === 429 || t.status >= 500);
+async function chatCase(c) {
+  for (let attempt = 1; ; attempt++) {
+    const result = await chatAttempt(c);
+    if (!unavailable(result.trace) || attempt === 3) return { ...result, attempts: attempt };
+    await new Promise(resolve => setTimeout(resolve, 30_000 * attempt));
+  }
 }
 
 async function alertRun() {
   const sent = [];
+  const trace = [];
   const logs = [];
-  const fetcher = async (url, init) => { sent.push(String(init?.body ?? '')); return fetch(url, init); };
+  const fetcher = traced(trace, async (url, init) => { sent.push(String(init?.body ?? '')); return fetch(url, init); });
   const now = new Date();
   const context = alertContext(now);
   const { terms } = fixtureDatabase({ role: 'admin', after: true, now });
@@ -152,7 +181,7 @@ async function alertRun() {
     rejected: logs.map(line => { try { return JSON.parse(line).code; } catch { return 'unparsed_log'; } }), mask_counts: counts,
     leaks: { provider: findings(sent, inventory()), logs: findings(logs, inventory()),
       analysis_secret: analyses.some(text => PEOPLE.secrets.some(secret => text.includes(secret)) || SECRET.test(text)) ? ['secret'] : [] },
-    model_calls: sent.length, seconds: Math.round((Date.now() - started) / 1000),
+    model_calls: sent.length, provider_failures: (await Promise.all(trace)).filter(t => t.status === 429 || t.status >= 500).length, seconds: Math.round((Date.now() - started) / 1000),
     alerts: tried.map(alert => ({ key: alert.key, status: alert.details.analysis_status, error: alert.details.analysis_error,
       summary: forReport(alert.details.analysis?.summary ?? '') })) };
 }
@@ -164,6 +193,7 @@ else {
   const cases = set.cases.filter(c => !opts.only || opts.only.split(',').includes(c.id));
   report.cases = await pool(cases, Number(opts.concurrency), chatCase);
   report.leaks = report.cases.reduce((total, c) => total + leakCount(c.leaks), 0);
+  report.unavailable = report.cases.filter(c => unavailable(c.trace)).length;
   if (set.name === 'chat-heldout-v1') report.grounded = report.cases.filter(c => c.grounded).length / report.cases.length;
 }
 if (set.name === 'alerts-replay-v1') report.leak_total = leakCount(report.leaks);
@@ -187,9 +217,9 @@ if (report.cases) {
   for (const c of report.cases) console.log(`  ${c.grounded === undefined ? '' : c.grounded ? 'ok   ' : 'MISS '}${c.id}: ${c.error ?? `${c.status}/${c.answer_mode}/${c.answer_validation}`}` +
     ` calls=${c.model_calls} ${c.seconds}s${leakCount(c.leaks) ? ` LEAKS ${JSON.stringify(c.leaks)}` : ''}`);
   const modes = report.cases.reduce((all, c) => ({ ...all, [c.answer_validation ?? c.error ?? 'none']: (all[c.answer_validation ?? c.error ?? 'none'] ?? 0) + 1 }), {});
-  console.log(`  cases=${report.cases.length}${report.grounded !== undefined ? ` grounded=${pct(report.grounded)}` : ''} leaks=${report.leaks} ${JSON.stringify(modes)}`);
+  console.log(`  cases=${report.cases.length}${report.grounded !== undefined ? ` grounded=${pct(report.grounded)}` : ''} leaks=${report.leaks} provider_unavailable=${report.unavailable} ${JSON.stringify(modes)}`);
 } else {
   for (const a of report.alerts) console.log(`  ${a.status}${a.error ? ` ${a.error}` : ''}: ${a.key}`);
-  console.log(`  attempted=${report.attempted} analyzed=${report.analyzed} errors=${JSON.stringify(report.errors)} leaks=${JSON.stringify(report.leaks)} ${report.seconds}s${report.error ? ` error=${report.error}` : ''}`);
+  console.log(`  attempted=${report.attempted} analyzed=${report.analyzed} errors=${JSON.stringify(report.errors)} leaks=${JSON.stringify(report.leaks)} provider_failures=${report.provider_failures} ${report.seconds}s${report.error ? ` error=${report.error}` : ''}`);
 }
 console.log(`  gate ${JSON.stringify(report.gate)} -> ${file}`);
