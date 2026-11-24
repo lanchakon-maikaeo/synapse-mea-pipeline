@@ -48,7 +48,8 @@ test('conversation replies require no business reads and cannot carry invented f
   await assert.rejects(scenario([call('conversation', { intent: 'stock' })]).run, /provider_output_invalid/);
 });
 test('duplicate calls stop instead of repeatedly spending money or querying', async () => {
-  const s = scenario([overview, overview]); const r = await s.run();
+  // The first repeats go back to the model; once its corrections are spent the run stops.
+  const s = scenario([overview, overview, overview, overview]); const r = await s.run();
   assert.equal(r.stop_reason, 'repeated_tool'); assert.equal(r.status, 'partial'); assert.equal(s.reads.length, 1);
 });
 test('hard read budget applies even when the model ignores instructions', async () => {

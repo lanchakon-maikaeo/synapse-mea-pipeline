@@ -1,6 +1,6 @@
 import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, wantsSources, CONVERSATION_REPLIES, CHAT_TOOLS, annotateStockFreshness } from "./tools.mjs";
 
-export const HARNESS_VERSION = "v4";
+export const HARNESS_VERSION = "v5";
 export const MAX_READS = 6;
 // How many of the model's calls a run sends back with what was wrong before giving up on it.
 const MAX_CORRECTIONS = 2;
@@ -12,6 +12,7 @@ const CORRECTIONS = {
 // Greetings, thanks, goodbyes and questions about the assistant itself; anything else asks for data.
 const CONVERSATIONAL = /สวัสดี|หวัดดี|ขอบคุณ|ขอบใจ|ลาก่อน|บ๊?าย|ไว้คุยกัน|ช่วยอะไร|ทำอะไรได้|ความสามารถ|ใช้งาน(อย่างไร|ยังไง)|คุณ(คือ|เป็น)ใคร|\b(hello|hi|hey|thanks?|thank you|thx|bye|goodbye)\b/i;
 const SEARCH_FIRST = "ข้อความนี้ถามข้อมูลในระบบ ไม่ใช่คำทักทาย ขอบคุณ ลา หรือถามความสามารถ ให้ค้นด้วย discover_database หรือเครื่องมืออ่านข้อมูลก่อนตอบ";
+const REPEATED_CALL = "เรียก function นี้ด้วย argument เดิมไปแล้ว ผลอยู่ด้านบนและจะไม่เปลี่ยน: ถ้าข้อมูลพอให้ finish; ถ้าผลเป็น invalid_input ให้แก้ตาม problems; ถ้า no_data หรือผล aggregate เป็น null แปลว่าไม่มีแถวตรงเงื่อนไข ให้เปลี่ยน filters เช่น ใช้คอลัมน์รหัสกับรหัสจากคำถาม หรือ contains แทน eq";
 const CODE_ARGS = ["material_id", "district_id", "plan_id", "contract_number", "purchase_order", "issue_reference", "handling_unit_code"];
 
 // A code the model passes must appear in the question, history, the user's scope or data already read; the catalog does not count.
@@ -21,6 +22,21 @@ function unsourcedCode({ name, args }, known) {
     : CODE_ARGS.filter(key => typeof args[key] === "string").map(key => [key, args[key]]);
   const text = known.join("\n").replace(/[๐-๙]/g, digit => String(digit.charCodeAt(0) - 0x0e50)).toLowerCase();
   return codes.find(([, value]) => !text.includes(String(value).toLowerCase()));
+}
+
+// vmi_chat_database answers only invalid_input; name the rules of its checks that the query broke.
+function queryProblems({ columns, filters, group_by, metrics, order_column }, schema) {
+  const returned = metrics.length ? [...group_by, ...metrics.map(m => `${m.function}_${m.column === "*" ? "rows" : m.column}`)]
+    : columns.length ? columns : Object.keys(schema).sort().slice(0, 16);
+  return [
+    ...filters.filter(f => !["is_null", "not_null"].includes(f.operator) && f.value == null)
+      .map(f => `filter ${f.column} ${f.operator} ต้องมี value; ถ้าไม่ต้องการค่าให้ใช้ is_null หรือ not_null`),
+    ...(group_by.length && !metrics.length ? ["group_by ใช้ได้เมื่อมี metrics เท่านั้น"] : []),
+    ...(metrics.length && columns.length ? ["เมื่อมี metrics ระบบไม่คืน columns คืนเฉพาะ group_by และผล metric; ถ้าต้องการรายละเอียดของแถวที่ค่ามากสุดหรือน้อยสุด ให้ตัด metrics แล้วใช้ columns กับ order_column และ limit"] : []),
+    ...metrics.filter(m => ["sum", "avg"].includes(m.function) && schema[m.column] && !/^(smallint|integer|bigint|numeric|real|double precision)/.test(schema[m.column]))
+      .map(m => `${m.function} ใช้กับคอลัมน์ตัวเลขเท่านั้น แต่ ${m.column} เป็น ${schema[m.column]}`),
+    ...(order_column && !returned.includes(order_column) ? [`order_column ${order_column} ต้องเป็นคอลัมน์ที่ query คืน: ${returned.join(", ")}`] : []),
+  ];
 }
 
 // Model decisions are proposals. This loop owns execution, budgets and completion.
@@ -118,6 +134,10 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       continue;
     }
     const signature = JSON.stringify([decision.name, Object.entries(decision.args).sort()]);
+    if (seen.has(signature) && corrections < MAX_CORRECTIONS) {
+      correct(response.candidates[0].content, decision.name, "repeated_call", REPEATED_CALL);
+      continue;
+    }
     if (seen.has(signature)) { stopReason = "repeated_tool"; break; }
     if (evidence.length >= MAX_READS) break;
     if (decision.name === "query_database" && !discovered.has(decision.args.source_id)) throw new Error("source_not_discovered");
@@ -136,12 +156,14 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       throw new Error("tool_output_invalid");
     }
     result=annotateStockFreshness(result);
-    // The database says only invalid_input; name the source's columns so the model can fix its query.
+    // The database says only invalid_input; name the source's columns and the broken rules so the model can fix its query.
     if (decision.name === "query_database" && result.status === "invalid_input") {
-      const columns = Object.keys(discovered.get(decision.args.source_id) ?? {});
+      const schema = discovered.get(decision.args.source_id) ?? {};
+      const columns = Object.keys(schema);
       const used = [...decision.args.columns, ...decision.args.filters.map(f => f.column), ...decision.args.group_by,
-        ...decision.args.metrics.map(m => m.column).filter(column => column !== "*")];
-      result = { ...result, columns, unknown_columns: [...new Set(used.filter(column => !columns.includes(column)))] };
+        ...decision.args.metrics.map(m => m.column).filter(column => column !== "*"), ...(decision.args.order_column ? [decision.args.order_column] : [])];
+      result = { ...result, columns, unknown_columns: [...new Set(used.filter(column => !columns.includes(column)))],
+        problems: queryProblems(decision.args, schema) };
     }
     trace.push({ tool: decision.name, status: result.status, duration_ms: Date.now() - started,
       ...(result.retrieval ? { retrieval: result.retrieval } : {}) });

@@ -142,3 +142,51 @@ test('a writer that answers in text is asked once more to call write_answer', as
   assert.equal(result.answer_mode, 'synthesized');
   assert.equal(result.answer, 'เขต 5507 คือเขตบางนา');
 });
+
+test('a query rejected as invalid input names the rules it broke', async () => {
+  const heaviest = { ...query, source_id: 'core.transport_vehicles', columns: ['vehicle_id', 'max_weight_kg'],
+    filters: [{ column: 'max_weight_kg', operator: 'gt', value: null }], metrics: [{ function: 'max', column: 'max_weight_kg' }],
+    order_column: 'max_weight_kg', order_direction: 'desc' };
+  const { requests, fetcher } = provider(
+    ['discover_database', { query: 'รถ บรรทุก น้ำหนัก' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', heaviest],
+    ['unsupported', { reason: 'ยังหารถไม่ได้' }],
+  );
+  const rpc = async (name, args) => args.p_tool === 'discover_database'
+    ? { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.transport_vehicles', description: 'vehicles รถ',
+      columns: { vehicle_id: 'text', max_weight_kg: 'numeric' } }] }
+    : { tool: 'query_database', status: 'invalid_input' };
+  await runChat({ message: 'รถคันไหนบรรทุกน้ำหนักได้มากที่สุด', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  const { problems } = JSON.parse(requests[3].messages.at(-1).content);
+  assert.equal(problems.length, 3);
+  assert.ok(problems.some(p => p.includes('max_weight_kg gt') && p.includes('value')), 'a comparison needs a value');
+  assert.ok(problems.some(p => p.includes('metrics') && p.includes('columns')), 'metrics return no plain columns');
+  assert.ok(problems.some(p => p.includes('order_column max_weight_kg') && p.includes('max_max_weight_kg')), 'order by a returned column');
+});
+
+test('a call repeated with the same arguments goes back once instead of ending the run', async () => {
+  const byName = { ...query, source_id: 'analytics.v_replenishment_queue', columns: [],
+    filters: [{ column: 'material_name', operator: 'eq', value: 'ลูกถ้วยแขวน 030500100077' }], metrics: [{ function: 'sum', column: 'final_qty' }] };
+  const byCode = { ...byName, filters: [{ column: 'material_id', operator: 'eq', value: '030500100077' }] };
+  const { requests, fetcher } = provider(
+    ['discover_database', { query: 'ลูกถ้วยแขวน 030500100077' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', byName], ['query_database', byName], ['query_database', byCode], ['finish', {}],
+    ['write_answer', { answer: 'ยอด final_qty รวม 4600', evidence_ids: [2] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  const filtered = [];
+  const rpc = async (name, args) => {
+    if (args.p_tool === 'discover_database') return { tool: 'discover_database', status: 'ok', data: [{ source_id: 'analytics.v_replenishment_queue',
+      description: 'คิวแผนเติม', columns: { material_id: 'text', material_name: 'text', final_qty: 'numeric' } }] };
+    const column = args.p_args.filters[0].column;
+    filtered.push(column);
+    return { tool: 'query_database', source_id: 'analytics.v_replenishment_queue', status: 'ok', aggregation: true,
+      data: [{ sum_final_qty: column === 'material_id' ? 4600 : null }] };
+  };
+  const { result } = await runChat({ message: 'ยอด final_qty รวมของลูกถ้วยแขวน 030500100077 ในคิวแผนเติมทุกเขตเป็นเท่าไร',
+    config, terms, fetcher, rpc, signal: new AbortController().signal });
+  assert.match(requests[4].messages.at(-1).content, /repeated_call/);
+  assert.deepEqual(filtered, ['material_name', 'material_id']);
+  assert.equal(result.stop_reason, 'complete');
+  assert.match(result.answer, /^ยอด final_qty รวม 4600/);
+});
