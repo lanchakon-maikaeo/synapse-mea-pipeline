@@ -51,7 +51,7 @@ export const CHAT_TOOLS = [
   fn("get_plan_status", "อ่านสถานะและหลักฐานอนุมัติของแผนเติมของจาก UUID เท่านั้น; เลขแผนเช่น KT01-W47-000214 ไม่ใช่ UUID ให้ค้นด้วย discover_database และ query_database", {
     plan_id: nullableString("UUID ของแผน"),
   }),
-  fn("get_contract_status", "อ่านสถานะสัญญาและรายการวัสดุด้วยเลขสัญญาหรือเลข PO ที่ตรงกัน", {
+  fn("get_contract_status", "อ่านสถานะสัญญาและรายการวัสดุพร้อมจำนวนด้วยเลขสัญญาหรือเลข PO ที่ตรงกัน; ถามว่า PO หรือสัญญามีวัสดุอะไร จำนวนเท่าไร หรือสถานะอะไร ให้เรียก function นี้ทันทีโดยไม่ต้อง discover_database", {
     contract_number: nullableString("เลขสัญญา หรือ null เมื่อค้นด้วย PO"),
     purchase_order: nullableString("เลข PO เป็นตัวเลข หรือ null เมื่อค้นด้วยเลขสัญญา"),
   }),

@@ -28,7 +28,11 @@ function unsourcedCode({ name, args }, known) {
 function queryProblems({ columns, filters, group_by, metrics, order_column }, schema) {
   const returned = metrics.length ? [...group_by, ...metrics.map(m => `${m.function}_${m.column === "*" ? "rows" : m.column}`)]
     : columns.length ? columns : Object.keys(schema).sort().slice(0, 16);
+  const used = [...columns, ...filters.map(f => f.column), ...group_by, ...metrics.map(m => m.column).filter(column => column !== "*"),
+    ...(order_column ? [order_column] : [])];
   return [
+    ...[...new Set(used)].filter(column => !Object.hasOwn(schema, column))
+      .map(column => `ไม่มีคอลัมน์ ${column} ในแหล่งนี้ ให้ตัดออกหรือเลือกจาก columns`),
     ...filters.filter(f => !["is_null", "not_null"].includes(f.operator) && f.value == null)
       .map(f => `filter ${f.column} ${f.operator} ต้องมี value; ถ้าไม่ต้องการค่าให้ใช้ is_null หรือ not_null`),
     ...(group_by.length && !metrics.length ? ["group_by ใช้ได้เมื่อมี metrics เท่านั้น"] : []),
@@ -159,11 +163,7 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
     // The database says only invalid_input; name the source's columns and the broken rules so the model can fix its query.
     if (decision.name === "query_database" && result.status === "invalid_input") {
       const schema = discovered.get(decision.args.source_id) ?? {};
-      const columns = Object.keys(schema);
-      const used = [...decision.args.columns, ...decision.args.filters.map(f => f.column), ...decision.args.group_by,
-        ...decision.args.metrics.map(m => m.column).filter(column => column !== "*"), ...(decision.args.order_column ? [decision.args.order_column] : [])];
-      result = { ...result, columns, unknown_columns: [...new Set(used.filter(column => !columns.includes(column)))],
-        problems: queryProblems(decision.args, schema) };
+      result = { ...result, columns: Object.keys(schema), problems: queryProblems(decision.args, schema) };
     }
     trace.push({ tool: decision.name, status: result.status, duration_ms: Date.now() - started,
       ...(result.retrieval ? { retrieval: result.retrieval } : {}) });

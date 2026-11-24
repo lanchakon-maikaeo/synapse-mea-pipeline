@@ -125,8 +125,8 @@ test('a query rejected as invalid input tells the model which columns the source
   await runChat({ message: 'PO 1300004521 มีวัสดุอะไรบ้าง', config, terms, fetcher, rpc, signal: new AbortController().signal });
   const returned = JSON.parse(requests[3].messages.at(-1).content);
   assert.equal(returned.status, 'invalid_input');
-  assert.deepEqual(returned.unknown_columns, ['purchase_order']);
   assert.deepEqual(returned.columns, ['contract_id', 'material_id', 'quantity']);
+  assert.deepEqual(returned.problems.filter(p => p.includes('purchase_order')).length, 1, 'names the column the source does not have');
 });
 
 test('a writer that answers in text is asked once more to call write_answer', async () => {
