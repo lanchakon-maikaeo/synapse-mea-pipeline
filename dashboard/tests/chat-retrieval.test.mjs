@@ -24,10 +24,11 @@ test('reranking does not manufacture records and never changes whole-set aggrega
   const ordered = await retrieveDatabase({ decision: { name: 'query_database', args: { search: 'PVC', order_column: 'weight_per_unit_kg' } }, question: 'heaviest PVC',
     rpc: async () => ({ ...envelope, aggregation: false }), generate: async () => { calls++; } });
   assert.equal(ordered.aggregation, false); assert.equal(calls, 0);
+  // ADR 0002: the database ranks searched rows by how near they are; no model call reorders them.
+  const searched = { status: 'ok', data: [{ district_id: '5502' }, { district_id: '5501' }], scope: { truncated: false } };
   const ranked = await retrieveDatabase({ decision: { name: 'query_database', args: { search: 'เขต', limit: 2 } }, question: 'เขต', topK: 1,
-    rpc: async () => ({ status: 'ok', data: [{ district_id: '5502' }, { district_id: '5501' }] }),
-    generate: async () => call('rank_candidates', { indices: [1] }) });
-  assert.deepEqual(ranked.data, [{ district_id: '5501' }]); assert.equal(ranked.scope.truncated, true);
+    rpc: async () => searched, generate: async () => { calls++; return call('rank_candidates', { indices: [1] }); } });
+  assert.deepEqual(ranked, searched); assert.equal(calls, 0);
 });
 test('query compiler input rejects identifiers, arbitrary SQL and malformed nested values', () => {
   assert.deepEqual(validateDecision({ name: 'query_database', args: plan }).args, plan);
@@ -38,9 +39,9 @@ test('query compiler input rejects identifiers, arbitrary SQL and malformed nest
 });
 test('optional ranking failure preserves authorized candidates; RPC denial is never bypassed', async () => {
   for (const generate of [async () => { throw Error('quota'); }, async () => call('rank_candidates', { indices: [] })]) {
-    const r = await retrieveDatabase({ decision: { name: 'query_database', args: { search: 'เขต', limit: 2 } }, question: 'เขต', topK: 1,
-      rpc: async () => ({ status: 'ok', data: [{ district_id: '5501' }, { district_id: '5502' }] }), generate });
-    assert.deepEqual(r.data, [{ district_id: '5501' }]); assert.equal(r.scope.truncated, true);
+    const r = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'เขต' } }, question: 'เขต', topK: 1,
+      rpc: async () => ({ status: 'ok', data: sources }), generate });
+    assert.deepEqual(r.data.map(x => x.source_id), ['core.districts']);
     assert.equal(r.retrieval.status, 'fallback_original_order');
   }
   const denied = { status: 'forbidden', data: [] };

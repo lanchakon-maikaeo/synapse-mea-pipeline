@@ -4,6 +4,15 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR?.trim() || ".next",
   output: "standalone",
   poweredByHeader: false,
+  // The chat's Thai word segmenter reads its ONNX model and the onnxruntime-web wasm from disk at run time.
+  serverExternalPackages: ["onnxruntime-web"],
+  outputFileTracingIncludes: {
+    "/api/chat": [
+      "./app/api/chat/thai-words/**/*",
+      "./node_modules/onnxruntime-web/dist/ort.node.min.mjs",
+      "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.{mjs,wasm}",
+    ],
+  },
   typescript: {
     tsconfigPath: "./tsconfig.next.json",
   },

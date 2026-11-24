@@ -182,24 +182,55 @@ const comparable = (value, type) => value == null ? null : type === D || type ==
 const compare = (a, b) => a == null ? (b == null ? 0 : 1) : b == null ? -1 : a < b ? -1 : a > b ? 1 : 0;
 const text = value => value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
 
+// pg_trgm word_similarity, approximately: trigrams of padded words, best contiguous extent of the second text.
+const trigrams = value => text(value).toLowerCase().split(/[^\p{L}\p{N}\p{M}]+/u).filter(Boolean)
+  .flatMap(word => { const chars = [...`  ${word} `]; return chars.slice(2).map((_, i) => chars.slice(i, i + 3).join('')); });
+function wordSimilarity(a, b) {
+  const wanted = new Set(trigrams(a)); const found = trigrams(b); let best = 0;
+  for (let i = 0; i < found.length && wanted.size; i++) {
+    const seen = new Set(); let count = 0;
+    for (let j = i; j < found.length; j++) {
+      if (!seen.has(found[j])) { seen.add(found[j]); if (wanted.has(found[j])) count++; }
+      best = Math.max(best, count / (wanted.size + seen.size - count));
+    }
+  }
+  return best;
+}
+
+// Mirrors vmi_chat_database (202611250001): contains matches its text, a search matches every word in any order
+// and ranks rows by nearness, and an empty text match returns up to five รายการใกล้เคียง (ADR 0002).
 function query(source, rows, args) {
   const keys = ['source_id', 'columns', 'filters', 'group_by', 'metrics', 'order_column', 'order_direction', 'limit', 'offset', 'search'];
   if (Object.keys(args).some(key => !keys.includes(key))) throw new Invalid();
   const limit = args.limit ?? 20; const offset = args.offset ?? 0;
   if (!(limit >= 1 && limit <= 50) || !(offset >= 0 && offset <= 10000)) throw new Invalid();
+  const doc = row => Object.keys(source.columns).map(key => text(row[key])).join(' ');
+  const texts = []; const near = [];
   for (const { column, operator, value } of args.filters ?? []) {
     const type = source.columns[column];
     if (!type) throw new Invalid();
     if (operator === 'is_null' || operator === 'not_null') { rows = rows.filter(row => (row[column] == null) === (operator === 'is_null')); continue; }
     if (value == null) throw new Invalid();
-    if (operator === 'contains') { rows = rows.filter(row => text(row[column]).toLowerCase().includes(value.toLowerCase())); continue; }
+    if (operator === 'contains') {
+      texts.push(row => text(row[column]).toLowerCase().includes(value.toLowerCase()));
+      near.push(row => Math.max(wordSimilarity(value, row[column]), wordSimilarity(value, doc(row))));
+      continue;
+    }
     const wanted = cast(value, type);
     const test = { eq: c => c === 0, ne: c => c !== 0, gt: c => c > 0, gte: c => c >= 0, lt: c => c < 0, lte: c => c <= 0 }[operator];
     if (!test) throw new Invalid();
     rows = rows.filter(row => row[column] != null && test(compare(comparable(row[column], type), wanted)));
   }
   const search = args.search?.trim();
-  if (search) rows = rows.filter(row => Object.keys(source.columns).map(key => text(row[key])).join(' ').toLowerCase().includes(search.toLowerCase()));
+  if (search) {
+    const words = search.toLowerCase().split(/\s+/);
+    texts.push(row => words.every(word => doc(row).toLowerCase().includes(word)));
+    near.push(row => wordSimilarity(search, doc(row)));
+  }
+  const base = rows;
+  rows = rows.filter(row => texts.every(test => test(row)));
+  const ranked = search && !args.order_column && !args.metrics?.length;
+  if (ranked) rows = rows.map(row => [wordSimilarity(search, doc(row)), row]).sort((a, b) => b[0] - a[0]).map(([, row]) => row);
   let output; let names;
   if (args.metrics?.length) {
     names = [...args.group_by ?? []];
@@ -230,12 +261,18 @@ function query(source, rows, args) {
     names = args.columns?.length ? args.columns : Object.keys(source.columns).sort().slice(0, 16);
     if (names.some((name, i) => !source.columns[name] || names.indexOf(name) !== i)) throw new Invalid();
     output = rows.map(row => Object.fromEntries(names.map(name => [name, row[name] ?? null])));
+    if (!output.length && near.length) {
+      const matches = base.slice(0, 20000).map(row => [Math.min(...near.map(score => score(row))), row]).filter(([score]) => score >= 0.4)
+        .sort((a, b) => b[0] - a[0]).slice(0, 5)
+        .map(([score, row]) => ({ ...Object.fromEntries(names.map(name => [name, row[name] ?? null])), match_score: Math.round(score * 100) / 100 }));
+      if (matches.length) return { page: [], more: false, near: matches };
+    }
   }
   const by = args.order_column || names[0];
   if (args.order_column && (!names.includes(by) || !['asc', 'desc'].includes(args.order_direction ?? 'asc'))) throw new Invalid();
   const type = source.columns[by] ?? N;
   const direction = args.order_column && args.order_direction === 'desc' ? -1 : 1;
-  output.sort((a, b) => a[by] == null || b[by] == null ? compare(a[by], b[by]) : direction * compare(comparable(a[by], type), comparable(b[by], type)));
+  if (!ranked) output.sort((a, b) => a[by] == null || b[by] == null ? compare(a[by], b[by]) : direction * compare(comparable(a[by], type), comparable(b[by], type)));
   return { page: output.slice(offset, offset + limit), more: output.length > offset + limit };
 }
 
@@ -254,9 +291,10 @@ export function fixtureDatabase({ role = 'planner', district = null, after = tru
     const allowed = source && predicate(source.mode, role, district);
     if (!allowed) return { status: 'forbidden' };
     try {
-      const { page, more } = query(source, data[source.source_id].filter(allowed), args);
+      const { page, more, near } = query(source, data[source.source_id].filter(allowed), args);
       return { status: page.length ? 'ok' : 'no_data', tool, source_id: source.source_id, data: page, sources: [source.source_id],
-        scope: { ...scope, truncated: more }, query: args, aggregation: Boolean(args.metrics?.length), observed_at };
+        scope: { ...scope, truncated: more }, query: args, aggregation: Boolean(args.metrics?.length), observed_at,
+        ...(near ? { near_matches: near } : {}) };
     } catch (error) {
       if (error instanceof Invalid) return { status: 'invalid_input' };
       throw error;
