@@ -2,6 +2,7 @@ import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResu
 
 export const HARNESS_VERSION = "v4";
 export const MAX_READS = 6;
+const CALL_ONE_FUNCTION = "ตอบด้วยการเรียก function หนึ่งรายการเท่านั้น ห้ามตอบเป็นข้อความ: ทักทายหรือถามความสามารถใช้ conversation, คำสั่งที่ทำไม่ได้ใช้ unsupported, คำถามข้อมูลให้ค้นด้วยเครื่องมือ";
 
 // Model decisions are proposals. This loop owns execution, budgets and completion.
 export async function runAgent({ message, history = /** @type {{ role: string, text: string }[]} */ ([]), temperature, scope, signal, generate, read, hiddenTools = /** @type {string[]} */ ([]) }) {
@@ -15,6 +16,7 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   let stopReason = "step_limit";
   let terminalAnswer;
   let terminalStatus;
+  let reminded = false;
   for (let step = 0; step <= MAX_READS; step++) {
     const canFinish = evidence.some(x => x.tool !== "discover_database" && ["ok", "no_data"].includes(x.status));
     body.tools[0].functionDeclarations = declarations
@@ -27,8 +29,15 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
     let response;
     try {
       signal?.throwIfAborted();
-      response = await generate(body);
+      response = await generate(body).catch(error => {
+        // A text reply instead of a call: with nothing read yet, ask once more for a function call.
+        if (error.message !== "provider_text_reply" || canFinish || reminded) throw error;
+        reminded = true;
+        return generate({ ...body, contents: [...body.contents, { role: "user", parts: [{ text: CALL_ONE_FUNCTION }] }] });
+      });
     } catch (error) {
+      // With evidence read, a text reply means the model is done; the server still writes the answer from evidence.
+      if (error.message === "provider_text_reply" && canFinish) { stopReason = "complete"; break; }
       if (!evidence.length) throw error;
       stopReason = signal?.aborted ? "cancelled" : "provider_error";
       break;
