@@ -5,9 +5,9 @@ const call = (name, args = {}) => ({ candidates: [{ content: { role: 'model', pa
 const overview = call('get_operations_overview', { view: 'risk', material_id: null, district_id: null });
 const stock = (id) => call('get_stock_status', { material_id: id, scope: 'warehouse', district_id: null });
 const result = (d) => ({ tool: d.name, status: 'ok', data: [{ material_id: 'SKU-1', district_id: '5501', current_stock_qty: 1, months_available: 0.2 }], scope: { role: 'admin' } });
-function scenario(responses, read = async (d) => result(d)) {
+function scenario(responses, read = async (d) => result(d), message = 'คลังไหนใกล้หมด แล้วตรวจคลังต้นทาง') {
   const requests = []; const reads = [];
-  return { requests, reads, run: () => runAgent({ message: 'คลังไหนใกล้หมด แล้วตรวจคลังต้นทาง', temperature: 0, scope: { role: 'admin' },
+  return { requests, reads, run: () => runAgent({ message, temperature: 0, scope: { role: 'admin' },
     generate: async (body) => { requests.push(structuredClone(body)); const item = responses.shift(); if (item instanceof Error) throw item; return item; },
     read: async (d) => { reads.push(d); return read(d); } }) };
 }
@@ -39,7 +39,7 @@ test('query tools are offered only after discovery and source IDs are bounded to
 });
 test('conversation replies require no business reads and cannot carry invented facts', async () => {
   for (const intent of ['greeting', 'thanks', 'goodbye', 'capabilities']) {
-    const s = scenario([call('conversation', { intent })]);
+    const s = scenario([call('conversation', { intent })], undefined, 'สวัสดีครับ ช่วยอะไรได้บ้าง');
     const r = await s.run();
     assert.equal(r.status, 'ok'); assert.equal(r.stop_reason, 'complete');
     assert.ok(r.answer.length > 0); assert.equal(s.reads.length, 0);
@@ -52,7 +52,8 @@ test('duplicate calls stop instead of repeatedly spending money or querying', as
   assert.equal(r.stop_reason, 'repeated_tool'); assert.equal(r.status, 'partial'); assert.equal(s.reads.length, 1);
 });
 test('hard read budget applies even when the model ignores instructions', async () => {
-  const s = scenario(Array.from({ length: MAX_READS + 1 }, (_, i) => stock(`SKU-${i}`))); const r = await s.run();
+  const skus = Array.from({ length: MAX_READS + 1 }, (_, i) => `SKU-${i}`);
+  const s = scenario(skus.map(stock), undefined, `ตรวจสต็อก ${skus.join(' ')}`); const r = await s.run();
   assert.equal(r.stop_reason, 'step_limit'); assert.equal(s.reads.length, MAX_READS); assert.equal(s.requests.length, MAX_READS + 1);
 });
 test('provider or tool failures after evidence are marked partial', async () => {

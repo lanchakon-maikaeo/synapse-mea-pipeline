@@ -29,7 +29,10 @@ function provider(...replies) {
   const fetcher = async (url, init) => {
     const body = JSON.parse(init.body);
     requests.push(body);
-    const [name, args] = replies.shift()(JSON.stringify(body));
+    const reply = replies.shift()(JSON.stringify(body));
+    // Typhoon may answer in plain text even when one function is required.
+    if (typeof reply === 'string') return Response.json({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: reply } }] });
+    const [name, args] = reply;
     return Response.json({ choices: [{ finish_reason: 'tool_calls', message: { tool_calls: [{ id: `call_${requests.length}`, type: 'function',
       function: { name, arguments: JSON.stringify(args) } }] } }], usage: { total_tokens: 10 } });
   };
@@ -84,4 +87,13 @@ test('without the masking terms no alert goes to a provider, and every alert is 
   assert.equal(requests.length, 0);
   assert.deepEqual(result.errors, { privacy_terms_unavailable: 1 });
   assert.equal(calls.agentic_alert_save[0].p_alerts[0].details.analysis_status, 'evidence_only');
+});
+
+test('an analysis answered in text is asked once more for the function', async () => {
+  const { rpc } = database();
+  const { requests, fetcher } = provider(read, () => 'ควรติดต่อเขตเพื่อยืนยันแผน', recommend, verdict(true));
+  const result = await run(rpc, fetcher);
+  assert.equal(requests.length, 4);
+  assert.match(requests[2].messages.at(-1).content, /recommend/);
+  assert.equal(result.analyzed, 1);
 });

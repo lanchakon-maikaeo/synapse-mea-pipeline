@@ -2,7 +2,26 @@ import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResu
 
 export const HARNESS_VERSION = "v4";
 export const MAX_READS = 6;
+// How many of the model's calls a run sends back with what was wrong before giving up on it.
+const MAX_CORRECTIONS = 2;
 const CALL_ONE_FUNCTION = "ตอบด้วยการเรียก function หนึ่งรายการเท่านั้น ห้ามตอบเป็นข้อความ: ทักทายหรือถามความสามารถใช้ conversation, คำสั่งที่ทำไม่ได้ใช้ unsupported, คำถามข้อมูลให้ค้นด้วยเครื่องมือ";
+const CORRECTIONS = {
+  provider_tool_arguments_invalid: name => `argument ของ ${name} ไม่ผ่านการตรวจ ใช้ชนิดและรูปแบบตาม schema และคำอธิบายของ function; ถ้ายังไม่มีรหัสในรูปแบบที่ถูกต้อง ให้ค้นด้วย discover_database ก่อน`,
+  provider_tool_not_allowed: name => `${name} ใช้ไม่ได้ในระบบนี้ ให้เลือก function อื่นที่มีให้`,
+};
+// Greetings, thanks, goodbyes and questions about the assistant itself; anything else asks for data.
+const CONVERSATIONAL = /สวัสดี|หวัดดี|ขอบคุณ|ขอบใจ|ลาก่อน|บ๊?าย|ไว้คุยกัน|ช่วยอะไร|ทำอะไรได้|ความสามารถ|ใช้งาน(อย่างไร|ยังไง)|คุณ(คือ|เป็น)ใคร|\b(hello|hi|hey|thanks?|thank you|thx|bye|goodbye)\b/i;
+const SEARCH_FIRST = "ข้อความนี้ถามข้อมูลในระบบ ไม่ใช่คำทักทาย ขอบคุณ ลา หรือถามความสามารถ ให้ค้นด้วย discover_database หรือเครื่องมืออ่านข้อมูลก่อนตอบ";
+const CODE_ARGS = ["material_id", "district_id", "plan_id", "contract_number", "purchase_order", "issue_reference", "handling_unit_code"];
+
+// A code the model passes must appear in the question, history, the user's scope or data already read; the catalog does not count.
+function unsourcedCode({ name, args }, known) {
+  const codes = name === "query_database"
+    ? args.filters.filter(f => f.operator === "eq" && f.value && /(^|_)(id|number|no|code)$/.test(f.column)).map(f => [f.column, f.value])
+    : CODE_ARGS.filter(key => typeof args[key] === "string").map(key => [key, args[key]]);
+  const text = known.join("\n").replace(/[๐-๙]/g, digit => String(digit.charCodeAt(0) - 0x0e50)).toLowerCase();
+  return codes.find(([, value]) => !text.includes(String(value).toLowerCase()));
+}
 
 // Model decisions are proposals. This loop owns execution, budgets and completion.
 export async function runAgent({ message, history = /** @type {{ role: string, text: string }[]} */ ([]), temperature, scope, signal, generate, read, hiddenTools = /** @type {string[]} */ ([]) }) {
@@ -12,18 +31,25 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   const evidence = [];
   const trace = [];
   const seen = new Set();
-  const discovered = new Set();
+  // source_id -> its columns, as discover_database returned them.
+  const discovered = new Map();
   let stopReason = "step_limit";
   let terminalAnswer;
   let terminalStatus;
   let reminded = false;
+  let corrections = 0;
+  // The model's call goes back as its tool result, so it sees its own call next to what was wrong.
+  const correct = (content, name, reason, message) => {
+    body.contents.push(content, { role: "user", parts: [{ functionResponse: { name, response: { status: "rejected", reason, message } } }] });
+    corrections++;
+  };
   for (let step = 0; step <= MAX_READS; step++) {
     const canFinish = evidence.some(x => x.tool !== "discover_database" && ["ok", "no_data"].includes(x.status));
     body.tools[0].functionDeclarations = declarations
       .filter(fn => (fn.name !== "query_database" || discovered.size > 0) && (fn.name !== "finish" || canFinish))
       .map(fn => fn.name === "query_database" ? { ...fn, parametersJsonSchema: {
         ...fn.parametersJsonSchema, properties: { ...fn.parametersJsonSchema.properties,
-          source_id: { type: "string", enum: [...discovered] },
+          source_id: { type: "string", enum: [...discovered.keys()] },
         },
       } } : fn);
     let response;
@@ -48,8 +74,13 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       if (hiddenTools.includes(decision.name)) throw new Error("provider_tool_not_allowed");
     }
     catch (error) {
+      const call = response?.candidates?.[0]?.content?.parts?.find(p => p.functionCall)?.functionCall;
+      if (CORRECTIONS[error.message] && CHAT_TOOLS.some(t => t.name === call?.name) && corrections < MAX_CORRECTIONS) {
+        correct(response.candidates[0].content, call.name, error.message, CORRECTIONS[error.message](call.name));
+        continue;
+      }
       if (!evidence.length) {
-        const proposedName = response?.candidates?.[0]?.content?.parts?.find(p => p.functionCall)?.functionCall?.name;
+        const proposedName = call?.name;
         throw new Error("provider_output_invalid", { cause: {
           validation_code: ["provider_tool_call_invalid", "provider_tool_arguments_invalid", "provider_tool_not_allowed"].includes(error.message) ? error.message : "invalid_decision",
           tool: CHAT_TOOLS.some(t => t.name === proposedName) ? proposedName : "unknown_tool",
@@ -63,6 +94,10 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       stopReason = "complete";
       break;
     }
+    if (decision.name === "conversation" && !CONVERSATIONAL.test(message) && corrections < MAX_CORRECTIONS) {
+      correct(response.candidates[0].content, decision.name, "data_question", SEARCH_FIRST);
+      continue;
+    }
     if (decision.name === "conversation") {
       terminalAnswer = CONVERSATION_REPLIES[decision.args.intent];
       terminalStatus = "ok";
@@ -74,6 +109,13 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       terminalStatus = decision.name;
       stopReason = decision.name;
       break;
+    }
+    const unsourced = !["discover_database", "search_knowledge"].includes(decision.name) && corrections < MAX_CORRECTIONS &&
+      unsourcedCode(decision, [message, ...history.map(turn => turn.text), scope?.district_id ?? "", JSON.stringify(evidence.filter(x => x.tool !== "discover_database"))]);
+    if (unsourced) {
+      correct(response.candidates[0].content, decision.name, "unsourced_code",
+        `${unsourced[0]}=${unsourced[1]} ไม่ได้มาจากคำถาม ประวัติ หรือข้อมูลที่อ่านได้ ห้ามเดารหัส ให้ค้นรหัสจากทะเบียนด้วย discover_database และ query_database ก่อน`);
+      continue;
     }
     const signature = JSON.stringify([decision.name, Object.entries(decision.args).sort()]);
     if (seen.has(signature)) { stopReason = "repeated_tool"; break; }
@@ -94,10 +136,17 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       throw new Error("tool_output_invalid");
     }
     result=annotateStockFreshness(result);
+    // The database says only invalid_input; name the source's columns so the model can fix its query.
+    if (decision.name === "query_database" && result.status === "invalid_input") {
+      const columns = Object.keys(discovered.get(decision.args.source_id) ?? {});
+      const used = [...decision.args.columns, ...decision.args.filters.map(f => f.column), ...decision.args.group_by,
+        ...decision.args.metrics.map(m => m.column).filter(column => column !== "*")];
+      result = { ...result, columns, unknown_columns: [...new Set(used.filter(column => !columns.includes(column)))] };
+    }
     trace.push({ tool: decision.name, status: result.status, duration_ms: Date.now() - started,
       ...(result.retrieval ? { retrieval: result.retrieval } : {}) });
     evidence.push(result);
-    if (decision.name === "discover_database") for (const source of result.data ?? []) discovered.add(source.source_id);
+    if (decision.name === "discover_database") for (const source of result.data ?? []) discovered.set(source.source_id, source.columns ?? {});
     if (!["ok", "no_data"].includes(result.status) && !(decision.name === "query_database" && result.status === "invalid_input")) { stopReason = result.status; break; }
     // Preserve Gemini thought signatures rather than reconstructing the model turn.
     body.contents.push(response.candidates[0].content);

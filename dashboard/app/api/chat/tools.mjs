@@ -48,7 +48,7 @@ export const CHAT_TOOLS = [
     material_id: nullableString("รหัสวัสดุที่ผู้ใช้ระบุ"),
     district_id: nullableString("รหัสเขต 5501-5518; null เมื่อผู้ใช้ถามเขตของตนเอง"),
   }),
-  fn("get_plan_status", "อ่านสถานะและหลักฐานอนุมัติของแผนเติมของจาก UUID", {
+  fn("get_plan_status", "อ่านสถานะและหลักฐานอนุมัติของแผนเติมของจาก UUID เท่านั้น; เลขแผนเช่น KT01-W47-000214 ไม่ใช่ UUID ให้ค้นด้วย discover_database และ query_database", {
     plan_id: nullableString("UUID ของแผน"),
   }),
   fn("get_contract_status", "อ่านสถานะสัญญาและรายการวัสดุด้วยเลขสัญญาหรือเลข PO ที่ตรงกัน", {

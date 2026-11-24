@@ -42,8 +42,8 @@ export async function runChat({ message, history = /** @type {{ role: string, te
           p_tool: decision.name, p_args: decision.args, p_request_id: requestId,
         }),
     });
-    // Reserve at most two extra calls for writing/review; same overall deadline.
-    const answered = await composeAnswer({ result, question: message, history, signal, generate: body => generate(body, 14) });
+    // Reserve at most four extra calls: writing and review, each asked once more after a text reply; same overall deadline.
+    const answered = await composeAnswer({ result, question: message, history, signal, generate: body => generate(body, 16) });
     return { result: { ...answered, answer: masker.guard(answered.answer, [message, ...history.map(turn => turn.text), answered.evidence]) } };
   } finally {
     stats.counts = masker.counts();

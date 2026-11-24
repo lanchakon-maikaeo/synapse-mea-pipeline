@@ -208,10 +208,18 @@ export async function runAlertWorker({ rpc, env=process.env, signal, now=new Dat
     // Fail closed (ADR 0001): without the masking terms no alert goes to a provider.
     const terms=config?await privacyTerms(rpc).catch(()=>{providerAvailable=false;errors.privacy_terms_unavailable=1;}):undefined;
     // Each alert analysis is one AI run with its own labels.
-    const analyst=masker=>async body=>{
-      const response=await fetchProvider(config.apiUrl,{method:'POST',headers:{Authorization:`Bearer ${config.apiKey}`,'Content-Type':'application/json'},
-        body:JSON.stringify(openRouterRequest(masker.maskBody(body),config.model)),redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(config.timeoutMs)])},fetcher);
-      return masker.restore(openRouterResponse(await response.json()));
+    const analyst=masker=>{
+      const send=async body=>{
+        const response=await fetchProvider(config.apiUrl,{method:'POST',headers:{Authorization:`Bearer ${config.apiKey}`,'Content-Type':'application/json'},
+          body:JSON.stringify(openRouterRequest(masker.maskBody(body),config.model)),redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(config.timeoutMs)])},fetcher);
+        return masker.restore(openRouterResponse(await response.json()));
+      };
+      // Typhoon may answer in text even when one function is required: ask once more for that function.
+      return body=>send(body).catch(error=>{
+        if(error.message!=='provider_text_reply') throw error;
+        const name=body.tools[0].functionDeclarations[0].name;
+        return send({...body,contents:[...body.contents,{role:'user',parts:[{text:`ตอบโดยเรียก function ${name} หนึ่งครั้งเท่านั้น ห้ามตอบเป็นข้อความ`}]}]});
+      });
     };
     // Oldest attempt first keeps a failed recommendation from starving untouched alerts.
     const order=alerts.map((_,index)=>index).sort((a,b)=>(Date.parse(alerts[a].details.analysis_attempted_at)||0)-(Date.parse(alerts[b].details.analysis_attempted_at)||0));

@@ -48,3 +48,97 @@ test('a text reply before anything is read is asked once more for a function cal
   assert.match(requests[1].messages.at(-1).content, /function/);
   assert.equal(result.answer, CONVERSATION_REPLIES.greeting);
 });
+
+test('a call whose arguments fail validation goes back to the model once with what failed', async () => {
+  const { requests, fetcher } = provider(
+    ['get_plan_status', { plan_id: 'KT01-W47-000214' }],
+    ['unsupported', { reason: 'ระบบยังอนุมัติแผนไม่ได้' }],
+  );
+  const { result } = await runChat({ message: 'อนุมัติแผน KT01-W47-000214 ให้หน่อย', config, terms, fetcher, signal: new AbortController().signal,
+    rpc: async () => { throw new Error('no database read expected'); } });
+  assert.equal(requests.length, 2);
+  const returned = requests[1].messages.at(-1);
+  assert.equal(returned.role, 'tool');
+  assert.match(returned.content, /get_plan_status/);
+  assert.equal(result.status, 'unsupported');
+  assert.equal(result.answer, 'ระบบยังอนุมัติแผนไม่ได้');
+});
+
+test('a data question answered with a canned conversation reply goes back once to be searched', async () => {
+  const { requests, fetcher } = provider(
+    ['conversation', { intent: 'capabilities' }],
+    ['discover_database', { query: 'รถ บรรทุก น้ำหนัก' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', { ...query, source_id: 'core.transport_vehicles', columns: ['vehicle_id', 'max_weight_kg'], filters: [],
+      order_column: 'max_weight_kg', order_direction: 'desc', limit: 1 }],
+    ['finish', {}],
+    ['write_answer', { answer: 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.', evidence_ids: [1] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  const vehicles = async (name, args) => args.p_tool === 'discover_database'
+    ? { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.transport_vehicles', description: 'vehicles รถ', columns: { vehicle_id: 'text', max_weight_kg: 'numeric' } }] }
+    : { tool: 'query_database', source_id: 'core.transport_vehicles', status: 'ok', data: [{ vehicle_id: 'V-101', max_weight_kg: 15000 }] };
+  const { result } = await runChat({ message: 'รถคันไหนบรรทุกน้ำหนักได้มากที่สุด', config, terms, fetcher, rpc: vehicles, signal: new AbortController().signal });
+  const returned = requests[1].messages.at(-1);
+  assert.equal(returned.role, 'tool');
+  assert.match(returned.content, /discover_database/);
+  assert.equal(result.answer_mode, 'synthesized');
+  assert.equal(result.answer, 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.');
+});
+
+test('a code that came from neither the question nor the data read goes back once to be looked up', async () => {
+  const guessed = { material_id: '020300400512', scope: 'district', district_id: '5501' };
+  const { requests, fetcher } = provider(
+    ['get_stock_status', guessed],
+    ['discover_database', { query: 'เขตบางนา' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', { ...query, filters: [{ column: 'district_name_th', operator: 'contains', value: 'บางนา' }] }],
+    ['get_stock_status', { ...guessed, district_id: '5507' }],
+    ['finish', {}],
+    ['write_answer', { answer: 'เขตบางนามีสายอะลูมิเนียม 1250 เมตร', evidence_ids: [2] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  const stockReads = [];
+  const rpc = async (name, args) => {
+    if (args.p_tool !== 'get_stock_status') return districts(name, args);
+    stockReads.push(args.p_args.district_id);
+    return { tool: 'get_stock_status', status: 'ok', data: [{ material_id: '020300400512', district_id: args.p_args.district_id, current_stock_qty: 1250 }] };
+  };
+  const { result } = await runChat({ message: 'สต็อกวัสดุ 020300400512 ของเขตบางนาเหลือเท่าไร', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  const returned = requests[1].messages.at(-1);
+  assert.equal(returned.role, 'tool');
+  assert.match(returned.content, /5501/);
+  assert.deepEqual(stockReads, ['5507']);
+  assert.match(result.answer, /^เขตบางนามีสายอะลูมิเนียม 1250 เมตร/);
+});
+
+test('a query rejected as invalid input tells the model which columns the source has', async () => {
+  const items = { ...query, source_id: 'core.contract_items', columns: ['material_id', 'quantity'],
+    filters: [{ column: 'purchase_order', operator: 'eq', value: '1300004521' }] };
+  const { requests, fetcher } = provider(
+    ['discover_database', { query: 'PO 1300004521' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', items],
+    ['unsupported', { reason: 'ไม่พบคอลัมน์ PO ในรายการสัญญา' }],
+  );
+  const rpc = async (name, args) => args.p_tool === 'discover_database'
+    ? { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.contract_items', description: 'contract items สัญญา',
+      columns: { contract_id: 'text', material_id: 'text', quantity: 'numeric' } }] }
+    : { tool: 'query_database', status: 'invalid_input' };
+  await runChat({ message: 'PO 1300004521 มีวัสดุอะไรบ้าง', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  const returned = JSON.parse(requests[3].messages.at(-1).content);
+  assert.equal(returned.status, 'invalid_input');
+  assert.deepEqual(returned.unknown_columns, ['purchase_order']);
+  assert.deepEqual(returned.columns, ['contract_id', 'material_id', 'quantity']);
+});
+
+test('a writer that answers in text is asked once more to call write_answer', async () => {
+  const { requests, fetcher } = provider(
+    ['discover_database', { query: 'เขต 5507' }], ['rank_candidates', { indices: [0] }], ['query_database', query], ['finish', {}],
+    'เขต 5507 คือเขตบางนา',
+    ['write_answer', { answer: 'เขต 5507 คือเขตบางนา', evidence_ids: [1] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  const { result } = await runChat({ message: 'เขต 5507 คือเขตอะไร', config, terms, fetcher, rpc: districts, signal: new AbortController().signal });
+  assert.equal(requests.length, 7);
+  assert.match(requests[5].messages.at(-1).content, /write_answer/);
+  assert.equal(result.answer_mode, 'synthesized');
+  assert.equal(result.answer, 'เขต 5507 คือเขตบางนา');
+});
