@@ -3,9 +3,10 @@
 // Assets, licences and provenance: ./thai-words/README.md.
 // Each line loses its whitespace; every character gets an id and 13 dictionary bits; the network gives one
 // word-start logit per character; a word starts where the logit is >= 0 unless Thai spelling rules it out.
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const NO_START = new Set([0x0e30, 0x0e31, 0x0e32, 0x0e33, 0x0e34, 0x0e35, 0x0e36, 0x0e37, 0x0e38, 0x0e39, 0x0e3a, 0x0e45,
   0x0e47, 0x0e48, 0x0e49, 0x0e4a, 0x0e4b, 0x0e4c, 0x0e4d, 0x0e4e]);
@@ -20,7 +21,10 @@ const DIGIT = /\p{Nd}/u;
 const LETTER = /[A-Za-z]/;
 const sameRun = (a, b) => (DIGIT.test(a) && DIGIT.test(b)) || (LETTER.test(a) && LETTER.test(b));
 
-async function load(dir) {
+async function load(dirs) {
+  const found = await Promise.all(dirs.map(dir => access(path.join(dir, 'model.int8.onnx')).then(() => dir, () => null)));
+  const dir = found.find(Boolean);
+  if (!dir) throw new Error('thai_words_model_missing');
   const ort = await import('onnxruntime-web');
   ort.env.wasm.numThreads = 1;
   const [model, lexicon, charids] = await Promise.all([readFile(path.join(dir, 'model.int8.onnx')),
@@ -69,11 +73,11 @@ async function starts({ ort, run, words, ids }, chars) {
     Math.max(...Array.from({ length: UNIT + 1 }, (_, k) => logits.data[i * units + k])) >= 0));
 }
 
-function segmenter(dir) {
+function segmenter(dirs) {
   let model;
   // Words of a text, whitespace dropped; runs of ASCII letters or of digits are never split.
   return async function words(text) {
-    model ??= load(dir).catch(error => { model = undefined; throw error; });
+    model ??= load(dirs).catch(error => { model = undefined; throw error; });
     const loaded = await model;
     const chars = [...text];
     const cuts = new Set();
@@ -92,7 +96,10 @@ function segmenter(dir) {
   };
 }
 
-const latte = segmenter(path.join(process.cwd(), 'app/api/chat/thai-words'));
+// The bundled route on Vercel reads the traced files under the project root; tests and evals import this
+// file directly from whatever directory they run in.
+const latte = segmenter([path.join(process.cwd(), 'app/api/chat/thai-words'),
+  path.join(path.dirname(fileURLToPath(import.meta.url)), 'thai-words')]);
 const icu = new Intl.Segmenter('th', { granularity: 'word' });
 let warned = false;
 
