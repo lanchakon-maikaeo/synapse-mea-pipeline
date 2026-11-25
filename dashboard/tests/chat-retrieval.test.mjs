@@ -12,9 +12,9 @@ const plan = { source_id: 'core.districts', columns: ['district_id', 'district_n
 test('Thai discovery retrieves a relevant source, then model reranks before top-k', async () => {
   assert.equal(retrieveSources('เขต 5501 คือเขตไหน', sources, 1)[0].source_id, 'core.districts');
   assert.equal(retrieveSources('คำที่ไม่อยู่ในแคตตาล็อก', sources, 1).length, 2);
-  const r = await rerank('เขต', sources, 1, async () => call('rank_candidates', { indices: [1] }));
+  const r = await rerank({ search: 'เขต' }, sources, 1, async () => call('rank_candidates', { indices: [1] }));
   assert.deepEqual(r.selected, [sources[1]]); assert.equal(r.status, 'model_reranked');
-  for (const indices of [[0, 0], [9], [-1], ['1']]) await assert.rejects(rerank('q', sources, 2, async () => call('rank_candidates', { indices })), /rerank_output_invalid/);
+  for (const indices of [[0, 0], [9], [-1], ['1']]) await assert.rejects(rerank({ search: 'q' }, sources, 2, async () => call('rank_candidates', { indices })), /rerank_output_invalid/);
 });
 test('reranking does not manufacture records and never changes whole-set aggregates', async () => {
   const envelope = { status: 'ok', data: [{ count_rows: 2000 }], aggregation: true };
@@ -77,6 +77,14 @@ test('a word few sources share (รหัส) does not cut the rest of the catal
     question: 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร', topK: 1, rpc: async () => ({ status: 'ok', data: wide }), generate: pick('core.materials') });
   assert.deepEqual(r.data.map(x => x.source_id), ['core.materials']);
   assert.equal(r.retrieval.candidate_count, wide.length);
+});
+test('the source ranker sees what the user asked, not only the search the model wrote', async () => {
+  let asked;
+  await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'มิเตอร์ไฟฟ้า 1 เฟส' } },
+    question: 'สต็อกมิเตอร์ไฟฟ้า 1 เฟสที่เขตบางกะปิตอนนี้เหลือเท่าไร', topK: 1, rpc: async () => ({ status: 'ok', data: catalog }),
+    generate: async body => { asked = JSON.parse(body.contents[0].parts[0].text); return call('rank_candidates', { indices: [0] }); } });
+  assert.equal(asked.search, 'มิเตอร์ไฟฟ้า 1 เฟส');
+  assert.equal(asked.question, 'สต็อกมิเตอร์ไฟฟ้า 1 เฟสที่เขตบางกะปิตอนนี้เหลือเท่าไร');
 });
 test('discovery is not an answer: harness must execute the discovered source', async () => {
   const responses = [call('discover_database', { query: 'เขต 5501' }), call('query_database', plan), call('finish', {})];
