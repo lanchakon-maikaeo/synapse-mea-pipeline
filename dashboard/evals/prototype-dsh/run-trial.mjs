@@ -5,6 +5,7 @@
 // secrets in the answer). dsh has no status channel: a run that completes counts as status ok.
 // Usage: node run-trial.mjs --set chat-heldout-v1 [--only a,b] [--concurrency 2] [--out dir]
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -16,7 +17,7 @@ import { createMasker } from '../../app/api/chat/masking.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { values: opts } = parseArgs({ options: { set: { type: 'string' }, only: { type: 'string' }, concurrency: { type: 'string', default: '2' },
-  out: { type: 'string', default: '/private/tmp/dsh-trial/reports' } } });
+  out: { type: 'string', default: '/private/tmp/dsh-trial/reports' }, 'no-strict': { type: 'boolean', default: false } } });
 const set = JSON.parse(readFileSync(join(here, `../${opts.set}.json`), 'utf8'));
 const TRIAL = '/private/tmp/dsh-trial';
 const DSH = join(TRIAL, 'node_modules/.bin/dsh');
@@ -24,6 +25,24 @@ const PORT = Number(process.env.TRIAL_PROXY_PORT ?? 18787);
 const TOKEN = readFileSync(join(TRIAL, 'proxy.token'), 'utf8').trim();
 const MODEL = 'typhoon-v2.5-30b-a3b-instruct';
 mkdirSync(join(TRIAL, 'patches'), { recursive: true });
+// dsh (pi-ai) sends tools without `strict`; the chat route sends them strict (openrouter.mjs), so Typhoon
+// constrains arguments to the schema there. This keyless shim adds it and forwards to the masking proxy.
+const STRICT = opts['no-strict'] ? false : true;
+const SHIM_PORT = PORT + 1;
+const shim = createServer(async (req, res) => {
+  let raw = '';
+  for await (const part of req) raw += part;
+  let body = raw;
+  if (STRICT && req.method === 'POST' && raw) {
+    const json = JSON.parse(raw);
+    if (Array.isArray(json.tools)) json.tools = json.tools.map(t => t.type === 'function' ? { ...t, function: { ...t.function, strict: true } } : t);
+    body = JSON.stringify(json);
+  }
+  const upstream = await fetch(`http://127.0.0.1:${PORT}${req.url}`, { method: req.method, headers: { authorization: req.headers.authorization ?? '', 'content-type': 'application/json' }, body: req.method === 'POST' ? body : undefined });
+  res.writeHead(upstream.status, { 'content-type': upstream.headers.get('content-type') ?? 'application/json' });
+  res.end(Buffer.from(await upstream.arrayBuffer()));
+});
+await new Promise(resolve => shim.listen(SHIM_PORT, '127.0.0.1', resolve));
 mkdirSync(opts.out, { recursive: true });
 
 // The chat route's instructions minus the lines about its own finish/answer machinery.
@@ -44,7 +63,7 @@ function overlay(runId, c) {
     { id: 'system-prompt', config: { personaPrefix: PERSONA } },
     { id: 'agent-default-model', config: { provider: 'typhoon-trial', model: MODEL } },
     { id: 'llm-pi-ai', config: { providers: { 'typhoon-trial': { apiKeyEnv: 'TRIAL_PROXY_TOKEN', api: 'openai-completions',
-      baseURL: `http://127.0.0.1:${PORT}/run/${runId}/v1`, models: [{ id: MODEL, name: 'Typhoon 2.5 (trial)', contextWindow: 128000, reasoningEfforts: false }],
+      baseURL: `http://127.0.0.1:${SHIM_PORT}/run/${runId}/v1`, models: [{ id: MODEL, name: 'Typhoon 2.5 (trial)', contextWindow: 128000, reasoningEfforts: false }],
       retryPolicy: { mode: 'normal', maxRetries: 3 } } } } },
     ...OFF.map(id => ({ id, disabled: true })),
     { insert: [{ id: 'mcp-synapse', name: '@deepseek-ai/dsh-mcp-client', config: { serverName: 'synapse', transport: 'stdio', command: process.execPath,
@@ -123,6 +142,8 @@ async function trialCase(c) {
   };
   const grounded = set.name === 'chat-heldout-v1' ? !error && (c.expect ?? []).every(group => group.some(pattern => matches(answer, pattern))) &&
     !(c.forbid ?? []).some(pattern => matches(answer, pattern)) && (!c.status || c.status === 'ok') : undefined;
+  mkdirSync(join(opts.out, 'events'), { recursive: true });
+  writeFileSync(join(opts.out, 'events', `${c.id}.ndjson`), events.map(e => forReport(JSON.stringify(e), c.pii)).join('\n'));
   const calls = events.filter(e => e.type === 'tool_call').map(e => `${e.name ?? e.tool ?? e.toolName ?? '?'}`);
   return { id: c.id, role: c.role, grounded, leaks, error, tool_calls: calls, model_calls: proxy.calls, statuses: proxy.statuses, tokens: proxy.tokens,
     mask_counts: proxy.counts, seconds: Math.round((Date.now() - started) / 100) / 10, answer: forReport(raw, c.pii),
@@ -140,7 +161,7 @@ async function pool(items, size, work) {
 
 const cases = set.cases.filter(c => !opts.only || opts.only.split(',').includes(c.id));
 console.log(`${set.name} via dsh 0.2.2-rc.5 + ${MODEL} (masked proxy), ${cases.length} cases`);
-const report = { set: set.name, harness: 'dsh-headless-0.2.2-rc.5', model: MODEL, at: new Date().toISOString(), cases: [] };
+const report = { set: set.name, harness: 'dsh-headless-0.2.2-rc.5', strict_tools: STRICT, model: MODEL, at: new Date().toISOString(), cases: [] };
 report.cases = await pool(cases, Number(opts.concurrency), async c => {
   const r = await trialCase(c);
   const leakTotal = Object.values(r.leaks).flat().length;
@@ -152,3 +173,4 @@ if (set.name === 'chat-heldout-v1') report.grounded = report.cases.filter(c => c
 const file = join(opts.out, `${set.name}--dsh${opts.only ? '-partial' : ''}--${Date.now()}.json`);
 writeFileSync(file, JSON.stringify(report, null, 1));
 console.log(`  cases=${report.cases.length}${report.grounded !== undefined ? ` grounded=${Math.round(report.grounded * 1000) / 10}%` : ''} leaks=${report.leaks} -> ${file}`);
+shim.close();

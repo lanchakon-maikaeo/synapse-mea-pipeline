@@ -16,7 +16,11 @@ const tools = CHAT_TOOLS.filter(t => !HIDDEN.has(t.name)).map(t => ({ name: t.na
 
 async function call(name, args) {
   let decision;
-  try { decision = bindDistrictScope(validateDecision({ name, args }), scope); } catch (error) { return { status: 'invalid_input', problems: [String(error?.message ?? error)] }; }
+  try { decision = bindDistrictScope(validateDecision({ name, args }), scope); } catch (error) {
+    const code = String(error?.message ?? error);
+    // The same correction harness v5 sends back to the model (harness.mjs CORRECTIONS).
+    return { status: 'invalid_input', problems: [code], ...(code === 'provider_tool_arguments_invalid' && { correction: `argument ของ ${name} ไม่ผ่านการตรวจ ใช้ชนิดและรูปแบบตาม schema และคำอธิบายของ function; ถ้ายังไม่มีรหัสในรูปแบบที่ถูกต้อง ให้ค้นด้วย discover_database ก่อน` }) };
+  }
   const rpc = (fn, a) => fixture.rpc(fn, a);
   if (['discover_database', 'query_database'].includes(decision.name)) {
     return retrieveDatabase({ decision, question: '', topK: 30, generate: async () => { throw new Error('no_ranker'); },
