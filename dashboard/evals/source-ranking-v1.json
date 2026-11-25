@@ -1,0 +1,2594 @@
+{
+ "name": "source-ranking-v1",
+ "kind": "source-ranking",
+ "purpose": "Does discover_database put a source that can answer the question in its top 6? Real production catalog (admin view, 25 Nov 2026), real provider ranker; search is what the agent model typically writes.",
+ "pass": {
+  "hit_rate_min": 0.8,
+  "no_worse_than_baseline": true
+ },
+ "catalog_at": "2026-11-25",
+ "cases": [
+  {
+   "id": "item-code-no-hint",
+   "question": "เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร",
+   "search": "เต้ารับคู่มีขั้วสายดิน",
+   "expect": [
+    "core.materials"
+   ]
+  },
+  {
+   "id": "item-code-hint",
+   "question": "วัสดุ เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร",
+   "search": "วัสดุ เต้ารับคู่มีขั้วสายดิน",
+   "expect": [
+    "core.materials"
+   ]
+  },
+  {
+   "id": "transformer-code",
+   "question": "หม้อแปลงจำหน่ายคอนเวนชันนัล มีรหัสวัสดุอะไร",
+   "search": "หม้อแปลงจำหน่ายคอนเวนชันนัล",
+   "expect": [
+    "core.materials"
+   ]
+  },
+  {
+   "id": "item-unit",
+   "question": "สายอะลูมิเนียมหุ้มฉนวน 185 ตร.มม. ใช้หน่วยนับอะไร",
+   "search": "สายอะลูมิเนียมหุ้มฉนวน 185 ตร.มม. หน่วยนับ",
+   "expect": [
+    "core.materials"
+   ]
+  },
+  {
+   "id": "box-quantity",
+   "question": "มิเตอร์ไฟฟ้า 1 เฟส หนึ่งกล่องบรรจุกี่ชิ้น",
+   "search": "มิเตอร์ไฟฟ้า 1 เฟส จำนวนต่อกล่อง",
+   "expect": [
+    "core.material_packaging",
+    "core.packaging_profiles",
+    "core.packaging_master_profiles"
+   ]
+  },
+  {
+   "id": "pallet-weight",
+   "question": "พาเลทหม้อแปลง 250kVA หนักกี่กิโล",
+   "search": "หม้อแปลง 250kVA น้ำหนักพาเลท",
+   "expect": [
+    "core.material_packaging",
+    "core.packaging_master_profiles"
+   ]
+  },
+  {
+   "id": "district-name",
+   "question": "เขต 5507 ชื่ออะไร",
+   "search": "เขต 5507",
+   "expect": [
+    "core.districts"
+   ]
+  },
+  {
+   "id": "vehicle-capacity",
+   "question": "รถคันไหนบรรทุกน้ำหนักได้มากที่สุด",
+   "search": "รถ น้ำหนักบรรทุกสูงสุด",
+   "expect": [
+    "core.transport_vehicles",
+    "core.vehicles",
+    "analytics.v_transport_vehicle_status"
+   ]
+  },
+  {
+   "id": "district-stock",
+   "question": "สต็อกมิเตอร์ไฟฟ้า 1 เฟสที่เขตบางกะปิตอนนี้เหลือเท่าไร",
+   "search": "สต็อกมิเตอร์ไฟฟ้า 1 เฟส เขตบางกะปิ",
+   "expect": [
+    "analytics.v_stock_health",
+    "analytics.v_current_stock"
+   ]
+  },
+  {
+   "id": "requester",
+   "question": "ใครเป็นผู้ขอเติมหม้อแปลงของเขตบางนา",
+   "search": "ผู้ขอเติม หม้อแปลง เขตบางนา",
+   "expect": [
+    "analytics.v_replenishment_queue",
+    "core.replenishment_items"
+   ]
+  },
+  {
+   "id": "contract-vendor",
+   "question": "สัญญาเลขที่ 4300012345 ผู้ขายคือใคร",
+   "search": "สัญญา 4300012345 ผู้ขาย",
+   "expect": [
+    "analytics.v_contract_status",
+    "core.contracts",
+    "public.contracts",
+    "core.vendors"
+   ]
+  },
+  {
+   "id": "po-items",
+   "question": "PO 1300004521 มีวัสดุอะไรบ้าง",
+   "search": "PO 1300004521 รายการวัสดุ",
+   "expect": [
+    "core.contract_items",
+    "public.contracts",
+    "analytics.v_contract_status"
+   ]
+  },
+  {
+   "id": "usage-rate",
+   "question": "เขตบางนาใช้ลูกถ้วยแขวนเดือนละเท่าไร",
+   "search": "อัตราใช้ ลูกถ้วยแขวน เขตบางนา",
+   "expect": [
+    "core.usage_rates",
+    "analytics.v_stock_health",
+    "core.monthly_usage_observations",
+    "analytics.demand_monthly_features"
+   ]
+  },
+  {
+   "id": "forecast",
+   "question": "พยากรณ์ความต้องการหม้อแปลงเดือนหน้าเท่าไร",
+   "search": "พยากรณ์ หม้อแปลง เดือนหน้า",
+   "expect": [
+    "analytics.v_latest_forecasts",
+    "analytics.forecast_results"
+   ]
+  },
+  {
+   "id": "trips-today",
+   "question": "วันนี้มีรถออกส่งของกี่เที่ยว",
+   "search": "เที่ยวรถ ส่งของ วันนี้",
+   "expect": [
+    "ops.transport_trips",
+    "analytics.v_transport_trip_summary"
+   ]
+  }
+ ],
+ "catalog": [
+  {
+   "source_id": "analytics.demand_monthly_features",
+   "description": "demand monthly features อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "period_start": "date",
+    "stockout_days": "integer",
+    "lead_time_days": "numeric",
+    "demand_quantity": "numeric",
+    "feature_version": "text",
+    "source_batch_id": "uuid",
+    "demand_feature_id": "uuid"
+   }
+  },
+  {
+   "source_id": "analytics.forecast_drift_events",
+   "description": "forecast drift events อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "details": "jsonb",
+    "severity": "text",
+    "detected_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "metric_name": "text",
+    "drift_event_id": "uuid",
+    "observed_value": "numeric",
+    "threshold_value": "numeric"
+   }
+  },
+  {
+   "source_id": "analytics.forecast_metrics",
+   "description": "forecast metrics อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "mae": "numeric",
+    "bias": "numeric",
+    "wape": "numeric",
+    "selected": "boolean",
+    "created_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "backtest_end": "date",
+    "model_version": "text",
+    "backtest_start": "date",
+    "forecast_run_id": "uuid",
+    "observation_count": "integer",
+    "forecast_metric_id": "uuid"
+   }
+  },
+  {
+   "source_id": "analytics.forecast_model_versions",
+   "description": "forecast model versions อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "is_active": "boolean",
+    "created_at": "timestamp with time zone",
+    "model_name": "text",
+    "parameters": "jsonb",
+    "model_family": "text",
+    "model_version": "text",
+    "implementation_reference": "text"
+   }
+  },
+  {
+   "source_id": "analytics.forecast_results",
+   "description": "forecast results อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "horizon": "integer",
+    "lower_80": "numeric",
+    "upper_80": "numeric",
+    "created_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "model_version": "text",
+    "forecast_period": "date",
+    "forecast_run_id": "uuid",
+    "forecast_result_id": "uuid",
+    "predicted_quantity": "numeric"
+   }
+  },
+  {
+   "source_id": "analytics.forecast_runs",
+   "description": "forecast runs อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "job_id": "uuid",
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "started_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "result_count": "integer",
+    "series_count": "integer",
+    "training_end": "date",
+    "error_message": "text",
+    "horizon_months": "integer",
+    "training_start": "date",
+    "feature_version": "text",
+    "forecast_run_id": "uuid",
+    "algorithm_version": "text"
+   }
+  },
+  {
+   "source_id": "analytics.route_matrices",
+   "description": "route matrices ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "expires_at": "timestamp with time zone",
+    "distances_m": "jsonb",
+    "durations_s": "jsonb",
+    "engine_name": "text",
+    "generated_at": "timestamp with time zone",
+    "location_ids": "text[]",
+    "request_hash": "text",
+    "costing_model": "text",
+    "matrix_source": "text",
+    "osm_changeset": "bigint",
+    "engine_version": "text",
+    "evidence_status": "text",
+    "route_matrix_id": "uuid",
+    "routing_profile": "text",
+    "tileset_version": "text",
+    "evidence_captured_at": "timestamp with time zone",
+    "upstream_request_sha256": "text",
+    "tileset_last_modified_at": "timestamp with time zone",
+    "upstream_response_sha256": "text",
+    "engine_status_response_sha256": "text"
+   }
+  },
+  {
+   "source_id": "analytics.v_abnormal_request_queue",
+   "description": "v abnormal request queue ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "reason": "text",
+    "status": "text",
+    "risk_level": "text",
+    "version_no": "integer",
+    "district_id": "text",
+    "material_id": "text",
+    "plan_number": "text",
+    "review_note": "text",
+    "reviewed_at": "timestamp with time zone",
+    "baseline_qty": "numeric",
+    "requested_at": "timestamp with time zone",
+    "material_name": "text",
+    "requested_qty": "numeric",
+    "requester_name": "text",
+    "abnormal_signals": "jsonb",
+    "district_name_th": "text",
+    "change_request_id": "uuid",
+    "exceeds_six_months": "boolean",
+    "replenishment_item_id": "uuid",
+    "replenishment_plan_id": "uuid",
+    "projected_months_after": "numeric",
+    "special_approval_required": "boolean"
+   }
+  },
+  {
+   "source_id": "analytics.v_contract_reconciliation",
+   "description": "v contract reconciliation สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "raw_rows": "bigint",
+    "legacy_rows": "bigint",
+    "staging_rows": "bigint",
+    "district_rows": "bigint",
+    "location_rows": "bigint",
+    "rejected_rows": "bigint",
+    "core_item_rows": "bigint",
+    "core_contract_rows": "bigint",
+    "core_material_rows": "bigint"
+   }
+  },
+  {
+   "source_id": "analytics.v_contract_status",
+   "description": "v contract status สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "end_date": "date",
+    "start_date": "date",
+    "updated_at": "timestamp with time zone",
+    "contract_id": "bigint",
+    "vendor_name": "text",
+    "contract_key": "text",
+    "document_date": "date",
+    "purchase_order": "bigint",
+    "contract_number": "text",
+    "contract_status": "text",
+    "source_batch_id": "uuid",
+    "procurement_code": "text",
+    "source_item_count": "integer",
+    "warning_line_count": "bigint",
+    "material_line_count": "bigint",
+    "service_or_unmapped_line_count": "bigint"
+   }
+  },
+  {
+   "source_id": "analytics.v_current_stock",
+   "description": "v current stock สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "location_id": "text",
+    "material_id": "text",
+    "snapshot_at": "timestamp with time zone",
+    "material_name": "text",
+    "source_batch_id": "uuid",
+    "location_name_th": "text",
+    "quantity_on_hand": "numeric"
+   }
+  },
+  {
+   "source_id": "analytics.v_data_quality_summary",
+   "description": "v data quality summary ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "batch_id": "uuid",
+    "severity": "text",
+    "rule_code": "text",
+    "description": "text",
+    "issue_count": "bigint",
+    "source_file": "text",
+    "source_sheet": "text",
+    "source_entity": "text",
+    "last_detected_at": "timestamp with time zone",
+    "first_detected_at": "timestamp with time zone"
+   }
+  },
+  {
+   "source_id": "analytics.v_fifo_queue",
+   "description": "v fifo queue สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "lot_code": "text",
+    "line_item": "integer",
+    "unit_type": "text",
+    "location_id": "text",
+    "material_id": "text",
+    "vendor_name": "text",
+    "received_qty": "numeric",
+    "reserved_qty": "numeric",
+    "available_qty": "numeric",
+    "fifo_sequence": "bigint",
+    "material_name": "text",
+    "installment_no": "text",
+    "opening_status": "text",
+    "purchase_order": "bigint",
+    "receipt_lot_id": "uuid",
+    "acceptance_date": "date",
+    "allocatable_qty": "numeric",
+    "contract_number": "text",
+    "handling_unit_id": "uuid",
+    "source_reference": "text",
+    "source_row_number": "integer",
+    "handling_unit_code": "text",
+    "traceability_status": "text"
+   }
+  },
+  {
+   "source_id": "analytics.v_forecast_monitoring",
+   "description": "v forecast monitoring อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "started_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "metric_count": "bigint",
+    "result_count": "integer",
+    "series_count": "integer",
+    "training_end": "date",
+    "error_message": "text",
+    "forecast_run_id": "uuid",
+    "selected_mean_mae": "numeric",
+    "selected_mean_bias": "numeric",
+    "selected_mean_wape": "numeric"
+   }
+  },
+  {
+   "source_id": "analytics.v_issue_traceback",
+   "description": "v issue traceback ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "lot_code": "text",
+    "line_item": "integer",
+    "unit_type": "text",
+    "vendor_id": "bigint",
+    "issue_type": "text",
+    "issued_qty": "numeric",
+    "district_id": "text",
+    "material_id": "text",
+    "occurred_at": "timestamp with time zone",
+    "vendor_name": "text",
+    "material_name": "text",
+    "installment_no": "text",
+    "purchase_order": "bigint",
+    "receipt_lot_id": "uuid",
+    "to_location_id": "text",
+    "vendor_aliases": "jsonb",
+    "acceptance_date": "date",
+    "ad_hoc_issue_id": "uuid",
+    "contract_number": "text",
+    "idempotency_key": "text",
+    "issue_reference": "text",
+    "contract_item_id": "bigint",
+    "district_name_th": "text",
+    "from_location_id": "text",
+    "handling_unit_id": "uuid",
+    "source_row_number": "integer",
+    "handling_unit_code": "text",
+    "inventory_movement_id": "uuid",
+    "replenishment_item_id": "uuid",
+    "replenishment_plan_id": "uuid"
+   }
+  },
+  {
+   "source_id": "analytics.v_latest_forecasts",
+   "description": "v latest forecasts อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "horizon": "integer",
+    "lower_80": "numeric",
+    "upper_80": "numeric",
+    "created_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "material_name": "text",
+    "model_version": "text",
+    "forecast_period": "date",
+    "forecast_run_id": "uuid",
+    "district_name_th": "text",
+    "forecast_result_id": "uuid",
+    "predicted_quantity": "numeric"
+   }
+  },
+  {
+   "source_id": "analytics.v_material_master_coverage",
+   "description": "v material master coverage พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์",
+   "columns": {
+    "warning_count": "bigint",
+    "material_count": "bigint",
+    "missing_name_count": "bigint",
+    "vmi_material_count": "bigint",
+    "contract_only_material_count": "bigint"
+   }
+  },
+  {
+   "source_id": "analytics.v_operations_health",
+   "description": "v operations health ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "region": "text",
+    "checked_at": "timestamp with time zone",
+    "project_ref": "text",
+    "cutover_ready": "boolean",
+    "latest_job_at": "timestamp with time zone",
+    "identity_ready": "boolean",
+    "recovery_ready": "boolean",
+    "environment_name": "text",
+    "latest_backup_at": "timestamp with time zone",
+    "latest_import_at": "timestamp with time zone",
+    "open_alert_count": "bigint",
+    "readiness_status": "text",
+    "stale_source_count": "bigint",
+    "data_contract_ready": "boolean",
+    "stale_service_count": "bigint",
+    "failed_job_count_24h": "bigint",
+    "latest_backup_status": "text",
+    "registered_service_count": "bigint",
+    "operational_writes_enabled": "boolean"
+   }
+  },
+  {
+   "source_id": "analytics.v_production_readiness",
+   "description": "Production readiness under the owner-directed single_admin identity policy. Central/district counts and material_master_ready remain observable. v production readiness ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "region": "text",
+    "project_ref": "text",
+    "cutover_ready": "boolean",
+    "identity_ready": "boolean",
+    "recovery_ready": "boolean",
+    "backup_verified": "boolean",
+    "identity_policy": "text",
+    "environment_name": "text",
+    "readiness_status": "text",
+    "actual_usage_rows": "bigint",
+    "fixture_row_count": "bigint",
+    "central_role_count": "bigint",
+    "data_contract_ready": "boolean",
+    "district_user_count": "bigint",
+    "active_district_count": "bigint",
+    "material_master_ready": "boolean",
+    "restore_drill_verified": "boolean",
+    "weighted_material_count": "bigint",
+    "verified_packaging_count": "bigint",
+    "active_vmi_material_count": "bigint",
+    "actual_district_stock_rows": "bigint",
+    "operational_writes_enabled": "boolean",
+    "expected_district_material_rows": "bigint"
+   }
+  },
+  {
+   "source_id": "analytics.v_quantity_recommendations",
+   "description": "v quantity recommendations แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "method": "text",
+    "evidence": "jsonb",
+    "created_at": "timestamp with time zone",
+    "version_no": "integer",
+    "cmp_monthly": "numeric",
+    "district_id": "text",
+    "material_id": "text",
+    "plan_number": "text",
+    "max_fill_qty": "numeric",
+    "min_fill_qty": "numeric",
+    "material_name": "text",
+    "recommended_qty": "numeric",
+    "district_name_th": "text",
+    "months_available": "numeric",
+    "current_stock_qty": "numeric",
+    "recommendation_id": "uuid",
+    "replenishment_item_id": "uuid",
+    "replenishment_plan_id": "uuid",
+    "source_freshness_status": "text"
+   }
+  },
+  {
+   "source_id": "analytics.v_reference_relation_coverage",
+   "description": "v reference relation coverage ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "data_class": "text",
+    "linked_rows": "bigint",
+    "source_path": "text",
+    "source_rows": "bigint",
+    "source_sheet": "text",
+    "unlinked_rows": "bigint",
+    "relation_edges": "bigint"
+   }
+  },
+  {
+   "source_id": "analytics.v_replenishment_queue",
+   "description": "v replenishment queue แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "final_qty": "numeric",
+    "locked_at": "timestamp with time zone",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "version_no": "integer",
+    "cmp_monthly": "numeric",
+    "district_id": "text",
+    "item_status": "text",
+    "material_id": "text",
+    "plan_number": "text",
+    "plan_status": "text",
+    "max_fill_qty": "numeric",
+    "min_fill_qty": "numeric",
+    "allocated_qty": "numeric",
+    "confirmed_qty": "numeric",
+    "district_note": "text",
+    "material_name": "text",
+    "priority_band": "text",
+    "requested_qty": "numeric",
+    "suggested_qty": "numeric",
+    "parent_plan_id": "uuid",
+    "priority_score": "numeric",
+    "requester_name": "text",
+    "response_due_at": "timestamp with time zone",
+    "week_start_date": "date",
+    "abnormal_signals": "jsonb",
+    "district_name_th": "text",
+    "months_available": "numeric",
+    "current_stock_qty": "numeric",
+    "district_decision": "text",
+    "exceeds_six_months": "boolean",
+    "abnormal_risk_level": "text",
+    "confirmed_on_behalf": "boolean",
+    "planner_approved_at": "timestamp with time zone",
+    "academic_approved_at": "timestamp with time zone",
+    "replenishment_run_id": "uuid",
+    "source_stock_missing": "boolean",
+    "replenishment_item_id": "uuid",
+    "replenishment_plan_id": "uuid",
+    "projected_months_after": "numeric",
+    "special_approval_required": "boolean"
+   }
+  },
+  {
+   "source_id": "analytics.v_route_plan_geojson",
+   "description": "v route plan geojson ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "geojson": "jsonb",
+    "route_plan_id": "uuid"
+   }
+  },
+  {
+   "source_id": "analytics.v_route_plan_summary",
+   "description": "v route plan summary ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "approved_at": "timestamp with time zone",
+    "route_job_id": "uuid",
+    "route_plan_id": "uuid",
+    "solver_status": "text",
+    "vehicle_count": "bigint",
+    "rejection_reason": "text",
+    "total_distance_m": "numeric",
+    "total_duration_s": "numeric",
+    "served_stop_count": "integer",
+    "unserved_stop_count": "integer",
+    "max_volume_utilization": "numeric",
+    "max_weight_utilization": "numeric"
+   }
+  },
+  {
+   "source_id": "analytics.v_source_artifact_inventory",
+   "description": "v source artifact inventory สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "complete": "boolean",
+    "metadata": "jsonb",
+    "data_class": "text",
+    "updated_at": "timestamp with time zone",
+    "artifact_id": "uuid",
+    "loaded_rows": "bigint",
+    "source_path": "text",
+    "source_sheet": "text",
+    "expected_rows": "integer",
+    "source_checksum": "text"
+   }
+  },
+  {
+   "source_id": "analytics.v_source_observation_coverage",
+   "description": "v source observation coverage ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "direct_usage_pairs": "bigint",
+    "missing_usage_pairs": "bigint",
+    "observed_usage_pairs": "bigint",
+    "active_district_count": "bigint",
+    "source_observation_ready": "boolean",
+    "active_vmi_material_count": "bigint",
+    "direct_district_stock_pairs": "bigint",
+    "missing_district_stock_pairs": "bigint",
+    "observed_district_stock_pairs": "bigint",
+    "owner_attested_zero_usage_pairs": "bigint",
+    "direct_warehouse_stock_materials": "bigint",
+    "expected_district_material_pairs": "bigint",
+    "missing_warehouse_stock_materials": "bigint",
+    "observed_warehouse_stock_materials": "bigint",
+    "owner_attested_zero_district_stock_pairs": "bigint",
+    "owner_attested_zero_warehouse_stock_materials": "bigint"
+   }
+  },
+  {
+   "source_id": "analytics.v_stock_health",
+   "description": "v stock health สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "avg_4m": "numeric",
+    "avg_6m": "numeric",
+    "avg_ly": "numeric",
+    "avg_12m": "numeric",
+    "cmp_monthly": "numeric",
+    "district_id": "text",
+    "health_band": "text",
+    "material_id": "text",
+    "snapshot_at": "timestamp with time zone",
+    "snapshot_id": "uuid",
+    "material_name": "text",
+    "usage_rate_id": "uuid",
+    "fixture_backed": "boolean",
+    "district_name_th": "text",
+    "input_data_class": "text",
+    "months_available": "numeric",
+    "stock_data_class": "text",
+    "usage_as_of_date": "date",
+    "usage_data_class": "text",
+    "current_stock_qty": "numeric",
+    "stock_source_status": "text",
+    "source_stock_missing": "boolean",
+    "stock_source_batch_id": "uuid",
+    "usage_source_batch_id": "uuid"
+   }
+  },
+  {
+   "source_id": "analytics.v_transport_dispatch_queue",
+   "description": "v transport dispatch queue ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "map_x": "integer",
+    "map_y": "integer",
+    "latitude": "numeric(11,8)",
+    "locked_at": "timestamp with time zone",
+    "longitude": "numeric(11,8)",
+    "total_qty": "numeric",
+    "line_count": "bigint",
+    "version_no": "integer",
+    "district_id": "text",
+    "plan_number": "text",
+    "demand_lines": "jsonb",
+    "district_ref": "text",
+    "geocode_status": "text",
+    "route_eligible": "boolean",
+    "week_start_date": "date",
+    "weight_complete": "boolean",
+    "district_name_th": "text",
+    "quarantine_reason": "text",
+    "origin_location_id": "text",
+    "estimated_weight_kg": "numeric",
+    "origin_warehouse_id": "text",
+    "suggested_warehouse": "text",
+    "replenishment_plan_id": "uuid",
+    "suggested_distance_km": "numeric",
+    "suggested_warehouse_geocode_status": "text",
+    "suggested_warehouse_quarantine_reason": "text"
+   }
+  },
+  {
+   "source_id": "analytics.v_transport_route_matrix",
+   "description": "v transport route matrix ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "map_x": "integer",
+    "map_y": "integer",
+    "latitude": "numeric(11,8)",
+    "toll_thb": "numeric",
+    "longitude": "numeric(11,8)",
+    "distance_km": "numeric",
+    "verified_at": "timestamp with time zone",
+    "district_ref": "text",
+    "geocode_status": "text",
+    "route_eligible": "boolean",
+    "travel_minutes": "integer",
+    "warehouse_code": "text",
+    "accuracy_meters": "numeric",
+    "district_name_th": "text",
+    "unload_fixed_min": "integer",
+    "coordinate_source": "text",
+    "road_evidence_usable": "boolean",
+    "unload_per_pallet_min": "integer",
+    "canonical_warehouse_id": "text",
+    "matrix_evidence_status": "text",
+    "geocode_source_reference": "text",
+    "warehouse_geocode_status": "text",
+    "geocode_source_row_number": "integer",
+    "endpoint_geocodes_eligible": "boolean",
+    "geocode_source_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "analytics.v_transport_trip_summary",
+   "description": "v transport trip summary ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "notes": "text",
+    "status": "text",
+    "trip_id": "uuid",
+    "trip_code": "text",
+    "trip_date": "date",
+    "batch_code": "text",
+    "created_at": "timestamp with time zone",
+    "request_id": "text",
+    "vehicle_id": "text",
+    "depart_time": "text",
+    "driver_name": "text",
+    "return_time": "text",
+    "total_toll_thb": "numeric",
+    "warehouse_code": "text",
+    "total_distance_km": "numeric",
+    "route_district_refs": "text[]",
+    "fuel_cost_actual_thb": "numeric",
+    "road_evidence_source": "text",
+    "road_evidence_status": "text",
+    "total_travel_minutes": "integer",
+    "replenishment_plan_id": "uuid",
+    "fuel_cost_estimate_thb": "numeric",
+    "road_evidence_verified_at": "timestamp with time zone",
+    "road_evidence_change_ticket": "text",
+    "road_evidence_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "analytics.v_transport_vehicle_status",
+   "description": "v transport vehicle status ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "color": "text",
+    "plate": "text",
+    "is_active": "boolean",
+    "asset_code": "text",
+    "updated_at": "timestamp with time zone",
+    "vehicle_id": "text",
+    "color_light": "text",
+    "driver_name": "text",
+    "loan_status": "text",
+    "max_pallets": "numeric",
+    "is_available": "boolean",
+    "vehicle_type": "text",
+    "max_volume_m3": "numeric",
+    "max_weight_kg": "numeric",
+    "home_warehouse": "text",
+    "current_warehouse": "text",
+    "fuel_rate_km_per_l": "numeric",
+    "availability_status": "text",
+    "canonical_vehicle_id": "text",
+    "capacity_verified_at": "timestamp with time zone",
+    "fuel_price_thb_per_l": "numeric",
+    "availability_evidence": "text",
+    "vehicle_mapping_status": "text",
+    "availability_checked_at": "timestamp with time zone",
+    "availability_expires_at": "timestamp with time zone",
+    "availability_is_current": "boolean",
+    "capacity_evidence_status": "text",
+    "capacity_source_reference": "text",
+    "capacity_source_row_number": "integer",
+    "vehicle_mapping_verified_at": "timestamp with time zone",
+    "availability_evidence_status": "text",
+    "capacity_verification_ticket": "text",
+    "availability_source_reference": "text",
+    "availability_source_row_number": "integer",
+    "capacity_source_checksum_sha256": "text",
+    "vehicle_mapping_approval_ticket": "text",
+    "availability_verification_ticket": "text",
+    "vehicle_mapping_source_reference": "text",
+    "vehicle_mapping_source_row_number": "integer",
+    "availability_source_checksum_sha256": "text",
+    "vehicle_mapping_source_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "analytics.v_wave3_readiness",
+   "description": "v wave3 readiness ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "checked_at": "timestamp with time zone",
+    "active_jobs": "bigint",
+    "active_drivers": "bigint",
+    "active_vehicles": "bigint",
+    "active_locations": "bigint",
+    "verified_geocodes": "bigint",
+    "demand_feature_rows": "bigint",
+    "forecast_ready_series": "bigint",
+    "routing_ready_vehicles": "bigint",
+    "route_operational_ready": "boolean",
+    "routing_ready_materials": "bigint",
+    "forecast_operational_ready": "boolean",
+    "approved_replenishment_plans": "bigint"
+   }
+  },
+  {
+   "source_id": "core.contract_item_versions",
+   "description": "contract item versions สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "snapshot": "jsonb",
+    "version_no": "integer",
+    "captured_at": "timestamp with time zone",
+    "source_quality": "text",
+    "source_batch_id": "uuid",
+    "contract_item_id": "bigint",
+    "contract_item_version_id": "bigint"
+   }
+  },
+  {
+   "source_id": "core.contract_items",
+   "description": "contract items สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "unit": "text",
+    "quantity": "numeric",
+    "line_item": "integer",
+    "created_at": "timestamp with time zone",
+    "is_current": "boolean",
+    "updated_at": "timestamp with time zone",
+    "contract_id": "bigint",
+    "material_id": "text",
+    "delivery_date": "date",
+    "source_row_id": "bigint",
+    "acceptance_date": "date",
+    "source_batch_id": "uuid",
+    "contract_item_id": "bigint",
+    "item_description": "text",
+    "source_row_number": "integer",
+    "validation_status": "text"
+   }
+  },
+  {
+   "source_id": "core.contracts",
+   "description": "contracts สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "end_date": "date",
+    "vendor_id": "bigint",
+    "created_at": "timestamp with time zone",
+    "is_current": "boolean",
+    "start_date": "date",
+    "updated_at": "timestamp with time zone",
+    "contract_id": "bigint",
+    "record_date": "date",
+    "contract_key": "text",
+    "bid_open_date": "date",
+    "document_date": "date",
+    "purchase_order": "bigint",
+    "contract_number": "text",
+    "source_batch_id": "uuid",
+    "procurement_code": "text",
+    "source_item_count": "integer"
+   }
+  },
+  {
+   "source_id": "core.delivery_events",
+   "description": "delivery events สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "note": "text",
+    "metadata": "jsonb",
+    "quantity": "numeric",
+    "created_at": "timestamp with time zone",
+    "event_date": "timestamp with time zone",
+    "event_type": "text",
+    "source_batch_id": "uuid",
+    "contract_item_id": "bigint",
+    "delivery_event_id": "uuid"
+   }
+  },
+  {
+   "source_id": "core.districts",
+   "description": "districts เขต พื้นที่ รหัส ชื่อ นวลจันทร์",
+   "columns": {
+    "is_active": "boolean",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "district_id": "text",
+    "sap_plant_code": "text",
+    "district_name_th": "text"
+   }
+  },
+  {
+   "source_id": "core.drivers",
+   "description": "drivers ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "driver_id": "uuid",
+    "is_active": "boolean",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "display_name": "text",
+    "license_class": "text",
+    "employee_reference": "text"
+   }
+  },
+  {
+   "source_id": "core.handling_units",
+   "description": "handling units สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "opened_at": "timestamp with time zone",
+    "unit_type": "text",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "location_id": "text",
+    "material_id": "text",
+    "received_qty": "numeric",
+    "reserved_qty": "numeric",
+    "available_qty": "numeric",
+    "opening_status": "text",
+    "receipt_lot_id": "uuid",
+    "handling_unit_id": "uuid",
+    "source_reference": "text",
+    "physical_location": "text",
+    "handling_unit_code": "text"
+   }
+  },
+  {
+   "source_id": "core.inventory_movements",
+   "description": "inventory movements สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "reason": "text",
+    "metadata": "jsonb",
+    "quantity": "numeric",
+    "created_at": "timestamp with time zone",
+    "material_id": "text",
+    "occurred_at": "timestamp with time zone",
+    "movement_type": "text",
+    "to_location_id": "text",
+    "ad_hoc_issue_id": "uuid",
+    "idempotency_key": "text",
+    "from_location_id": "text",
+    "handling_unit_id": "uuid",
+    "source_movement_id": "uuid",
+    "inventory_movement_id": "uuid",
+    "replenishment_item_id": "uuid"
+   }
+  },
+  {
+   "source_id": "core.inventory_transactions",
+   "description": "inventory transactions สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "metadata": "jsonb",
+    "created_at": "timestamp with time zone",
+    "location_id": "text",
+    "material_id": "text",
+    "occurred_at": "timestamp with time zone",
+    "reference_id": "text",
+    "quantity_delta": "numeric",
+    "reference_type": "text",
+    "transaction_id": "uuid",
+    "source_batch_id": "uuid",
+    "transaction_type": "text"
+   }
+  },
+  {
+   "source_id": "core.location_geocodes",
+   "description": "location geocodes คลัง ที่ตั้ง สถานที่",
+   "columns": {
+    "latitude": "numeric(11,8)",
+    "longitude": "numeric(11,8)",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "location_id": "text",
+    "verified_at": "timestamp with time zone",
+    "service_minutes": "integer",
+    "time_window_end": "time without time zone",
+    "source_reference": "text",
+    "source_row_number": "integer",
+    "time_window_start": "time without time zone",
+    "verification_ticket": "text",
+    "source_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "core.locations",
+   "description": "locations คลัง ที่ตั้ง สถานที่",
+   "columns": {
+    "is_active": "boolean",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "district_id": "text",
+    "location_id": "text",
+    "warehouse_id": "text",
+    "location_type": "text",
+    "location_name_th": "text"
+   }
+  },
+  {
+   "source_id": "core.material_packaging",
+   "description": "material packaging พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "material_id": "text",
+    "verified_at": "timestamp with time zone",
+    "quantity_uom": "text",
+    "box_volume_m3": "numeric",
+    "boxes_per_pallet": "numeric",
+    "pallet_volume_m3": "numeric",
+    "pallet_weight_kg": "numeric",
+    "quantity_per_box": "numeric",
+    "source_reference": "text",
+    "source_row_number": "integer",
+    "weight_per_box_kg": "numeric",
+    "verification_ticket": "text",
+    "source_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "core.materials",
+   "description": "materials พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์",
+   "columns": {
+    "moq": "numeric",
+    "unit": "text",
+    "is_vmi": "boolean",
+    "category": "text",
+    "lot_size": "numeric",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "material_id": "text",
+    "master_source": "text",
+    "material_name": "text",
+    "sap_material_id": "text",
+    "source_batch_id": "uuid",
+    "weight_per_unit_kg": "numeric",
+    "data_quality_status": "text"
+   }
+  },
+  {
+   "source_id": "core.monthly_usage_observations",
+   "description": "monthly usage observations อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "period_start": "date",
+    "source_row_id": "bigint",
+    "usage_rate_id": "uuid",
+    "demand_quantity": "numeric",
+    "source_batch_id": "uuid",
+    "source_checksum": "text",
+    "source_was_dash": "boolean",
+    "raw_source_row_id": "bigint",
+    "source_artifact_id": "uuid",
+    "negative_adjustment": "boolean",
+    "raw_quantity_signed": "numeric",
+    "actual_workbook_import_id": "uuid",
+    "monthly_usage_observation_id": "bigint"
+   }
+  },
+  {
+   "source_id": "core.packaging_master_profiles",
+   "description": "Per material/vendor/contract/warehouse packaging dimensions, pallet capacity, weight and verification state. packaging master profiles พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์",
+   "columns": {
+    "plant": "text",
+    "verified": "boolean",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "contract_no": "text",
+    "material_id": "text",
+    "box_width_cm": "numeric",
+    "package_type": "text",
+    "stack_layers": "integer",
+    "vendor_alias": "text",
+    "box_height_cm": "numeric",
+    "box_length_cm": "numeric",
+    "item_width_cm": "numeric",
+    "load_height_m": "numeric",
+    "item_height_cm": "numeric",
+    "item_length_cm": "numeric",
+    "item_weight_kg": "numeric",
+    "pallet_tare_kg": "numeric",
+    "pallet_width_m": "numeric",
+    "purchase_order": "text",
+    "boxes_per_layer": "integer",
+    "pallet_length_m": "numeric",
+    "boxes_per_pallet": "integer",
+    "source_reference": "text",
+    "storage_location": "text",
+    "units_per_pallet": "numeric",
+    "assumption_status": "text",
+    "units_per_package": "numeric",
+    "box_tare_weight_kg": "numeric",
+    "box_gross_weight_kg": "numeric",
+    "max_pallet_gross_kg": "numeric",
+    "packaging_profile_id": "uuid",
+    "calculated_pallet_gross_kg": "numeric"
+   }
+  },
+  {
+   "source_id": "core.packaging_profiles",
+   "description": "packaging profiles พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์",
+   "columns": {
+    "base_uom": "text",
+    "created_at": "timestamp with time zone",
+    "data_class": "text",
+    "updated_at": "timestamp with time zone",
+    "material_id": "text",
+    "verified_at": "timestamp with time zone",
+    "inner_pack_qty": "numeric",
+    "source_quality": "text",
+    "full_pallet_qty": "numeric",
+    "source_batch_id": "uuid",
+    "source_reference": "text",
+    "source_row_number": "integer",
+    "verification_ticket": "text",
+    "allows_partial_issue": "boolean",
+    "source_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "core.receipt_lots",
+   "description": "receipt lots สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "lot_code": "text",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "received_qty": "numeric",
+    "warehouse_id": "text",
+    "remaining_qty": "numeric",
+    "installment_no": "text",
+    "receipt_lot_id": "uuid",
+    "source_quality": "text",
+    "acceptance_date": "date",
+    "source_batch_id": "uuid",
+    "contract_item_id": "bigint",
+    "source_reference": "text",
+    "traceability_status": "text"
+   }
+  },
+  {
+   "source_id": "core.replenishment_items",
+   "description": "replenishment items แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "status": "text",
+    "final_qty": "numeric",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "cmp_monthly": "numeric",
+    "district_id": "text",
+    "material_id": "text",
+    "max_fill_qty": "numeric",
+    "min_fill_qty": "numeric",
+    "confirmed_qty": "numeric",
+    "district_note": "text",
+    "priority_band": "text",
+    "requested_qty": "numeric",
+    "suggested_qty": "numeric",
+    "priority_score": "numeric",
+    "requester_name": "text",
+    "abnormal_signals": "jsonb",
+    "input_data_class": "text",
+    "months_available": "numeric",
+    "current_stock_qty": "numeric",
+    "district_decision": "text",
+    "exceeds_six_months": "boolean",
+    "abnormal_risk_level": "text",
+    "confirmed_on_behalf": "boolean",
+    "source_stock_missing": "boolean",
+    "source_usage_rate_id": "uuid",
+    "district_confirmed_at": "timestamp with time zone",
+    "replenishment_item_id": "uuid",
+    "replenishment_plan_id": "uuid",
+    "projected_months_after": "numeric",
+    "source_stock_snapshot_id": "uuid",
+    "special_approval_required": "boolean"
+   }
+  },
+  {
+   "source_id": "core.replenishment_plans",
+   "description": "replenishment plans แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "status": "text",
+    "locked_at": "timestamp with time zone",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "version_no": "integer",
+    "approved_at": "timestamp with time zone",
+    "plan_number": "text",
+    "cancelled_at": "timestamp with time zone",
+    "parent_plan_id": "uuid",
+    "response_due_at": "timestamp with time zone",
+    "week_start_date": "date",
+    "origin_location_id": "text",
+    "cancellation_reason": "text",
+    "planner_approved_at": "timestamp with time zone",
+    "academic_approved_at": "timestamp with time zone",
+    "replenishment_run_id": "uuid",
+    "replenishment_plan_id": "uuid",
+    "district_responses_completed_at": "timestamp with time zone"
+   }
+  },
+  {
+   "source_id": "core.route_plan_vehicle_road_evidence",
+   "description": "route plan vehicle road evidence ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "has_toll": "boolean",
+    "created_at": "timestamp with time zone",
+    "captured_at": "timestamp with time zone",
+    "engine_name": "text",
+    "osm_changeset": "bigint",
+    "engine_version": "text",
+    "evidence_status": "text",
+    "road_distance_m": "bigint",
+    "road_duration_s": "bigint",
+    "route_matrix_id": "uuid",
+    "routing_profile": "text",
+    "tileset_version": "text",
+    "geometry_geojson": "jsonb",
+    "canonical_vehicle_id": "text",
+    "evidence_verified_at": "timestamp with time zone",
+    "ordered_waypoint_ids": "text[]",
+    "route_request_sha256": "text",
+    "transport_vehicle_id": "text",
+    "route_plan_vehicle_id": "uuid",
+    "route_response_sha256": "text",
+    "ordered_waypoint_count": "integer",
+    "availability_checked_at": "timestamp with time zone",
+    "availability_expires_at": "timestamp with time zone",
+    "tileset_last_modified_at": "timestamp with time zone",
+    "evidence_validator_version": "text",
+    "engine_status_response_sha256": "text",
+    "capacity_source_checksum_sha256": "text",
+    "availability_source_checksum_sha256": "text",
+    "vehicle_mapping_source_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "core.route_plan_vehicles",
+   "description": "route plan vehicles ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "pallets": "numeric",
+    "driver_id": "uuid",
+    "volume_m3": "numeric",
+    "weight_kg": "numeric",
+    "created_at": "timestamp with time zone",
+    "vehicle_id": "text",
+    "route_plan_id": "uuid",
+    "route_sequence": "integer",
+    "pallet_utilization": "numeric",
+    "planned_distance_m": "numeric",
+    "planned_duration_s": "numeric",
+    "volume_utilization": "numeric",
+    "weight_utilization": "numeric",
+    "route_plan_vehicle_id": "uuid"
+   }
+  },
+  {
+   "source_id": "core.route_plans",
+   "description": "route plans ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "approved_at": "timestamp with time zone",
+    "route_job_id": "uuid",
+    "route_plan_id": "uuid",
+    "solver_status": "text",
+    "route_matrix_id": "uuid",
+    "rejection_reason": "text",
+    "total_distance_m": "numeric",
+    "total_duration_s": "numeric",
+    "algorithm_version": "text",
+    "served_stop_count": "integer",
+    "unserved_stop_count": "integer"
+   }
+  },
+  {
+   "source_id": "core.route_stops",
+   "description": "route stops ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "eta": "timestamp with time zone",
+    "pallets": "numeric",
+    "latitude": "numeric(11,8)",
+    "longitude": "numeric(11,8)",
+    "volume_m3": "numeric",
+    "weight_kg": "numeric",
+    "created_at": "timestamp with time zone",
+    "district_id": "text",
+    "route_stop_id": "uuid",
+    "stop_sequence": "integer",
+    "service_minutes": "integer",
+    "route_plan_vehicle_id": "uuid",
+    "coordinate_verified_at": "timestamp with time zone",
+    "replenishment_item_ids": "uuid[]",
+    "coordinate_evidence_status": "text",
+    "coordinate_source_reference": "text",
+    "coordinate_source_row_number": "integer",
+    "coordinate_verification_ticket": "text",
+    "coordinate_source_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "core.route_unserved_stops",
+   "description": "route unserved stops ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "district_id": "text",
+    "reason_code": "text",
+    "reason_detail": "text",
+    "route_plan_id": "uuid",
+    "replenishment_item_ids": "uuid[]",
+    "route_unserved_stop_id": "uuid"
+   }
+  },
+  {
+   "source_id": "core.stock_snapshots",
+   "description": "stock snapshots สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "data_class": "text",
+    "location_id": "text",
+    "material_id": "text",
+    "snapshot_at": "timestamp with time zone",
+    "snapshot_id": "uuid",
+    "source_quality": "text",
+    "source_batch_id": "uuid",
+    "quantity_on_hand": "numeric"
+   }
+  },
+  {
+   "source_id": "core.transport_district_geo",
+   "description": "transport district geo เขต พื้นที่ รหัส ชื่อ นวลจันทร์",
+   "columns": {
+    "map_x": "integer",
+    "map_y": "integer",
+    "name_en": "text",
+    "name_th": "text",
+    "latitude": "numeric(11,8)",
+    "longitude": "numeric(11,8)",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "district_id": "text",
+    "verified_at": "timestamp with time zone",
+    "district_ref": "text",
+    "is_warehouse": "boolean",
+    "geocode_status": "text",
+    "quarantined_at": "timestamp with time zone",
+    "warehouse_code": "text",
+    "accuracy_meters": "numeric",
+    "source_reference": "text",
+    "candidate_payload": "jsonb",
+    "coordinate_source": "text",
+    "quarantine_reason": "text",
+    "source_row_number": "integer",
+    "candidate_provider": "text",
+    "candidate_confidence": "numeric",
+    "candidate_external_id": "text",
+    "candidate_observed_at": "timestamp with time zone",
+    "source_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "core.transport_route_legs",
+   "description": "transport route legs ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "toll_thb": "numeric",
+    "distance_km": "numeric",
+    "district_ref": "text",
+    "travel_minutes": "integer",
+    "warehouse_code": "text",
+    "unload_fixed_min": "integer",
+    "unload_per_pallet_min": "integer"
+   }
+  },
+  {
+   "source_id": "core.transport_toll_tariffs",
+   "description": "transport toll tariffs ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "valid_to": "date",
+    "road_name": "text",
+    "amount_thb": "numeric(12,2)",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "valid_from": "date",
+    "verified_at": "timestamp with time zone",
+    "currency_code": "text",
+    "operator_name": "text",
+    "vehicle_class": "text",
+    "tariff_version": "text",
+    "toll_tariff_id": "uuid",
+    "exit_plaza_name": "text",
+    "toll_plaza_name": "text",
+    "entry_plaza_name": "text",
+    "source_reference": "text"
+   }
+  },
+  {
+   "source_id": "core.transport_vehicles",
+   "description": "transport vehicles ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "color": "text",
+    "plate": "text",
+    "is_active": "boolean",
+    "asset_code": "text",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "vehicle_id": "text",
+    "color_light": "text",
+    "driver_name": "text",
+    "loan_status": "text",
+    "max_pallets": "numeric",
+    "vehicle_type": "text",
+    "max_volume_m3": "numeric",
+    "max_weight_kg": "numeric",
+    "home_warehouse": "text",
+    "storage_location": "text",
+    "current_warehouse": "text",
+    "fuel_rate_km_per_l": "numeric",
+    "canonical_vehicle_id": "text",
+    "capacity_verified_at": "timestamp with time zone",
+    "fuel_price_thb_per_l": "numeric",
+    "vehicle_mapping_status": "text",
+    "availability_checked_at": "timestamp with time zone",
+    "availability_expires_at": "timestamp with time zone",
+    "capacity_evidence_status": "text",
+    "capacity_source_reference": "text",
+    "capacity_source_row_number": "integer",
+    "vehicle_mapping_verified_at": "timestamp with time zone",
+    "availability_evidence_status": "text",
+    "capacity_verification_ticket": "text",
+    "availability_source_reference": "text",
+    "availability_source_row_number": "integer",
+    "capacity_source_checksum_sha256": "text",
+    "vehicle_mapping_approval_ticket": "text",
+    "availability_verification_ticket": "text",
+    "vehicle_mapping_source_reference": "text",
+    "vehicle_mapping_source_row_number": "integer",
+    "availability_source_checksum_sha256": "text",
+    "vehicle_mapping_source_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "core.transport_warehouses",
+   "description": "transport warehouses ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "name_th": "text",
+    "is_active": "boolean",
+    "created_at": "timestamp with time zone",
+    "warehouse_code": "text",
+    "canonical_warehouse_id": "text"
+   }
+  },
+  {
+   "source_id": "core.usage_rates",
+   "description": "usage rates อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "avg_4m": "numeric",
+    "avg_6m": "numeric",
+    "avg_ly": "numeric",
+    "avg_12m": "numeric",
+    "as_of_date": "date",
+    "created_at": "timestamp with time zone",
+    "data_class": "text",
+    "updated_at": "timestamp with time zone",
+    "cmp_monthly": "numeric",
+    "district_id": "text",
+    "material_id": "text",
+    "usage_rate_id": "uuid",
+    "source_quality": "text",
+    "source_batch_id": "uuid"
+   }
+  },
+  {
+   "source_id": "core.vehicles",
+   "description": "vehicles ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "is_active": "boolean",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "vehicle_id": "text",
+    "max_pallets": "numeric",
+    "vehicle_name": "text",
+    "max_volume_m3": "numeric",
+    "max_weight_kg": "numeric",
+    "home_location_id": "text",
+    "source_reference": "text"
+   }
+  },
+  {
+   "source_id": "core.vendor_aliases",
+   "description": "vendor aliases สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "vendor_id": "bigint",
+    "alias_name": "text",
+    "created_at": "timestamp with time zone",
+    "vendor_alias_id": "uuid",
+    "normalized_alias": "text",
+    "source_reference": "text"
+   }
+  },
+  {
+   "source_id": "core.vendors",
+   "description": "vendors สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "is_active": "boolean",
+    "vendor_id": "bigint",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "vendor_name": "text",
+    "normalized_name": "text"
+   }
+  },
+  {
+   "source_id": "core.warehouses",
+   "description": "warehouses คลัง ที่ตั้ง สถานที่",
+   "columns": {
+    "is_active": "boolean",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "warehouse_id": "text",
+    "sap_plant_code": "text",
+    "storage_location": "text",
+    "warehouse_name_th": "text"
+   }
+  },
+  {
+   "source_id": "ops.actual_workbook_imports",
+   "description": "actual workbook imports ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "started_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "change_ticket": "text",
+    "error_message": "text",
+    "source_counts": "jsonb",
+    "stock_checksum": "text",
+    "usage_checksum": "text",
+    "attestation_text": "text",
+    "contract_checksum": "text",
+    "observation_counts": "jsonb",
+    "warehouse_checksum": "text",
+    "actual_workbook_import_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.ad_hoc_issues",
+   "description": "ad hoc issues ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "reason": "text",
+    "status": "text",
+    "issued_at": "timestamp with time zone",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "approved_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "issue_number": "text",
+    "requested_at": "timestamp with time zone",
+    "approval_note": "text",
+    "requested_qty": "numeric",
+    "requester_name": "text",
+    "ad_hoc_issue_id": "uuid",
+    "idempotency_key": "text"
+   }
+  },
+  {
+   "source_id": "ops.background_jobs",
+   "description": "background jobs ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "job_id": "uuid",
+    "result": "jsonb",
+    "status": "text",
+    "payload": "jsonb",
+    "job_type": "text",
+    "locked_at": "timestamp with time zone",
+    "created_at": "timestamp with time zone",
+    "started_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "available_at": "timestamp with time zone",
+    "max_attempts": "integer",
+    "attempt_count": "integer",
+    "error_message": "text"
+   }
+  },
+  {
+   "source_id": "ops.backup_runs",
+   "description": "backup runs ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "size_bytes": "bigint",
+    "started_at": "timestamp with time zone",
+    "backup_type": "text",
+    "finished_at": "timestamp with time zone",
+    "backup_run_id": "uuid",
+    "error_message": "text",
+    "checksum_sha256": "text",
+    "artifact_reference": "text",
+    "validation_details": "jsonb"
+   }
+  },
+  {
+   "source_id": "ops.calculation_policies",
+   "description": "calculation policies ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "is_active": "boolean",
+    "created_at": "timestamp with time zone",
+    "parameters": "jsonb",
+    "updated_at": "timestamp with time zone",
+    "policy_name": "text",
+    "policy_version": "text",
+    "source_reference": "text"
+   }
+  },
+  {
+   "source_id": "ops.data_quality_issues",
+   "description": "data quality issues ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "batch_id": "uuid",
+    "issue_id": "bigint",
+    "raw_value": "text",
+    "rule_code": "text",
+    "created_at": "timestamp with time zone",
+    "field_name": "text",
+    "issue_message": "text",
+    "source_entity": "text",
+    "source_row_id": "bigint",
+    "source_row_number": "integer"
+   }
+  },
+  {
+   "source_id": "ops.data_quality_rules",
+   "description": "data quality rules ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "severity": "text",
+    "is_active": "boolean",
+    "rule_code": "text",
+    "created_at": "timestamp with time zone",
+    "field_name": "text",
+    "updated_at": "timestamp with time zone",
+    "description": "text",
+    "source_entity": "text"
+   }
+  },
+  {
+   "source_id": "ops.district_change_requests",
+   "description": "district change requests เขต พื้นที่ รหัส ชื่อ นวลจันทร์",
+   "columns": {
+    "reason": "text",
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "risk_level": "text",
+    "updated_at": "timestamp with time zone",
+    "review_note": "text",
+    "reviewed_at": "timestamp with time zone",
+    "baseline_qty": "numeric",
+    "requested_at": "timestamp with time zone",
+    "requested_qty": "numeric",
+    "requester_name": "text",
+    "abnormal_signals": "jsonb",
+    "change_request_id": "uuid",
+    "exceeds_six_months": "boolean",
+    "replenishment_item_id": "uuid",
+    "projected_months_after": "numeric",
+    "special_approval_required": "boolean"
+   }
+  },
+  {
+   "source_id": "ops.environment_controls",
+   "description": "environment controls ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "singleton": "boolean",
+    "updated_at": "timestamp with time zone",
+    "change_ticket": "text",
+    "configured_at": "timestamp with time zone",
+    "operational_writes_enabled": "boolean"
+   }
+  },
+  {
+   "source_id": "ops.environment_cutovers",
+   "description": "environment cutovers ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "cutover_id": "bigint",
+    "event_type": "text",
+    "executed_at": "timestamp with time zone",
+    "project_ref": "text",
+    "change_ticket": "text",
+    "environment_name": "text",
+    "readiness_snapshot": "jsonb"
+   }
+  },
+  {
+   "source_id": "ops.environment_registry",
+   "description": "environment registry ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "notes": "text",
+    "region": "text",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "project_ref": "text",
+    "environment_name": "text",
+    "deployment_profile": "text"
+   }
+  },
+  {
+   "source_id": "ops.fifo_allocations",
+   "description": "fifo allocations สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "status": "text",
+    "issued_at": "timestamp with time zone",
+    "released_at": "timestamp with time zone",
+    "reserved_at": "timestamp with time zone",
+    "allocated_qty": "numeric",
+    "release_reason": "text",
+    "ad_hoc_issue_id": "uuid",
+    "handling_unit_id": "uuid",
+    "fifo_allocation_id": "uuid",
+    "allocation_sequence": "integer",
+    "replenishment_item_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.fifo_opening_publications",
+   "description": "fifo opening publications สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "plant": "text",
+    "updated_at": "timestamp with time zone",
+    "published_at": "timestamp with time zone",
+    "publication_id": "uuid",
+    "opening_quantity": "numeric",
+    "source_reference": "text",
+    "storage_location": "text",
+    "handling_unit_count": "integer",
+    "packaging_profile_count": "integer"
+   }
+  },
+  {
+   "source_id": "ops.legacy_source_imports",
+   "description": "legacy source imports ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "batch_id": "uuid",
+    "metadata": "jsonb",
+    "source_key": "text",
+    "source_url": "text",
+    "started_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "loaded_rows": "integer",
+    "expected_rows": "integer",
+    "source_checksum": "text",
+    "source_observed_at": "timestamp with time zone"
+   }
+  },
+  {
+   "source_id": "ops.pipeline_runs",
+   "description": "pipeline runs ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "run_id": "uuid",
+    "status": "text",
+    "metrics": "jsonb",
+    "batch_id": "uuid",
+    "rows_read": "integer",
+    "created_at": "timestamp with time zone",
+    "started_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "rows_written": "integer",
+    "error_message": "text",
+    "pipeline_name": "text",
+    "rows_rejected": "integer"
+   }
+  },
+  {
+   "source_id": "ops.plan_approvals",
+   "description": "plan approvals แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "note": "text",
+    "acted_at": "timestamp with time zone",
+    "decision": "text",
+    "actor_role": "text",
+    "district_id": "text",
+    "approval_stage": "text",
+    "plan_approval_id": "uuid",
+    "replenishment_item_id": "uuid",
+    "replenishment_plan_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.production_completion_attestations",
+   "description": "production completion attestations ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "attested_at": "timestamp with time zone",
+    "project_ref": "text",
+    "change_ticket": "text",
+    "attestation_text": "text",
+    "environment_name": "text",
+    "zero_completion_policy": "text",
+    "actual_workbook_import_id": "uuid",
+    "owner_attested_stock_zero_count": "bigint",
+    "owner_attested_usage_zero_count": "bigint",
+    "production_completion_attestation_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.project_sheet_imports",
+   "description": "project sheet imports ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "started_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "source_path": "text",
+    "change_ticket": "text",
+    "promoted_counts": "jsonb",
+    "source_checksum": "text",
+    "attestation_text": "text",
+    "usage_artifact_id": "uuid",
+    "contract_artifact_id": "uuid",
+    "material_artifact_id": "uuid",
+    "source_downloaded_at": "timestamp with time zone",
+    "packaging_artifact_id": "uuid",
+    "source_spreadsheet_id": "text",
+    "project_sheet_import_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.quantity_recommendations",
+   "description": "quantity recommendations แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "method": "text",
+    "evidence": "jsonb",
+    "created_at": "timestamp with time zone",
+    "recommended_qty": "numeric",
+    "recommendation_id": "uuid",
+    "replenishment_item_id": "uuid",
+    "recommendation_version": "integer",
+    "source_freshness_status": "text"
+   }
+  },
+  {
+   "source_id": "ops.release_versions",
+   "description": "release versions ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "notes": "text",
+    "status": "text",
+    "git_sha": "text",
+    "created_at": "timestamp with time zone",
+    "deployed_at": "timestamp with time zone",
+    "rollback_of": "text",
+    "release_version": "text",
+    "deployment_profile": "text"
+   }
+  },
+  {
+   "source_id": "ops.replenishment_adjustments",
+   "description": "replenishment adjustments แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "new_qty": "numeric",
+    "adjusted_at": "timestamp with time zone",
+    "previous_qty": "numeric",
+    "adjustment_id": "uuid",
+    "adjustment_reason": "text",
+    "replenishment_item_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.replenishment_run_attempts",
+   "description": "replenishment run attempts แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "request_id": "text",
+    "completed_at": "timestamp with time zone",
+    "error_message": "text",
+    "attempt_status": "text",
+    "error_sqlstate": "text",
+    "result_snapshot": "jsonb",
+    "requested_cutoff_at": "timestamp with time zone",
+    "replenishment_run_id": "uuid",
+    "request_payload_hash": "text",
+    "replenishment_run_attempt_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.replenishment_run_inputs",
+   "description": "replenishment run inputs แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "captured_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "input_sha256": "text",
+    "input_payload": "jsonb",
+    "snapshot_cutoff_at": "timestamp with time zone",
+    "replenishment_run_id": "uuid",
+    "source_usage_rate_id": "uuid",
+    "replenishment_item_id": "uuid",
+    "replenishment_plan_id": "uuid",
+    "source_stock_snapshot_id": "uuid",
+    "replenishment_run_input_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.replenishment_runs",
+   "description": "replenishment runs แผนเติม แนะนำ ปริมาณ อนุมัติ ยืนยัน",
+   "columns": {
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "started_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "error_message": "text",
+    "policy_version": "text",
+    "candidate_count": "integer",
+    "usage_cutoff_date": "date",
+    "snapshot_cutoff_at": "timestamp with time zone",
+    "replenishment_run_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.route_jobs",
+   "description": "route jobs ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "job_id": "uuid",
+    "created_at": "timestamp with time zone",
+    "request_id": "text",
+    "route_job_id": "uuid",
+    "matrix_source": "text",
+    "forecast_run_id": "uuid",
+    "timeout_seconds": "integer",
+    "algorithm_version": "text",
+    "replenishment_plan_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.schema_migrations",
+   "description": "schema migrations ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "module": "text",
+    "version": "text",
+    "applied_at": "timestamp with time zone",
+    "description": "text",
+    "source_file": "text"
+   }
+  },
+  {
+   "source_id": "ops.service_heartbeats",
+   "description": "service heartbeats ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "details": "jsonb",
+    "updated_at": "timestamp with time zone",
+    "instance_id": "text",
+    "last_seen_at": "timestamp with time zone",
+    "service_name": "text",
+    "service_version": "text"
+   }
+  },
+  {
+   "source_id": "ops.source_attestations",
+   "description": "source attestations ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "attested_at": "timestamp with time zone",
+    "change_ticket": "text",
+    "attestation_id": "uuid",
+    "source_checksum": "text",
+    "attestation_text": "text",
+    "asserted_data_class": "text",
+    "original_data_class": "text"
+   }
+  },
+  {
+   "source_id": "ops.source_promotions",
+   "description": "source promotions ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "created_at": "timestamp with time zone",
+    "started_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "promotion_id": "uuid",
+    "attestation_id": "uuid",
+    "stock_promoted": "integer",
+    "usage_promoted": "integer",
+    "dq_remediations": "integer",
+    "source_checksum": "text",
+    "materials_promoted": "integer",
+    "packaging_promoted": "integer",
+    "validation_details": "jsonb"
+   }
+  },
+  {
+   "source_id": "ops.system_alerts",
+   "description": "system alerts ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "details": "jsonb",
+    "message": "text",
+    "alert_id": "uuid",
+    "severity": "text",
+    "alert_type": "text",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "detected_at": "timestamp with time zone",
+    "resolved_at": "timestamp with time zone",
+    "source_type": "text",
+    "acknowledged_at": "timestamp with time zone",
+    "source_reference": "text"
+   }
+  },
+  {
+   "source_id": "ops.test_fixture_imports",
+   "description": "test fixture imports ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "batch_id": "uuid",
+    "metadata": "jsonb",
+    "source_key": "text",
+    "started_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "loaded_rows": "integer",
+    "skipped_rows": "integer",
+    "source_sheet": "text",
+    "expected_rows": "integer",
+    "promoted_rows": "integer",
+    "rolled_back_at": "timestamp with time zone",
+    "source_checksum": "text"
+   }
+  },
+  {
+   "source_id": "ops.test_fixture_material_overrides",
+   "description": "test fixture material overrides พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์",
+   "columns": {
+    "batch_id": "uuid",
+    "applied_at": "timestamp with time zone",
+    "material_id": "text",
+    "override_id": "bigint",
+    "applied_values": "jsonb",
+    "rolled_back_at": "timestamp with time zone",
+    "previous_values": "jsonb"
+   }
+  },
+  {
+   "source_id": "ops.transport_trip_events",
+   "description": "transport trip events ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "trip_id": "uuid",
+    "to_status": "text",
+    "request_id": "text",
+    "from_status": "text",
+    "occurred_at": "timestamp with time zone",
+    "result_snapshot": "jsonb",
+    "request_payload_hash": "text",
+    "transport_trip_event_id": "uuid"
+   }
+  },
+  {
+   "source_id": "ops.transport_trips",
+   "description": "transport trips ขนส่ง เส้นทาง รถ คนขับ เที่ยว ค่าขนส่ง",
+   "columns": {
+    "notes": "text",
+    "status": "text",
+    "trip_id": "uuid",
+    "trip_code": "text",
+    "trip_date": "date",
+    "batch_code": "text",
+    "created_at": "timestamp with time zone",
+    "request_id": "text",
+    "updated_at": "timestamp with time zone",
+    "vehicle_id": "text",
+    "depart_time": "text",
+    "driver_name": "text",
+    "return_time": "text",
+    "max_weight_kg": "numeric",
+    "total_toll_thb": "numeric",
+    "warehouse_code": "text",
+    "total_distance_km": "numeric",
+    "route_district_refs": "text[]",
+    "fuel_cost_actual_thb": "numeric",
+    "request_payload_hash": "text",
+    "road_evidence_source": "text",
+    "road_evidence_status": "text",
+    "total_travel_minutes": "integer",
+    "replenishment_plan_id": "uuid",
+    "fuel_cost_estimate_thb": "numeric",
+    "road_evidence_verified_at": "timestamp with time zone",
+    "road_evidence_change_ticket": "text",
+    "road_evidence_checksum_sha256": "text"
+   }
+  },
+  {
+   "source_id": "ops.web_input_submissions",
+   "description": "web input submissions ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "batch_id": "uuid",
+    "created_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "source_note": "text",
+    "submission_id": "uuid",
+    "usage_rate_id": "uuid",
+    "input_month_count": "integer",
+    "stock_snapshot_id": "uuid",
+    "replenishment_run_id": "uuid"
+   }
+  },
+  {
+   "source_id": "public.contracts",
+   "description": "contracts สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "id": "bigint",
+    "unit": "text",
+    "vendor": "text",
+    "end_date": "date",
+    "metadata": "jsonb",
+    "quantity": "numeric",
+    "line_item": "integer",
+    "created_at": "timestamp with time zone",
+    "start_date": "date",
+    "updated_at": "timestamp with time zone",
+    "record_date": "date",
+    "source_file": "text",
+    "source_sheet": "text",
+    "bid_open_date": "date",
+    "delivery_date": "date",
+    "document_date": "date",
+    "material_code": "text",
+    "purchase_order": "bigint",
+    "acceptance_date": "date",
+    "contract_number": "text",
+    "source_batch_id": "uuid",
+    "source_checksum": "text",
+    "item_description": "text",
+    "procurement_code": "text",
+    "source_row_number": "integer"
+   }
+  },
+  {
+   "source_id": "raw.import_batches",
+   "description": "import batches ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "status": "text",
+    "batch_id": "uuid",
+    "metadata": "jsonb",
+    "row_count": "integer",
+    "created_at": "timestamp with time zone",
+    "started_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "finished_at": "timestamp with time zone",
+    "imported_at": "timestamp with time zone",
+    "source_file": "text",
+    "source_sheet": "text",
+    "error_message": "text",
+    "source_entity": "text",
+    "source_system": "text",
+    "connector_name": "text",
+    "source_checksum": "text",
+    "source_file_size_bytes": "bigint"
+   }
+  },
+  {
+   "source_id": "raw.source_rows",
+   "description": "source rows ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "payload": "jsonb",
+    "batch_id": "uuid",
+    "row_hash": "text",
+    "ingested_at": "timestamp with time zone",
+    "source_sheet": "text",
+    "source_entity": "text",
+    "source_row_id": "bigint",
+    "source_row_number": "integer"
+   }
+  },
+  {
+   "source_id": "reference_data.material_packaging_evidence",
+   "description": "material packaging evidence พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "material_id": "text",
+    "verified_at": "timestamp with time zone",
+    "quantity_uom": "text",
+    "box_volume_m3": "numeric",
+    "change_ticket": "text",
+    "source_row_id": "bigint",
+    "source_checksum": "text",
+    "boxes_per_pallet": "numeric",
+    "pallet_volume_m3": "numeric",
+    "pallet_weight_kg": "numeric",
+    "quantity_per_box": "numeric",
+    "raw_source_row_id": "bigint",
+    "source_row_number": "integer",
+    "weight_per_box_kg": "numeric",
+    "source_artifact_id": "uuid",
+    "project_sheet_import_id": "uuid",
+    "material_packaging_evidence_id": "bigint"
+   }
+  },
+  {
+   "source_id": "reference_data.opening_balance_handling_unit_evidence",
+   "description": "opening balance handling unit evidence สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "material_id": "text",
+    "verified_at": "timestamp with time zone",
+    "attestation_text": "text",
+    "contract_item_id": "bigint",
+    "handling_unit_id": "uuid",
+    "stock_snapshot_id": "uuid",
+    "verification_ticket": "text",
+    "reconciliation_basis": "text",
+    "contract_source_row_id": "bigint",
+    "opening_balance_evidence_id": "bigint",
+    "stock_observation_evidence_id": "bigint"
+   }
+  },
+  {
+   "source_id": "reference_data.relation_edges",
+   "description": "relation edges ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "evidence": "jsonb",
+    "created_at": "timestamp with time zone",
+    "relation_type": "text",
+    "source_row_id": "bigint",
+    "target_row_id": "bigint",
+    "relation_edge_id": "bigint"
+   }
+  },
+  {
+   "source_id": "reference_data.source_artifacts",
+   "description": "source artifacts ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "metadata": "jsonb",
+    "created_at": "timestamp with time zone",
+    "data_class": "text",
+    "updated_at": "timestamp with time zone",
+    "artifact_id": "uuid",
+    "source_path": "text",
+    "source_sheet": "text",
+    "expected_rows": "integer",
+    "source_checksum": "text",
+    "source_file_size_bytes": "bigint"
+   }
+  },
+  {
+   "source_id": "reference_data.source_rows",
+   "description": "source rows ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "payload": "jsonb",
+    "plan_ref": "text",
+    "row_hash": "text",
+    "trip_ref": "text",
+    "batch_ref": "text",
+    "route_ref": "text",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "artifact_id": "uuid",
+    "district_id": "text",
+    "material_id": "text",
+    "natural_key": "text",
+    "vehicle_ref": "text",
+    "contract_ref": "text",
+    "warehouse_id": "text",
+    "source_row_id": "bigint",
+    "source_row_number": "integer"
+   }
+  },
+  {
+   "source_id": "reference_data.stock_observation_evidence",
+   "description": "stock observation evidence สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "verified_at": "timestamp with time zone",
+    "change_ticket": "text",
+    "source_row_id": "bigint",
+    "evidence_basis": "text",
+    "source_checksum": "text",
+    "aggregation_rule": "text",
+    "aggregation_scope": "text",
+    "observed_quantity": "numeric",
+    "raw_source_row_id": "bigint",
+    "stock_snapshot_id": "uuid",
+    "source_artifact_id": "uuid",
+    "verification_status": "text",
+    "actual_workbook_import_id": "uuid",
+    "stock_observation_evidence_id": "bigint"
+   }
+  },
+  {
+   "source_id": "reference_data.usage_observation_evidence",
+   "description": "usage observation evidence อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "verified_at": "timestamp with time zone",
+    "change_ticket": "text",
+    "source_row_id": "bigint",
+    "usage_rate_id": "uuid",
+    "evidence_basis": "text",
+    "source_checksum": "text",
+    "raw_source_row_id": "bigint",
+    "source_artifact_id": "uuid",
+    "verification_status": "text",
+    "normalized_dash_count": "integer",
+    "project_sheet_import_id": "uuid",
+    "actual_workbook_import_id": "uuid",
+    "excluded_negative_month_count": "integer",
+    "usage_observation_evidence_id": "bigint"
+   }
+  },
+  {
+   "source_id": "staging.actual_stock_rows",
+   "description": "actual stock rows สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "batch_id": "uuid",
+    "base_unit": "text",
+    "loaded_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "snapshot_at": "timestamp with time zone",
+    "warehouse_id": "text",
+    "material_name": "text",
+    "source_row_id": "bigint",
+    "sap_plant_code": "text",
+    "unrestricted_qty": "numeric",
+    "source_row_number": "integer",
+    "validation_status": "text",
+    "unrestricted_value": "numeric",
+    "validation_messages": "jsonb",
+    "source_material_code": "text",
+    "stock_in_transfer_qty": "numeric",
+    "storage_location_code": "text",
+    "reference_source_row_id": "bigint"
+   }
+  },
+  {
+   "source_id": "staging.actual_usage_rows",
+   "description": "actual usage rows อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "avg_4m": "numeric",
+    "avg_6m": "numeric",
+    "avg_ly": "numeric",
+    "avg_12m": "numeric",
+    "batch_id": "uuid",
+    "loaded_at": "timestamp with time zone",
+    "as_of_date": "date",
+    "avg_4m_raw": "numeric",
+    "avg_6m_raw": "numeric",
+    "avg_ly_raw": "numeric",
+    "avg_12m_raw": "numeric",
+    "cmp_monthly": "numeric",
+    "district_id": "text",
+    "material_id": "text",
+    "source_row_id": "bigint",
+    "sap_plant_code": "text",
+    "cmp_monthly_raw": "numeric",
+    "dash_cell_count": "integer",
+    "monthly_history": "jsonb",
+    "source_row_number": "integer",
+    "validation_status": "text",
+    "calculated_cmp_raw": "numeric",
+    "validation_messages": "jsonb",
+    "negative_month_count": "integer",
+    "reference_source_row_id": "bigint"
+   }
+  },
+  {
+   "source_id": "staging.actual_vmi_district_values",
+   "description": "actual vmi district values เขต พื้นที่ รหัส ชื่อ นวลจันทร์",
+   "columns": {
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "source_date": "date",
+    "max_fill_qty": "numeric",
+    "min_fill_qty": "numeric",
+    "max_target_qty": "numeric",
+    "sap_plant_code": "text",
+    "source_observed": "boolean",
+    "months_available": "numeric",
+    "reference_3m_qty": "numeric",
+    "derived_stock_qty": "numeric",
+    "derived_cmp_monthly": "numeric",
+    "reference_source_row_id": "bigint"
+   }
+  },
+  {
+   "source_id": "staging.contract_rows",
+   "description": "contract rows สัญญา PO จัดซื้อ ผู้ขาย ส่งมอบ",
+   "columns": {
+    "unit": "text",
+    "vendor": "text",
+    "batch_id": "uuid",
+    "end_date": "date",
+    "quantity": "numeric",
+    "row_hash": "text",
+    "line_item": "integer",
+    "loaded_at": "timestamp with time zone",
+    "start_date": "date",
+    "record_date": "date",
+    "contract_key": "text",
+    "bid_open_date": "date",
+    "delivery_date": "date",
+    "document_date": "date",
+    "material_code": "text",
+    "source_row_id": "bigint",
+    "purchase_order": "bigint",
+    "acceptance_date": "date",
+    "contract_number": "text",
+    "item_description": "text",
+    "procurement_code": "text",
+    "source_row_number": "integer",
+    "validation_status": "text",
+    "validation_messages": "jsonb"
+   }
+  },
+  {
+   "source_id": "staging.legacy_material_rows",
+   "description": "legacy material rows พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์",
+   "columns": {
+    "unit": "text",
+    "batch_id": "uuid",
+    "loaded_at": "timestamp with time zone",
+    "material_id": "text",
+    "material_name": "text",
+    "source_row_id": "bigint",
+    "source_row_number": "integer",
+    "validation_status": "text"
+   }
+  },
+  {
+   "source_id": "staging.legacy_stock_rows",
+   "description": "legacy stock rows สต็อก คงเหลือ คลัง รับ จ่าย เคลื่อนไหว ประวัติ",
+   "columns": {
+    "batch_id": "uuid",
+    "loaded_at": "timestamp with time zone",
+    "location_id": "text",
+    "material_id": "text",
+    "snapshot_at": "timestamp with time zone",
+    "source_row_id": "bigint",
+    "quantity_on_hand": "numeric",
+    "source_row_number": "integer",
+    "validation_status": "text"
+   }
+  },
+  {
+   "source_id": "staging.legacy_usage_rows",
+   "description": "legacy usage rows อัตราใช้ CMP พยากรณ์ รายเดือน ย้อนหลัง",
+   "columns": {
+    "avg_4m": "numeric",
+    "avg_6m": "numeric",
+    "avg_ly": "numeric",
+    "avg_12m": "numeric",
+    "history": "jsonb",
+    "batch_id": "uuid",
+    "loaded_at": "timestamp with time zone",
+    "as_of_date": "date",
+    "cmp_monthly": "numeric",
+    "district_id": "text",
+    "material_id": "text",
+    "source_row_id": "bigint",
+    "sap_plant_code": "text",
+    "source_row_number": "integer",
+    "validation_status": "text"
+   }
+  },
+  {
+   "source_id": "staging.material_rows",
+   "description": "material rows พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์",
+   "columns": {
+    "moq": "numeric",
+    "unit": "text",
+    "batch_id": "uuid",
+    "category": "text",
+    "lot_size": "numeric",
+    "row_hash": "text",
+    "loaded_at": "timestamp with time zone",
+    "material_id": "text",
+    "material_name": "text",
+    "source_row_id": "bigint",
+    "sap_material_id": "text",
+    "source_row_number": "integer",
+    "validation_status": "text",
+    "weight_per_unit_kg": "numeric",
+    "validation_messages": "jsonb"
+   }
+  },
+  {
+   "source_id": "staging.sap_plant_district_map",
+   "description": "sap plant district map เขต พื้นที่ รหัส ชื่อ นวลจันทร์",
+   "columns": {
+    "is_active": "boolean",
+    "created_at": "timestamp with time zone",
+    "updated_at": "timestamp with time zone",
+    "district_id": "text",
+    "sap_plant_code": "text",
+    "district_name_th": "text"
+   }
+  },
+  {
+   "source_id": "staging.vmi_input_rows",
+   "description": "vmi input rows ข้อมูลระบบ นำเข้า คุณภาพ หลักฐาน",
+   "columns": {
+    "batch_id": "uuid",
+    "quantity": "numeric",
+    "created_at": "timestamp with time zone",
+    "district_id": "text",
+    "material_id": "text",
+    "observed_at": "timestamp with time zone",
+    "record_type": "text",
+    "period_start": "date",
+    "source_row_id": "bigint",
+    "vmi_input_row_id": "bigint",
+    "validation_status": "text"
+   }
+  }
+ ]
+}

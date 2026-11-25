@@ -144,11 +144,40 @@ async function chatAttempt(c) {
     trace: forReport(await Promise.all(trace), c.pii) };
 }
 
+// source-ranking sets: only discover_database's source ranking, on the set's own catalog snapshot, with the provider
+// call runChat makes (masked when the checkout masks). A case hits when a source in `expect` is in the top 6.
+async function rankAttempt(c) {
+  const [{ retrieveDatabase }, { fetchProvider }, masking] = await Promise.all(
+    ['chat/retrieval.mjs', 'chat/embedding.mjs', ...(masked ? ['chat/masking.mjs'] : [])].map(load));
+  const masker = masking?.createMasker(fixtureDatabase({ role: 'admin', after }).terms);
+  const trace = [];
+  const fetcher = traced(trace, fetch);
+  const stats = { modelCalls: 0, totalTokens: 0 };
+  const generate = async body => {
+    const response = await fetchProvider(config.apiUrl, { method: 'POST', headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(openRouterRequest(masker ? masker.maskBody(body) : body, config.model)), redirect: 'error', signal: AbortSignal.timeout(config.timeoutMs) },
+    async (input, init) => { stats.modelCalls++; return fetcher(input, init); });
+    const payload = openRouterResponse(await response.json());
+    if (Number.isSafeInteger(payload?.usageMetadata?.totalTokenCount)) stats.totalTokens += payload.usageMetadata.totalTokenCount;
+    return masker ? masker.restore(payload) : payload;
+  };
+  const started = Date.now();
+  let ranked; let error;
+  try {
+    ranked = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: c.search } }, question: c.question, topK: 6, generate,
+      rpc: async () => ({ status: 'ok', tool: 'discover_database', data: set.catalog, scope: { role: 'admin', district_id: null } }) });
+  } catch (e) { error = e instanceof Error ? e.message : 'unknown_error'; }
+  const picked = (ranked?.data ?? []).map(source => source.source_id);
+  const rank = picked.findIndex(id => c.expect.includes(id));
+  return { id: c.id, hit: !error && rank >= 0, rank, picked, error, ranking: ranked?.retrieval?.status, candidates: ranked?.retrieval?.candidate_count,
+    model_calls: stats.modelCalls, tokens: stats.totalTokens, seconds: Math.round((Date.now() - started) / 100) / 10, trace: await Promise.all(trace) };
+}
+
 // A provider answering 5xx or 429 measures its availability, not the answers: the case runs again.
 const unavailable = trace => trace.some(t => t.status === 429 || t.status >= 500);
 async function chatCase(c) {
   for (let attempt = 1; ; attempt++) {
-    const result = await chatAttempt(c);
+    const result = await (set.kind === 'source-ranking' ? rankAttempt : chatAttempt)(c);
     if (!unavailable(result.trace) || attempt === 3) return { ...result, attempts: attempt };
     await new Promise(resolve => setTimeout(resolve, 30_000 * attempt));
   }
@@ -192,7 +221,10 @@ if (set.name === 'alerts-replay-v1') Object.assign(report, await alertRun());
 else {
   const cases = set.cases.filter(c => !opts.only || opts.only.split(',').includes(c.id));
   report.cases = await pool(cases, Number(opts.concurrency), chatCase);
-  report.leaks = report.cases.reduce((total, c) => total + leakCount(c.leaks), 0);
+  if (set.kind === 'source-ranking') {
+    report.hit_rate = report.cases.filter(c => c.hit).length / report.cases.length;
+    report.top1_rate = report.cases.filter(c => c.hit && c.rank === 0).length / report.cases.length;
+  } else report.leaks = report.cases.reduce((total, c) => total + leakCount(c.leaks), 0);
   report.unavailable = report.cases.filter(c => unavailable(c.trace)).length;
   if (set.name === 'chat-heldout-v1') report.grounded = report.cases.filter(c => c.grounded).length / report.cases.length;
 }
@@ -203,9 +235,11 @@ const baseline = opts.baseline ? JSON.parse(await readFile(opts.baseline, 'utf8'
 const rate = r => r.attempted ? r.analyzed / r.attempted : 0;
 report.gate = Object.fromEntries(Object.entries({
   grounded_min: set.pass.grounded_min !== undefined ? report.grounded >= set.pass.grounded_min : undefined,
+  hit_rate_min: set.pass.hit_rate_min !== undefined ? report.hit_rate >= set.pass.hit_rate_min : undefined,
   leaks_max: set.pass.leaks_max !== undefined ? (report.leak_total ?? report.leaks) <= set.pass.leaks_max : undefined,
   no_worse_than_baseline: set.pass.no_worse_than_baseline && baseline
-    ? (set.name === 'alerts-replay-v1' ? rate(report) >= rate(baseline) : report.grounded >= baseline.grounded) : undefined,
+    ? (set.name === 'alerts-replay-v1' ? rate(report) >= rate(baseline)
+      : set.kind === 'source-ranking' ? report.hit_rate >= baseline.hit_rate : report.grounded >= baseline.grounded) : undefined,
 }).filter(([, value]) => value !== undefined));
 
 await mkdir(opts.out, { recursive: true });
@@ -213,7 +247,11 @@ const file = join(opts.out, `${set.name}--${version.replace(/[^\w.@+-]/g, '_')}.
 await writeFile(file, `${JSON.stringify(report, null, 2)}\n`);
 const pct = x => `${Math.round(x * 1000) / 10}%`;
 console.log(`${set.name} [lock ${lock}] ${version} model=${config.model} masked=${masked} catalog=${report.catalog}`);
-if (report.cases) {
+if (set.kind === 'source-ranking') {
+  for (const c of report.cases) console.log(`  ${c.hit ? `ok   rank=${c.rank}` : 'MISS      '} ${c.id}: ${c.error ?? `${c.ranking} candidates=${c.candidates}`}` +
+    ` calls=${c.model_calls} ${c.seconds}s${c.hit ? '' : ` picked=${c.picked.join(',')}`}`);
+  console.log(`  cases=${report.cases.length} hit=${pct(report.hit_rate)} top1=${pct(report.top1_rate)} provider_unavailable=${report.unavailable}`);
+} else if (report.cases) {
   for (const c of report.cases) console.log(`  ${c.grounded === undefined ? '' : c.grounded ? 'ok   ' : 'MISS '}${c.id}: ${c.error ?? `${c.status}/${c.answer_mode}/${c.answer_validation}`}` +
     ` calls=${c.model_calls} ${c.seconds}s${leakCount(c.leaks) ? ` LEAKS ${JSON.stringify(c.leaks)}` : ''}`);
   const modes = report.cases.reduce((all, c) => ({ ...all, [c.answer_validation ?? c.error ?? 'none']: (all[c.answer_validation ?? c.error ?? 'none'] ?? 0) + 1 }), {});

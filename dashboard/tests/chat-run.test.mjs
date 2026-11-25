@@ -235,3 +235,66 @@ test('a Thai search term reaches the database as words so their order does not m
   await runChat({ message: 'หม้อแปลงไฟฟ้า 250kVA 3 เฟส', config, terms, fetcher, rpc, signal: new AbortController().signal });
   assert.deepEqual(searched, ['หม้อแปลง ไฟฟ้า 250 kVA 3 เฟส']);
 });
+
+// Catalog descriptions come from one keyword set per category, so the ranker can pick a source that lacks a column.
+const alike = 'พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์';
+const twins = [
+  { source_id: 'core.material_packaging', description: `material packaging ${alike}`, columns: { material_id: 'text', quantity_per_box: 'numeric' } },
+  { source_id: 'core.materials', description: `materials ${alike}`, columns: { material_id: 'text', material_name: 'text' } },
+];
+async function rejectedColumns(columns) {
+  const { requests, fetcher } = provider(
+    ['discover_database', { query: 'เต้ารับคู่มีขั้วสายดิน' }], ['rank_candidates', { indices: [0, 1] }],
+    ['query_database', { ...query, source_id: 'core.material_packaging', columns, filters: [] }],
+    ['unsupported', { reason: 'ยังหาไม่ได้' }],
+  );
+  const rpc = async (name, args) => args.p_tool === 'discover_database'
+    ? { tool: 'discover_database', status: 'ok', data: twins } : { tool: 'query_database', status: 'invalid_input' };
+  await runChat({ message: 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  return JSON.parse(requests[3].messages.at(-1).content).problems;
+}
+
+test('a column the queried source lacks points to the discovered source that has it, or to discovering again', async () => {
+  const named = await rejectedColumns(['material_id', 'material_name']);
+  assert.ok(named.some(p => p.includes('material_name') && p.includes('core.materials')), 'names the source that has material_name');
+  const nowhere = await rejectedColumns(['material_id', 'material_colour']);
+  assert.ok(nowhere.some(p => p.includes('material_colour') && p.includes('discover_database')), 'no discovered source has it: search the catalog again');
+});
+
+async function noRows(filters, columns = { vehicle_id: 'text', max_weight_kg: 'numeric', vehicle_type: 'text' }) {
+  const asked = { ...query, source_id: 'core.transport_vehicles', columns: Object.keys(columns).slice(0, 2), filters,
+    order_column: 'max_weight_kg', order_direction: 'desc' };
+  const { requests, fetcher } = provider(
+    ['discover_database', { query: 'รถ บรรทุก' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', asked], ['unsupported', { reason: 'ยังหารถไม่ได้' }],
+  );
+  const rpc = async (name, args) => args.p_tool === 'discover_database'
+    ? { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.transport_vehicles', description: 'vehicles รถ', columns }] }
+    : { tool: 'query_database', status: 'no_data', source_id: 'core.transport_vehicles', data: [] };
+  await runChat({ message: 'รถคันไหนบรรทุกน้ำหนักได้มากที่สุด', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  return JSON.parse(requests[3].messages.at(-1).content);
+}
+
+test('no rows under a filter the question did not ask for names the filter that removed them', async () => {
+  const empty = await noRows([{ column: 'max_weight_kg', operator: 'is_null', value: null }]);
+  assert.equal(empty.status, 'no_data');
+  assert.ok(empty.hints.some(h => h.includes('max_weight_kg') && h.includes('is_null')));
+  const named = await noRows([{ column: 'vehicle_type', operator: 'eq', value: '10 ล้อ' }]);
+  assert.ok(named.hints.some(h => h.includes('vehicle_type') && /search|contains/.test(h)), 'eq must match every character; part of a name needs search or contains');
+});
+
+test('a run that recovered from a rejected query still gets its answer written and checked from what it read', async () => {
+  const { requests, fetcher } = provider(
+    ['discover_database', { query: 'เขต 5507' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', { ...query, columns: ['district_id', 'district_colour'] }], ['query_database', query], ['finish', {}],
+    ['write_answer', { answer: 'เขต 5507 คือเขตบางนา', evidence_ids: [1] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  const rpc = async (name, args) => args.p_tool === 'query_database' && args.p_args.columns.includes('district_colour')
+    ? { tool: 'query_database', status: 'invalid_input' } : districts(name, args);
+  const { result } = await runChat({ message: 'เขต 5507 คือเขตอะไร', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  assert.equal(result.answer_mode, 'synthesized');
+  assert.equal(result.answer, 'เขต 5507 คือเขตบางนา');
+  const written = JSON.parse(requests[5].messages.find(m => m.role === 'user').content);
+  assert.deepEqual(written.evidence.map(e => e.data.status), ['ok'], 'the writer sees what was read, not the rejected query');
+});

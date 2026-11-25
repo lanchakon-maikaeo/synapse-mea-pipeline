@@ -86,6 +86,47 @@ test('the source ranker sees what the user asked, not only the search the model 
   assert.equal(asked.search, 'มิเตอร์ไฟฟ้า 1 เฟส');
   assert.equal(asked.question, 'สต็อกมิเตอร์ไฟฟ้า 1 เฟสที่เขตบางกะปิตอนนี้เหลือเท่าไร');
 });
+// Catalog descriptions come from one keyword set per category, so sources of a category read alike (ADR 0002).
+const alike = 'พัสดุ วัสดุ สินค้า SKU หน่วย บรรจุภัณฑ์';
+const twins = [
+  { source_id: 'core.material_packaging', description: `material packaging ${alike}`,
+    columns: { material_id: 'text', quantity_per_box: 'numeric', created_at: 'timestamp with time zone', source_row_id: 'text' } },
+  { source_id: 'core.materials', description: `materials ${alike}`,
+    columns: { material_id: 'text', material_name: 'text', unit: 'text', updated_at: 'timestamp with time zone', source_batch_id: 'uuid' } },
+];
+test('the source ranker sees each source\'s columns, so sources described alike can be told apart', async () => {
+  let asked;
+  await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'เต้ารับคู่มีขั้วสายดิน' } },
+    question: 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร', topK: 1, rpc: async () => ({ status: 'ok', data: twins }),
+    generate: async body => { asked = JSON.parse(body.contents[0].parts[0].text); return call('rank_candidates', { indices: [1] }); } });
+  const seen = Object.fromEntries(asked.candidates.map(({ data }) => [data.source_id, JSON.stringify(data.columns ?? '')]));
+  assert.match(seen['core.materials'], /material_name/);
+  assert.match(seen['core.material_packaging'], /quantity_per_box/);
+  assert.doesNotMatch(Object.values(seen).join(' '), /created_at|updated_at|source_row_id|source_batch_id/, 'audit and lineage columns tell no source apart');
+});
+test('a source with more columns than the ranker is shown still shows the columns that name things', async () => {
+  // The catalog lists columns shortest name first; a cut by position would drop requester_name.
+  const columns = Object.fromEntries([...Array.from({ length: 20 }, (_, i) => [`qty_${i}`, 'numeric']), ['requester_name', 'text'], ['district_note', 'text']]);
+  let asked;
+  await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'ผู้ขอเติม' } }, question: 'ใครเป็นผู้ขอเติม', topK: 1,
+    rpc: async () => ({ status: 'ok', data: [{ source_id: 'analytics.v_replenishment_queue', description: 'แผนเติม', columns }] }),
+    generate: async body => { asked = JSON.parse(body.contents[0].parts[0].text); return call('rank_candidates', { indices: [0] }); } });
+  assert.match(JSON.stringify(asked.candidates[0].data.columns), /requester_name.*district_note|district_note.*requester_name/);
+});
+test('a catalog too large to rank with its columns is still ranked by name and description, not left in catalog order', async () => {
+  const columns = Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`descriptive_column_${i}_${'x'.repeat(24)}`, 'text']));
+  const big = Array.from({ length: 120 }, (_, i) => ({ source_id: `core.table_${i}`, description: 'ตาราง', columns }));
+  let asked;
+  const r = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'เต้ารับ' } }, question: 'เต้ารับ มีรหัสอะไร', topK: 1,
+    rpc: async () => ({ status: 'ok', data: big }),
+    generate: async body => {
+      asked = JSON.parse(body.contents[0].parts[0].text);
+      return call('rank_candidates', { indices: [asked.candidates.findIndex(({ data }) => data.source_id === 'core.table_7')] });
+    } });
+  assert.equal(r.retrieval.status, 'model_reranked');
+  assert.deepEqual(r.data.map(x => x.source_id), ['core.table_7']);
+  assert.ok(asked.candidates.every(({ data }) => data.columns === undefined));
+});
 test('discovery is not an answer: harness must execute the discovered source', async () => {
   const responses = [call('discover_database', { query: 'เขต 5501' }), call('query_database', plan), call('finish', {})];
   const r = await runAgent({ message: 'เขต 5501 คือเขตไหน', temperature: 0, scope: { role: 'admin' },

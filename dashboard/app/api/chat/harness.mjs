@@ -1,6 +1,6 @@
 import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, wantsSources, CONVERSATION_REPLIES, CHAT_TOOLS, annotateStockFreshness } from "./tools.mjs";
 
-export const HARNESS_VERSION = "v5";
+export const HARNESS_VERSION = "v6";
 export const MAX_READS = 6;
 // How many of the model's calls a run sends back with what was wrong before giving up on it.
 const MAX_CORRECTIONS = 2;
@@ -12,7 +12,7 @@ const CORRECTIONS = {
 // Greetings, thanks, goodbyes and questions about the assistant itself; anything else asks for data.
 const CONVERSATIONAL = /สวัสดี|หวัดดี|ขอบคุณ|ขอบใจ|ลาก่อน|บ๊?าย|ไว้คุยกัน|ช่วยอะไร|ทำอะไรได้|ความสามารถ|ใช้งาน(อย่างไร|ยังไง)|คุณ(คือ|เป็น)ใคร|\b(hello|hi|hey|thanks?|thank you|thx|bye|goodbye)\b/i;
 const SEARCH_FIRST = "ข้อความนี้ถามข้อมูลในระบบ ไม่ใช่คำทักทาย ขอบคุณ ลา หรือถามความสามารถ ให้ค้นด้วย discover_database หรือเครื่องมืออ่านข้อมูลก่อนตอบ";
-const REPEATED_CALL = "เรียก function นี้ด้วย argument เดิมไปแล้ว ผลอยู่ด้านบนและจะไม่เปลี่ยน: ถ้าข้อมูลพอให้ finish; ถ้าผลเป็น invalid_input ให้แก้ตาม problems; ถ้า no_data หรือผล aggregate เป็น null แปลว่าไม่มีแถวตรงเงื่อนไข ให้เปลี่ยน filters เช่น ใช้คอลัมน์รหัสกับรหัสจากคำถาม หรือ contains แทน eq";
+const REPEATED_CALL = "เรียก function นี้ด้วย argument เดิมไปแล้ว ผลอยู่ด้านบนและจะไม่เปลี่ยน: ถ้าข้อมูลพอให้ finish; ถ้าผลเป็น invalid_input ให้แก้ตาม problems; ถ้า no_data มี hints ให้แก้ตาม hints; ถ้า no_data หรือผล aggregate เป็น null แปลว่าไม่มีแถวตรงเงื่อนไข ให้เปลี่ยน filters เช่น ใช้คอลัมน์รหัสกับรหัสจากคำถาม หรือ contains แทน eq";
 const CODE_ARGS = ["material_id", "district_id", "plan_id", "contract_number", "purchase_order", "issue_reference", "handling_unit_code"];
 
 // A code the model passes must appear in the question, history, the user's scope or data already read; the catalog does not count.
@@ -25,14 +25,18 @@ function unsourcedCode({ name, args }, known) {
 }
 
 // vmi_chat_database answers only invalid_input; name the rules of its checks that the query broke.
-function queryProblems({ columns, filters, group_by, metrics, order_column }, schema) {
+// `discovered` is every source discovery returned, so a column the source lacks can point to the source that has it.
+function queryProblems({ source_id, columns, filters, group_by, metrics, order_column }, schema, discovered) {
   const returned = metrics.length ? [...group_by, ...metrics.map(m => `${m.function}_${m.column === "*" ? "rows" : m.column}`)]
     : columns.length ? columns : Object.keys(schema).sort().slice(0, 16);
   const used = [...columns, ...filters.map(f => f.column), ...group_by, ...metrics.map(m => m.column).filter(column => column !== "*"),
     ...(order_column ? [order_column] : [])];
   return [
-    ...[...new Set(used)].filter(column => !Object.hasOwn(schema, column))
-      .map(column => `ไม่มีคอลัมน์ ${column} ในแหล่งนี้ ให้ตัดออกหรือเลือกจาก columns`),
+    ...[...new Set(used)].filter(column => !Object.hasOwn(schema, column)).map(column => {
+      const elsewhere = [...discovered].filter(([id, other]) => id !== source_id && Object.hasOwn(other, column)).map(([id]) => id).slice(0, 3);
+      return elsewhere.length ? `ไม่มีคอลัมน์ ${column} ใน ${source_id} แต่มีใน ${elsewhere.join(", ")} ให้ query แหล่งนั้นแทน`
+        : `ไม่มีคอลัมน์ ${column} ในแหล่งนี้และแหล่งที่ค้นได้ ให้ตัดออกหรือเลือกจาก columns; ถ้าคำถามต้องใช้ข้อมูลนี้ ให้ค้น discover_database ใหม่ด้วยชนิดข้อมูลที่ต้องการ`;
+    }),
     ...filters.filter(f => !["is_null", "not_null"].includes(f.operator) && f.value == null)
       .map(f => `filter ${f.column} ${f.operator} ต้องมี value; ถ้าไม่ต้องการค่าให้ใช้ is_null หรือ not_null`),
     ...(group_by.length && !metrics.length ? ["group_by ใช้ได้เมื่อมี metrics เท่านั้น"] : []),
@@ -40,6 +44,16 @@ function queryProblems({ columns, filters, group_by, metrics, order_column }, sc
     ...metrics.filter(m => ["sum", "avg"].includes(m.function) && schema[m.column] && !/^(smallint|integer|bigint|numeric|real|double precision)/.test(schema[m.column]))
       .map(m => `${m.function} ใช้กับคอลัมน์ตัวเลขเท่านั้น แต่ ${m.column} เป็น ${schema[m.column]}`),
     ...(order_column && !returned.includes(order_column) ? [`order_column ${order_column} ต้องเป็นคอลัมน์ที่ query คืน: ${returned.join(", ")}`] : []),
+  ];
+}
+
+// The database answers no_data without saying why; name the filters that most often remove every row.
+function emptyHints({ filters }, schema) {
+  return [
+    ...filters.filter(f => f.operator === "is_null")
+      .map(f => `filter ${f.column} is_null เลือกเฉพาะแถวที่ ${f.column} ว่าง ถ้าคำถามไม่ได้ถามหาแถวที่ไม่มีค่า ให้ตัด filter นี้`),
+    ...filters.filter(f => f.operator === "eq" && /^(text|character varying)/.test(schema[f.column] ?? "") && !/(^|_)(id|number|no|code)$/.test(f.column))
+      .map(f => `filter ${f.column} eq ต้องตรงทุกตัวอักษร ถ้าค่าเป็นชื่อหรือข้อความบางส่วน ให้ใช้ search หรือ contains`),
   ];
 }
 
@@ -143,7 +157,8 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       continue;
     }
     if (seen.has(signature)) { stopReason = "repeated_tool"; break; }
-    if (evidence.length >= MAX_READS) break;
+    // A query the database rejected read nothing, so it spends a step but not the read budget.
+    if (evidence.filter(x => x.status !== "invalid_input").length >= MAX_READS) break;
     if (decision.name === "query_database" && !discovered.has(decision.args.source_id)) throw new Error("source_not_discovered");
     seen.add(signature);
     signal?.throwIfAborted();
@@ -163,7 +178,11 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
     // The database says only invalid_input; name the source's columns and the broken rules so the model can fix its query.
     if (decision.name === "query_database" && result.status === "invalid_input") {
       const schema = discovered.get(decision.args.source_id) ?? {};
-      result = { ...result, columns: Object.keys(schema), problems: queryProblems(decision.args, schema) };
+      result = { ...result, columns: Object.keys(schema), problems: queryProblems(decision.args, schema, discovered) };
+    }
+    if (decision.name === "query_database" && result.status === "no_data" && !result.near_matches?.length) {
+      const hints = emptyHints(decision.args, discovered.get(decision.args.source_id) ?? {});
+      if (hints.length) result = { ...result, hints };
     }
     trace.push({ tool: decision.name, status: result.status, duration_ms: Date.now() - started,
       ...(result.retrieval ? { retrieval: result.retrieval } : {}) });
@@ -176,8 +195,12 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
     body.contents.push({ role: "user", parts: [{ functionResponse: { name: decision.name, response: result } }] });
   }
   const partial = !["complete", "clarify", "unsupported"].includes(stopReason);
+  const rendered = evidence.filter(x => x.tool !== "discover_database").map(x => [x.status, renderToolResult(x, wantsSources(message))]);
+  const fromReads = rendered.filter(([status]) => status !== "invalid_input");
+  // A rejected query read nothing: the user hears about it once, and only when nothing else was read.
+  const findings = [...new Set((fromReads.length ? fromReads : rendered.slice(0, 1)).map(([, line]) => line))];
   const answer = [
-    ...evidence.filter(x => x.tool !== "discover_database").map(x => renderToolResult(x, wantsSources(message))),
+    ...findings,
     ...(wantsSources(message) && evidence.some(x => x.retrieval?.stage === "sources" && x.retrieval.status === "fallback_original_order")
       ? ["จัดอันดับแหล่งข้อมูลไม่สำเร็จ ใช้ลำดับค้นหาแหล่งข้อมูลเดิม"] : []),
     ...(terminalAnswer ? [terminalAnswer] : []),
