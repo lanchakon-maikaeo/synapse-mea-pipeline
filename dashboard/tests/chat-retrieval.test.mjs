@@ -48,6 +48,36 @@ test('optional ranking failure preserves authorized candidates; RPC denial is ne
   assert.deepEqual(await retrieveDatabase({ decision: {}, rpc: async () => denied, generate: () => assert.fail('denied') }), denied);
   await assert.rejects(retrieveDatabase({ decision: {}, rpc: async () => { throw Error('unauthorized'); } }), /unauthorized/);
 });
+const catalog = [
+  { source_id: 'core.inventory_movements', description: 'รับเข้า จ่ายออก โอนย้าย', columns: { movement_id: 'bigint' } },
+  { source_id: 'core.materials', description: 'materials พัสดุ วัสดุ สินค้า SKU หน่วย', columns: { material_code: 'text', material_name: 'text' } },
+];
+const pick = id => async body => {
+  const { candidates } = JSON.parse(body.contents[0].parts[0].text);
+  return call('rank_candidates', { indices: [candidates.findIndex(c => c.data.source_id === id)] });
+};
+test('the user naming วัสดุ reaches the materials source even when the discover query is only an item name', async () => {
+  const r = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'หม้อแปลงจำหน่ายคอนเวนชันนัล' } },
+    question: 'หม้อแปลงจำหน่ายคอนเวนชันนัล มีรหัสวัสดุอะไร', topK: 1, rpc: async () => ({ status: 'ok', data: catalog }),
+    generate: async () => { throw Error('quota'); } });
+  assert.deepEqual(r.data.map(x => x.source_id), ['core.materials']);
+});
+test('parts of a Thai item name do not narrow discovery to unrelated sources', async () => {
+  // "เต้ารับ" split as "เต้า|รับ" would match "รับเข้า", keep 30 candidates and cut core.materials before ranking.
+  const wide = [...catalog, ...Array.from({ length: 30 }, (_, i) => ({ source_id: `analytics.view_${i}`, description: 'ภาพรวม', columns: {} }))];
+  const r = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'เต้ารับคู่มีขั้วสายดิน' } },
+    question: 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร', topK: 1, rpc: async () => ({ status: 'ok', data: wide }), generate: pick('core.materials') });
+  assert.deepEqual(r.data.map(x => x.source_id), ['core.materials']);
+  assert.equal(r.retrieval.candidate_count, wide.length);
+});
+test('a word few sources share (รหัส) does not cut the rest of the catalog alphabetically before ranking', async () => {
+  const wide = [...catalog, { source_id: 'core.districts', description: 'เขต พื้นที่ รหัส ชื่อ', columns: {} },
+    ...Array.from({ length: 30 }, (_, i) => ({ source_id: `analytics.view_${i}`, description: 'ภาพรวม', columns: {} }))];
+  const r = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'เต้ารับคู่มีขั้วสายดิน' } },
+    question: 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร', topK: 1, rpc: async () => ({ status: 'ok', data: wide }), generate: pick('core.materials') });
+  assert.deepEqual(r.data.map(x => x.source_id), ['core.materials']);
+  assert.equal(r.retrieval.candidate_count, wide.length);
+});
 test('discovery is not an answer: harness must execute the discovered source', async () => {
   const responses = [call('discover_database', { query: 'เขต 5501' }), call('query_database', plan), call('finish', {})];
   const r = await runAgent({ message: 'เขต 5501 คือเขตไหน', temperature: 0, scope: { role: 'admin' },

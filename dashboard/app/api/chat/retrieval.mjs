@@ -16,9 +16,8 @@ function expand(question) {
   return `${query} ${aliases.filter(([pattern]) => pattern.test(query)).map(([, words]) => words).join(' ')}`;
 }
 
-// `words` come from the Thai word segmenter in retrieveDatabase; ICU word breaks when called without them.
-export function retrieveSources(question, sources, candidateK = 30,
-  words = [...segmenter.segment(expand(question))].filter(x => x.isWordLike).map(x => x.segment)) {
+export function retrieveSources(question, sources, candidateK = 30) {
+  const words = [...segmenter.segment(expand(question))].filter(x => x.isWordLike).map(x => x.segment);
   const tokens = [...new Set(words.filter(x => x.length > 1 && wordLike.test(x)))];
   // ponytail: bounded catalog scan; use indexed retrieval when the catalog reaches thousands of sources.
   const scored = sources.map(source => {
@@ -27,8 +26,10 @@ export function retrieveSources(question, sources, candidateK = 30,
     const score = tokens.reduce((sum, token) => sum + (name.includes(token) ? 4 : document.includes(token) ? 1 : 0), 0);
     return { ...source, retrieval_score: score };
   }).sort((a, b) => b.retrieval_score - a.retrieval_score || a.source_id.localeCompare(b.source_id));
-  // Unknown wording must not drop sources alphabetically before semantic ranking.
-  return scored.slice(0, scored[0]?.retrieval_score > 0 ? candidateK : 150);
+  // Never drop sources alphabetically before semantic ranking: unless candidateK sources match a word,
+  // the ranker sees the whole catalog, matches first.
+  const matched = scored.filter(x => x.retrieval_score > 0).length;
+  return scored.slice(0, matched >= candidateK ? candidateK : 150);
 }
 
 export async function rerank(question, candidates, topK, generate) {
@@ -50,7 +51,7 @@ export async function rerank(question, candidates, topK, generate) {
   return { selected: ids.map(i => candidates[i]), status: 'model_reranked' };
 }
 
-export async function retrieveDatabase({ decision, rpc, generate, topK = 6 }) {
+export async function retrieveDatabase({ decision, question = '', rpc, generate, topK = 6 }) {
   const search = decision.name === 'query_database' && typeof decision.args?.search === 'string' ? decision.args.search.trim() : '';
   if (search) {
     // Thai has no spaces between words; the database matches every word of a search in any order (ADR 0002).
@@ -60,7 +61,9 @@ export async function retrieveDatabase({ decision, rpc, generate, topK = 6 }) {
   const envelope = await rpc(decision);
   if (envelope.status !== 'ok') return envelope;
   if (decision.name === 'discover_database') {
-    const candidates = retrieveSources(decision.args.query, envelope.data, 30, (await thaiWords(expand(decision.args.query))).words);
+    // ICU words, not LATTE: its finer parts ("เต้า|รับ") match unrelated sources. The user's own words count too,
+    // because the model's query can drop the hint (วัสดุ) that points at a source (ADR 0002).
+    const candidates = retrieveSources(`${question} ${decision.args.query}`, envelope.data, 30);
     // Column schemas are read only after selection; reranking needs names and descriptions.
     const ranked = await rankOrFallback(decision.args.query, candidates.map(({ source_id, description }) => ({ source_id, description })), topK, generate);
     return { ...envelope, data: ranked.selected.map(x => candidates.find(s => s.source_id === x.source_id)),
