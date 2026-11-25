@@ -190,3 +190,48 @@ test('a call repeated with the same arguments goes back once instead of ending t
   assert.equal(result.stop_reason, 'complete');
   assert.match(result.answer, /^ยอด final_qty รวม 4600/);
 });
+
+// ADR 0002: a text search with no exact hit returns รายการใกล้เคียง, which must never read as the answer itself.
+const nearQuery = { ...query, source_id: 'core.materials', columns: ['material_id', 'material_name'],
+  filters: [{ column: 'material_name', operator: 'contains', value: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA' }] };
+const nearRpc = async (name, args) => args.p_tool === 'discover_database'
+  ? { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.materials', description: 'ทะเบียนวัสดุ', columns: { material_id: 'text', material_name: 'text' } }] }
+  : { tool: 'query_database', source_id: 'core.materials', status: 'no_data', data: [],
+    near_matches: [{ material_id: '010101000250', material_name: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA', match_score: 0.87 }] };
+
+test('near matches shown from the evidence are labelled as near, not as the item asked for', async () => {
+  const { fetcher } = provider(
+    ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
+    ['write_answer', { answer: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA คือ SKU 010101000250', evidence_ids: [1] }],
+    ['check_answer', { supported: false, answers_question: true, citations_valid: true }],
+  );
+  const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config, terms, fetcher, rpc: nearRpc, signal: new AbortController().signal });
+  assert.equal(result.answer_mode, 'evidence');
+  assert.match(result.answer, /ไม่พบรายการที่ตรงทุกคำ/);
+  assert.match(result.answer, /รายการใกล้เคียง[\s\S]*010101000250[\s\S]*22kV 250kVA/);
+});
+
+test('a written answer from near matches carries the server notice that they are near matches', async () => {
+  const { requests, fetcher } = provider(
+    ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
+    ['write_answer', { answer: 'ไม่พบชื่อนี้ตรงตัว ใกล้เคียงที่สุดคือ หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA (SKU 010101000250)', evidence_ids: [1] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config, terms, fetcher, rpc: nearRpc, signal: new AbortController().signal });
+  assert.equal(result.answer_mode, 'synthesized');
+  assert.match(result.answer, /รายการใกล้เคียง ไม่ใช่รายการที่ตรงทุกคำ/);
+  assert.match(JSON.stringify(requests[4]), /near_matches/);
+});
+
+test('a Thai search term reaches the database as words so their order does not matter', async () => {
+  const searched = [];
+  const { fetcher } = provider(
+    ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', { ...nearQuery, filters: [], search: 'หม้อแปลงไฟฟ้า250kVA - 3 เฟส' }], ['finish', {}],
+    ['write_answer', { answer: 'ไม่พบรายการตรงตัว', evidence_ids: [1] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  const rpc = async (name, args) => { if (args.p_tool === 'query_database') searched.push(args.p_args.search); return nearRpc(name, args); };
+  await runChat({ message: 'หม้อแปลงไฟฟ้า 250kVA 3 เฟส', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  assert.deepEqual(searched, ['หม้อแปลง ไฟฟ้า 250 kVA 3 เฟส']);
+});

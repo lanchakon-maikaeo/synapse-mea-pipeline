@@ -1,4 +1,7 @@
+import { thaiWords } from './thai-words.mjs';
+
 const segmenter = new Intl.Segmenter('th', { granularity: 'word' });
+const wordLike = /[\p{L}\p{N}]/u;
 const aliases = [
   [/เขต|พื้นที่|550[1-9]|551[0-8]/, 'district'], [/พัสดุ|วัสดุ|สินค้า|sku/i, 'material'],
   [/สต็อก|คงเหลือ|เหลือ/, 'stock inventory'], [/คลัง/, 'warehouse location'],
@@ -8,10 +11,15 @@ const aliases = [
   [/นับ|จำนวนทั้งหมด|กี่/, 'count'], [/ย้อนหลัง|ประวัติ/, 'observations transactions snapshots'],
 ];
 
-export function retrieveSources(question, sources, candidateK = 30) {
+function expand(question) {
   const query = question.toLowerCase();
-  const expanded = `${query} ${aliases.filter(([pattern]) => pattern.test(query)).map(([, words]) => words).join(' ')}`;
-  const tokens = [...new Set([...segmenter.segment(expanded)].filter(x => x.isWordLike).map(x => x.segment).filter(x => x.length > 1))];
+  return `${query} ${aliases.filter(([pattern]) => pattern.test(query)).map(([, words]) => words).join(' ')}`;
+}
+
+// `words` come from the Thai word segmenter in retrieveDatabase; ICU word breaks when called without them.
+export function retrieveSources(question, sources, candidateK = 30,
+  words = [...segmenter.segment(expand(question))].filter(x => x.isWordLike).map(x => x.segment)) {
+  const tokens = [...new Set(words.filter(x => x.length > 1 && wordLike.test(x)))];
   // ponytail: bounded catalog scan; use indexed retrieval when the catalog reaches thousands of sources.
   const scored = sources.map(source => {
     const name = source.source_id.toLowerCase();
@@ -42,22 +50,23 @@ export async function rerank(question, candidates, topK, generate) {
   return { selected: ids.map(i => candidates[i]), status: 'model_reranked' };
 }
 
-export async function retrieveDatabase({ decision, question, rpc, generate, topK = 6 }) {
+export async function retrieveDatabase({ decision, rpc, generate, topK = 6 }) {
+  const search = decision.name === 'query_database' && typeof decision.args?.search === 'string' ? decision.args.search.trim() : '';
+  if (search) {
+    // Thai has no spaces between words; the database matches every word of a search in any order (ADR 0002).
+    const words = (await thaiWords(search)).words.filter(x => wordLike.test(x));
+    if (words.length) decision = { ...decision, args: { ...decision.args, search: words.join(' ') } };
+  }
   const envelope = await rpc(decision);
   if (envelope.status !== 'ok') return envelope;
   if (decision.name === 'discover_database') {
-    const candidates = retrieveSources(decision.args.query, envelope.data);
+    const candidates = retrieveSources(decision.args.query, envelope.data, 30, (await thaiWords(expand(decision.args.query))).words);
     // Column schemas are read only after selection; reranking needs names and descriptions.
     const ranked = await rankOrFallback(decision.args.query, candidates.map(({ source_id, description }) => ({ source_id, description })), topK, generate);
     return { ...envelope, data: ranked.selected.map(x => candidates.find(s => s.source_id === x.source_id)),
       retrieval: { stage: 'sources', candidate_count: candidates.length, catalog_count: envelope.data.length, top_k: topK, status: ranked.status } };
   }
-  if (decision.args.search && !envelope.aggregation && !decision.args.order_column) {
-    const ranked = await rankOrFallback(question, envelope.data, Math.min(topK, decision.args.limit ?? topK), generate);
-    return { ...envelope, data: ranked.selected,
-      retrieval: { stage: 'rows', candidate_count: envelope.data.length, top_k: topK, status: ranked.status },
-      scope: { ...envelope.scope, truncated: envelope.scope?.truncated || ranked.selected.length < envelope.data.length } };
-  }
+  // Rows come back ranked by the database (ADR 0002); only sources are ranked by the model.
   return envelope;
 }
 

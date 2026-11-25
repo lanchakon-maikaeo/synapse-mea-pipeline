@@ -23,7 +23,7 @@ export const CHAT_TOOLS = [
   fn("discover_database", "ค้น catalog ฐานข้อมูลทุกหมวดตามสิทธิ์ แล้ว rerank top-k พร้อม schema คอลัมน์ ใช้ก่อน query_database เมื่อถามชื่อเขต ทะเบียนวัสดุ สัญญา ขนส่ง ประวัติ ยอดรวม หรือข้อมูลอื่นๆ ที่เครื่องมือเฉพาะไม่ครอบคลุม", {
     query: { type: "string", description: "คำถามและคำสำคัญของข้อมูลที่ต้องการค้น ใช้ภาษาไทยได้" },
   }),
-  fn("query_database", "อ่านชุดข้อมูลที่ discover_database คืนให้ รองรับค้นข้อความ กรอง เรียง รายการและ aggregate ทั้งชุด ห้ามเดาชื่อตาราง/คอลัมน์ ใช้ count/sum/avg/min/max ใน DB สำหรับยอดรวม ไม่รวมจาก top-k; ใช้ search เป็นคำค้นชื่อ/รหัสสั้นๆ เพื่อ rerank records", {
+  fn("query_database", "อ่านชุดข้อมูลที่ discover_database คืนให้ รองรับค้นข้อความ กรอง เรียง รายการและ aggregate ทั้งชุด ห้ามเดาชื่อตาราง/คอลัมน์ ใช้ count/sum/avg/min/max ใน DB สำหรับยอดรวม ไม่รวมจาก top-k; ใช้ search เป็นคำค้นชื่อ/รหัสสั้นๆ ระบบตัดคำไทยแล้วหาแถวที่มีครบทุกคำไม่ว่าลำดับใด ผลเรียงตามความใกล้เคียงในฐานข้อมูล ส่วน contains ต้องตรงตัวทุกตัวอักษร; ถ้าค้นข้อความไม่พบตรงตัว ผลอาจมี near_matches (รายการใกล้เคียงพร้อม match_score) ให้เสนอเป็นรายการใกล้เคียงหรือค้นต่อด้วยรหัสจาก near_matches", {
     source_id: { type: "string" },
     columns: { type: "array", items: { type: "string" }, maxItems: 16 },
     filters: { type: "array", maxItems: 12, items: { type: "object", properties: {
@@ -33,7 +33,7 @@ export const CHAT_TOOLS = [
     metrics: { type: "array", maxItems: 6, items: { type: "object", properties: {
       function: { type: "string", enum: ["count", "sum", "avg", "min", "max"] }, column: { type: "string", description: "ชื่อคอลัมน์ หรือ * สำหรับ count ทุกแถว" },
     }, required: ["function", "column"], additionalProperties: false } },
-    order_column: nullableString("ระบุเมื่อผู้ใช้ขอเรียงลำดับหรือหาอันดับเชิงตัวเลขเท่านั้น มิฉะนั้น null เพื่อให้ rerank ความเกี่ยวข้อง; ใช้คอลัมน์ที่เลือก หรือชื่อ aggregate เช่น count_rows, sum_quantity"),
+    order_column: nullableString("ระบุเมื่อผู้ใช้ขอเรียงลำดับหรือหาอันดับเชิงตัวเลขเท่านั้น มิฉะนั้น null เพื่อเรียงตามความใกล้เคียงกับ search; ใช้คอลัมน์ที่เลือก หรือชื่อ aggregate เช่น count_rows, sum_quantity"),
     order_direction: { type: "string", enum: ["asc", "desc"] },
     limit: { type: "integer", minimum: 1, maximum: 50 },
     offset: { type: "integer", minimum: 0, maximum: 10000 },
@@ -291,8 +291,15 @@ export function renderToolResult(envelope, includeSources = false) {
   return notice+renderRecordedResult(envelope,includeSources)+(notice?'\n\nควรอัปเดตสต็อก ตรวจยอดจองและของเข้า ก่อนจัดลำดับส่งวันนี้':'');
 }
 
+const queryLabels = { district_id: "รหัสเขต", district_name_th: "ชื่อเขต", material_id: "SKU", material_name: "ชื่อวัสดุ", unit: "หน่วย", count_rows: "จำนวนรายการ", warehouse_name_th: "ชื่อคลัง" };
+const queryValue = value => value == null ? "ไม่ทราบ" : typeof value === "object" ? JSON.stringify(value) : String(value);
+const queryRow = row => Object.entries(row).map(([key, value]) => `${queryLabels[key] ?? key}: ${queryValue(value)}`).join(" · ");
+
 function renderRecordedResult(envelope, includeSources = false) {
   const status = envelope?.status;
+  const near = Array.isArray(envelope?.near_matches) ? envelope.near_matches.filter(row => row && typeof row === "object") : [];
+  if (status === "no_data" && near.length) return ["ไม่พบรายการที่ตรงทุกคำ รายการใกล้เคียง (ตรวจชื่อหรือรหัสก่อนใช้):",
+    ...near.map(row => `• ${queryRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== "match_score")))}`)].join("\n");
   if (status === "no_data") return "ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ";
   if (status === "forbidden") return "บัญชีนี้ไม่มีสิทธิ์อ่านข้อมูลส่วนนี้";
   if (status === "invalid_input") return "ข้อมูลที่ใช้ค้นหาไม่ครบหรือรูปแบบไม่ถูกต้อง กรุณาตรวจรหัสแล้วลองอีกครั้ง";
@@ -304,10 +311,8 @@ function renderRecordedResult(envelope, includeSources = false) {
     return rows.map(row => [text(row.content), ...(includeSources ? [`แหล่งข้อมูล: ${text(row.source_id)}`] : [])].join("\n")).join("\n\n");
   }
   if (envelope.tool === "query_database") {
-    const labels = { district_id: "รหัสเขต", district_name_th: "ชื่อเขต", material_id: "SKU", material_name: "ชื่อวัสดุ", unit: "หน่วย", count_rows: "จำนวนรายการ", warehouse_name_th: "ชื่อคลัง" };
-    const format = value => value == null ? "ไม่ทราบ" : typeof value === "object" ? JSON.stringify(value) : String(value);
     return [
-      ...rows.map(row => Object.entries(row).map(([key, value]) => `${labels[key] ?? key}: ${format(value)}`).join(" · ")),
+      ...rows.map(queryRow),
       ...(includeSources ? [`แหล่งข้อมูล: ${envelope.source_id} · ตรวจเมื่อ ${date(envelope.observed_at)}`] : []),
       ...(includeSources && envelope.aggregation ? ["คำนวณจากทุกแถวที่ตรงเงื่อนไขและสิทธิ์ ก่อนจำกัดจำนวนผลลัพธ์"] : []),
       ...(includeSources && envelope.retrieval ? [envelope.retrieval.status === "fallback_original_order"
