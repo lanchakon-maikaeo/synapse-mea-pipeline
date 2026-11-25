@@ -126,7 +126,7 @@ async function chatAttempt(c) {
     ({ result } = masked
       ? await (await load('chat/run.mjs')).runChat({ message: c.question, history, scope, requestId: randomUUID(), config, topK: 6, terms, rpc, signal, fetcher, stats })
       : await unmaskedChat({ message: c.question, history, scope, rpc, signal, fetcher, stats }));
-  } catch (e) { error = e instanceof Error ? e.message : 'unknown_error'; }
+  } catch (e) { error = e instanceof Error ? [e.message, e.cause?.code ?? e.cause?.message].filter(Boolean).join(': ') : 'unknown_error'; }
   const answer = readable(result?.answer);
   const evidence = JSON.stringify(result?.evidence ?? []);
   const allowed = contacts(readable([c.question, ...history.map(turn => turn.text), evidence].join('\n')));
