@@ -60,7 +60,8 @@ export async function composeAnswer({ result, question, history = /** @type {{ r
     }))];
     const notices = [...new Set(result.evidence.flatMap(e => [
       ...(e.scope?.truncated || e.truncated ? ['แสดงข้อมูลเพียงบางส่วน ไม่ใช่ข้อมูลทั้งหมด'] : []),
-      ...(e.near_matches?.length ? ['รายการใกล้เคียง ไม่ใช่รายการที่ตรงทุกคำ ตรวจชื่อหรือรหัสก่อนใช้'] : []),
+      // The writer is told to say near matches are near; add the notice only when its answer does not.
+      ...(e.near_matches?.length && !draft.answer.includes('ใกล้เคียง') ? ['รายการใกล้เคียง ไม่ใช่รายการที่ตรงทุกคำ ตรวจชื่อหรือรหัสก่อนใช้'] : []),
       ...(includeSources && e.retrieval?.status === 'fallback_original_order' ? [e.retrieval.stage === 'sources'
         ? 'จัดอันดับแหล่งข้อมูลไม่สำเร็จ ใช้ลำดับค้นหาแหล่งข้อมูลเดิม'
         : 'จัดอันดับความเกี่ยวข้องไม่สำเร็จ ใช้ลำดับผลค้นหาเดิม'] : []),
