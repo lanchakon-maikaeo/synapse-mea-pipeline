@@ -204,7 +204,8 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
     ...(wantsSources(message) && evidence.some(x => x.retrieval?.stage === "sources" && x.retrieval.status === "fallback_original_order")
       ? ["จัดอันดับแหล่งข้อมูลไม่สำเร็จ ใช้ลำดับค้นหาแหล่งข้อมูลเดิม"] : []),
     ...(terminalAnswer ? [terminalAnswer] : []),
-    ...(partial ? ["ตรวจสอบได้บางส่วน ยังไม่ครบคำถาม กรุณาระบุ SKU/เขตหรือถามต่ออีกครั้ง"] : []),
+    ...(partial ? [fromReads.length ? "ตรวจสอบได้บางส่วน ยังไม่ครบคำถาม กรุณาระบุ SKU/เขตหรือถามต่ออีกครั้ง"
+      : "ยังตอบคำถามนี้ไม่ได้ ลองระบุ SKU หรือชื่อเต็มของวัสดุหรือเขต แล้วถามอีกครั้ง"] : []),
   ].join("\n\n");
   return { answer, evidence, trace, stop_reason: stopReason,
     status: partial ? "partial" : terminalStatus ?? (evidence.some((item) => item.tool !== "discover_database" && item.status === "ok") ? "ok" : "no_data") };

@@ -127,6 +127,49 @@ test('a catalog too large to rank with its columns is still ranked by name and d
   assert.deepEqual(r.data.map(x => x.source_id), ['core.table_7']);
   assert.ok(asked.candidates.every(({ data }) => data.columns === undefined));
 });
+// The production failure: the item's name says nothing to the catalog, and รหัส matches the districts' keyword set.
+const registers = [
+  { source_id: 'analytics.v_stock_health', description: 'สต็อก', columns: { material_name: 'text', district_name_th: 'text' } },
+  { source_id: 'core.districts', description: 'เขต พื้นที่ รหัส ชื่อ นวลจันทร์', columns: { district_id: 'text', sap_plant_code: 'text', district_name_th: 'text' } },
+  ...twins,
+];
+const item = 'เต้ารับคู่ แบบมีขั้วสายดินพร้อมกล่องยาง';
+// vmi_chat_database: contains filters on one column, counted.
+const database = probed => async ({ name, args }) => {
+  if (name === 'discover_database') return { status: 'ok', data: registers };
+  probed.push(args.source_id);
+  const holds = args.source_id === 'core.materials' && args.filters.every(f => f.column === 'material_name' && f.operator === 'contains' && item.includes(f.value));
+  return { status: 'ok', tool: name, source_id: args.source_id, data: [{ count_rows: holds ? 1 : 0 }], aggregation: true };
+};
+test('a register with a row matching every word of the search goes first to the ranker, with the column that matched', async () => {
+  const probed = [];
+  let asked;
+  const r = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'เต้ารับคู่มีขั้วสายดิน' } },
+    question: 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร', topK: 2, rpc: database(probed),
+    // Typhoon's ranker, shown many alike candidates, keeps the first ones.
+    generate: async body => { asked = JSON.parse(body.contents[0].parts[0].text); return call('rank_candidates', { indices: [0, 1] }); } });
+  assert.deepEqual(probed.sort(), ['core.districts', 'core.materials'], 'only registers: sources whose name column is named after them');
+  assert.deepEqual(asked.candidates.map(({ data }) => data.source_id).slice(0, 2), ['core.materials', 'core.districts']);
+  assert.equal(asked.candidates[0].data.search_found_in, 'material_name');
+  assert.deepEqual(r.data.map(x => [x.source_id, x.search_found_in]), [['core.materials', 'material_name'], ['core.districts', undefined]]);
+});
+test('a register holding the searched name is discovered even when the ranker passes it over', async () => {
+  const r = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'เต้ารับคู่มีขั้วสายดิน' } },
+    question: 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร', topK: 2, rpc: database([]),
+    generate: async body => {
+      const { candidates } = JSON.parse(body.contents[0].parts[0].text);
+      return call('rank_candidates', { indices: ['core.districts', 'analytics.v_stock_health'].map(id => candidates.findIndex(c => c.data.source_id === id)) });
+    } });
+  assert.deepEqual(r.data.map(x => x.source_id), ['core.districts', 'core.materials']);
+});
+test('a name lookup that fails or is not allowed leaves discovery as the ranker made it', async () => {
+  for (const probe of [async () => { throw Error('timeout'); }, async () => ({ status: 'forbidden' }), async () => ({ status: 'invalid_input' })]) {
+    const r = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: 'เต้ารับคู่มีขั้วสายดิน' } },
+      question: 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร', topK: 1, rpc: async decision => decision.name === 'discover_database' ? { status: 'ok', data: registers } : probe(),
+      generate: pick('core.material_packaging') });
+    assert.deepEqual(r.data.map(x => [x.source_id, x.search_found_in]), [['core.material_packaging', undefined]]);
+  }
+});
 test('discovery is not an answer: harness must execute the discovered source', async () => {
   const responses = [call('discover_database', { query: 'เขต 5501' }), call('query_database', plan), call('finish', {})];
   const r = await runAgent({ message: 'เขต 5501 คือเขตไหน', temperature: 0, scope: { role: 'admin' },

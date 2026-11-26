@@ -1,7 +1,7 @@
 {
  "name": "source-ranking-v1",
  "kind": "source-ranking",
- "purpose": "Does discover_database put a source that can answer the question in its top 6? Real production catalog (admin view, 25 Nov 2026), real provider ranker; search is what the agent model typically writes.",
+ "purpose": "Does discover_database put a source that can answer the question in its top 6? Real production catalog (admin view, 25 Nov 2026), real provider ranker; search is what the agent model typically writes. Registers are the rows discovery looks the search up in as a name: the eval fixture's districts and materials, plus the production material the item-code cases name.",
  "pass": {
   "hit_rate_min": 0.8,
   "no_worse_than_baseline": true
@@ -146,6 +146,116 @@
    ]
   }
  ],
+ "registers": {
+  "core.districts": [
+   {
+    "district_id": "5501",
+    "district_name_th": "นวลจันทร์"
+   },
+   {
+    "district_id": "5502",
+    "district_name_th": "สามเสน"
+   },
+   {
+    "district_id": "5503",
+    "district_name_th": "นนทบุรี"
+   },
+   {
+    "district_id": "5504",
+    "district_name_th": "ธนบุรี"
+   },
+   {
+    "district_id": "5505",
+    "district_name_th": "บางใหญ่"
+   },
+   {
+    "district_id": "5506",
+    "district_name_th": "ลาดกระบัง"
+   },
+   {
+    "district_id": "5507",
+    "district_name_th": "บางนา"
+   },
+   {
+    "district_id": "5508",
+    "district_name_th": "วัดเลียบ"
+   },
+   {
+    "district_id": "5509",
+    "district_name_th": "คลองเตย"
+   },
+   {
+    "district_id": "5510",
+    "district_name_th": "ราษฎร์บูรณะ"
+   },
+   {
+    "district_id": "5511",
+    "district_name_th": "ยานนาวา"
+   },
+   {
+    "district_id": "5512",
+    "district_name_th": "บางขุนเทียน"
+   },
+   {
+    "district_id": "5513",
+    "district_name_th": "บางบัวทอง"
+   },
+   {
+    "district_id": "5514",
+    "district_name_th": "บางกะปิ"
+   },
+   {
+    "district_id": "5515",
+    "district_name_th": "สมุทรปราการ"
+   },
+   {
+    "district_id": "5516",
+    "district_name_th": "บางพลี"
+   },
+   {
+    "district_id": "5517",
+    "district_name_th": "มีนบุรี"
+   },
+   {
+    "district_id": "5518",
+    "district_name_th": "บางเขน"
+   }
+  ],
+  "core.materials": [
+   {
+    "material_id": "010100200301",
+    "material_name": "หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA"
+   },
+   {
+    "material_id": "020300400512",
+    "material_name": "สายอะลูมิเนียมหุ้มฉนวน 185 ตร.มม."
+   },
+   {
+    "material_id": "030500100077",
+    "material_name": "ลูกถ้วยแขวน 254 มม."
+   },
+   {
+    "material_id": "040200300199",
+    "material_name": "กับดักเสิร์จ 24kV 10kA"
+   },
+   {
+    "material_id": "050100100025",
+    "material_name": "หูสายทองแดงแบบไม่มีฉนวนหุ้ม #14-6"
+   },
+   {
+    "material_id": "060700200333",
+    "material_name": "มิเตอร์ไฟฟ้า 1 เฟส 15(45)A"
+   },
+   {
+    "material_id": "070400100410",
+    "material_name": "เสาคอนกรีตอัดแรง 12 ม."
+   },
+   {
+    "material_id": "105957322000",
+    "material_name": "เต้ารับคู่ แบบมีขั้วสายดินพร้อมกล่องยาง"
+   }
+  ]
+ },
  "catalog": [
   {
    "source_id": "analytics.demand_monthly_features",

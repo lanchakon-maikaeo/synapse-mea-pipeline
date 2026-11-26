@@ -99,8 +99,12 @@ test('the answer a stopped run falls back to says each finding once and leaves o
   const r = await s.run();
   assert.equal(r.status, 'partial');
   assert.equal(r.answer.split('ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ').length - 1, 1);
-  assert.doesNotMatch(r.answer, /ข้อมูลที่ใช้ค้นหาไม่ครบ/);
+  assert.doesNotMatch(r.answer, /ค้นข้อมูลไม่สำเร็จ/);
   const only = scenario([call('discover_database', { query: 'วัสดุ' }), find('y', ['material_colour']), find('z', ['material_colour'])],
     rejecting([]), 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร');
-  assert.equal((await only.run()).answer.split('ข้อมูลที่ใช้ค้นหาไม่ครบ').length - 1, 1, 'nothing else was read: say it once');
+  const answer = (await only.run()).answer;
+  assert.equal(answer.split('ค้นข้อมูลไม่สำเร็จ').length - 1, 1, 'nothing else was read: say it once');
+  // The user gave no code and nothing was verified: the rejected query was the model's.
+  assert.doesNotMatch(answer, /ตรวจรหัส|ตรวจสอบได้บางส่วน/);
+  assert.match(answer, /ลองระบุ SKU หรือชื่อเต็ม/);
 });

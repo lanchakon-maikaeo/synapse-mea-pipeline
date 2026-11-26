@@ -233,7 +233,7 @@ test('a Thai search term reaches the database as words so their order does not m
   );
   const rpc = async (name, args) => { if (args.p_tool === 'query_database') searched.push(args.p_args.search); return nearRpc(name, args); };
   await runChat({ message: 'หม้อแปลงไฟฟ้า 250kVA 3 เฟส', config, terms, fetcher, rpc, signal: new AbortController().signal });
-  assert.deepEqual(searched, ['หม้อแปลง ไฟฟ้า 250 kVA 3 เฟส']);
+  assert.deepEqual(searched.filter(Boolean), ['หม้อแปลง ไฟฟ้า 250 kVA 3 เฟส'], 'discovery\'s name lookup filters, it does not search');
 });
 
 // Catalog descriptions come from one keyword set per category, so the ranker can pick a source that lacks a column.

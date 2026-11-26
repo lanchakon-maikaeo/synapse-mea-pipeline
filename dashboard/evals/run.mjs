@@ -161,15 +161,24 @@ async function rankAttempt(c) {
     if (Number.isSafeInteger(payload?.usageMetadata?.totalTokenCount)) stats.totalTokens += payload.usageMetadata.totalTokenCount;
     return masker ? masker.restore(payload) : payload;
   };
+  // Discovery's name lookups read the set's register rows as vmi_chat_database does: contains filters, counted.
+  const lookup = ({ source_id, filters = [], metrics = [] }) => {
+    const rows = (set.registers?.[source_id] ?? []).filter(row => filters.every(({ column, operator, value }) =>
+      operator === 'contains' && String(row[column] ?? '').toLowerCase().includes(String(value).toLowerCase())));
+    return { status: 'ok', tool: 'query_database', source_id, data: metrics.length ? [{ count_rows: rows.length }] : rows.slice(0, 20),
+      aggregation: metrics.length > 0 };
+  };
   const started = Date.now();
   let ranked; let error;
   try {
     ranked = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: c.search } }, question: c.question, topK: 6, generate,
-      rpc: async () => ({ status: 'ok', tool: 'discover_database', data: set.catalog, scope: { role: 'admin', district_id: null } }) });
+      rpc: async ({ name, args }) => name === 'discover_database'
+        ? { status: 'ok', tool: 'discover_database', data: set.catalog, scope: { role: 'admin', district_id: null } } : lookup(args) });
   } catch (e) { error = e instanceof Error ? e.message : 'unknown_error'; }
   const picked = (ranked?.data ?? []).map(source => source.source_id);
   const rank = picked.findIndex(id => c.expect.includes(id));
   return { id: c.id, hit: !error && rank >= 0, rank, picked, error, ranking: ranked?.retrieval?.status, candidates: ranked?.retrieval?.candidate_count,
+    found: (ranked?.data ?? []).filter(source => source.search_found_in).map(source => source.source_id),
     model_calls: stats.modelCalls, tokens: stats.totalTokens, seconds: Math.round((Date.now() - started) / 100) / 10, trace: await Promise.all(trace) };
 }
 
