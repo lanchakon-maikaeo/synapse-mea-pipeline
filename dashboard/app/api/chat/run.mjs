@@ -1,6 +1,7 @@
 import { runAgent } from './harness.mjs';
 import { retrieveDatabase } from './retrieval.mjs';
-import { embedText, fetchProvider } from './embedding.mjs';
+import { embedText, embedTexts, fetchProvider } from './embedding.mjs';
+import { asked } from './tools.mjs';
 import { composeAnswer } from './answer.mjs';
 import { openRouterRequest, openRouterResponse } from './openrouter.mjs';
 import { createMasker } from './masking.mjs';
@@ -25,19 +26,38 @@ export async function runChat({ message, history = /** @type {{ role: string, te
     if (Number.isSafeInteger(tokens) && tokens >= 0) stats.totalTokens += tokens;
     return payload;
   };
+  // BGE-M3 on Cloudflare for any provider, else OpenRouter's; the text is masked like every other provider call.
+  const embed = config.cloudflare || config.embeddings ? async text => {
+    const options = { fetcher, signal: AbortSignal.any([signal, AbortSignal.timeout(config.timeoutMs)]) };
+    return config.cloudflare ? (await embedTexts({ texts: [masker.mask(text)], ...config.cloudflare, ...options }))[0]
+      : embedText({ text: masker.mask(text), apiKey: config.apiKey, ...options });
+  } : undefined;
+  const materialSources = new Set();
+  // ADR 0002, RRF: a search with no exact hit in a source of materials asks once more with what the text means; the
+  // database fuses the text and meaning ranks. A failed embedding or second read keeps the first result.
+  const database = async query => {
+    const args = { p_tool: query.name, p_args: query.args, p_request_id: requestId };
+    const first = await rpc('vmi_chat_database', args);
+    if (query.name === 'discover_database' && Array.isArray(first?.data)) first.data
+      .filter(source => source && Object.hasOwn(source.columns ?? {}, 'material_id')).forEach(source => materialSources.add(source.source_id));
+    const text = query.name === 'query_database' && first?.status === 'no_data' && !query.args?.metrics?.length &&
+      materialSources.has(query.args?.source_id) && asked(query.args);
+    if (!embed || !text) return first;
+    const second = await embed(text).then(vector => rpc('vmi_chat_database', { ...args, p_embedding: `[${vector.join(',')}]` })).catch(() => undefined);
+    return second?.status === 'no_data' ? second : first;
+  };
   try {
     const result = await runAgent({
       message, history, temperature: config.temperature, scope, signal,
-      generate, hiddenTools: config.embeddings ? [] : ['search_knowledge'],
+      generate, hiddenTools: embed && config.documents ? [] : ['search_knowledge'],
       read: async decision => decision.name === 'search_knowledge'
         ? rpc('vmi_chat_knowledge_bge_m3', {
-          p_embedding: await embedText({ text: masker.mask(String(decision.args.query)), apiKey: config.apiKey, fetcher,
-            signal: AbortSignal.any([signal, AbortSignal.timeout(config.timeoutMs)]) }),
-          p_limit: topK,
+          p_embedding: `[${(await embed(String(decision.args.query))).join(',')}]`,
+          // The text list reads our own database, so the query goes as asked.
+          p_limit: topK, p_query: String(decision.args.query),
         })
         : ['discover_database', 'query_database'].includes(decision.name)
-        ? retrieveDatabase({ decision, question: message, generate, topK,
-          rpc: query => rpc('vmi_chat_database', { p_tool: query.name, p_args: query.args, p_request_id: requestId }) })
+        ? retrieveDatabase({ decision, question: message, generate, topK, rpc: database })
         : rpc(decision.name === 'get_operations_overview' ? 'vmi_chat_overview' : 'vmi_chat_read', {
           p_tool: decision.name, p_args: decision.args, p_request_id: requestId,
         }),

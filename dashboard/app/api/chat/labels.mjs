@@ -87,7 +87,7 @@ const COLUMNS = {
   material_id: "SKU", material_name: "ชื่อวัสดุ", material_code: "รหัสวัสดุ", unit: "หน่วย", base_uom: "หน่วยนับหลัก",
   district_id: "รหัสเขต", district_name_th: "ชื่อเขต", warehouse_name_th: "ชื่อคลัง", location_name_th: "ชื่อที่ตั้ง",
   name_th: "ชื่อภาษาไทย", name_en: "ชื่อภาษาอังกฤษ", display_name: "ชื่อที่แสดง", id: "รหัส",
-  plan_number: "เลขแผน", plan_status: "สถานะแผน", item_status: "สถานะรายการ", status: "สถานะ", version_no: "ฉบับที่",
+  match_score: "ความมั่นใจ", plan_number: "เลขแผน", plan_status: "สถานะแผน", item_status: "สถานะรายการ", status: "สถานะ", version_no: "ฉบับที่",
   week_start_date: "สัปดาห์ที่เริ่ม", parent_plan_id: "รหัสแผนฉบับก่อน", response_due_at: "กำหนดตอบกลับ",
   requester_name: "ผู้ขอเติม", district_note: "บันทึกของเขต", planner_note: "บันทึกของผู้วางแผน",
   current_stock_qty: "สต็อกคงเหลือ", quantity_on_hand: "คงเหลือในคลัง", months_available: "ใช้ได้อีก (เดือน)",

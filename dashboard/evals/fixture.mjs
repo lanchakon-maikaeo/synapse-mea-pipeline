@@ -197,8 +197,9 @@ function wordSimilarity(a, b) {
   return best;
 }
 
-// Mirrors vmi_chat_database (202611250001): contains matches its text, a search matches every word in any order
-// and ranks rows by nearness, and an empty text match returns up to five รายการใกล้เคียง (ADR 0002).
+// Mirrors vmi_chat_database (202611260001): contains matches its text, a search matches every word in any order
+// and ranks rows by nearness, and an empty text match returns up to five รายการใกล้เคียง (ADR 0002). The fixture has
+// no embeddings, so only the text list ranks them; match_score is that list's RRF score over its maximum, 61/(60 + rank).
 function query(source, rows, args) {
   const keys = ['source_id', 'columns', 'filters', 'group_by', 'metrics', 'order_column', 'order_direction', 'limit', 'offset', 'search'];
   if (Object.keys(args).some(key => !keys.includes(key))) throw new Invalid();
@@ -262,9 +263,10 @@ function query(source, rows, args) {
     if (names.some((name, i) => !source.columns[name] || names.indexOf(name) !== i)) throw new Invalid();
     output = rows.map(row => Object.fromEntries(names.map(name => [name, row[name] ?? null])));
     if (!output.length && near.length) {
-      const matches = base.slice(0, 20000).map(row => [Math.min(...near.map(score => score(row))), row]).filter(([score]) => score >= 0.4)
-        .sort((a, b) => b[0] - a[0]).slice(0, 5)
-        .map(([score, row]) => ({ ...Object.fromEntries(names.map(name => [name, row[name] ?? null])), match_score: Math.round(score * 100) / 100 }));
+      const scored = base.slice(0, 20000).map(row => [Math.min(...near.map(score => score(row))), row]).filter(([score]) => score >= 0.4)
+        .sort((a, b) => b[0] - a[0]);
+      const matches = scored.slice(0, 5).map(([score, row]) => ({ ...Object.fromEntries(names.map(name => [name, row[name] ?? null])),
+        match_score: Math.round(61 / (60 + 1 + scored.findIndex(([other]) => other === score)) * 100) / 100 }));
       if (matches.length) return { page: [], more: false, near: matches };
     }
   }

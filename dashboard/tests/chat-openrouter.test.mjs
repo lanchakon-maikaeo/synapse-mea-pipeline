@@ -23,6 +23,17 @@ test('LLM_API_KEY selects GPT-4o-mini through OpenRouter without sending Google 
   }
 });
 
+test('Cloudflare keys turn on meaning search for any chat provider; documents also need CHAT_DOCUMENTS=on', () => {
+  const typhoon = { LLM_PROVIDER: 'typhoon', LLM_API_KEY: 'typhoon-test-key' };
+  const cloudflare = { CLOUDFLARE_ACCOUNT_ID: ' 0123456789abcdef0123456789abcdef ', CLOUDFLARE_API_TOKEN: ' cf-test-token-1234567890 ' };
+  assert.equal(providerConfig(typhoon).cloudflare, null);
+  assert.deepEqual(providerConfig({ ...typhoon, ...cloudflare }).cloudflare,
+    { accountId: '0123456789abcdef0123456789abcdef', apiToken: 'cf-test-token-1234567890' });
+  assert.equal(providerConfig({ ...typhoon, ...cloudflare, CLOUDFLARE_ACCOUNT_ID: 'bad' }).cloudflare, null);
+  assert.equal(providerConfig({ ...typhoon, ...cloudflare }).documents, false);
+  assert.equal(providerConfig({ ...typhoon, ...cloudflare, CHAT_DOCUMENTS: 'on' }).documents, true);
+});
+
 test('OpenRouter runs the existing read loop and evidence-checked answer with matched tool IDs', async () => {
   const config = providerConfig({ LLM_API_KEY: 'sk-or-test', LLM_MODEL: ' openai/gpt-4o ' });
   const calls = [

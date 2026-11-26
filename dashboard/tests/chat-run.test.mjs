@@ -344,3 +344,48 @@ test('a run that recovered from a rejected query still gets its answer written a
   const written = JSON.parse(requests[5].messages.find(m => m.role === 'user').content);
   assert.deepEqual(written.evidence.map(e => e.data.status), ['ok'], 'the writer sees what was read, not the rejected query');
 });
+
+// ADR 0002, RRF: with Cloudflare keys, a text search that finds nothing asks once more with what the text means.
+const cloudflareConfig = { ...config, cloudflare: { accountId: '0123456789abcdef0123456789abcdef', apiToken: 'cf-test-token-1234567890' } };
+const unit = Array(1024).fill(0); unit[0] = 1;
+const meaningRpc = calls => async (name, args) => {
+  calls.push(args);
+  if (args.p_tool === 'discover_database') return nearRpc(name, args);
+  if (args.p_args?.metrics?.length) return { tool: 'query_database', source_id: 'core.materials', status: 'ok', data: [{ count_rows: 0 }], query: args.p_args };
+  return { tool: 'query_database', source_id: 'core.materials', status: 'no_data', data: [], query: args.p_args,
+    ...(args.p_embedding && { near_matches: [{ material_id: '010101000160', material_name: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 160kVA', match_score: 0.5 }] }) };
+};
+const withEmbedder = (llm, embedder) => async (url, init) => url.startsWith('https://api.cloudflare.com/') ? embedder(JSON.parse(init.body)) : llm(url, init);
+
+test('a text search with no hit asks once more by meaning, and each near match shows its confidence', async () => {
+  const calls = [], embedded = [];
+  const { fetcher } = provider(
+    ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
+    ['write_answer', { summary: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA คือ SKU 010101000160', items: [], notes: [], evidence_ids: [1] }],
+    ['check_answer', { supported: false, answers_question: true, citations_valid: true }],
+  );
+  const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config: cloudflareConfig, terms, rpc: meaningRpc(calls),
+    fetcher: withEmbedder(fetcher, body => { embedded.push(body); return Response.json({ success: true, result: { data: [unit] } }); }),
+    signal: new AbortController().signal });
+  assert.deepEqual(embedded, [{ text: ['หม้อแปลงไฟฟ้า 3 เฟส 250kVA'] }]);
+  const byMeaning = calls.filter(args => args.p_embedding);
+  assert.equal(byMeaning.length, 1);
+  assert.deepEqual(byMeaning[0].p_args, nearQuery);
+  assert.equal(JSON.parse(byMeaning[0].p_embedding).length, 1024);
+  assert.match(result.answer, /• 010101000160 · หม้อแปลงไฟฟ้า 3 เฟส 22kV 160kVA \(ความมั่นใจ 0\.50\)/);
+});
+
+test('without Cloudflare keys, or when embedding fails, the text search result stands', async () => {
+  for (const [settings, embedder] of [[config, () => assert.fail('no embedder configured')], [cloudflareConfig, () => new Response('', { status: 503 })]]) {
+    const calls = [];
+    const { fetcher } = provider(
+      ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
+      ['write_answer', { summary: 'ไม่พบหม้อแปลงไฟฟ้า 3 เฟส 250kVA', items: [], notes: [], evidence_ids: [1] }],
+      ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+    );
+    const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config: settings, terms, rpc: meaningRpc(calls),
+      fetcher: withEmbedder(fetcher, embedder), signal: new AbortController().signal });
+    assert.equal(calls.filter(args => args.p_embedding).length, 0);
+    assert.equal(result.stop_reason, 'complete');
+  }
+});
