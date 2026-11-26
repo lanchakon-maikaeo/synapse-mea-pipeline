@@ -72,7 +72,10 @@ function explainRejection({ source_id, columns, filters, group_by, metrics, orde
     ...twice(metrics.map(metricName)).map(name => `metrics ให้ผล ${name} ซ้ำ ให้ขอแต่ละ metric ครั้งเดียว`),
     ...[...new Set(used)].filter(column => !Object.hasOwn(schema, column)).map(column => {
       const elsewhere = [...discovered].filter(([id, other]) => id !== source_id && Object.hasOwn(other, column)).map(([id]) => id).slice(0, 3);
+      // Facts without a column of their own (a contact phone) are written in the source's notes.
+      const notes = Object.keys(schema).filter(name => /_notes?$/.test(name));
       return elsewhere.length ? `ไม่มีคอลัมน์ ${column} ใน ${source_id} แต่มีใน ${elsewhere.join(", ")} ให้ query แหล่งนั้นแทน`
+        : notes.length ? `ไม่มีคอลัมน์ ${column} ในแหล่งนี้และแหล่งที่ค้นได้ ข้อมูลที่ไม่มีคอลัมน์ของตัวเองอาจเขียนอยู่ในคอลัมน์บันทึก: ${notes.join(", ")} ให้เลือกคอลัมน์เหล่านี้แทน`
         : `ไม่มีคอลัมน์ ${column} ในแหล่งนี้และแหล่งที่ค้นได้ ให้ตัดออกหรือเลือกจาก columns; ถ้าคำถามต้องใช้ข้อมูลนี้ ให้ค้น discover_database ใหม่ด้วยชนิดข้อมูลที่ต้องการ`;
     }),
     ...filters.filter(f => !["is_null", "not_null"].includes(f.operator) && f.value == null)

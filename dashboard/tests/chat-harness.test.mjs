@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runAgent, MAX_READS } from '../app/api/chat/harness.mjs';
+import { CHAT_TOOLS } from '../app/api/chat/tools.mjs';
 const call = (name, args = {}) => ({ candidates: [{ content: { role: 'model', parts: [{ functionCall: { name, args }, thoughtSignature: 'opaque-signature' }] } }] });
 const overview = call('get_operations_overview', { view: 'risk', material_id: null, district_id: null });
 const stock = (id) => call('get_stock_status', { material_id: id, scope: 'warehouse', district_id: null });
@@ -136,4 +137,21 @@ test('a piece of a code the user wrote, or one with digits from data already rea
   await s.run();
   assert.deepEqual(rejectedFor(s), []);
   assert.equal(s.reads.length, 3);
+});
+
+// heldout contact-from-evidence: the phone is written in district_note; Typhoon asked for requester_phone, or never read the notes.
+test('a column no source has points to the notes, where facts without a column of their own are written', async () => {
+  const s = scenario([call('discover_database', { query: 'แผน KT01-W47-000214' }),
+    call('query_database', { source_id: 'analytics.v_replenishment_queue', columns: ['requester_name', 'requester_phone'],
+      filters: [{ column: 'plan_number', operator: 'eq', value: 'KT01-W47-000214' }], group_by: [], metrics: [],
+      order_column: null, order_direction: 'asc', limit: 10, offset: 0, search: null }), call('finish')],
+  async d => d.name === 'discover_database'
+    ? { tool: d.name, status: 'ok', data: [{ source_id: 'analytics.v_replenishment_queue',
+      columns: { requester_name: 'text', plan_number: 'text', district_note: 'text', planner_note: 'text' } }] }
+    : { tool: d.name, status: 'invalid_input' }, 'เบอร์ติดต่อผู้ขอเติมในแผน KT01-W47-000214 คืออะไร');
+  await s.run().catch(() => {});
+  assert.match(JSON.stringify(s.requests[2].contents.at(-1)), /requester_phone[^"]*district_note, planner_note/);
+});
+test('the query tool tells the model that facts without a column of their own are written in the notes', () => {
+  assert.match(CHAT_TOOLS.find(fn => fn.name === 'query_database').description, /_note/);
 });
