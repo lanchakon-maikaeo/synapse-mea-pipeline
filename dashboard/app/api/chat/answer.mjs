@@ -28,7 +28,8 @@ function args(response, name, keys) {
 export async function composeAnswer({ result, question, history = /** @type {{ role: string, text: string }[]} */ ([]), generate, signal }) {
   const includeSources = wantsSources(question);
   const fallback = (reason) => ({ ...result, answer_mode: 'evidence', answer_validation: reason });
-  const evidence = result.evidence.filter(e => e.tool !== 'discover_database');
+  // A query the database rejected read nothing; the writer works from what was read.
+  const evidence = result.evidence.filter(e => e.tool !== 'discover_database' && e.status !== 'invalid_input');
   // Never rewrite denied/partial/error output into an apparently successful answer.
   if (result.stop_reason !== 'complete' || !evidence.length || evidence.some(e => !['ok', 'no_data'].includes(e.status))) return fallback('not_applicable');
   const input = { assessed_at:new Date().toISOString(), question, history, evidence: evidence.map((data, i) => ({ id: i + 1, data })) };

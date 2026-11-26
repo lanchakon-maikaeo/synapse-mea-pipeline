@@ -79,3 +79,32 @@ test('tool context cannot grow past budget', async () => {
   const s = scenario([overview], async (d) => ({ ...result(d), data: [{ material_name: 'x'.repeat(40001) }] }));
   assert.equal((await s.run()).stop_reason, 'context_limit'); assert.equal(s.requests.length, 1);
 });
+const materials = { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.materials', columns: { material_id: 'text', material_name: 'text' } }] };
+const find = (search, columns = ['material_id']) => call('query_database', { source_id: 'core.materials', columns, filters: [], group_by: [], metrics: [],
+  order_column: null, order_direction: 'asc', limit: 5, offset: 0, search });
+const rejecting = rows => async d => d.name === 'discover_database' ? materials
+  : d.args.columns.includes('material_colour') ? { tool: 'query_database', status: 'invalid_input' }
+  : { tool: 'query_database', status: rows.length ? 'ok' : 'no_data', source_id: 'core.materials', data: rows };
+test('queries the database rejects before running do not use up the read budget', async () => {
+  const rejected = ['a', 'b', 'c'].map(x => find(x, ['material_colour']));
+  const s = scenario([call('discover_database', { query: 'วัสดุ' }), ...rejected, find('d'), find('e'), find('f')],
+    rejecting([{ material_id: '1' }]), 'วัสดุ d e f มีรหัสอะไร');
+  await s.run();
+  assert.equal(s.reads.length, 7, 'three rejected queries and four reads that returned data');
+  assert.equal(s.requests.length, MAX_READS + 1, 'no extra model calls');
+});
+test('the answer a stopped run falls back to says each finding once and leaves out queries the database rejected', async () => {
+  const s = scenario([call('discover_database', { query: 'วัสดุ' }), find('x'), find('y', ['material_colour']), find('z', ['material_colour']), find('w')],
+    rejecting([]), 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร');
+  const r = await s.run();
+  assert.equal(r.status, 'partial');
+  assert.equal(r.answer.split('ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ').length - 1, 1);
+  assert.doesNotMatch(r.answer, /ค้นข้อมูลไม่สำเร็จ/);
+  const only = scenario([call('discover_database', { query: 'วัสดุ' }), find('y', ['material_colour']), find('z', ['material_colour'])],
+    rejecting([]), 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร');
+  const answer = (await only.run()).answer;
+  assert.equal(answer.split('ค้นข้อมูลไม่สำเร็จ').length - 1, 1, 'nothing else was read: say it once');
+  // The user gave no code and nothing was verified: the rejected query was the model's.
+  assert.doesNotMatch(answer, /ตรวจรหัส|ตรวจสอบได้บางส่วน/);
+  assert.match(answer, /ลองระบุ SKU หรือชื่อเต็ม/);
+});

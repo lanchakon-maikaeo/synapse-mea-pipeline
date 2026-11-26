@@ -302,7 +302,8 @@ function renderRecordedResult(envelope, includeSources = false) {
     ...near.map(row => `• ${queryRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== "match_score")))}`)].join("\n");
   if (status === "no_data") return "ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ";
   if (status === "forbidden") return "บัญชีนี้ไม่มีสิทธิ์อ่านข้อมูลส่วนนี้";
-  if (status === "invalid_input") return "ข้อมูลที่ใช้ค้นหาไม่ครบหรือรูปแบบไม่ถูกต้อง กรุณาตรวจรหัสแล้วลองอีกครั้ง";
+  // The query is the model's, not the user's: say what failed without asking the user to check a code they may not have given.
+  if (status === "invalid_input") return "ค้นข้อมูลไม่สำเร็จ เพราะเงื่อนไขที่ใช้ค้นไม่ตรงกับรูปแบบข้อมูล";
   if (status !== "ok") return "ระบบข้อมูลไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่ภายหลัง";
   const rows = Array.isArray(envelope.data) ? envelope.data : [];
   if (!rows.length) return "ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ";
