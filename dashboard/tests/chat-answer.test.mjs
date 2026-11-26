@@ -111,3 +111,18 @@ test('the writer runs at the configured temperature and the reviewer stays at 0'
   await composeAnswer({ result: base, question: 'เขต 5501 คือเขตไหน', temperature: 0.4, generate: async body => { requests.push(body); return responses.shift(); } });
   assert.deepEqual(requests.map(body => body.generationConfig.temperature), [0.4, 0]);
 });
+
+test('a notice the writer already gave is not repeated: stale stock is said once', async () => {
+  const { annotateStockFreshness } = await import('../app/api/chat/tools.mjs');
+  const stale = annotateStockFreshness({ ...row, tool: 'get_stock_status', data: [{ current_stock_qty: 420, snapshot_at: '2026-11-20T03:00:00Z' }] }, new Date('2026-11-26T03:00:00Z'));
+  const [warning] = stale.warnings;
+  for (const note of [warning, 'สต็อกปัจจุบันยังยืนยันไม่ได้ เพราะข้อมูลเป็นยอด ณ 20 พ.ย.']) {
+    const responses = [call('write_answer', { summary: 'เหลือ 420 เครื่อง ณ 20 พ.ย.', items: [], notes: [note], evidence_ids: [1] }), approved];
+    const answer = await composeAnswer({ result: { ...base, evidence: [stale] }, question: 'มิเตอร์เหลือเท่าไร', generate: async () => responses.shift() });
+    assert.equal(answer.answer.split(warning).length - 1, note === warning ? 1 : 0);
+    assert.match(answer.answer, /ยืนยันไม่ได้|ยืนยันยอดปัจจุบัน/);
+  }
+  const responses = [call('write_answer', { summary: 'เหลือ 420 เครื่อง', items: [], notes: [], evidence_ids: [1] }), approved];
+  const silent = await composeAnswer({ result: { ...base, evidence: [stale] }, question: 'มิเตอร์เหลือเท่าไร', generate: async () => responses.shift() });
+  assert.equal(silent.answer.split(warning).length - 1, 1, 'a writer that leaves it out still gets the warning from the server');
+});

@@ -285,7 +285,7 @@ export function annotateStockFreshness(envelope, now = new Date()) {
   if(!rows.length)return envelope;
   const unverified=rows.filter(row=>{const time=typeof row.snapshot_at==='string'?Date.parse(row.snapshot_at):NaN;return !Number.isFinite(time)||time>now.getTime()||now.getTime()-time>26*3600000;}).length;
   const freshness={assessed_at:now.toISOString(),max_age_hours:26,unverified_rows:unverified,status:unverified?'unverified':'current'};
-  const warnings=[...(envelope.warnings??[]),...(unverified?['ข้อมูลสต็อกเก่าหรือไม่มีวันที่ snapshot ที่ยืนยันได้ ยังยืนยันยอดปัจจุบันและลำดับส่งวันนี้ไม่ได้ ควรอัปเดตสต็อก ตรวจยอดจองและของเข้า แล้วประเมินแผนอีกครั้ง']:[])];
+  const warnings=[...(envelope.warnings??[]),...(unverified?['ข้อมูลสต็อกเก่า หรือไม่มีวันที่ของข้อมูลที่ยืนยันได้ จึงยังยืนยันยอดปัจจุบันและลำดับส่งวันนี้ไม่ได้ ควรอัปเดตสต็อก ตรวจยอดจองและของเข้า แล้วประเมินแผนอีกครั้ง']:[])];
   return {...envelope,freshness,warnings};
 }
 
