@@ -199,11 +199,17 @@ export function columnLabel(column) {
   return (per > 0 ? `${words(parts.slice(0, per))}ต่อ${words(parts.slice(per + 1))}` : words(parts)) + unit;
 }
 
+// A date, or a timestamp with its zone, as PostgREST returns them; a time with no zone is left as stored.
+const STAMP = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}(?::?\d{2})?))?$/;
+const thaiDate = (value, withTime) => new Intl.DateTimeFormat("th-TH", {
+  dateStyle: "medium", ...(withTime ? { timeStyle: "short" } : {}), timeZone: "Asia/Bangkok" }).format(new Date(value));
+
 export function valueLabel(column, value) {
   if (value == null || value === "") return "ไม่ทราบ";
   if (typeof value === "boolean") return value ? "ใช่" : "ไม่ใช่";
   if (Array.isArray(value)) return value.length ? value.map(item => valueLabel(column, item)).join(", ") : "ไม่มี";
   if (typeof value === "object") return Object.entries(value).map(([key, item]) => `${columnLabel(key)} ${valueLabel(key, item)}`).join(", ");
+  if (typeof value === "string" && STAMP.test(value) && !Number.isNaN(Date.parse(value))) return thaiDate(value, value.length > 10);
   return typeof value === "string" && CODED.test(column) && Object.hasOwn(VALUES, value) ? VALUES[value] : String(value);
 }
 
