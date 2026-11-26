@@ -30,14 +30,14 @@ test('a text reply after the evidence is read still gets an answer written and c
   const { requests, fetcher } = provider(
     ['discover_database', { query: 'เขต 5507' }], ['rank_candidates', { indices: [0] }], ['query_database', query],
     'เขต 5507 คือเขตบางนา',
-    ['write_answer', { answer: 'เขต 5507 คือเขตบางนา', evidence_ids: [1] }],
+    ['write_answer', { summary: 'เขต 5507 คือเขตบางนา', items: [], notes: [], evidence_ids: [1] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const { result } = await runChat({ message: 'เขต 5507 คือเขตอะไร', config, terms, fetcher, rpc: districts, signal: new AbortController().signal });
   assert.equal(requests.length, 6);
   assert.equal(result.stop_reason, 'complete');
   assert.equal(result.answer_mode, 'synthesized');
-  assert.equal(result.answer, 'เขต 5507 คือเขตบางนา');
+  assert.equal(result.answer, 'เขต 5507 คือเขตบางนา\n\nที่มา: core.districts');
 });
 
 test('a text reply before anything is read is asked once more for a function call', async () => {
@@ -71,7 +71,7 @@ test('a data question answered with a canned conversation reply goes back once t
     ['query_database', { ...query, source_id: 'core.transport_vehicles', columns: ['vehicle_id', 'max_weight_kg'], filters: [],
       order_column: 'max_weight_kg', order_direction: 'desc', limit: 1 }],
     ['finish', {}],
-    ['write_answer', { answer: 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.', evidence_ids: [1] }],
+    ['write_answer', { summary: 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.', items: [], notes: [], evidence_ids: [1] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const vehicles = async (name, args) => args.p_tool === 'discover_database'
@@ -82,7 +82,7 @@ test('a data question answered with a canned conversation reply goes back once t
   assert.equal(returned.role, 'tool');
   assert.match(returned.content, /discover_database/);
   assert.equal(result.answer_mode, 'synthesized');
-  assert.equal(result.answer, 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.');
+  assert.equal(result.answer, 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.\n\nที่มา: core.transport_vehicles');
 });
 
 test('a code that came from neither the question nor the data read goes back once to be looked up', async () => {
@@ -93,7 +93,7 @@ test('a code that came from neither the question nor the data read goes back onc
     ['query_database', { ...query, filters: [{ column: 'district_name_th', operator: 'contains', value: 'บางนา' }] }],
     ['get_stock_status', { ...guessed, district_id: '5507' }],
     ['finish', {}],
-    ['write_answer', { answer: 'เขตบางนามีสายอะลูมิเนียม 1250 เมตร', evidence_ids: [2] }],
+    ['write_answer', { summary: 'เขตบางนามีสายอะลูมิเนียม 1250 เมตร', items: [], notes: [], evidence_ids: [2] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const stockReads = [];
@@ -133,14 +133,14 @@ test('a writer that answers in text is asked once more to call write_answer', as
   const { requests, fetcher } = provider(
     ['discover_database', { query: 'เขต 5507' }], ['rank_candidates', { indices: [0] }], ['query_database', query], ['finish', {}],
     'เขต 5507 คือเขตบางนา',
-    ['write_answer', { answer: 'เขต 5507 คือเขตบางนา', evidence_ids: [1] }],
+    ['write_answer', { summary: 'เขต 5507 คือเขตบางนา', items: [], notes: [], evidence_ids: [1] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const { result } = await runChat({ message: 'เขต 5507 คือเขตอะไร', config, terms, fetcher, rpc: districts, signal: new AbortController().signal });
   assert.equal(requests.length, 7);
   assert.match(requests[5].messages.at(-1).content, /write_answer/);
   assert.equal(result.answer_mode, 'synthesized');
-  assert.equal(result.answer, 'เขต 5507 คือเขตบางนา');
+  assert.equal(result.answer, 'เขต 5507 คือเขตบางนา\n\nที่มา: core.districts');
 });
 
 test('a query rejected as invalid input names the rules it broke', async () => {
@@ -204,7 +204,7 @@ test('a call repeated with the same arguments goes back once instead of ending t
   const { requests, fetcher } = provider(
     ['discover_database', { query: 'ลูกถ้วยแขวน 030500100077' }], ['rank_candidates', { indices: [0] }],
     ['query_database', byName], ['query_database', byName], ['query_database', byCode], ['finish', {}],
-    ['write_answer', { answer: 'ยอด final_qty รวม 4600', evidence_ids: [2] }],
+    ['write_answer', { summary: 'ยอด final_qty รวม 4600', items: [], notes: [], evidence_ids: [2] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const filtered = [];
@@ -235,24 +235,24 @@ const nearRpc = async (name, args) => args.p_tool === 'discover_database'
 test('near matches shown from the evidence are labelled as near, not as the item asked for', async () => {
   const { fetcher } = provider(
     ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
-    ['write_answer', { answer: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA คือ SKU 010101000250', evidence_ids: [1] }],
+    ['write_answer', { summary: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA คือ SKU 010101000250', items: [], notes: [], evidence_ids: [1] }],
     ['check_answer', { supported: false, answers_question: true, citations_valid: true }],
   );
   const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config, terms, fetcher, rpc: nearRpc, signal: new AbortController().signal });
   assert.equal(result.answer_mode, 'evidence');
   assert.match(result.answer, /ไม่พบรายการที่ตรงทุกคำ/);
-  assert.match(result.answer, /รายการใกล้เคียง[\s\S]*010101000250[\s\S]*22kV 250kVA/);
+  assert.match(result.answer, /รายการที่ใกล้เคียง[\s\S]*010101000250[\s\S]*22kV 250kVA/);
 });
 
 test('a written answer from near matches that does not say so carries the server notice that they are near matches', async () => {
   const { requests, fetcher } = provider(
     ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
-    ['write_answer', { answer: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA มีรหัส 010101000250', evidence_ids: [1] }],
+    ['write_answer', { summary: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA มีรหัส 010101000250', items: [], notes: [], evidence_ids: [1] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config, terms, fetcher, rpc: nearRpc, signal: new AbortController().signal });
   assert.equal(result.answer_mode, 'synthesized');
-  assert.match(result.answer, /รายการใกล้เคียง ไม่ใช่รายการที่ตรงทุกคำ/);
+  assert.match(result.answer, /ใกล้เคียง ไม่ได้ตรงทุกคำ/);
   assert.match(JSON.stringify(requests[4]), /near_matches/);
 });
 
@@ -260,12 +260,12 @@ test('a written answer that already says it shows near matches says it once', as
   const draft = 'ไม่พบชื่อนี้ตรงตัว รายการใกล้เคียงที่พบ ไม่ใช่รายการที่ตรงทุกคำ ตรวจสอบชื่อหรือรหัสก่อนใช้: หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA (SKU 010101000250)';
   const { fetcher } = provider(
     ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
-    ['write_answer', { answer: draft, evidence_ids: [1] }],
+    ['write_answer', { summary: draft, items: [], notes: [], evidence_ids: [1] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config, terms, fetcher, rpc: nearRpc, signal: new AbortController().signal });
   assert.equal(result.answer_mode, 'synthesized');
-  assert.equal(result.answer, draft);
+  assert.equal(result.answer, `${draft}\n\nที่มา: core.materials`);
 });
 
 test('a Thai search term reaches the database as words so their order does not matter', async () => {
@@ -273,7 +273,7 @@ test('a Thai search term reaches the database as words so their order does not m
   const { fetcher } = provider(
     ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }],
     ['query_database', { ...nearQuery, filters: [], search: 'หม้อแปลงไฟฟ้า250kVA - 3 เฟส' }], ['finish', {}],
-    ['write_answer', { answer: 'ไม่พบรายการตรงตัว', evidence_ids: [1] }],
+    ['write_answer', { summary: 'ไม่พบรายการตรงตัว', items: [], notes: [], evidence_ids: [1] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const rpc = async (name, args) => { if (args.p_tool === 'query_database') searched.push(args.p_args.search); return nearRpc(name, args); };
@@ -332,14 +332,14 @@ test('a run that recovered from a rejected query still gets its answer written a
   const { requests, fetcher } = provider(
     ['discover_database', { query: 'เขต 5507' }], ['rank_candidates', { indices: [0] }],
     ['query_database', { ...query, columns: ['district_id', 'district_colour'] }], ['query_database', query], ['finish', {}],
-    ['write_answer', { answer: 'เขต 5507 คือเขตบางนา', evidence_ids: [1] }],
+    ['write_answer', { summary: 'เขต 5507 คือเขตบางนา', items: [], notes: [], evidence_ids: [1] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const rpc = async (name, args) => args.p_tool === 'query_database' && args.p_args.columns.includes('district_colour')
     ? { tool: 'query_database', status: 'invalid_input' } : districts(name, args);
   const { result } = await runChat({ message: 'เขต 5507 คือเขตอะไร', config, terms, fetcher, rpc, signal: new AbortController().signal });
   assert.equal(result.answer_mode, 'synthesized');
-  assert.equal(result.answer, 'เขต 5507 คือเขตบางนา');
+  assert.equal(result.answer, 'เขต 5507 คือเขตบางนา\n\nที่มา: core.districts');
   const written = JSON.parse(requests[5].messages.find(m => m.role === 'user').content);
   assert.deepEqual(written.evidence.map(e => e.data.status), ['ok'], 'the writer sees what was read, not the rejected query');
 });

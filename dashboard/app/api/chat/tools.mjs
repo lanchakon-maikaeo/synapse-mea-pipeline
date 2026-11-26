@@ -1,3 +1,5 @@
+import { columnLabel, valueLabel } from "./labels.mjs";
+
 const nullableString = (description) => ({
   type: ["string", "null"],
   description,
@@ -79,10 +81,10 @@ export const CHAT_TOOLS = [
 ];
 
 export const CONVERSATION_REPLIES = {
-  greeting: "สวัสดีค่ะ ฉันคือ SYNAPSE Agent ช่วยค้นข้อมูลและตอบคำถามเกี่ยวกับงานในระบบได้ วันนี้ต้องการให้ช่วยเรื่องอะไรคะ?",
-  thanks: "ยินดีค่ะ หากต้องการตรวจข้อมูลเพิ่มเติม ถามต่อได้เลยค่ะ",
-  goodbye: "สวัสดีค่ะ ไว้กลับมาคุยกันใหม่นะคะ",
-  capabilities: "ฉันช่วยค้นชื่อเขต วัสดุ สต็อก แผนเติมของ สัญญา ขนส่ง และประวัติในระบบตามสิทธิ์ของคุณ รวมถึงกรอง เรียง และสรุปยอดจากฐานข้อมูลได้ เช่น ‘เขต 5501 คือเขตไหน’ หรือ ‘ทะเบียนวัสดุมีกี่รายการ’ ฉันอ่านข้อมูลและให้คำแนะนำได้ แต่ยังไม่อนุมัติหรือจ่ายของค่ะ",
+  greeting: "สวัสดี SYNAPSE Agent ช่วยค้นข้อมูลสต็อก แผนเติม สัญญา และขนส่งในระบบได้ วันนี้อยากให้ช่วยดูเรื่องไหน",
+  thanks: "ยินดี ถ้าต้องการตรวจข้อมูลเพิ่ม ถามต่อได้เลย",
+  goodbye: "แล้วพบกันใหม่",
+  capabilities: "ค้นชื่อเขต วัสดุ สต็อก แผนเติม สัญญา ขนส่ง และประวัติในระบบได้ตามสิทธิ์ของบัญชีนี้ กรอง เรียง และสรุปยอดจากฐานข้อมูลได้ เช่น “เขต 5501 คือเขตไหน” หรือ “ทะเบียนวัสดุมีกี่รายการ” อ่านข้อมูลและให้คำแนะนำได้ แต่อนุมัติหรือจ่ายของแทนไม่ได้",
 };
 export const DB_TOOLS = new Set(CHAT_TOOLS.filter((tool) => !["conversation", "clarify", "unsupported", "finish"].includes(tool.name)).map((tool) => tool.name));
 const districtPattern = /^55(0[1-9]|1[0-8])$/;
@@ -216,7 +218,7 @@ export function bindDistrictScope(decision, scope) {
   if (scope?.role === "district" && districtPattern.test(scope?.district_id ?? "")) {
     return { ...decision, args: { ...decision.args, district_id: scope.district_id } };
   }
-  return { name: "clarify", args: { question: "กรุณาระบุรหัสเขต 5501–5518 ที่ต้องการตรวจสอบ" } };
+  return { name: "clarify", args: { question: "ต้องการดูเขตไหน ระบุรหัสเขต 5501 ถึง 5518" } };
 }
 
 export function buildProviderBody(question, temperature, history = /** @type {{ role: string, text: string }[]} */ ([])) {
@@ -253,21 +255,22 @@ export function buildProviderBody(question, temperature, history = /** @type {{ 
   };
 }
 
+const MISSING = "ไม่ทราบ";
 const number = (value, digits = 2) => {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return MISSING;
   const parsed = Number(value);
   return Number.isFinite(parsed)
     ? new Intl.NumberFormat("th-TH", { maximumFractionDigits: digits }).format(parsed)
-    : "—";
+    : MISSING;
 };
 const date = (value) => {
-  if (!value) return "—";
+  if (!value) return MISSING;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? String(value) : new Intl.DateTimeFormat("th-TH", {
     dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok",
   }).format(parsed);
 };
-const text = (value, fallback = "—") => value === null || value === undefined || value === "" ? fallback : String(value);
+const text = (value, fallback = MISSING) => value === null || value === undefined || value === "" ? fallback : String(value);
 
 export function wantsSources(question) {
   return /หลักฐาน|แหล่งข้อมูล|แหล่งที่มา|อ้างอิง|เอาข้อมูลมาจาก|ข้อมูลมาจาก|ที่มาของ|\b(?:sources?|citations?|references?)\b|where.*(?:data|information).*from/i.test(question);
@@ -288,92 +291,104 @@ export function annotateStockFreshness(envelope, now = new Date()) {
 
 export function renderToolResult(envelope, includeSources = false) {
   const notice=envelope?.freshness?.status==='unverified'?'ข้อมูลต่อไปนี้เป็นข้อมูลที่บันทึกไว้ ยังยืนยันสต็อกปัจจุบันไม่ได้\n\n':'';
-  return notice+renderRecordedResult(envelope,includeSources)+(notice?'\n\nควรอัปเดตสต็อก ตรวจยอดจองและของเข้า ก่อนจัดลำดับส่งวันนี้':'');
+  // An empty name or unit leaves a double space or a trailing one; database rows are left as read.
+  const recorded=renderRecordedResult(envelope,includeSources);
+  return notice+(envelope?.tool==='query_database'?recorded:recorded.replace(/(\S) {2,}/g,'$1 ').replace(/ +$/gm,''))+(notice?'\n\nควรอัปเดตสต็อก ตรวจยอดจองและของเข้า ก่อนจัดลำดับส่งวันนี้':'');
 }
 
-const queryLabels = { district_id: "รหัสเขต", district_name_th: "ชื่อเขต", material_id: "SKU", material_name: "ชื่อวัสดุ", unit: "หน่วย", count_rows: "จำนวนรายการ", warehouse_name_th: "ชื่อคลัง" };
-const queryValue = value => value == null ? "ไม่ทราบ" : typeof value === "object" ? JSON.stringify(value) : String(value);
-const queryRow = row => Object.entries(row).map(([key, value]) => `${queryLabels[key] ?? key}: ${queryValue(value)}`).join(" · ");
+// One row per line, each column under its Thai name: "• ชื่อวัสดุ: … · สถานะแผน: รอเขตยืนยัน".
+const queryRow = row => `• ${Object.entries(row).map(([key, value]) => `${columnLabel(key)}: ${valueLabel(key, value)}`).join(" · ")}`;
+
+// The last line of every answer: where the facts came from and when they were read.
+export function sourceLine(evidence) {
+  const read = evidence.filter(e => e && e.tool !== "discover_database" && ["ok", "no_data"].includes(e.status));
+  // Knowledge search names its documents per row.
+  const sources = [...new Set(read.flatMap(e => [e.source_id, ...(Array.isArray(e.sources) ? e.sources : []),
+    ...(e.tool === "search_knowledge" && Array.isArray(e.data) ? e.data.map(row => row?.source_id) : [])]).filter(s => typeof s === "string" && s))];
+  if (!sources.length) return undefined;
+  const latest = key => read.map(e => e[key]).filter(value => typeof value === "string" && !Number.isNaN(Date.parse(value))).sort().at(-1);
+  const asOf = latest("data_as_of"), observed = latest("observed_at");
+  return `ที่มา: ${sources.join(", ")}${asOf ? ` · ข้อมูล ณ ${date(asOf)}` : observed ? ` · อ่านเมื่อ ${date(observed)}` : ""}`;
+}
 
 function renderRecordedResult(envelope, includeSources = false) {
   const status = envelope?.status;
   const near = Array.isArray(envelope?.near_matches) ? envelope.near_matches.filter(row => row && typeof row === "object") : [];
-  if (status === "no_data" && near.length) return ["ไม่พบรายการที่ตรงทุกคำ รายการใกล้เคียง (ตรวจชื่อหรือรหัสก่อนใช้):",
-    ...near.map(row => `• ${queryRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== "match_score")))}`)].join("\n");
-  if (status === "no_data") return "ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ";
+  if (status === "no_data" && near.length) return ["ไม่พบรายการที่ตรงทุกคำ รายการที่ใกล้เคียงมีดังนี้ ตรวจชื่อหรือรหัสก่อนใช้",
+    ...near.map(row => queryRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== "match_score"))))].join("\n");
+  if (status === "no_data") return "ไม่พบข้อมูลที่ตรงกับเงื่อนไขที่ค้น";
   if (status === "forbidden") return "บัญชีนี้ไม่มีสิทธิ์อ่านข้อมูลส่วนนี้";
   // The query is the model's, not the user's: say what failed without asking the user to check a code they may not have given.
   if (status === "invalid_input") return "ค้นข้อมูลไม่สำเร็จ เพราะเงื่อนไขที่ใช้ค้นไม่ตรงกับรูปแบบข้อมูล";
-  if (status !== "ok") return "ระบบข้อมูลไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่ภายหลัง";
+  if (status !== "ok") return "ระบบข้อมูลใช้งานไม่ได้ชั่วคราว ลองถามใหม่ภายหลัง";
   const rows = Array.isArray(envelope.data) ? envelope.data : [];
-  if (!rows.length) return "ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ";
+  if (!rows.length) return "ไม่พบข้อมูลที่ตรงกับเงื่อนไขที่ค้น";
   const first = rows[0];
   if (envelope.tool === "search_knowledge") {
-    return rows.map(row => [text(row.content), ...(includeSources ? [`แหล่งข้อมูล: ${text(row.source_id)}`] : [])].join("\n")).join("\n\n");
+    return rows.map(row => text(row.content)).join("\n\n");
   }
   if (envelope.tool === "query_database") {
     return [
       ...rows.map(queryRow),
-      ...(includeSources ? [`แหล่งข้อมูล: ${envelope.source_id} · ตรวจเมื่อ ${date(envelope.observed_at)}`] : []),
       ...(includeSources && envelope.aggregation ? ["คำนวณจากทุกแถวที่ตรงเงื่อนไขและสิทธิ์ ก่อนจำกัดจำนวนผลลัพธ์"] : []),
       ...(includeSources && envelope.retrieval ? [envelope.retrieval.status === "fallback_original_order"
         ? `จัดอันดับความเกี่ยวข้องไม่สำเร็จ แสดง ${rows.length} รายการตามลำดับเดิมจากผู้สมัคร ${envelope.retrieval.candidate_count} รายการ`
         : `คัดความเกี่ยวข้อง ${rows.length} รายการจากผู้สมัคร ${envelope.retrieval.candidate_count} รายการ`] : []),
-      ...(envelope.scope?.truncated ? ["แสดงเพียงบางรายการ ยังไม่ใช่ข้อมูลทั้งหมด กรุณาระบุเงื่อนไขเพิ่มหรือขอหน้าถัดไป"] : []),
+      ...(envelope.scope?.truncated ? ["แสดงแค่บางรายการ ถ้าต้องการดูเพิ่ม ระบุเงื่อนไขให้แคบลงหรือขอหน้าถัดไป"] : []),
     ].join("\n");
   }
   if (envelope.tool === "get_operations_overview") {
     const delivery = envelope.view === "delivery";
     const lines = rows.map((row) => [
       `• เขต ${text(row.district_id)} ${text(row.district_name_th, "")} · SKU ${text(row.material_id)} ${text(row.material_name, "")}`,
-      `  คงเหลือ ${number(row.current_stock_qty)} ${text(row.unit)} · ใช้ได้ ${number(row.months_available)} เดือน · ${text(row.health_band)}`,
+      `  คงเหลือ ${number(row.current_stock_qty)} ${text(row.unit, "")} · ใช้ได้ ${number(row.months_available)} เดือน · ระดับสต็อก ${valueLabel("health_band", row.health_band)}`,
       ...(delivery ? [row.suggested_qty == null ? "  ยังไม่มีแผนเติมที่ใช้งานอยู่ ต้องจัดทำแผนก่อนระบุปริมาณส่ง" :
-        `  แผน ${text(row.plan_number)}: แนะนำ ${number(row.suggested_qty)} · ยืนยัน ${number(row.confirmed_qty)} · ปริมาณสุดท้าย ${number(row.final_qty)} ${text(row.unit)} · สถานะ ${text(row.item_status)}`] : []),
+        `  แผน ${text(row.plan_number)}: แนะนำ ${number(row.suggested_qty)} · ยืนยัน ${number(row.confirmed_qty)} · ปริมาณสุดท้าย ${number(row.final_qty)} ${text(row.unit, "")} · สถานะ ${valueLabel("item_status", row.item_status)}`] : []),
       `  ข้อมูลสต็อก ${date(row.snapshot_at)}`,
     ].join("\n"));
-    return [delivery ? "ลำดับพิจารณาเติมวัสดุไปยังคลังเขต" : "คลังเขตที่สต็อกอยู่ในระดับ critical/watch (เรียงเดือนคงเหลือน้อยก่อน)",
-      ...lines, ...(envelope.scope?.truncated ? ["แสดง 20 รายการแรก กรุณาระบุ SKU หรือเขตเพื่อเจาะรายละเอียด"] : []),
+    return [delivery ? "ลำดับพิจารณาเติมวัสดุไปยังคลังเขต" : "คลังเขตที่สต็อกอยู่ในระดับวิกฤตหรือเฝ้าระวัง เรียงจากเดือนคงเหลือน้อยไปมาก",
+      ...lines, ...(envelope.scope?.truncated ? ["แสดง 20 รายการแรก ระบุ SKU หรือเขตเพื่อดูละเอียดขึ้น"] : []),
       ...(delivery ? ["เป็นคำแนะนำจากข้อมูลและแผนที่บันทึก ยังต้องตรวจสต็อกต้นทางและผ่านขั้นตอนอนุมัติก่อนจ่ายจริง"] : []),
       "รายการที่ไม่มีหลักฐานสต็อกหรืออัตราใช้ไม่ถูกนับว่าใกล้หมด"].join("\n");
   }
   if (envelope.tool === "get_stock_status") {
     if (first.location_id) {
-      const lines = rows.slice(0, 8).map((row) => `• ${text(row.location_name_th, row.location_id)}: ${number(row.quantity_on_hand)} ${text(row.unit)}`);
-      return [`สต็อกคลังของ ${text(first.material_name)} (${text(first.material_id)})`, ...lines,
+      const lines = rows.slice(0, 8).map((row) => `• ${text(row.location_name_th, row.location_id)}: ${number(row.quantity_on_hand)} ${text(row.unit, "")}`);
+      return [`สต็อกคลังของ ${text(first.material_name, "")} (${text(first.material_id)})`, ...lines,
         `ข้อมูลล่าสุด ${date(first.snapshot_at)}`].join("\n");
     }
-    return [`สต็อก ${text(first.material_name)} (${text(first.material_id)}) เขต ${text(first.district_id)}`,
-      `คงเหลือ ${number(first.current_stock_qty)} ${text(first.unit)} · CMP ${number(first.cmp_monthly)} ${text(first.unit)}/เดือน`,
-      `ใช้ได้ประมาณ ${number(first.months_available)} เดือน · สถานะ ${text(first.health_band)}`,
+    return [`สต็อก ${text(first.material_name, "")} (${text(first.material_id)}) เขต ${text(first.district_id)}`,
+      `คงเหลือ ${number(first.current_stock_qty)} ${text(first.unit, "")} · CMP ${number(first.cmp_monthly)} ${text(first.unit, "")}/เดือน`,
+      `ใช้ได้ประมาณ ${number(first.months_available)} เดือน · ระดับสต็อก ${valueLabel("health_band", first.health_band)}`,
       `ข้อมูลล่าสุด ${date(first.snapshot_at)}`].join("\n");
   }
   if (envelope.tool === "get_replenishment_recommendation") {
     const recommendation = first.recommended_qty === null
       ? "ยังไม่มีปริมาณแนะนำจากกฎที่บันทึกไว้"
-      : `แนะนำเติม ${number(first.recommended_qty)} ${text(first.unit)}`;
-    return [`คำแนะนำ ${text(first.material_name)} (${text(first.material_id)}) เขต ${text(first.district_id)}`,
-      `${recommendation} · คงเหลือ ${number(first.current_stock_qty)} ${text(first.unit)}`,
-      `CMP ${number(first.cmp_monthly)} ${text(first.unit)}/เดือน · Rule ${text(first.rule_version)}`,
+      : `แนะนำเติม ${number(first.recommended_qty)} ${text(first.unit, "")}`;
+    return [`คำแนะนำ ${text(first.material_name, "")} (${text(first.material_id)}) เขต ${text(first.district_id)}`,
+      `${recommendation} · คงเหลือ ${number(first.current_stock_qty)} ${text(first.unit, "")}`,
+      `CMP ${number(first.cmp_monthly)} ${text(first.unit, "")}/เดือน · กฎรุ่น ${text(first.rule_version)}`,
       `สร้างเมื่อ ${date(first.created_at)}`].join("\n");
   }
   if (envelope.tool === "get_plan_status") {
     const approvals = rows.filter((row) => row.approval_stage).slice(0, 5)
-      .map((row) => `• ${text(row.approval_stage)}: ${text(row.decision)} (${date(row.acted_at)})`);
-    return [`แผน ${text(first.plan_number)} · สถานะ ${text(first.plan_status)}`,
+      .map((row) => `• ${valueLabel("approval_stage", row.approval_stage)}: ${valueLabel("decision", row.decision)} (${date(row.acted_at)})`);
+    return [`แผน ${text(first.plan_number)} · สถานะ ${valueLabel("plan_status", first.plan_status)}`,
       `สัปดาห์ ${text(first.week_start_date)} · รุ่น ${text(first.version_no)}`,
       ...(approvals.length ? ["หลักฐานอนุมัติ", ...approvals] : ["ยังไม่มีหลักฐานการอนุมัติ"]),
       `อัปเดต ${date(first.updated_at)}`].join("\n");
   }
   if (envelope.tool === "get_contract_status") {
     const lines = rows.filter((row) => row.material_id).slice(0, 6)
-      .map((row) => `• ${text(row.material_id)} ${text(row.item_description, "")} ${number(row.quantity)} ${text(row.unit)}`.trim());
+      .map((row) => `• ${text(row.material_id)} ${text(row.item_description, "")} ${number(row.quantity)} ${text(row.unit, "")}`.trim());
     return [`สัญญา ${text(first.contract_number)} · PO ${text(first.purchase_order)}`,
-      `สถานะ ${text(first.contract_status)} · ผู้ขาย ${text(first.vendor_name)}`,
+      `สถานะ ${valueLabel("contract_status", first.contract_status)} · ผู้ขาย ${text(first.vendor_name)}`,
       ...(lines.length ? ["รายการวัสดุ", ...lines] : ["ไม่พบรายการวัสดุที่เปิดเผยได้"]),
       `อัปเดต ${date(first.updated_at)}`].join("\n");
   }
   const lines = rows.slice(0, 6).map((row) =>
-    `• ISSUE ${text(row.issue_reference)} · ${text(row.material_id)} ${number(row.issued_qty)} ${text(row.unit)} · HU ${text(row.handling_unit_code)} · Lot ${text(row.lot_code)} · PO ${text(row.purchase_order)}`,
+    `• ISSUE ${text(row.issue_reference)} · ${text(row.material_id)} ${number(row.issued_qty)} ${text(row.unit, "")} · HU ${text(row.handling_unit_code)} · Lot ${text(row.lot_code)} · PO ${text(row.purchase_order)}`,
   );
   return ["ผลการสอบกลับจากรายการจ่ายที่มีหลักฐาน", ...lines,
     `รายการล่าสุด ${date(first.occurred_at)}`].join("\n");

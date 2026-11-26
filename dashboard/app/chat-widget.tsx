@@ -34,7 +34,7 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { id: "welcome", role: "assistant", text: "สวัสดีค่ะ วันนี้ให้ช่วยดูเรื่องไหน? ถามเรื่องสต็อก งานที่ควรทำ หรือแผนส่งพัสดุได้เลย" },
+    { id: "welcome", role: "assistant", text: "สวัสดี วันนี้ให้ช่วยดูเรื่องไหน ถามเรื่องสต็อก งานที่ควรทำ หรือแผนส่งพัสดุได้เลย" },
   ]);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -88,7 +88,7 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
       setMessages((current) => [...current, {
         id: crypto.randomUUID(),
         role: "assistant",
-        text: error instanceof Error ? error.message : "เชื่อมต่อผู้ช่วยไม่สำเร็จ กรุณาลองอีกครั้ง",
+        text: error instanceof Error ? error.message : "เชื่อมต่อผู้ช่วยไม่สำเร็จ ลองส่งอีกครั้ง",
         error: true,
       }]);
     } finally {

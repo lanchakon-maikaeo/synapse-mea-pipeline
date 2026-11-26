@@ -39,13 +39,13 @@ test('verified BGE-M3 provider names normalize into the same corpus', async () =
     assert.equal(result.length, 1024); assert.equal(result[0], 1);
   }
 });
-test('knowledge search runs through the existing harness and hides sources by default', async () => {
+test('knowledge search runs through the existing harness and names the documents it read', async () => {
   for (const question of ['กฎเติมวัสดุ', 'ขอแหล่งข้อมูลกฎเติมวัสดุ']) {
     const calls = [{name:'search_knowledge',args:{query:'กฎเติมวัสดุ'}},{name:'finish',args:{}}];
     const result = await runAgent({message:question,temperature:0,generate:async()=>({candidates:[{content:{parts:[{functionCall:calls.shift()}]}}]}),
       read:async d=>({tool:d.name,status:'ok',data:[{content:'Trigger 3.5 เดือน',source_id:'rules.md'}]})});
     assert.equal(result.status,'ok'); assert.match(result.answer,/Trigger 3.5/);
-    assert.equal(result.answer.includes('rules.md'),question.includes('แหล่งข้อมูล'));
+    assert.match(result.answer,/ที่มา: rules\.md$/);
   }
 });
 
