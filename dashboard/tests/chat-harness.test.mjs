@@ -53,14 +53,29 @@ test('duplicate calls stop instead of repeatedly spending money or querying', as
   const s = scenario([overview, overview, overview, overview]); const r = await s.run();
   assert.equal(r.stop_reason, 'repeated_tool'); assert.equal(r.status, 'partial'); assert.equal(s.reads.length, 1);
 });
-test('hard read budget applies even when the model ignores instructions', async () => {
+test('the last step offers only finish, so a run that read something ends complete and gets written', async () => {
   const skus = Array.from({ length: MAX_READS + 1 }, (_, i) => `SKU-${i}`);
   const s = scenario(skus.map(stock), undefined, `ตรวจสต็อก ${skus.join(' ')}`); const r = await s.run();
-  assert.equal(r.stop_reason, 'step_limit'); assert.equal(s.reads.length, MAX_READS); assert.equal(s.requests.length, MAX_READS + 1);
+  assert.deepEqual(s.requests.at(-1).tools[0].functionDeclarations.map(fn => fn.name), ['finish']);
+  // The model ignored the offer and asked for a seventh read: the run still ends with what it read.
+  assert.equal(r.stop_reason, 'complete'); assert.equal(s.reads.length, MAX_READS); assert.equal(s.requests.length, MAX_READS + 1);
+  assert.doesNotMatch(r.answer, /แสดงเฉพาะข้อมูลที่ค้นได้/);
+});
+test('a plan number written with its version, KT03-W46-091169-V1, is read as the number and version_no', async () => {
+  const plans = { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.replenishment_plans', columns: { plan_number: 'text', version_no: 'integer', plan_status: 'text' } }] };
+  const query = { source_id: 'core.replenishment_plans', columns: ['plan_number', 'plan_status'], filters: [{ column: 'plan_number', operator: 'eq', value: 'KT03-W46-091169-V1' }],
+    group_by: [], metrics: [], order_column: null, order_direction: 'asc', limit: 5, offset: 0, search: null };
+  const s = scenario([call('discover_database', { query: 'แผนเติม' }), call('query_database', query), call('finish')],
+    async d => d.name === 'discover_database' ? plans : { tool: d.name, status: 'ok', source_id: 'core.replenishment_plans', data: [{ plan_number: 'KT03-W46-091169', plan_status: 'pending_district_confirmation' }] },
+    'แผนเติม KT03-W46-091169-V1 สถานะอะไร');
+  await s.run();
+  assert.deepEqual(s.reads[1].args.filters, [{ column: 'plan_number', operator: 'eq', value: 'KT03-W46-091169' }, { column: 'version_no', operator: 'eq', value: '1' }]);
 });
 test('provider or tool failures after evidence are marked partial', async () => {
   const s = scenario([overview, new Error('quota')]); const r = await s.run();
-  assert.equal(r.status, 'partial'); assert.equal(r.stop_reason, 'provider_error'); assert.match(r.answer, /^ยังตอบได้ไม่ครบ/);
+  assert.equal(r.status, 'partial'); assert.equal(r.stop_reason, 'provider_error');
+  // A stopped run says why in one line and gives no advice the user did not ask for.
+  assert.match(r.answer, /^แสดงเฉพาะข้อมูลที่ค้นได้ เนื่องจากระบบ AI ไม่ตอบสนอง\n/); assert.doesNotMatch(r.answer, /ถ้าระบุ SKU/);
   let count = 0;
   const t = scenario([overview, stock('A')], async (d) => { if (count++) throw Error('timeout'); return result(d); });
   assert.equal((await t.run()).stop_reason, 'tool_error');
@@ -91,7 +106,8 @@ test('queries the database rejects before running do not use up the read budget'
   const s = scenario([call('discover_database', { query: 'วัสดุ' }), ...rejected, find('d'), find('e'), find('f')],
     rejecting([{ material_id: '1' }]), 'วัสดุ d e f มีรหัสอะไร');
   await s.run();
-  assert.equal(s.reads.length, 7, 'three rejected queries and four reads that returned data');
+  assert.equal(s.reads.length, 6, 'three rejected queries, then reads until the last step, which only finishes');
+  assert.equal(s.reads.filter(d => d.name === 'query_database' && !d.args.columns.includes('material_colour')).length, 2);
   assert.equal(s.requests.length, MAX_READS + 1, 'no extra model calls');
 });
 test('the answer a stopped run falls back to says each finding once and leaves out queries the database rejected', async () => {
@@ -99,7 +115,7 @@ test('the answer a stopped run falls back to says each finding once and leaves o
     rejecting([]), 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร');
   const r = await s.run();
   assert.equal(r.status, 'partial');
-  assert.equal(r.answer.split('ไม่พบข้อมูลที่ตรงกับเงื่อนไขที่ค้น').length - 1, 1);
+  assert.equal(r.answer.split('ไม่พบข้อมูลตามเงื่อนไขที่ระบุ').length - 1, 1);
   assert.doesNotMatch(r.answer, /ค้นข้อมูลไม่สำเร็จ/);
   const only = scenario([call('discover_database', { query: 'วัสดุ' }), find('y', ['material_colour']), find('z', ['material_colour'])],
     rejecting([]), 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร');
@@ -107,7 +123,7 @@ test('the answer a stopped run falls back to says each finding once and leaves o
   assert.equal(answer.split('ค้นข้อมูลไม่สำเร็จ').length - 1, 1, 'nothing else was read: say it once');
   // The user gave no code and nothing was verified: the rejected query was the model's.
   assert.doesNotMatch(answer, /ตรวจรหัส|ตอบได้ไม่ครบ/);
-  assert.match(answer, /ลองระบุ SKU หรือชื่อเต็ม/);
+  assert.match(answer, /โปรดระบุรหัส SKU/);
 });
 
 // heldout who-requested: Typhoon guessed material_id contains "TFR" (or "T") for หม้อแปลง, read no_data and answered "not found".

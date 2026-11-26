@@ -34,7 +34,7 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { id: "welcome", role: "assistant", text: "สวัสดี วันนี้ให้ช่วยดูเรื่องไหน ถามเรื่องสต็อก งานที่ควรทำ หรือแผนส่งพัสดุได้เลย" },
+    { id: "welcome", role: "assistant", text: "สอบถามข้อมูลสต็อก แผนเติม หรือแผนส่งพัสดุได้ที่นี่" },
   ]);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -81,14 +81,14 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
       setMessages((current) => [...current, {
         id: payload.request_id ?? crypto.randomUUID(),
         role: "assistant",
-        text: payload.answer ?? "ยังไม่มีข้อมูลที่ยืนยันคำตอบได้",
+        text: payload.answer ?? "ไม่พบข้อมูลที่ยืนยันคำตอบได้",
       }]);
     } catch (error) {
       if (controller.signal.aborted) return;
       setMessages((current) => [...current, {
         id: crypto.randomUUID(),
         role: "assistant",
-        text: error instanceof Error ? error.message : "เชื่อมต่อผู้ช่วยไม่สำเร็จ ลองส่งอีกครั้ง",
+        text: error instanceof Error ? error.message : "เชื่อมต่อระบบไม่สำเร็จ โปรดลองใหม่อีกครั้ง",
         error: true,
       }]);
     } finally {
@@ -112,7 +112,7 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
             </div>
             <div>
               <strong>SYNAPSE Agent</strong>
-              <span><i /> ผู้ช่วยส่วนตัว · ใช้ข้อมูลตามสิทธิ์ของคุณ</span>
+              <span><i /> แสดงข้อมูลตามสิทธิ์ผู้ใช้งาน</span>
             </div>
             <button type="button" onClick={() => setOpen(false)} aria-label="ย่อหน้าต่างแชท">—</button>
           </header>
@@ -161,7 +161,7 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
                 </button>
               )}
             </div>
-            <small>ผู้ช่วยใช้ค้นและอ่านข้อมูล การอนุมัติและจ่ายพัสดุต้องทำในหน้างาน</small>
+            <small>ใช้สำหรับค้นหาข้อมูลเท่านั้น การอนุมัติและการจ่ายพัสดุให้ดำเนินการในเมนูที่เกี่ยวข้อง</small>
           </form>
         </section>
       )}
