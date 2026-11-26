@@ -31,3 +31,11 @@ test('a row reads in Thai: names, stored codes, empty values and aggregates', ()
   assert.equal(valueLabel('material_name', 'critical'), 'critical');
   assert.equal(valueLabel('health_band', 'critical'), 'วิกฤต');
 });
+
+test('a stored timestamp reads as a Thai date in Bangkok time', () => {
+  assert.equal(renderToolResult({ status: 'ok', tool: 'query_database', source_id: 'core.replenishment_plans', data: [{
+    plan_number: 'KT03-W46-091169', created_at: '2026-11-11T05:45:53.953168+00:00', delivery_date: '2026-11-11', approved_at: null }] }),
+  '• เลขแผน: KT03-W46-091169 · เวลาสร้าง: 11 พ.ย. 2569 12:45 · วันที่ส่งมอบ: 11 พ.ย. 2569 · เวลาอนุมัติ: ไม่ทราบ');
+  // A time with no zone could be any zone, so it stays as stored.
+  assert.equal(valueLabel('created_at', '2026-11-11T05:45:53'), '2026-11-11T05:45:53');
+});
