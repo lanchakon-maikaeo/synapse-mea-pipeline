@@ -98,6 +98,17 @@ function emptyHints({ filters }, schema) {
   ];
 }
 
+// A contact without a column of its own is written in the notes ("ติดต่อคุณ… 081-…" in district_note).
+// The notes the query leaves out when the question asks for a contact and the source has no contact column.
+const CONTACT = /เบอร์|โทร|ติดต่อ|อีเมล|e-?mail|phone|contact/i;
+function unreadNotes({ columns, metrics }, schema, message) {
+  const names = Object.keys(schema);
+  const notes = names.filter(name => /_notes?$/.test(name));
+  if (!CONTACT.test(message) || metrics.length || !columns.length || !notes.length) return undefined;
+  if (columns.some(column => notes.includes(column)) || names.some(name => /phone|tel|mobile|contact|email/i.test(name))) return undefined;
+  return notes;
+}
+
 // Model decisions are proposals. This loop owns execution, budgets and completion.
 export async function runAgent({ message, history = /** @type {{ role: string, text: string }[]} */ ([]), temperature, scope, signal, generate, read, hiddenTools = /** @type {string[]} */ ([]) }) {
   const body = buildProviderBody(message, temperature, history);
@@ -112,6 +123,7 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   let terminalAnswer;
   let terminalStatus;
   let reminded = false;
+  let notesPointed = false;
   let corrections = 0;
   // The model's call goes back as its tool result, so it sees its own call next to what was wrong.
   const correct = (content, name, reason, message) => {
@@ -191,6 +203,15 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       correct(response.candidates[0].content, decision.name, "unsourced_code",
         `${unsourced[0]} ${unsourced[2]} "${unsourced[1]}" ไม่ได้มาจากคำถาม ประวัติ หรือข้อมูลที่อ่านได้ ห้ามเดารหัสหรือส่วนของรหัส ` +
         `ถ้าคำถามให้ชื่อ ให้ค้นด้วยชื่อ (search หรือ contains ในคอลัมน์ชื่อ) หรือค้นรหัสจากทะเบียนด้วย discover_database และ query_database ก่อน`);
+      continue;
+    }
+    // Once per run: a model that leaves the notes out again gets its query run as asked.
+    const notes = decision.name === "query_database" && !notesPointed && corrections < MAX_CORRECTIONS &&
+      unreadNotes(decision.args, discovered.get(decision.args.source_id) ?? {}, message);
+    if (notes) {
+      notesPointed = true;
+      correct(response.candidates[0].content, decision.name, "notes_not_read",
+        `คำถามถามข้อมูลติดต่อ แต่ ${decision.args.source_id} ไม่มีคอลัมน์ติดต่อ ข้อมูลติดต่อมักเขียนอยู่ในคอลัมน์บันทึก: ${notes.join(", ")} ให้เพิ่มคอลัมน์เหล่านี้ใน columns แล้ว query อีกครั้ง`);
       continue;
     }
     const signature = JSON.stringify([decision.name, Object.entries(decision.args).sort()]);

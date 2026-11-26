@@ -142,16 +142,42 @@ test('a piece of a code the user wrote, or one with digits from data already rea
 // heldout contact-from-evidence: the phone is written in district_note; Typhoon asked for requester_phone, or never read the notes.
 test('a column no source has points to the notes, where facts without a column of their own are written', async () => {
   const s = scenario([call('discover_database', { query: 'แผน KT01-W47-000214' }),
-    call('query_database', { source_id: 'analytics.v_replenishment_queue', columns: ['requester_name', 'requester_phone'],
+    call('query_database', { source_id: 'analytics.v_replenishment_queue', columns: ['requester_name', 'request_reason'],
       filters: [{ column: 'plan_number', operator: 'eq', value: 'KT01-W47-000214' }], group_by: [], metrics: [],
       order_column: null, order_direction: 'asc', limit: 10, offset: 0, search: null }), call('finish')],
   async d => d.name === 'discover_database'
     ? { tool: d.name, status: 'ok', data: [{ source_id: 'analytics.v_replenishment_queue',
       columns: { requester_name: 'text', plan_number: 'text', district_note: 'text', planner_note: 'text' } }] }
-    : { tool: d.name, status: 'invalid_input' }, 'เบอร์ติดต่อผู้ขอเติมในแผน KT01-W47-000214 คืออะไร');
+    : { tool: d.name, status: 'invalid_input' }, 'เหตุผลที่ขอเติมในแผน KT01-W47-000214 คืออะไร');
   await s.run().catch(() => {});
-  assert.match(JSON.stringify(s.requests[2].contents.at(-1)), /requester_phone[^"]*district_note, planner_note/);
+  assert.match(JSON.stringify(s.requests[2].contents.at(-1)), /request_reason[^"]*district_note, planner_note/);
 });
 test('the query tool tells the model that facts without a column of their own are written in the notes', () => {
   assert.match(CHAT_TOOLS.find(fn => fn.name === 'query_database').description, /_note/);
+});
+const planQueue = { requester_name: 'text', plan_number: 'text', district_note: 'text', planner_note: 'text' };
+const plans = async d => d.name === 'discover_database'
+  ? { tool: d.name, status: 'ok', data: [{ source_id: 'analytics.v_replenishment_queue', columns: planQueue }] }
+  : { tool: d.name, status: 'ok', source_id: 'analytics.v_replenishment_queue', data: [{ requester_name: 'ผู้ขอ', plan_number: 'KT01-W47-000214' }] };
+const planRows = columns => call('query_database', { source_id: 'analytics.v_replenishment_queue', columns,
+  filters: [{ column: 'plan_number', operator: 'eq', value: 'KT01-W47-000214' }], group_by: [], metrics: [],
+  order_column: null, order_direction: 'asc', limit: 10, offset: 0, search: null });
+test('a question for a contact goes back once to read the notes when the source has no contact column', async () => {
+  const s = scenario([call('discover_database', { query: 'แผน KT01-W47-000214' }), planRows(['requester_name']),
+    planRows(['requester_name', 'district_note', 'planner_note']), call('finish')], plans, 'เบอร์ติดต่อผู้ขอเติมในแผน KT01-W47-000214 คืออะไร');
+  await s.run();
+  assert.deepEqual(rejectedFor(s), ['notes_not_read']);
+  assert.match(JSON.stringify(s.requests[2].contents.at(-1)), /district_note, planner_note/);
+  assert.deepEqual(s.reads.at(-1).args.columns, ['requester_name', 'district_note', 'planner_note']);
+});
+test('a question that does not ask for a contact, or a model that keeps leaving the notes out, is not held back', async () => {
+  const who = scenario([call('discover_database', { query: 'แผน KT01-W47-000214' }), planRows(['requester_name']), call('finish')],
+    plans, 'ใครเป็นผู้ขอเติมในแผน KT01-W47-000214');
+  await who.run();
+  assert.deepEqual(rejectedFor(who), []);
+  const twice = scenario([call('discover_database', { query: 'แผน KT01-W47-000214' }), planRows(['requester_name']),
+    planRows(['requester_name', 'plan_number']), call('finish')], plans, 'เบอร์ติดต่อผู้ขอเติมในแผน KT01-W47-000214 คืออะไร');
+  await twice.run();
+  assert.deepEqual(rejectedFor(twice), ['notes_not_read'], 'asked once, then the query runs');
+  assert.equal(twice.reads.length, 2);
 });
