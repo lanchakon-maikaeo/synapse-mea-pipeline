@@ -15,13 +15,19 @@ const SEARCH_FIRST = "ข้อความนี้ถามข้อมูล�
 const REPEATED_CALL = "เรียก function นี้ด้วย argument เดิมไปแล้ว ผลอยู่ด้านบนและจะไม่เปลี่ยน: ถ้าข้อมูลพอให้ finish; ถ้าผลเป็น invalid_input ให้แก้ตาม problems; ถ้า no_data มี hints ให้แก้ตาม hints; ถ้า no_data หรือผล aggregate เป็น null แปลว่าไม่มีแถวตรงเงื่อนไข ให้เปลี่ยน filters เช่น ใช้คอลัมน์รหัสกับรหัสจากคำถาม หรือ contains แทน eq";
 const CODE_ARGS = ["material_id", "district_id", "plan_id", "contract_number", "purchase_order", "issue_reference", "handling_unit_code"];
 
-// A code the model passes must appear in the question, history, the user's scope or data already read; the catalog does not count.
-function unsourcedCode({ name, args }, known) {
+// A code the model passes must appear in what the user wrote (question, history, scope) or in data already read; the catalog does not count.
+// So must a piece of a code given to contains. Letters alone turn up somewhere in any data read ("T" for transformer),
+// so a piece taken from data must hold a digit.
+function unsourcedCode({ name, args }, said, read) {
   const codes = name === "query_database"
-    ? args.filters.filter(f => f.operator === "eq" && f.value && /(^|_)(id|number|no|code)$/.test(f.column)).map(f => [f.column, f.value])
-    : CODE_ARGS.filter(key => typeof args[key] === "string").map(key => [key, args[key]]);
-  const text = known.join("\n").replace(/[๐-๙]/g, digit => String(digit.charCodeAt(0) - 0x0e50)).toLowerCase();
-  return codes.find(([, value]) => !text.includes(String(value).toLowerCase()));
+    ? args.filters.filter(f => ["eq", "contains"].includes(f.operator) && f.value && /(^|_)(id|number|no|code)$/.test(f.column)).map(f => [f.column, f.value, f.operator])
+    : CODE_ARGS.filter(key => typeof args[key] === "string").map(key => [key, args[key], "eq"]);
+  const plain = text => text.replace(/[๐-๙]/g, digit => String(digit.charCodeAt(0) - 0x0e50)).toLowerCase();
+  const user = plain(said.join("\n")), data = plain(read);
+  return codes.find(([, value, operator]) => {
+    const code = String(value).toLowerCase();
+    return !user.includes(code) && !(data.includes(code) && (operator === "eq" || /\d/.test(code)));
+  });
 }
 
 // A comparison casts its value to the column's type. Name only values the type surely cannot read (Postgres input syntax).
@@ -177,10 +183,11 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       break;
     }
     const unsourced = !["discover_database", "search_knowledge"].includes(decision.name) && corrections < MAX_CORRECTIONS &&
-      unsourcedCode(decision, [message, ...history.map(turn => turn.text), scope?.district_id ?? "", JSON.stringify(evidence.filter(x => x.tool !== "discover_database"))]);
+      unsourcedCode(decision, [message, ...history.map(turn => turn.text), scope?.district_id ?? ""], JSON.stringify(evidence.filter(x => x.tool !== "discover_database")));
     if (unsourced) {
       correct(response.candidates[0].content, decision.name, "unsourced_code",
-        `${unsourced[0]}=${unsourced[1]} ไม่ได้มาจากคำถาม ประวัติ หรือข้อมูลที่อ่านได้ ห้ามเดารหัส ให้ค้นรหัสจากทะเบียนด้วย discover_database และ query_database ก่อน`);
+        `${unsourced[0]} ${unsourced[2]} "${unsourced[1]}" ไม่ได้มาจากคำถาม ประวัติ หรือข้อมูลที่อ่านได้ ห้ามเดารหัสหรือส่วนของรหัส ` +
+        `ถ้าคำถามให้ชื่อ ให้ค้นด้วยชื่อ (search หรือ contains ในคอลัมน์ชื่อ) หรือค้นรหัสจากทะเบียนด้วย discover_database และ query_database ก่อน`);
       continue;
     }
     const signature = JSON.stringify([decision.name, Object.entries(decision.args).sort()]);

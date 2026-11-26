@@ -108,3 +108,32 @@ test('the answer a stopped run falls back to says each finding once and leaves o
   assert.doesNotMatch(answer, /ตรวจรหัส|ตรวจสอบได้บางส่วน/);
   assert.match(answer, /ลองระบุ SKU หรือชื่อเต็ม/);
 });
+
+// heldout who-requested: Typhoon guessed material_id contains "TFR" (or "T") for หม้อแปลง, read no_data and answered "not found".
+const queue = (filters) => call('query_database', { source_id: 'analytics.v_replenishment_queue', columns: ['requester_name'], filters,
+  group_by: [], metrics: [], order_column: null, order_direction: 'asc', limit: 10, offset: 0, search: null });
+const replenishment = async d => d.name === 'discover_database'
+  ? { tool: d.name, status: 'ok', data: [{ source_id: 'analytics.v_replenishment_queue', columns: { requester_name: 'text', plan_number: 'text', material_id: 'text', material_name: 'text' } }] }
+  : { tool: d.name, status: 'ok', source_id: 'analytics.v_replenishment_queue', data: [{ requester_name: 'ผู้ขอ', plan_number: 'KT01-W47-000214', material_id: '020520508980' }] };
+const rejectedFor = s => s.requests.at(-1).contents.flatMap(c => c.parts ?? [])
+  .map(p => p.functionResponse?.response).filter(x => x?.status === 'rejected').map(x => x.reason);
+test('a piece of a code the model made up goes back to it, and the name is searched instead', async () => {
+  const s = scenario([call('discover_database', { query: 'ผู้ขอเติมหม้อแปลง' }),
+    queue([{ column: 'material_id', operator: 'contains', value: 'TFR' }]),
+    queue([{ column: 'material_id', operator: 'contains', value: 'T' }]),
+    queue([{ column: 'material_name', operator: 'contains', value: 'หม้อแปลง' }]), call('finish')],
+  replenishment, 'ใครเป็นผู้ขอเติมหม้อแปลงของเขตบางนา');
+  await s.run();
+  assert.deepEqual(rejectedFor(s), ['unsourced_code', 'unsourced_code']);
+  assert.deepEqual(s.reads.map(d => d.args.filters?.[0]?.value ?? d.name), ['discover_database', 'หม้อแปลง']);
+  assert.match(JSON.stringify(s.requests[2].contents.at(-1)), /ส่วนของรหัส[\s\S]*ชื่อ/);
+});
+test('a piece of a code the user wrote, or one with digits from data already read, is queried', async () => {
+  const s = scenario([call('discover_database', { query: 'แผนเติม' }),
+    queue([{ column: 'plan_number', operator: 'contains', value: 'KT01' }]),
+    queue([{ column: 'material_id', operator: 'contains', value: '0205205' }]), call('finish')],
+  replenishment, 'แผนเติมที่ขึ้นต้นด้วย KT01 มีใครขอบ้าง');
+  await s.run();
+  assert.deepEqual(rejectedFor(s), []);
+  assert.equal(s.reads.length, 3);
+});
