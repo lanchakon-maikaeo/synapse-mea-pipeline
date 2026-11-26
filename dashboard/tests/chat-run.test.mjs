@@ -244,16 +244,28 @@ test('near matches shown from the evidence are labelled as near, not as the item
   assert.match(result.answer, /รายการใกล้เคียง[\s\S]*010101000250[\s\S]*22kV 250kVA/);
 });
 
-test('a written answer from near matches carries the server notice that they are near matches', async () => {
+test('a written answer from near matches that does not say so carries the server notice that they are near matches', async () => {
   const { requests, fetcher } = provider(
     ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
-    ['write_answer', { answer: 'ไม่พบชื่อนี้ตรงตัว ใกล้เคียงที่สุดคือ หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA (SKU 010101000250)', evidence_ids: [1] }],
+    ['write_answer', { answer: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA มีรหัส 010101000250', evidence_ids: [1] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
   const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config, terms, fetcher, rpc: nearRpc, signal: new AbortController().signal });
   assert.equal(result.answer_mode, 'synthesized');
   assert.match(result.answer, /รายการใกล้เคียง ไม่ใช่รายการที่ตรงทุกคำ/);
   assert.match(JSON.stringify(requests[4]), /near_matches/);
+});
+
+test('a written answer that already says it shows near matches says it once', async () => {
+  const draft = 'ไม่พบชื่อนี้ตรงตัว รายการใกล้เคียงที่พบ ไม่ใช่รายการที่ตรงทุกคำ ตรวจสอบชื่อหรือรหัสก่อนใช้: หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA (SKU 010101000250)';
+  const { fetcher } = provider(
+    ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
+    ['write_answer', { answer: draft, evidence_ids: [1] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config, terms, fetcher, rpc: nearRpc, signal: new AbortController().signal });
+  assert.equal(result.answer_mode, 'synthesized');
+  assert.equal(result.answer, draft);
 });
 
 test('a Thai search term reaches the database as words so their order does not matter', async () => {
