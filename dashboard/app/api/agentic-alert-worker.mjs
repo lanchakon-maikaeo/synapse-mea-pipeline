@@ -109,9 +109,9 @@ export function buildCandidates(context, now = new Date()) {
   for (const [location,group] of warehouseGroups) add(`proactive:warehouse-quality:${location}`, 'warning',
     `ตรวจข้อมูลคลัง ${group.name ?? location} (${group.count} รายการ)`,
     { scope: 'warehouse', location_id: location, priority: 900, target: 'warehouses',
-      action: 'อัปเดตสต็อกและกระทบยอดกับ handling units ก่อนจัดสรร', evidence: group });
+      action: 'อัปเดตสต็อกและกระทบยอดกับ HU ก่อนจัดสรร', evidence: group });
   for (const [key, group] of demand) if(group.required_qty>0) add(`proactive:warehouse-missing:${key}`, 'warning',
-    'ตรวจสต็อกต้นทางของแผนเติมที่ยังไม่มี snapshot', { scope: 'warehouse', location_id: group.location_id,
+    'ตรวจสต็อกต้นทางของแผนเติมที่ยังไม่มีข้อมูลสต็อก', { scope: 'warehouse', location_id: group.location_id,
       material_id: group.material_id, priority: 950, target: 'warehouses', action: 'ตรวจคลังต้นทางและยอดที่จัดสรรได้', evidence: group });
   return candidates.sort((a,b)=>b.details.priority-a.details.priority || a.key.localeCompare(b.key));
 }

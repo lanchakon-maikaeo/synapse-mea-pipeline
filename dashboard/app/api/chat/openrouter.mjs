@@ -22,7 +22,8 @@ export function providerConfig(env = process.env) {
   const provider = env.LLM_PROVIDER?.trim().toLowerCase() || 'openrouter';
   const apiKey = env.LLM_API_KEY?.trim() || '';
   const model = env.LLM_MODEL?.trim() || { openrouter: CHAT_MODEL, typhoon: TYPHOON_MODEL }[provider] || '';
-  const temperature = Number(env.LLM_TEMPERATURE?.trim() || '0');
+  // Choosing tools and writing answers run at 0.4; reviewing and ranking stay at 0.
+  const temperature = Number(env.LLM_TEMPERATURE?.trim() || '0.4');
   const timeoutMs = Number(env.LLM_TIMEOUT_MS?.trim() || '30000');
   const plainKey = /^[\x21-\x7e]{8,512}$/.test(apiKey) && !apiKey.startsWith('sk-or-');
   const apiUrl = { openrouter: CHAT_API_URL, typhoon: TYPHOON_API_URL,

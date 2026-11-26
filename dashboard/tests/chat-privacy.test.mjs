@@ -61,27 +61,27 @@ const ask = (fetcher, reads) => runChat({ message: 'วิภา ทองดี
 
 test('people in the rows never reach the provider; the database gets real values and the answer shows them', async () => {
   const reads = [];
-  const { requests, fetcher } = flow(body => ['write_answer', { answer: `${labelIn(body, 'ชื่อ')} ขอเติมในแผน KT01-W45-021169 ติดต่อ ${labelIn(body, 'เบอร์โทร')}`, evidence_ids: [1] }]);
+  const { requests, fetcher } = flow(body => ['write_answer', { summary: `${labelIn(body, 'ชื่อ')} ขอเติมในแผน KT01-W45-021169 ติดต่อ ${labelIn(body, 'เบอร์โทร')}`, items: [], notes: [], evidence_ids: [1] }]);
   const { result } = await ask(fetcher, reads);
   assert.equal(requests.length, 6);
   assert.doesNotMatch(JSON.stringify(requests), /วิภา|089-111-2222|0891112222|0b6f7a5e|reviewed_by/);
   assert.equal(reads[1].p_args.filters[0].value, 'วิภา ทองดี');
   assert.equal(result.answer_mode, 'synthesized');
-  assert.equal(result.answer, 'วิภา ทองดี ขอเติมในแผน KT01-W45-021169 ติดต่อ 089-111-2222');
+  assert.equal(result.answer, 'วิภา ทองดี ขอเติมในแผน KT01-W45-021169 ติดต่อ 089-111-2222\n\nที่มา: analytics.v_replenishment_queue · อ่านเมื่อ 22 พ.ย. 2569 10:00');
 });
 
 test('an answer that cites a label this run never issued falls back to the evidence answer', async () => {
-  const { fetcher } = flow(() => ['write_answer', { answer: '[ชื่อ-7] ขอเติมในแผน KT01-W45-021169', evidence_ids: [1] }]);
+  const { fetcher } = flow(() => ['write_answer', { summary: '[ชื่อ-7] ขอเติมในแผน KT01-W45-021169', items: [], notes: [], evidence_ids: [1] }]);
   const { result } = await ask(fetcher, []);
   assert.equal(result.answer_mode, 'evidence');
   assert.equal(result.answer_validation, 'unknown_label');
-  assert.match(result.answer, /requester_name: วิภา ทองดี/);
+  assert.match(result.answer, /ผู้ขอเติม: วิภา ทองดี/);
 });
 
 test('a contact number in the answer that is not in the evidence or the question is hidden', async () => {
-  const { fetcher } = flow(() => ['write_answer', { answer: 'ติดต่อผู้ขอที่ 081-999-0000 หรือ 089-111-2222', evidence_ids: [1] }]);
+  const { fetcher } = flow(() => ['write_answer', { summary: 'ติดต่อผู้ขอที่ 081-999-0000 หรือ 089-111-2222', items: [], notes: [], evidence_ids: [1] }]);
   const { result } = await ask(fetcher, []);
-  assert.equal(result.answer, 'ติดต่อผู้ขอที่ [ปิดไว้] หรือ 089-111-2222');
+  assert.equal(result.answer, 'ติดต่อผู้ขอที่ [ปิดไว้] หรือ 089-111-2222\n\nที่มา: analytics.v_replenishment_queue · อ่านเมื่อ 22 พ.ย. 2569 10:00');
 });
 
 test('a document search query is masked before it is sent for embedding', async () => {

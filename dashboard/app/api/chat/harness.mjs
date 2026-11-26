@@ -1,4 +1,4 @@
-import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, wantsSources, CONVERSATION_REPLIES, CHAT_TOOLS, annotateStockFreshness } from "./tools.mjs";
+import { bindDistrictScope, buildProviderBody, parseToolDecision, renderToolResult, sourceLine, wantsSources, CONVERSATION_REPLIES, CHAT_TOOLS, annotateStockFreshness } from "./tools.mjs";
 
 export const HARNESS_VERSION = "v6";
 export const MAX_READS = 6;
@@ -262,13 +262,16 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   const fromReads = rendered.filter(([status]) => status !== "invalid_input");
   // A rejected query read nothing: the user hears about it once, and only when nothing else was read.
   const findings = [...new Set((fromReads.length ? fromReads : rendered.slice(0, 1)).map(([, line]) => line))];
+  // Same order as a written answer: what it amounts to first, then the rows read, then where they came from.
   const answer = [
+    ...(partial ? [fromReads.length ? "ยังตอบได้ไม่ครบ ข้อมูลที่อ่านได้มีดังนี้"
+      : "ยังตอบคำถามนี้ไม่ได้ ลองระบุ SKU หรือชื่อเต็มของวัสดุหรือเขต แล้วถามอีกครั้ง"] : []),
     ...findings,
     ...(wantsSources(message) && evidence.some(x => x.retrieval?.stage === "sources" && x.retrieval.status === "fallback_original_order")
-      ? ["จัดอันดับแหล่งข้อมูลไม่สำเร็จ ใช้ลำดับค้นหาแหล่งข้อมูลเดิม"] : []),
+      ? ["จัดอันดับแหล่งข้อมูลไม่สำเร็จ จึงใช้ลำดับที่ค้นได้เดิม"] : []),
     ...(terminalAnswer ? [terminalAnswer] : []),
-    ...(partial ? [fromReads.length ? "ตรวจสอบได้บางส่วน ยังไม่ครบคำถาม กรุณาระบุ SKU/เขตหรือถามต่ออีกครั้ง"
-      : "ยังตอบคำถามนี้ไม่ได้ ลองระบุ SKU หรือชื่อเต็มของวัสดุหรือเขต แล้วถามอีกครั้ง"] : []),
+    ...(partial && fromReads.length ? ["ถ้าระบุ SKU หรือเขต จะค้นได้ตรงขึ้น"] : []),
+    ...[sourceLine(evidence)].filter(Boolean),
   ].join("\n\n");
   return { answer, evidence, trace, stop_reason: stopReason,
     status: partial ? "partial" : terminalStatus ?? (evidence.some((item) => item.tool !== "discover_database" && item.status === "ok") ? "ok" : "no_data") };

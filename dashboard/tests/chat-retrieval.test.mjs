@@ -181,5 +181,5 @@ test('discovery is not an answer: harness must execute the discovered source', a
 });
 test('generic evidence distinguishes unknown and zero and labels truncation', () => {
   const answer = renderToolResult({ status: 'ok', tool: 'query_database', source_id: 'core.materials', data: [{ quantity: 0, unit: null }], scope: { truncated: true } });
-  assert.match(answer, /quantity: 0/); assert.match(answer, /หน่วย: ไม่ทราบ/); assert.match(answer, /ยังไม่ใช่ข้อมูลทั้งหมด/);
+  assert.equal(answer, '• จำนวน: 0 · หน่วย: ไม่ทราบ\nแสดงแค่บางรายการ ถ้าต้องการดูเพิ่ม ระบุเงื่อนไขให้แคบลงหรือขอหน้าถัดไป');
 });

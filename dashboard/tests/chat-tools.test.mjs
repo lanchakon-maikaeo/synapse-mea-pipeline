@@ -65,7 +65,7 @@ test("renders business values from the database envelope", () => {
   });
   assert.match(answer, /100 อัน/);
   assert.match(answer, /62 อัน/);
-  assert.match(answer, /Rule v1\.0\.0/);
+  assert.match(answer, /กฎรุ่น v1\.0\.0/);
 });
 
 test("overview accepts broad questions but rejects invented scopes and extra identity", () => {
@@ -79,7 +79,7 @@ test("delivery distinguishes unknown amounts from confirmed zero and shows trunc
   const answer = renderToolResult({ tool: "get_operations_overview", view: "delivery", status: "ok", scope: { truncated: true },
     data: [{ district_id: "5501", material_id: "SKU-1", unit: "ชิ้น", suggested_qty: 10, confirmed_qty: 0, final_qty: null }] });
   assert.match(answer, /ยืนยัน 0/);
-  assert.match(answer, /ปริมาณสุดท้าย —/);
+  assert.match(answer, /ปริมาณสุดท้าย ไม่ทราบ/);
   assert.match(answer, /20 รายการแรก/);
   assert.match(answer, /อนุมัติ/);
 });

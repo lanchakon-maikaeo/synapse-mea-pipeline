@@ -60,7 +60,7 @@ test('hard read budget applies even when the model ignores instructions', async 
 });
 test('provider or tool failures after evidence are marked partial', async () => {
   const s = scenario([overview, new Error('quota')]); const r = await s.run();
-  assert.equal(r.status, 'partial'); assert.equal(r.stop_reason, 'provider_error'); assert.match(r.answer, /บางส่วน/);
+  assert.equal(r.status, 'partial'); assert.equal(r.stop_reason, 'provider_error'); assert.match(r.answer, /^ยังตอบได้ไม่ครบ/);
   let count = 0;
   const t = scenario([overview, stock('A')], async (d) => { if (count++) throw Error('timeout'); return result(d); });
   assert.equal((await t.run()).stop_reason, 'tool_error');
@@ -99,14 +99,14 @@ test('the answer a stopped run falls back to says each finding once and leaves o
     rejecting([]), 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร');
   const r = await s.run();
   assert.equal(r.status, 'partial');
-  assert.equal(r.answer.split('ไม่พบข้อมูลที่ตรงกับรหัสและขอบเขตที่ระบุ').length - 1, 1);
+  assert.equal(r.answer.split('ไม่พบข้อมูลที่ตรงกับเงื่อนไขที่ค้น').length - 1, 1);
   assert.doesNotMatch(r.answer, /ค้นข้อมูลไม่สำเร็จ/);
   const only = scenario([call('discover_database', { query: 'วัสดุ' }), find('y', ['material_colour']), find('z', ['material_colour'])],
     rejecting([]), 'เต้ารับคู่มีขั้วสายดิน มีรหัสอะไร');
   const answer = (await only.run()).answer;
   assert.equal(answer.split('ค้นข้อมูลไม่สำเร็จ').length - 1, 1, 'nothing else was read: say it once');
   // The user gave no code and nothing was verified: the rejected query was the model's.
-  assert.doesNotMatch(answer, /ตรวจรหัส|ตรวจสอบได้บางส่วน/);
+  assert.doesNotMatch(answer, /ตรวจรหัส|ตอบได้ไม่ครบ/);
   assert.match(answer, /ลองระบุ SKU หรือชื่อเต็ม/);
 });
 

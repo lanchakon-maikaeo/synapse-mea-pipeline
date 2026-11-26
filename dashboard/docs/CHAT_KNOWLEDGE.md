@@ -8,7 +8,7 @@ Server-only Vercel variables on `mea-synapse-web`, Production:
 
 - `LLM_API_KEY`: OpenRouter key (`sk-or-...`). It is used for chat and for embeddings. Never prefix it with `NEXT_PUBLIC_`.
 - `LLM_MODEL`: an OpenRouter `provider/model` ID that supports tool calling. Default: `openai/gpt-4o-mini`.
-- `LLM_TEMPERATURE` (default `0`), `LLM_TIMEOUT_MS` (default `30000`).
+- `LLM_TEMPERATURE` (default `0.4`): choosing tools and writing chat answers. Reviewing answers, ranking sources and agentic alerts stay at `0`. `LLM_TIMEOUT_MS` (default `30000`).
 
 Redeploy after changing a value. Every question is a paid OpenRouter call. `public.vmi_chat_admit` allows 10 questions per user per minute before any model call.
 
