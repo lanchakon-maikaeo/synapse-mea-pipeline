@@ -5,7 +5,7 @@ import { labelsFor } from './labels.mjs';
 // ponytail: one writer and one reviewer; measure live accuracy before adding repair loops.
 // The writer answers in fields, not free text, so every answer reads the same way:
 // the answer, one line per item, then limits. The server adds the source line.
-const WRITING = 'ภาษา: ไทยทางการ กระชับ ไม่ใช้สรรพนามเรียกผู้ใช้ (คุณ/ท่าน) ไม่ใช้ครับหรือค่ะ ไม่ใช้ markdown ตัวหนา หัวข้อ หรือขีดยาว ไม่ทวนคำถาม ไม่เขียนประโยคปิดท้ายที่สรุปซ้ำ ' +
+const WRITING = 'ภาษา: ไทยทางการ ไม่ใช้สรรพนามเรียกผู้ใช้ (คุณ/ท่าน) ไม่ใช้ครับหรือค่ะ ไม่อธิบายเกินที่ถาม แต่ห้ามตัดข้อเท็จจริงที่ตอบคำถาม เช่น ชื่อวัสดุ เขต ยอด หน่วย หรือสถานะ ป้ายในวงเล็บเหลี่ยม เช่น [ชื่อ-1] ให้คัดลอกพร้อมวงเล็บ ไม่ใช้ markdown ตัวหนา หัวข้อ หรือขีดยาว ไม่ทวนคำถาม ไม่เขียนประโยคปิดท้ายที่สรุปซ้ำ ' +
   'ไม่ใช้รูป "ไม่ใช่แค่… แต่…" ห้ามแสดงชื่อคอลัมน์ภาษาอังกฤษ รหัสสถานะภาษาอังกฤษ หรือ JSON ให้ใช้ชื่อจาก labels.columns และ labels.values แทน ' +
   'ส่วนรหัส SKU เลขแผน เลข PO และตัวเลขให้คงตามหลักฐาน ไม่ต้องเขียนแหล่งข้อมูลหรือเวลาอ่าน server เพิ่มบรรทัดที่มาจาก evidence_ids ให้เอง; ' +
   'วันที่ทางธุรกิจที่ผู้ใช้ถามยังต้องตอบตามหลักฐาน';

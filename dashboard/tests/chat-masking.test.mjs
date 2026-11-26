@@ -13,6 +13,14 @@ test('labels the model copies with a different format still restore', () => {
   }
 });
 
+test('a label the model wrote without its brackets restores when this run issued it, and stays as written otherwise', () => {
+  const masker = createMasker();
+  send(masker, 'โทร 0812345678');
+  // Seen in a live eval: the writer answered "เบอร์โทร-1" for [เบอร์โทร-1], and the user read the label.
+  assert.equal(masker.restore('ผู้ขอคือเบอร์โทร-1'), 'ผู้ขอคือ0812345678');
+  assert.equal(masker.restore('ติดต่อ เบอร์โทร-2 หรือ ชื่อ-1'), 'ติดต่อ เบอร์โทร-2 หรือ ชื่อ-1');
+});
+
 test('a label this run never issued makes the output unusable', () => {
   const masker = createMasker();
   send(masker, 'โทร 0812345678');

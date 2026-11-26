@@ -6,6 +6,8 @@ const KINDS = { secret: 'รหัสลับ', word: 'ข้อมูลปิ
   phone: 'เบอร์โทร', plate: 'ทะเบียนรถ', employee: 'รหัสพนักงาน', name: 'ชื่อ' };
 // A label as the model may copy it back: spaces, other dashes or full-width brackets.
 const LABEL = new RegExp(`[[［]\\s*(${Object.values(KINDS).join('|')})\\s*[-‐‑–—]\\s*(\\d{1,4})\\s*[\\]］]`, 'g');
+// The same label with its brackets dropped, as a writer sometimes copies it back; only labels this run issued are restored.
+const BARE = new RegExp(`(?<![[［])(${Object.values(KINDS).join('|')})[-‐‑–—](\\d{1,4})(?![\\d\\]］])`, 'g');
 const THAI = '\\u0e00-\\u0e7f';
 // [pattern, kind, group]: group is the part to mask when a keyword leads the value.
 const DETECTORS = [
@@ -268,7 +270,7 @@ export function createMasker({ names = [], words = [] } = {}) {
       if (original !== undefined) return original;
       if (reserved.has(`${word}-${Number(n)}`)) return found;
       throw new Error('unknown_label');
-    })),
+    }).replace(BARE, (found, word, n) => labels.get(`${word}-${Number(n)}`) ?? found)),
   };
 }
 
