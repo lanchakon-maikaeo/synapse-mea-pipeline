@@ -236,6 +236,14 @@ else {
   } else report.leaks = report.cases.reduce((total, c) => total + leakCount(c.leaks), 0);
   report.unavailable = report.cases.filter(c => unavailable(c.trace)).length;
   if (set.name === 'chat-heldout-v1') report.grounded = report.cases.filter(c => c.grounded).length / report.cases.length;
+  // What the answer rate hides: queries the database rejected, and answers that say a line twice (docs/RESEARCH_CHAT_PIPELINE.md §10).
+  if (set.kind !== 'source-ranking') {
+    report.invalid_inputs = report.cases.reduce((total, c) => total + (c.steps ?? []).filter(step => step.endsWith(':invalid_input')).length, 0);
+    report.repeated_lines = report.cases.filter(c => {
+      const lines = String(c.answer ?? '').split('\n').map(line => line.trim()).filter(Boolean);
+      return new Set(lines).size < lines.length;
+    }).length;
+  }
 }
 if (set.name === 'alerts-replay-v1') report.leak_total = leakCount(report.leaks);
 
@@ -264,7 +272,8 @@ if (set.kind === 'source-ranking') {
   for (const c of report.cases) console.log(`  ${c.grounded === undefined ? '' : c.grounded ? 'ok   ' : 'MISS '}${c.id}: ${c.error ?? `${c.status}/${c.answer_mode}/${c.answer_validation}`}` +
     ` calls=${c.model_calls} ${c.seconds}s${leakCount(c.leaks) ? ` LEAKS ${JSON.stringify(c.leaks)}` : ''}`);
   const modes = report.cases.reduce((all, c) => ({ ...all, [c.answer_validation ?? c.error ?? 'none']: (all[c.answer_validation ?? c.error ?? 'none'] ?? 0) + 1 }), {});
-  console.log(`  cases=${report.cases.length}${report.grounded !== undefined ? ` grounded=${pct(report.grounded)}` : ''} leaks=${report.leaks} provider_unavailable=${report.unavailable} ${JSON.stringify(modes)}`);
+  console.log(`  cases=${report.cases.length}${report.grounded !== undefined ? ` grounded=${pct(report.grounded)}` : ''} leaks=${report.leaks} provider_unavailable=${report.unavailable}` +
+    ` invalid_inputs=${report.invalid_inputs} repeated_lines=${report.repeated_lines} ${JSON.stringify(modes)}`);
 } else {
   for (const a of report.alerts) console.log(`  ${a.status}${a.error ? ` ${a.error}` : ''}: ${a.key}`);
   console.log(`  attempted=${report.attempted} analyzed=${report.analyzed} errors=${JSON.stringify(report.errors)} leaks=${JSON.stringify(report.leaks)} provider_failures=${report.provider_failures} ${report.seconds}s${report.error ? ` error=${report.error}` : ''}`);

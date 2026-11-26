@@ -164,6 +164,39 @@ test('a query rejected as invalid input names the rules it broke', async () => {
   assert.ok(problems.some(p => p.includes('order_column max_weight_kg') && p.includes('max_max_weight_kg')), 'order by a returned column');
 });
 
+// The checks of vmi_chat_database that the tool's argument schema cannot express (docs/RESEARCH_CHAT_PIPELINE.md §6).
+async function rejectedVehicles(args) {
+  const { requests, fetcher } = provider(
+    ['discover_database', { query: 'รถ' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', { ...query, source_id: 'core.transport_vehicles', columns: ['vehicle_id'], filters: [], ...args }],
+    ['unsupported', { reason: 'ยังหารถไม่ได้' }],
+  );
+  const rpc = async (name, a) => a.p_tool === 'discover_database'
+    ? { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.transport_vehicles', description: 'vehicles รถ',
+      columns: { vehicle_id: 'text', max_weight_kg: 'numeric', seats: 'integer', registered_on: 'date', is_active: 'boolean' } }] }
+    : { tool: 'query_database', status: 'invalid_input' };
+  await runChat({ message: 'รถคันไหนบรรทุกได้เกินสิบตัน', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  return JSON.parse(requests[3].messages.at(-1).content).problems;
+}
+test('a query rejected for a value its column cannot take, or a column given twice, says which', async () => {
+  const values = await rejectedVehicles({ filters: [{ column: 'max_weight_kg', operator: 'gt', value: 'สิบตัน' },
+    { column: 'seats', operator: 'gte', value: '2.5' }, { column: 'registered_on', operator: 'gte', value: 'เดือนที่แล้ว' },
+    { column: 'is_active', operator: 'eq', value: 'ใช้งาน' }, { column: 'vehicle_id', operator: 'eq', value: 'สิบตัน' }] });
+  for (const [column, type] of [['max_weight_kg', 'numeric'], ['seats', 'integer'], ['registered_on', 'date'], ['is_active', 'boolean']]) {
+    assert.ok(values.some(p => p.includes(column) && p.includes(type)), `${column} cannot take its value`);
+  }
+  assert.ok(!values.some(p => p.includes('vehicle_id')), 'a text column takes any text');
+  const twice = await rejectedVehicles({ columns: ['vehicle_id', 'seats', 'vehicle_id'] });
+  assert.ok(twice.some(p => p.includes('vehicle_id') && p.includes('ซ้ำ')));
+  const metrics = await rejectedVehicles({ columns: [], metrics: [{ function: 'max', column: 'seats' }, { function: 'max', column: 'seats' }] });
+  assert.ok(metrics.some(p => p.includes('max_seats') && p.includes('ซ้ำ')));
+});
+test('a query rejected for a reason the harness cannot name says so, never an empty list', async () => {
+  const problems = await rejectedVehicles({ filters: [{ column: 'max_weight_kg', operator: 'gt', value: '10000' }] });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /ระบุสาเหตุไม่ได้/);
+});
+
 test('a call repeated with the same arguments goes back once instead of ending the run', async () => {
   const byName = { ...query, source_id: 'analytics.v_replenishment_queue', columns: [],
     filters: [{ column: 'material_name', operator: 'eq', value: 'ลูกถ้วยแขวน 030500100077' }], metrics: [{ function: 'sum', column: 'final_qty' }] };

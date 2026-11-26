@@ -24,14 +24,46 @@ function unsourcedCode({ name, args }, known) {
   return codes.find(([, value]) => !text.includes(String(value).toLowerCase()));
 }
 
+// A comparison casts its value to the column's type. Name only values the type surely cannot read (Postgres input syntax).
+const INTEGER = { smallint: 32767n, integer: 2147483647n, bigint: 9223372036854775807n };
+function castHint(value, type) {
+  const text = value.trim(); const base = type.match(/^[a-z]+( precision)?/)?.[0] ?? "";
+  if (Object.hasOwn(INTEGER, base)) {
+    const ok = /^[+-]?\d+$/.test(text) && BigInt(text.replace(/^\+/, "")) <= INTEGER[base] && BigInt(text.replace(/^\+/, "")) >= -INTEGER[base] - 1n;
+    return ok ? undefined : "ใส่จำนวนเต็มล้วน เช่น 10";
+  }
+  if (["numeric", "decimal", "real", "double precision"].includes(base)) {
+    return (text !== "" && Number.isFinite(Number(text))) || /^[+-]?(nan|inf|infinity)$/i.test(text) ? undefined : "ใส่ตัวเลขล้วน ไม่มีหน่วยหรือจุลภาค เช่น 10000";
+  }
+  if (/^(date|timestamp|time)/.test(base)) return /\d/.test(text) || /^(today|yesterday|tomorrow|now|epoch|-?infinity)$/i.test(text) ? undefined : "ใช้วันที่ ISO เช่น 2026-11-25";
+  if (base === "boolean") return /^(t|tr|tru|true|y|ye|yes|on|1|f|fa|fal|fals|false|n|no|of|off|0)$/i.test(text) ? undefined : "ใช้ true หรือ false";
+  if (base === "uuid") return /^[0-9a-f]{32}$/i.test(text.replace(/[{}-]/g, "")) ? undefined : "ใส่ UUID เต็ม";
+  return undefined;
+}
+const COMPARISONS = ["eq", "ne", "gt", "gte", "lt", "lte"];
+const twice = list => [...new Set(list.filter((item, i) => list.indexOf(item) !== i))];
+const metricName = m => `${m.function}_${m.column === "*" ? "rows" : m.column}`;
+// The database cannot say why; the model must not take an empty list for "nothing wrong" and resend the query.
+const UNEXPLAINED = "ฐานข้อมูลปฏิเสธ query นี้แต่ระบบระบุสาเหตุไม่ได้ ให้ลดเงื่อนไขเหลือเท่าที่จำเป็น เช่น ใช้ search แทน filter แล้วลองอีกครั้ง ห้ามส่ง query เดิมซ้ำ";
+
 // vmi_chat_database answers only invalid_input; name the rules of its checks that the query broke.
 // `discovered` is every source discovery returned, so a column the source lacks can point to the source that has it.
-function queryProblems({ source_id, columns, filters, group_by, metrics, order_column }, schema, discovered) {
-  const returned = metrics.length ? [...group_by, ...metrics.map(m => `${m.function}_${m.column === "*" ? "rows" : m.column}`)]
-    : columns.length ? columns : Object.keys(schema).sort().slice(0, 16);
+function queryProblems(args, schema, discovered) {
+  const problems = explainRejection(args, schema, discovered);
+  return problems.length ? problems : [UNEXPLAINED];
+}
+function explainRejection({ source_id, columns, filters, group_by, metrics, order_column }, schema, discovered) {
+  const returned = metrics.length ? [...group_by, ...metrics.map(metricName)] : columns.length ? columns : Object.keys(schema).sort().slice(0, 16);
   const used = [...columns, ...filters.map(f => f.column), ...group_by, ...metrics.map(m => m.column).filter(column => column !== "*"),
     ...(order_column ? [order_column] : [])];
   return [
+    ...filters.filter(f => COMPARISONS.includes(f.operator) && typeof f.value === "string" && schema[f.column]).flatMap(f => {
+      const hint = castHint(f.value, schema[f.column]);
+      return hint ? [`filter ${f.column} ${f.operator}: "${f.value}" ไม่ใช่ค่าที่คอลัมน์ ${schema[f.column]} รับได้ ${hint}; ถ้าค่าเป็นชื่อหรือข้อความ ให้ใช้ search`] : [];
+    }),
+    ...(metrics.length ? [] : twice(columns)).map(column => `columns มี ${column} ซ้ำ ให้ใส่แต่ละคอลัมน์ครั้งเดียว`),
+    ...twice(group_by).map(column => `group_by มี ${column} ซ้ำ ให้ใส่แต่ละคอลัมน์ครั้งเดียว`),
+    ...twice(metrics.map(metricName)).map(name => `metrics ให้ผล ${name} ซ้ำ ให้ขอแต่ละ metric ครั้งเดียว`),
     ...[...new Set(used)].filter(column => !Object.hasOwn(schema, column)).map(column => {
       const elsewhere = [...discovered].filter(([id, other]) => id !== source_id && Object.hasOwn(other, column)).map(([id]) => id).slice(0, 3);
       return elsewhere.length ? `ไม่มีคอลัมน์ ${column} ใน ${source_id} แต่มีใน ${elsewhere.join(", ")} ให้ query แหล่งนั้นแทน`
