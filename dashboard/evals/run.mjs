@@ -236,12 +236,13 @@ else {
   } else report.leaks = report.cases.reduce((total, c) => total + leakCount(c.leaks), 0);
   report.unavailable = report.cases.filter(c => unavailable(c.trace)).length;
   if (set.name === 'chat-heldout-v1') report.grounded = report.cases.filter(c => c.grounded).length / report.cases.length;
-  // What the answer rate hides: queries the database rejected, and answers that say a line twice (docs/RESEARCH_CHAT_PIPELINE.md §10).
+  // What the answer rate hides: queries the database rejected, and answers that say a paragraph twice (docs/RESEARCH_CHAT_PIPELINE.md §10).
+  // Paragraphs, not lines: a list repeats its per-item lines (ข้อมูลสต็อก …) by design.
   if (set.kind !== 'source-ranking') {
     report.invalid_inputs = report.cases.reduce((total, c) => total + (c.steps ?? []).filter(step => step.endsWith(':invalid_input')).length, 0);
-    report.repeated_lines = report.cases.filter(c => {
-      const lines = String(c.answer ?? '').split('\n').map(line => line.trim()).filter(Boolean);
-      return new Set(lines).size < lines.length;
+    report.repeated_paragraphs = report.cases.filter(c => {
+      const paragraphs = String(c.answer ?? '').split(/\n\s*\n/).map(paragraph => paragraph.trim()).filter(Boolean);
+      return new Set(paragraphs).size < paragraphs.length;
     }).length;
   }
 }
@@ -273,7 +274,7 @@ if (set.kind === 'source-ranking') {
     ` calls=${c.model_calls} ${c.seconds}s${leakCount(c.leaks) ? ` LEAKS ${JSON.stringify(c.leaks)}` : ''}`);
   const modes = report.cases.reduce((all, c) => ({ ...all, [c.answer_validation ?? c.error ?? 'none']: (all[c.answer_validation ?? c.error ?? 'none'] ?? 0) + 1 }), {});
   console.log(`  cases=${report.cases.length}${report.grounded !== undefined ? ` grounded=${pct(report.grounded)}` : ''} leaks=${report.leaks} provider_unavailable=${report.unavailable}` +
-    ` invalid_inputs=${report.invalid_inputs} repeated_lines=${report.repeated_lines} ${JSON.stringify(modes)}`);
+    ` invalid_inputs=${report.invalid_inputs} repeated_paragraphs=${report.repeated_paragraphs} ${JSON.stringify(modes)}`);
 } else {
   for (const a of report.alerts) console.log(`  ${a.status}${a.error ? ` ${a.error}` : ''}: ${a.key}`);
   console.log(`  attempted=${report.attempted} analyzed=${report.analyzed} errors=${JSON.stringify(report.errors)} leaks=${JSON.stringify(report.leaks)} provider_failures=${report.provider_failures} ${report.seconds}s${report.error ? ` error=${report.error}` : ''}`);
