@@ -120,7 +120,7 @@ test('a notice the writer already gave is not repeated: stale stock is said once
     const responses = [call('write_answer', { summary: 'เหลือ 420 เครื่อง ณ 20 พ.ย.', items: [], notes: [note], evidence_ids: [1] }), approved];
     const answer = await composeAnswer({ result: { ...base, evidence: [stale] }, question: 'มิเตอร์เหลือเท่าไร', generate: async () => responses.shift() });
     assert.equal(answer.answer.split(warning).length - 1, note === warning ? 1 : 0);
-    assert.match(answer.answer, /ยืนยันไม่ได้|ยืนยันยอดปัจจุบัน/);
+    assert.match(answer.answer, /ยืนยันไม่ได้|ไม่เป็นปัจจุบัน/);
   }
   const responses = [call('write_answer', { summary: 'เหลือ 420 เครื่อง', items: [], notes: [], evidence_ids: [1] }), approved];
   const silent = await composeAnswer({ result: { ...base, evidence: [stale] }, question: 'มิเตอร์เหลือเท่าไร', generate: async () => responses.shift() });

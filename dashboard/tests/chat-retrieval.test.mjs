@@ -176,10 +176,10 @@ test('discovery is not an answer: harness must execute the discovered source', a
     generate: async () => responses.shift(),
     read: async d => d.name === 'discover_database' ? { status: 'ok', tool: d.name, data: sources } :
       { status: 'ok', tool: d.name, source_id: plan.source_id, data: [{ district_id: '5501', district_name_th: 'นวลจันทร์' }] } });
-  assert.match(r.answer, /ชื่อเขต: นวลจันทร์/); assert.equal(r.stop_reason, 'complete'); assert.equal(r.trace.length, 2);
+  assert.match(r.answer, /• นวลจันทร์ · รหัสเขต: 5501/); assert.equal(r.stop_reason, 'complete'); assert.equal(r.trace.length, 2);
   await assert.rejects(runAgent({ message: 'q', generate: async () => call('query_database', plan), read: async () => { throw Error('must not read'); } }), /source_not_discovered/);
 });
-test('generic evidence distinguishes unknown and zero and labels truncation', () => {
+test('generic evidence shows zero, leaves an unknown value out instead of reading it as zero, and labels truncation', () => {
   const answer = renderToolResult({ status: 'ok', tool: 'query_database', source_id: 'core.materials', data: [{ quantity: 0, unit: null }], scope: { truncated: true } });
-  assert.equal(answer, '• จำนวน: 0 · หน่วย: ไม่ทราบ\nแสดงแค่บางรายการ ถ้าต้องการดูเพิ่ม ระบุเงื่อนไขให้แคบลงหรือขอหน้าถัดไป');
+  assert.equal(answer, '• จำนวน: 0\nแสดงเฉพาะบางรายการ');
 });

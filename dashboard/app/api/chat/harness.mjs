@@ -4,6 +4,33 @@ export const HARNESS_VERSION = "v6";
 export const MAX_READS = 6;
 // How many of the model's calls a run sends back with what was wrong before giving up on it.
 const MAX_CORRECTIONS = 2;
+// Why a run stopped before it was done, in the words the user reads.
+const STOPPED = {
+  provider_error: "เนื่องจากระบบ AI ไม่ตอบสนอง",
+  cancelled: "เนื่องจากหมดเวลาประมวลผล",
+  tool_error: "เนื่องจากฐานข้อมูลขัดข้อง",
+  unavailable: "เนื่องจากระบบข้อมูลไม่พร้อมใช้งาน",
+  forbidden: "เนื่องจากไม่มีสิทธิ์เข้าถึงข้อมูลบางส่วน",
+  context_limit: "เนื่องจากข้อมูลมีปริมาณมากเกินกว่าจะสรุปได้",
+};
+
+// Screens show a plan as KT03-W46-091169-V1; the database keeps the number and version_no apart.
+export function splitPlanVersion(args, columns) {
+  if (!Object.hasOwn(columns, "plan_number") || !Object.hasOwn(columns, "version_no")) return args;
+  const split = value => typeof value === "string" ? value.trim().match(/^([A-Z0-9]+(?:-[A-Z0-9]+)+)-V(\d{1,3})$/i) : null;
+  let version;
+  const filters = args.filters.map(filter => {
+    const found = filter.column === "plan_number" && ["eq", "contains"].includes(filter.operator) && split(filter.value);
+    if (!found) return filter;
+    version = found[2];
+    return { ...filter, value: found[1] };
+  });
+  const searched = split(args.search);
+  version ??= searched?.[2];
+  if (!version) return args;
+  return { ...args, ...(searched ? { search: searched[1] } : {}), filters: filters.some(filter => filter.column === "version_no") ? filters
+    : [...filters, { column: "version_no", operator: "eq", value: String(Number(version)) }] };
+}
 const CALL_ONE_FUNCTION = "ตอบด้วยการเรียก function หนึ่งรายการเท่านั้น ห้ามตอบเป็นข้อความ: ทักทายหรือถามความสามารถใช้ conversation, คำสั่งที่ทำไม่ได้ใช้ unsupported, คำถามข้อมูลให้ค้นด้วยเครื่องมือ";
 const CORRECTIONS = {
   provider_tool_arguments_invalid: name => `argument ของ ${name} ไม่ผ่านการตรวจ ใช้ชนิดและรูปแบบตาม schema และคำอธิบายของ function; ถ้ายังไม่มีรหัสในรูปแบบที่ถูกต้อง ให้ค้นด้วย discover_database ก่อน`,
@@ -132,8 +159,10 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   };
   for (let step = 0; step <= MAX_READS; step++) {
     const canFinish = evidence.some(x => x.tool !== "discover_database" && ["ok", "no_data"].includes(x.status));
+    // The last step only finishes, so a run that read something is written up instead of stopping at the step limit.
+    const last = step === MAX_READS && canFinish;
     body.tools[0].functionDeclarations = declarations
-      .filter(fn => (fn.name !== "query_database" || discovered.size > 0) && (fn.name !== "finish" || canFinish))
+      .filter(fn => last ? fn.name === "finish" : (fn.name !== "query_database" || discovered.size > 0) && (fn.name !== "finish" || canFinish))
       .map(fn => fn.name === "query_database" ? { ...fn, parametersJsonSchema: {
         ...fn.parametersJsonSchema, properties: { ...fn.parametersJsonSchema.properties,
           source_id: { type: "string", enum: [...discovered.keys()] },
@@ -161,6 +190,7 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       if (hiddenTools.includes(decision.name)) throw new Error("provider_tool_not_allowed");
     }
     catch (error) {
+      if (last) { stopReason = "complete"; break; }
       const call = response?.candidates?.[0]?.content?.parts?.find(p => p.functionCall)?.functionCall;
       if (CORRECTIONS[error.message] && CHAT_TOOLS.some(t => t.name === call?.name) && corrections < MAX_CORRECTIONS) {
         correct(response.candidates[0].content, call.name, error.message, CORRECTIONS[error.message](call.name));
@@ -176,7 +206,7 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       stopReason = "invalid_decision";
       break;
     }
-    if (decision.name === "finish") {
+    if (decision.name === "finish" || last) {
       if (!evidence.some(x => x.tool !== "discover_database" && ["ok", "no_data"].includes(x.status))) throw new Error("finish_without_evidence");
       stopReason = "complete";
       break;
@@ -227,7 +257,8 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
     signal?.throwIfAborted();
     const started = Date.now();
     let result;
-    try { result = await read(decision); }
+    try { result = await read(decision.name === "query_database"
+      ? { ...decision, args: splitPlanVersion(decision.args, discovered.get(decision.args.source_id) ?? {}) } : decision); }
     catch (error) {
       // Expired/revoked credentials never produce a successful partial response.
       if (!evidence.length || ["unauthorized", "forbidden"].includes(error.message)) throw error;
@@ -264,13 +295,12 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   const findings = [...new Set((fromReads.length ? fromReads : rendered.slice(0, 1)).map(([, line]) => line))];
   // Same order as a written answer: what it amounts to first, then the rows read, then where they came from.
   const answer = [
-    ...(partial ? [fromReads.length ? "ยังตอบได้ไม่ครบ ข้อมูลที่อ่านได้มีดังนี้"
-      : "ยังตอบคำถามนี้ไม่ได้ ลองระบุ SKU หรือชื่อเต็มของวัสดุหรือเขต แล้วถามอีกครั้ง"] : []),
+    ...(partial ? [fromReads.length ? `แสดงเฉพาะข้อมูลที่ค้นได้ ${STOPPED[stopReason] ?? "ซึ่งยังไม่ครบตามคำถาม"}`
+      : "ไม่สามารถตอบคำถามนี้ได้ โปรดระบุรหัส SKU ชื่อวัสดุ หรือเขต"] : []),
     ...findings,
     ...(wantsSources(message) && evidence.some(x => x.retrieval?.stage === "sources" && x.retrieval.status === "fallback_original_order")
       ? ["จัดอันดับแหล่งข้อมูลไม่สำเร็จ จึงใช้ลำดับที่ค้นได้เดิม"] : []),
     ...(terminalAnswer ? [terminalAnswer] : []),
-    ...(partial && fromReads.length ? ["ถ้าระบุ SKU หรือเขต จะค้นได้ตรงขึ้น"] : []),
     ...[sourceLine(evidence)].filter(Boolean),
   ].join("\n\n");
   return { answer, evidence, trace, stop_reason: stopReason,

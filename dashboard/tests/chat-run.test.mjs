@@ -229,7 +229,8 @@ const nearQuery = { ...query, source_id: 'core.materials', columns: ['material_i
   filters: [{ column: 'material_name', operator: 'contains', value: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA' }] };
 const nearRpc = async (name, args) => args.p_tool === 'discover_database'
   ? { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.materials', description: 'ทะเบียนวัสดุ', columns: { material_id: 'text', material_name: 'text' } }] }
-  : { tool: 'query_database', source_id: 'core.materials', status: 'no_data', data: [],
+  // vmi_chat_database echoes the query back, as production does.
+  : { tool: 'query_database', source_id: 'core.materials', status: 'no_data', data: [], query: args.p_args,
     near_matches: [{ material_id: '010101000250', material_name: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA', match_score: 0.87 }] };
 
 test('near matches shown from the evidence are labelled as near, not as the item asked for', async () => {
@@ -240,7 +241,7 @@ test('near matches shown from the evidence are labelled as near, not as the item
   );
   const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config, terms, fetcher, rpc: nearRpc, signal: new AbortController().signal });
   assert.equal(result.answer_mode, 'evidence');
-  assert.match(result.answer, /ไม่พบรายการที่ตรงทุกคำ/);
+  assert.match(result.answer, /ไม่พบรายการที่ตรงกับ “หม้อแปลงไฟฟ้า 3 เฟส 250kVA” รายการที่ใกล้เคียงมีดังนี้/);
   assert.match(result.answer, /รายการที่ใกล้เคียง[\s\S]*010101000250[\s\S]*22kV 250kVA/);
 });
 
@@ -252,7 +253,7 @@ test('a written answer from near matches that does not say so carries the server
   );
   const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config, terms, fetcher, rpc: nearRpc, signal: new AbortController().signal });
   assert.equal(result.answer_mode, 'synthesized');
-  assert.match(result.answer, /ใกล้เคียง ไม่ได้ตรงทุกคำ/);
+  assert.match(result.answer, /รายการที่ใกล้เคียง ไม่ใช่รายการที่ตรงกับคำค้น/);
   assert.match(JSON.stringify(requests[4]), /near_matches/);
 });
 
