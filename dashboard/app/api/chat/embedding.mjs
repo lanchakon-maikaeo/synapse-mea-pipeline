@@ -70,10 +70,12 @@ export async function embedTexts({ texts, accountId, apiToken, signal, fetcher =
   const response = await fetchProvider(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/baai/bge-m3`, {
     method: 'POST', headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: texts }), redirect: 'error', signal,
-  }, fetcher, 'embedding_unavailable');
+  // No fallback code: a failure keeps its HTTP status (provider_http_403 is the token's Workers AI permission).
+  }, fetcher);
   const payload = await response.json().catch(() => null);
   const invalidOutput = reason => new Error('embedding_output_invalid', { cause: { embedding_validation: reason } });
-  const data = payload?.result?.data;
+  // The model page documents no output schema; vectors have been seen under data, and bge-m3 may use response.
+  const data = Array.isArray(payload?.result?.data) ? payload.result.data : payload?.result?.response;
   if (payload?.success !== true || !Array.isArray(data) || data.length !== texts.length) throw invalidOutput('response_shape');
   return data.map(values => unitVector(values, invalidOutput));
 }

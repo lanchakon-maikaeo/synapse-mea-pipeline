@@ -93,4 +93,15 @@ test('a Cloudflare reply with the wrong count or shape, or a bad account, never 
   await assert.rejects(call({}, { accountId: 'not-an-account', fetcher: async () => assert.fail('must not call provider') }), /embedding_input_invalid/);
   await assert.rejects(call({}, { texts: Array(101).fill('a'), fetcher: async () => assert.fail('must not call provider') }), /embedding_input_invalid/);
   await assert.rejects(call({}, { fetcher: async () => new Response('', { status: 429 }) }), /provider_rate_limited/);
+  // The status says what to fix: 401/403 is the token's Workers AI permission, 404 the account.
+  for (const status of [400, 401, 403, 404, 500]) {
+    await assert.rejects(call({}, { fetcher: async () => Response.json({ success: false, errors: [{ code: 10000 }] }, { status }) }),
+      error => error.message === `provider_http_${status}`);
+  }
+});
+test('Cloudflare vectors under result.response are read the same as under result.data', async () => {
+  const { embedTexts } = await import('../app/api/chat/embedding.mjs');
+  const result = await embedTexts({ texts: ['a'], accountId: '0123456789abcdef0123456789abcdef', apiToken: 'cf-test-token-1234567890',
+    fetcher: async () => Response.json({ success: true, result: { shape: [1, 1024], response: [vector], pooling: 'cls' } }) });
+  assert.equal(result.length, 1); assert.equal(result[0][0], 1);
 });

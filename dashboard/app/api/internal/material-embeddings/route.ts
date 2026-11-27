@@ -27,7 +27,7 @@ export async function GET(request:Request) {
   console.info(JSON.stringify({event:'material_embedding_run',...result}));
   return Response.json(result,{headers:{'Cache-Control':'no-store'}});
  } catch(error) {
-  const code=error instanceof Error&&/^[a-z_]{3,60}$/.test(error.message)?error.message:'embedding_unavailable';
+  const code=error instanceof Error&&/^[a-z0-9_]{3,60}$/.test(error.message)?error.message:'embedding_unavailable';
   console.error(JSON.stringify({event:'material_embedding_run',status:'failed',code}));
   return Response.json({status:'failed',code},{status:503});
  }
