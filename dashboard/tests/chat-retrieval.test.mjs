@@ -183,3 +183,31 @@ test('generic evidence shows zero, leaves an unknown value out instead of readin
   const answer = renderToolResult({ status: 'ok', tool: 'query_database', source_id: 'core.materials', data: [{ quantity: 0, unit: null }], scope: { truncated: true } });
   assert.equal(answer, '• จำนวน: 0\nแสดงเฉพาะบางรายการ');
 });
+
+// Production 27 Nov: "หม้อแปลงไฟฟ้า 3 เฟส 250kVA มีรหัสอะไร" was answered from staging.actual_stock_rows, import rows
+// with one row per storage location, instead of the register core.materials.
+const layered = [...catalog,
+  { source_id: 'staging.actual_stock_rows', description: 'stock สต็อก วัสดุ material', columns: { material_id: 'text', material_name: 'text', validation_status: 'text' } },
+  { source_id: 'staging.material_rows', description: 'material วัสดุ พัสดุ', columns: { material_id: 'text', material_name: 'text', validation_status: 'text' } },
+  { source_id: 'raw.source_rows', description: 'แถวต้นทาง', columns: { payload: 'jsonb' } }];
+const shown = async (question, data) => {
+  let ids = [];
+  const r = await retrieveDatabase({ decision: { name: 'discover_database', args: { query: question } }, question, topK: 6,
+    rpc: async () => ({ status: 'ok', data }), generate: async body => {
+      ids = JSON.parse(body.contents[0].parts[0].text).candidates.map(c => c.data.source_id);
+      return call('rank_candidates', { indices: ids.map((_, i) => i) });
+    } });
+  return { ranked: ids, discovered: r.data.map(x => x.source_id), catalog: r.retrieval.catalog_count };
+};
+test('import rows (staging, raw) are left out of a business question while a curated source is there', async () => {
+  const r = await shown('หม้อแปลงไฟฟ้า 3 เฟส 250kVA มีรหัสวัสดุอะไร', layered);
+  assert.deepEqual(r.ranked.filter(id => /^(staging|raw)\./.test(id)), []);
+  assert.ok(r.discovered.includes('core.materials'));
+  assert.equal(r.catalog, layered.length);
+});
+test('a question about imported rows, or a catalog of import rows only, still reaches them', async () => {
+  assert.ok((await shown('แถวนำเข้าวัสดุที่ตรวจไม่ผ่านมีอะไรบ้าง', layered)).discovered.includes('staging.material_rows'));
+  assert.ok((await shown('plant 2901 อยู่เขตไหน', [...layered, { source_id: 'staging.sap_plant_district_map', description: 'plant เขต', columns: { sap_plant_code: 'text' } }]))
+    .discovered.includes('staging.sap_plant_district_map'));
+  assert.deepEqual((await shown('สต็อกวัสดุ', layered.slice(2))).discovered.sort(), layered.slice(2).map(s => s.source_id).sort());
+});

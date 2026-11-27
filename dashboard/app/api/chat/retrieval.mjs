@@ -88,6 +88,9 @@ export async function rerank(request, candidates, topK, generate) {
   return { selected: ids.map(i => candidates[i]), status: 'model_reranked' };
 }
 
+const IMPORT_LAYER = /^(staging|raw)\./;
+const IMPORT_QUESTION = /นำเข้า|อัป?โหลด|ไฟล์|ตรวจไม่ผ่าน|ตรวจสอบข้อมูล|โรงงาน|import|upload|staging|raw|batch|validation|plant/i;
+
 export async function retrieveDatabase({ decision, question = '', rpc, generate, topK = 6 }) {
   const search = decision.name === 'query_database' && typeof decision.args?.search === 'string' ? decision.args.search.trim() : '';
   if (search) {
@@ -100,8 +103,13 @@ export async function retrieveDatabase({ decision, question = '', rpc, generate,
   if (decision.name === 'discover_database') {
     // ICU words, not LATTE: its finer parts ("เต้า|รับ") match unrelated sources. The user's own words count too,
     // because the model's query can drop the hint (วัสดุ) that points at a source (ADR 0002).
-    const named = await findNames(decision.args.query, envelope.data, rpc);
-    const candidates = retrieveSources(`${question} ${decision.args.query}`, envelope.data, 30, named);
+    // staging.* and raw.* hold import rows, one per file line and storage location, before validation. A business
+    // question reads the curated sources built from them; only a question about imports, files or plants reaches them.
+    const asked = `${question} ${decision.args.query}`;
+    const curated = envelope.data.filter(s => !IMPORT_LAYER.test(s.source_id));
+    const pool = IMPORT_QUESTION.test(asked) || !curated.length ? envelope.data : curated;
+    const named = await findNames(decision.args.query, pool, rpc);
+    const candidates = retrieveSources(asked, pool, 30, named);
     // Descriptions come from one keyword set per category, so sources of a category read alike; their columns tell them
     // apart (ADR 0002). A catalog too large to send with columns is still ranked, by name and description.
     const found = ({ search_found_in }) => (search_found_in ? { search_found_in } : {});

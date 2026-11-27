@@ -47,7 +47,14 @@ The corpus starts empty. To import reviewed documents:
 - One run starts batches of 100 names for 60 seconds (about 1,000 names) and answers `partial` when names are left; the next run continues from there. To backfill a whole catalog, call `select ops.invoke_material_embeddings();` again until it answers `done`.
 - `vmi_chat_database(..., p_embedding)`: when nothing matches the text, a source with `material_id` gets a second list ranked by the meaning of the material name, fused with the text list by RRF. The chat shows each near match's `match_score` as small text, e.g. "(ความมั่นใจ 0.87)".
 
+## SAP terms and import rows (migration `202611270001_sap_terms_near_text.sql`)
+
+- Most material names are SAP English ("TRANS 3P4W 12/24KV D416Y240V 250KVA(SL)"). `app/api/chat/sap-terms.mjs` turns Thai material words, phases and units into SAP terms (`หม้อแปลงไฟฟ้า 3 เฟส 250kVA` → `trans 3p 250kva`). Add a word there, with a test in `tests/chat-sap-terms.test.mjs`, when a Thai search misses an English name.
+- The second read of a material search sends them as `p_args.near_text` and adds them to the embedded text. The database scores each row's text list by the larger of `word_similarity` and the share of terms the name holds, so it works without Cloudflare keys too. `near_text` never filters rows, and the model sees its own query.
+- `staging.*` and `raw.*` sources hold import rows. Discovery leaves them out unless the question is about imports, files, validation or plants (`retrieval.mjs`, `IMPORT_QUESTION`).
+
 ## Checks
 
-- `npm run test:agent`: route, tools, retrieval, answer review and OpenRouter adapter.
+- `npm run test:agent`: route, tools, retrieval, SAP terms, answer review and OpenRouter adapter.
+- `supabase/tests/sap_terms_verify.sql`: SAP-term near matches and `near_text` validation, inside the local workflow contract.
 - `supabase/tests/chat_assistant_verify.sql`: runs inside the local workflow contract (`make database-contract-local`). It checks reads, admission and rate limits, overview, the catalog, knowledge search and anon denial.
