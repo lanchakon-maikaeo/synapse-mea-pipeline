@@ -221,3 +221,23 @@ test('a question that does not ask for a contact, or a model that keeps leaving 
   assert.deepEqual(rejectedFor(twice), ['notes_not_read'], 'asked once, then the query runs');
   assert.equal(twice.reads.length, 2);
 });
+
+// heldout lowest-transformer: Typhoon asked min(current_stock_qty) per district with columns and ordered by the raw column,
+// read invalid_input three times and answered "not found" for a material it had found.
+test('a min or max asked with row columns gets back the row query that finds that row', async () => {
+  const health = { tool: 'discover_database', status: 'ok', data: [{ source_id: 'analytics.v_stock_health',
+    columns: { district_id: 'text', district_name_th: 'text', material_id: 'text', current_stock_qty: 'numeric' } }] };
+  const ask = extra => call('query_database', { source_id: 'analytics.v_stock_health', columns: ['district_id', 'district_name_th', 'current_stock_qty'],
+    filters: [{ column: 'material_id', operator: 'eq', value: '010100200301' }], group_by: ['district_id', 'district_name_th'],
+    order_column: 'current_stock_qty', order_direction: 'asc', limit: 1, offset: 0, search: null, ...extra });
+  const fix = { columns: ['district_id', 'district_name_th', 'current_stock_qty'], group_by: [], metrics: [],
+    order_column: 'current_stock_qty', order_direction: 'asc', limit: 1 };
+  for (const metrics of [[{ function: 'min', column: 'current_stock_qty' }], []]) {
+    const s = scenario([call('discover_database', { query: 'สต็อก' }), ask({ metrics }), call('finish')],
+      async d => d.name === 'discover_database' ? health : { tool: 'query_database', status: 'invalid_input' },
+      'เขตไหนมี 010100200301 คงเหลือน้อยที่สุด');
+    await assert.rejects(s.run, /finish_without_evidence/);
+    const problems = s.requests[2].contents.at(-1).parts[0].functionResponse.response.problems.join('\n');
+    assert.ok(problems.includes(JSON.stringify(fix)), problems);
+  }
+});

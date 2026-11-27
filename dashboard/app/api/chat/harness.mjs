@@ -91,7 +91,17 @@ function queryProblems(args, schema, discovered) {
   const problems = explainRejection(args, schema, discovered);
   return problems.length ? problems : [UNEXPLAINED];
 }
-function explainRejection({ source_id, columns, filters, group_by, metrics, order_column }, schema, discovered) {
+// The row that holds a min or max: the same columns, no grouping, ordered by that column. Spelled out as
+// arguments, because Typhoon rewrote a described fix wrong three times in a row (heldout lowest-transformer).
+function rowQuery({ columns, group_by, metrics, order_column, order_direction, limit }, schema) {
+  const extreme = metrics.find(m => ["min", "max"].includes(m.function) && Object.hasOwn(schema, m.column));
+  const order = Object.hasOwn(schema, order_column ?? "") ? order_column : extreme?.column;
+  const direction = extreme && extreme.column === order ? (extreme.function === "min" ? "asc" : "desc") : order_direction ?? "asc";
+  return JSON.stringify({ columns: [...new Set([...group_by, ...columns, ...(order ? [order] : [])])].filter(column => Object.hasOwn(schema, column)),
+    group_by: [], metrics: [], ...(order ? { order_column: order, order_direction: direction } : {}), limit: limit || 10 });
+}
+function explainRejection(args, schema, discovered) {
+  const { source_id, columns, filters, group_by, metrics, order_column } = args;
   const returned = metrics.length ? [...group_by, ...metrics.map(metricName)] : columns.length ? columns : Object.keys(schema).sort().slice(0, 16);
   const used = [...columns, ...filters.map(f => f.column), ...group_by, ...metrics.map(m => m.column).filter(column => column !== "*"),
     ...(order_column ? [order_column] : [])];
@@ -113,8 +123,8 @@ function explainRejection({ source_id, columns, filters, group_by, metrics, orde
     }),
     ...filters.filter(f => !["is_null", "not_null"].includes(f.operator) && f.value == null)
       .map(f => `filter ${f.column} ${f.operator} ต้องมี value; ถ้าไม่ต้องการค่าให้ใช้ is_null หรือ not_null`),
-    ...(group_by.length && !metrics.length ? ["group_by ใช้ได้เมื่อมี metrics เท่านั้น"] : []),
-    ...(metrics.length && columns.length ? ["เมื่อมี metrics ระบบไม่คืน columns คืนเฉพาะ group_by และผล metric; ถ้าต้องการรายละเอียดของแถวที่ค่ามากสุดหรือน้อยสุด ให้ตัด metrics แล้วใช้ columns กับ order_column และ limit"] : []),
+    ...(group_by.length && !metrics.length ? [`group_by ใช้ได้เมื่อมี metrics เท่านั้น ถ้าต้องการแถวรายละเอียด ให้ query ใหม่ด้วย ${rowQuery(args, schema)}`] : []),
+    ...(metrics.length && columns.length ? [`เมื่อมี metrics ระบบไม่คืน columns คืนเฉพาะ group_by และผล metric; ถ้าต้องการรายละเอียดของแถวที่ค่ามากสุดหรือน้อยสุด ให้ query ใหม่ด้วย ${rowQuery(args, schema)}`] : []),
     ...metrics.filter(m => ["sum", "avg"].includes(m.function) && schema[m.column] && !/^(smallint|integer|bigint|numeric|real|double precision)/.test(schema[m.column]))
       .map(m => `${m.function} ใช้กับคอลัมน์ตัวเลขเท่านั้น แต่ ${m.column} เป็น ${schema[m.column]}`),
     ...(order_column && !returned.includes(order_column) ? [`order_column ${order_column} ต้องเป็นคอลัมน์ที่ query คืน: ${returned.join(", ")}`] : []),
