@@ -51,11 +51,17 @@ function unsourcedCode({ name, args }, said, read) {
     : CODE_ARGS.filter(key => typeof args[key] === "string").map(key => [key, args[key], "eq"]);
   const plain = text => text.replace(/[๐-๙]/g, digit => String(digit.charCodeAt(0) - 0x0e50)).toLowerCase();
   const user = plain(said.join("\n")), data = plain(read);
-  return codes.find(([, value, operator]) => {
+  return codes.filter(([, value, operator]) => {
     const code = String(value).toLowerCase();
     return !user.includes(code) && !(data.includes(code) && (operator === "eq" || /\d/.test(code)));
   });
 }
+
+// Where a source names what a code stands for: district_id → district_name_th, material_id → material_name.
+const nameFor = (column, columns) => {
+  const thing = column.replace(/_(id|number|no|code)$/, "");
+  return [`${thing}_name_th`, `${thing}_name`, `${thing}_name_en`].find(name => Object.hasOwn(columns, name));
+};
 
 // A comparison casts its value to the column's type. Name only values the type surely cannot read (Postgres input syntax).
 const INTEGER = { smallint: 32767n, integer: 2147483647n, bigint: 9223372036854775807n };
@@ -227,11 +233,15 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       stopReason = decision.name;
       break;
     }
-    const unsourced = !["discover_database", "search_knowledge"].includes(decision.name) && corrections < MAX_CORRECTIONS &&
-      unsourcedCode(decision, [message, ...history.map(turn => turn.text), scope?.district_id ?? ""], JSON.stringify(evidence.filter(x => x.tool !== "discover_database")));
-    if (unsourced) {
+    const unsourced = !["discover_database", "search_knowledge"].includes(decision.name) && corrections < MAX_CORRECTIONS ?
+      unsourcedCode(decision, [message, ...history.map(turn => turn.text), scope?.district_id ?? ""], JSON.stringify(evidence.filter(x => x.tool !== "discover_database"))) : [];
+    if (unsourced.length) {
+      // Every guessed code in one correction, each with the column that holds its name, so one retry can fix them all.
+      const columns = decision.name === "query_database" ? discovered.get(decision.args.source_id) ?? {} : {};
       correct(response.candidates[0].content, decision.name, "unsourced_code",
-        `${unsourced[0]} ${unsourced[2]} "${unsourced[1]}" ไม่ได้มาจากคำถาม ประวัติ หรือข้อมูลที่อ่านได้ ห้ามเดารหัสหรือส่วนของรหัส ` +
+        `${unsourced.map(([column, value, operator]) => `${column} ${operator} "${value}"` +
+          (nameFor(column, columns) ? ` → ใช้ ${nameFor(column, columns)} contains ชื่อจากคำถามแทน` : "")).join("; ")} ` +
+        `ไม่ได้มาจากคำถาม ประวัติ หรือข้อมูลที่อ่านได้ ห้ามเดารหัสหรือส่วนของรหัส ` +
         `ถ้าคำถามให้ชื่อ ให้ค้นด้วยชื่อ (search หรือ contains ในคอลัมน์ชื่อ) หรือค้นรหัสจากทะเบียนด้วย discover_database และ query_database ก่อน`);
       continue;
     }
@@ -245,11 +255,13 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       continue;
     }
     const signature = JSON.stringify([decision.name, Object.entries(decision.args).sort()]);
-    if (seen.has(signature) && corrections < MAX_CORRECTIONS) {
+    // A repeat never reads again. Once the corrections are spent it still goes back to the model, without counting:
+    // the step limit ends a model that only repeats, and the last step writes up what was read.
+    if (seen.has(signature)) {
       correct(response.candidates[0].content, decision.name, "repeated_call", REPEATED_CALL);
+      if (corrections > MAX_CORRECTIONS) corrections = MAX_CORRECTIONS;
       continue;
     }
-    if (seen.has(signature)) { stopReason = "repeated_tool"; break; }
     // A query the database rejected read nothing, so it spends a step but not the read budget.
     if (evidence.filter(x => x.status !== "invalid_input").length >= MAX_READS) break;
     if (decision.name === "query_database" && !discovered.has(decision.args.source_id)) throw new Error("source_not_discovered");

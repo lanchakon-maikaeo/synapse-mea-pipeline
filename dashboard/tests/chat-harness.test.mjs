@@ -48,10 +48,10 @@ test('conversation replies require no business reads and cannot carry invented f
   await assert.rejects(scenario([call('conversation', { intent: 'stock', answer: '999' })]).run, /provider_output_invalid/);
   await assert.rejects(scenario([call('conversation', { intent: 'stock' })]).run, /provider_output_invalid/);
 });
-test('duplicate calls stop instead of repeatedly spending money or querying', async () => {
-  // The first repeats go back to the model; once its corrections are spent the run stops.
-  const s = scenario([overview, overview, overview, overview]); const r = await s.run();
-  assert.equal(r.stop_reason, 'repeated_tool'); assert.equal(r.status, 'partial'); assert.equal(s.reads.length, 1);
+test('duplicate calls never read twice, and a model that only repeats is ended by the step limit', async () => {
+  // Every repeat goes back to the model without a read; the last step offers only finish, so the run is written up.
+  const s = scenario(Array(MAX_READS + 1).fill(overview)); const r = await s.run();
+  assert.equal(r.stop_reason, 'complete'); assert.equal(s.reads.length, 1); assert.equal(s.requests.length, MAX_READS + 1);
 });
 test('the last step offers only finish, so a run that read something ends complete and gets written', async () => {
   const skus = Array.from({ length: MAX_READS + 1 }, (_, i) => `SKU-${i}`);
@@ -144,6 +144,30 @@ test('a piece of a code the model made up goes back to it, and the name is searc
   assert.deepEqual(rejectedFor(s), ['unsourced_code', 'unsourced_code']);
   assert.deepEqual(s.reads.map(d => d.args.filters?.[0]?.value ?? d.name), ['discover_database', 'หม้อแปลง']);
   assert.match(JSON.stringify(s.requests[2].contents.at(-1)), /ส่วนของรหัส[\s\S]*ชื่อ/);
+});
+// heldout who-requested: Typhoon guessed district 5501 and material "TFR" together; the correction named only the district,
+// it fixed that, guessed "TFR" again, then repeated a read and the run stopped at repeated_tool.
+test('one correction names every guessed code and the name column to search instead', async () => {
+  const columns = { requester_name: 'text', district_id: 'text', district_name_th: 'text', material_id: 'text', material_name: 'text' };
+  const s = scenario([call('discover_database', { query: 'ผู้ขอเติมหม้อแปลง เขตบางนา' }),
+    queue([{ column: 'district_id', operator: 'eq', value: '5501' }, { column: 'material_id', operator: 'contains', value: 'TFR' }]),
+    queue([{ column: 'district_name_th', operator: 'contains', value: 'บางนา' }, { column: 'material_name', operator: 'contains', value: 'หม้อแปลง' }]),
+    call('finish')],
+  async d => d.name === 'discover_database'
+    ? { tool: d.name, status: 'ok', data: [{ source_id: 'analytics.v_replenishment_queue', columns }] }
+    : { tool: d.name, status: 'ok', source_id: 'analytics.v_replenishment_queue', data: [{ requester_name: 'ผู้ขอ' }] },
+  'ใครเป็นผู้ขอเติมหม้อแปลงของเขตบางนา');
+  const r = await s.run();
+  assert.deepEqual(rejectedFor(s), ['unsourced_code']);
+  const message = s.requests[2].contents.at(-1).parts[0].functionResponse.response.message;
+  assert.match(message, /district_id eq "5501"[^;]*district_name_th/);
+  assert.match(message, /material_id contains "TFR"[^;]*material_name/);
+  assert.equal(r.stop_reason, 'complete');
+});
+test('a read repeated after the corrections are spent goes back to the model instead of ending the run', async () => {
+  const s = scenario([overview, overview, overview, overview, stock('SKU-1'), call('finish')]); const r = await s.run();
+  assert.equal(r.stop_reason, 'complete'); assert.equal(s.reads.length, 2);
+  assert.deepEqual(rejectedFor(s), ['repeated_call', 'repeated_call', 'repeated_call']);
 });
 test('a piece of a code the user wrote, or one with digits from data already read, is queried', async () => {
   const s = scenario([call('discover_database', { query: 'แผนเติม' }),
