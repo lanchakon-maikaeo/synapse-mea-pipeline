@@ -126,3 +126,18 @@ test('a notice the writer already gave is not repeated: stale stock is said once
   const silent = await composeAnswer({ result: { ...base, evidence: [stale] }, question: 'มิเตอร์เหลือเท่าไร', generate: async () => responses.shift() });
   assert.equal(silent.answer.split(warning).length - 1, 1, 'a writer that leaves it out still gets the warning from the server');
 });
+
+// Production 27 Nov: "เขตที่มีวัสดุ 612062084130 คงเหลือน้อยที่สุดคือ รหัสเขตที่ไม่ระบุ (null)" with "รหัสเขต: null" in each item.
+test('a draft that writes a missing value as null is not shown, and the writer is told to say ไม่ระบุ', async () => {
+  const stock = { tool: 'query_database', source_id: 'staging.actual_stock_rows', status: 'ok', observed_at: '2026-11-27T02:28:00Z',
+    data: [{ material_id: '612062084130', unrestricted_qty: 1, district_id: null }, { material_id: '612062084130', unrestricted_qty: 3, district_id: null }] };
+  const requests = [];
+  const responses = [call('write_answer', { summary: 'เขตที่มีวัสดุ 612062084130 คงเหลือน้อยที่สุดคือ รหัสเขตที่ไม่ระบุ (null)',
+    items: ['SKU: 612062084130 · จำนวนไม่จำกัดการใช้: 1 · รหัสเขต: null'], notes: [], evidence_ids: [1] }), approved];
+  const answer = await composeAnswer({ result: { ...base, evidence: [stock] }, question: 'เขตไหนมีวัสดุ 612062084130 คงเหลือน้อยที่สุด',
+    generate: async body => { requests.push(structuredClone(body)); return responses.shift(); } });
+  assert.equal(answer.answer_mode, 'evidence');
+  assert.equal(answer.answer_validation, 'invalid_draft');
+  assert.equal(requests.length, 1, 'the reviewer is not asked about a draft that cannot be shown');
+  assert.match(requests[0].systemInstruction.parts[0].text, /null[^;]*ไม่ระบุ/);
+});

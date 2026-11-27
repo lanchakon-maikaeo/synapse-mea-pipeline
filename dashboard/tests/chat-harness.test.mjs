@@ -241,3 +241,17 @@ test('a min or max asked with row columns gets back the row query that finds tha
     assert.ok(problems.includes(JSON.stringify(fix)), problems);
   }
 });
+
+// Production 27 Nov: staging.actual_stock_rows has one row per storage location, so a near match listed
+// 612062084130 · TRANS 3P3W … twice with the same columns.
+test('a near match listed once per stored row reaches the model and the answer once', async () => {
+  const same = { material_id: '612062084130', material_name: 'TRANS 3P3W 12/24KV D240V D75KVA(SL)', match_score: 0.48 };
+  const other = { material_id: '592500200225', material_name: 'เบรคเกอร์ CSP 3 PHASE หม้อแปลง 225 kVA', match_score: 0.5 };
+  const s = scenario([call('discover_database', { query: 'หม้อแปลง' }), find('หม้อแปลงไฟฟ้า 3 เฟส 250kVA', ['material_id', 'material_name']), call('finish')],
+    async d => d.name === 'discover_database' ? materials
+      : { tool: 'query_database', status: 'no_data', source_id: 'core.materials', data: [], near_matches: [other, same, { ...same }] },
+    'หม้อแปลงไฟฟ้า 3 เฟส 250kVA มีรหัสอะไร');
+  const r = await s.run();
+  assert.equal(s.requests[2].contents.at(-1).parts[0].functionResponse.response.near_matches.length, 2);
+  assert.equal(r.answer.split('612062084130').length - 1, 1, r.answer);
+});
