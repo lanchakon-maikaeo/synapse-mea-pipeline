@@ -30,3 +30,20 @@ test('the job stops at its batch limit or deadline and says the queue is not emp
     rpc: async () => assert.fail('no call after the deadline') });
   assert.deepEqual(stopped, { status: 'partial', embedded: 0, saved: 0 });
 });
+
+// Production 27 Nov: each run embedded 900-1,500 names, then the 90-second deadline aborted a Cloudflare call
+// mid-batch and the run answered 503 (embedding_unavailable, then embedding_output_invalid) for work it had saved.
+test('no batch starts once the time budget is spent, and a deadline that lands mid-batch still reports what was saved', async () => {
+  const clock = [0, 0, 30_000, 61_000]; // start, then the check before each batch
+  const rpc = async (name, body) => name === 'material_embedding_queue' ? names(100) : body.p_rows.length;
+  const budgeted = await embedMaterialNames({ signal: new AbortController().signal, budgetMs: 60_000, now: () => clock.shift(),
+    embed: async texts => texts.map(() => unit(0)), rpc });
+  assert.deepEqual(budgeted, { status: 'partial', embedded: 200, saved: 200 });
+  const deadline = new AbortController();
+  let calls = 0;
+  const cut = await embedMaterialNames({ signal: deadline.signal, rpc, embed: async texts => {
+    if (++calls === 2) { deadline.abort(new DOMException('signal timed out', 'TimeoutError')); throw deadline.signal.reason; }
+    return texts.map(() => unit(0));
+  } });
+  assert.deepEqual(cut, { status: 'partial', embedded: 100, saved: 100 });
+});
