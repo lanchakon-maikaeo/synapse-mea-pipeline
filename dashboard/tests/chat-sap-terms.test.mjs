@@ -10,11 +10,29 @@ test('Thai material words become the SAP words the register spells them with, un
     ['หม้อแปลงไฟฟ้า 3 เฟส 22 kV 250 เควีเอ', 'trans 3p 22kv 250kva'],
     ['กับดักฟ้าผ่า 21 kV 10 kA', 'arrest 21kv 10ka'],
     ['ล่อฟ้า 9kV', 'arrest 9kv'],
-    ['เบรกเกอร์ 3 เฟส 630A', 'breaker|mccb|mcb 3p 630a'],
+    ['เบรกเกอร์ 3 เฟส 630A', 'breaker|mccb|mcb|vcb|gcb|acb 3p 630a'],
     ['คีมปอกสายไฟ 185 ตร.มม.', 'cable|wire|conductor 185sqmm'],
     ['ลูกถ้วยแขวน', 'insulator'],
-    ['มิเตอร์ไฟฟ้า 1 เฟส', 'meter 1p|single'],
+    ['มิเตอร์ไฟฟ้า 1 เฟส', 'meter|kwh 1p|single'],
     ['ฟิวส์ RMU 24kV', 'fuse rmu 24kv'],
+  ]) assert.equal(sapTerms(text), terms, text);
+});
+
+// Production names by how many hold each word (27 Nov): sqmm 611, cable 293, fuse 230, bolt 208, ring 173, switch 133,
+// clamp 118, relay 108, terminal 81, CT 75, crossarm 40, ...
+test('the common SAP item words have their Thai, and a longer Thai word wins over the word it starts with', () => {
+  for (const [text, terms] of [
+    ['หม้อแปลงกระแส 400/5A', 'ct|current 400 5a'],
+    ['หม้อแปลงแรงดัน 24kV', 'pt|vt|voltage 24kv'],
+    ['แหวนรองสปริง', 'washer spring'],
+    ['แหวนกันน้ำ', 'ring'],
+    ['เคเบิลไทร์ 8 นิ้ว', 'tie'],
+    ['สวิตช์ตัดตอน 24kV', 'disconnecting|disc 24kv'],
+    ['หางปลาทองแดง 185 ตร.มม.', 'lug|terminal|term|thimble copper|cu 185sqmm'],
+    ['คอนเหล็ก 2.4 เมตร', 'crossarm'],
+    ['คาปาซิเตอร์ 50 kvar', 'capacitor 50kvar'],
+    ['สายอะลูมิเนียม 4/0 AWG', 'cable|wire|conductor alumin 0awg'],
+    ['ตู้ RMU', 'cabinet|box|rmu|swgr rmu'],
   ]) assert.equal(sapTerms(text), terms, text);
 });
 
