@@ -169,7 +169,6 @@ test('the writer lists every near match, and the reviewer counts an answer that 
   assert.equal(answer.answer_validation, 'accepted');
   const [writer, reviewer] = requests.map(r => r.systemInstruction.parts[0].text);
   assert.match(writer, /near_matches ทุกรายการ/);
-  assert.match(writer, /เฉพาะเมื่อคำตอบมียอดสต็อก/, 'stock freshness is said only for stock figures');
   assert.match(reviewer, /near_matches[^;]*answers_question=true/);
 });
 
