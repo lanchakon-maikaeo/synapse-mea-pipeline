@@ -14,6 +14,8 @@ insert into rag.knowledge_chunks_bge_m3(source_id,title,chunk_index,content,embe
 values ('LOCAL-HYB-DOC','คู่มือการเติมพัสดุ',0,'ขั้นตอนการขอเติมพัสดุ ต้องได้รับอนุมัติจากหัวหน้าเขตก่อน',
   (select array_agg((i=2)::int::real) from generate_series(1,1024) i)::extensions.vector);
 
+-- Earlier tests change this user's role; documents default to admin only (RLS).
+update public.user_profiles set role='admin', district_id=null, is_active=true where user_id='10000000-0000-4000-8000-000000000001';
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
 set local role authenticated;
 do $$
