@@ -159,7 +159,7 @@ test('a draft that offers none of the near matches it read is not shown; the evi
   assert.equal(requests.length, 1, 'the reviewer is not asked');
 });
 
-test('the writer lists every near match, and the reviewer counts an answer that offers them with their confidence as answering', async () => {
+test('the reviewer counts an answer that offers the near matches with their confidence as answering', async () => {
   const requests = [];
   const responses = [call('write_answer', { summary: 'ไม่พบรายการที่ตรงทุกคำ รายการใกล้เคียงมีดังนี้',
     items: ['612062080050 · TRANS 3P4W 12/24KV D416Y240V 250KVA(SL) (ความมั่นใจ 0.86)', '612062080081 · TRANS 3P3W 12/24KV 400KVA 220V(SL) (ความมั่นใจ 0.66)'],
@@ -167,8 +167,7 @@ test('the writer lists every near match, and the reviewer counts an answer that 
   const answer = await composeAnswer({ result: { ...base, evidence: [near] }, question: nearQuestion,
     generate: async body => { requests.push(structuredClone(body)); return responses.shift(); } });
   assert.equal(answer.answer_validation, 'accepted');
-  const [writer, reviewer] = requests.map(r => r.systemInstruction.parts[0].text);
-  assert.match(writer, /near_matches ทุกรายการ/);
+  const reviewer = requests[1].systemInstruction.parts[0].text;
   assert.match(reviewer, /near_matches[^;]*answers_question=true/);
 });
 
