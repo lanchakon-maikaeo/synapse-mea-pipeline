@@ -51,11 +51,17 @@ function unsourcedCode({ name, args }, said, read) {
     : CODE_ARGS.filter(key => typeof args[key] === "string").map(key => [key, args[key], "eq"]);
   const plain = text => text.replace(/[๐-๙]/g, digit => String(digit.charCodeAt(0) - 0x0e50)).toLowerCase();
   const user = plain(said.join("\n")), data = plain(read);
-  return codes.find(([, value, operator]) => {
+  return codes.filter(([, value, operator]) => {
     const code = String(value).toLowerCase();
     return !user.includes(code) && !(data.includes(code) && (operator === "eq" || /\d/.test(code)));
   });
 }
+
+// Where a source names what a code stands for: district_id → district_name_th, material_id → material_name.
+const nameFor = (column, columns) => {
+  const thing = column.replace(/_(id|number|no|code)$/, "");
+  return [`${thing}_name_th`, `${thing}_name`, `${thing}_name_en`].find(name => Object.hasOwn(columns, name));
+};
 
 // A comparison casts its value to the column's type. Name only values the type surely cannot read (Postgres input syntax).
 const INTEGER = { smallint: 32767n, integer: 2147483647n, bigint: 9223372036854775807n };
@@ -85,7 +91,17 @@ function queryProblems(args, schema, discovered) {
   const problems = explainRejection(args, schema, discovered);
   return problems.length ? problems : [UNEXPLAINED];
 }
-function explainRejection({ source_id, columns, filters, group_by, metrics, order_column }, schema, discovered) {
+// The row that holds a min or max: the same columns, no grouping, ordered by that column. Spelled out as
+// arguments, because Typhoon rewrote a described fix wrong three times in a row (heldout lowest-transformer).
+function rowQuery({ columns, group_by, metrics, order_column, order_direction, limit }, schema) {
+  const extreme = metrics.find(m => ["min", "max"].includes(m.function) && Object.hasOwn(schema, m.column));
+  const order = Object.hasOwn(schema, order_column ?? "") ? order_column : extreme?.column;
+  const direction = extreme && extreme.column === order ? (extreme.function === "min" ? "asc" : "desc") : order_direction ?? "asc";
+  return JSON.stringify({ columns: [...new Set([...group_by, ...columns, ...(order ? [order] : [])])].filter(column => Object.hasOwn(schema, column)),
+    group_by: [], metrics: [], ...(order ? { order_column: order, order_direction: direction } : {}), limit: limit || 10 });
+}
+function explainRejection(args, schema, discovered) {
+  const { source_id, columns, filters, group_by, metrics, order_column } = args;
   const returned = metrics.length ? [...group_by, ...metrics.map(metricName)] : columns.length ? columns : Object.keys(schema).sort().slice(0, 16);
   const used = [...columns, ...filters.map(f => f.column), ...group_by, ...metrics.map(m => m.column).filter(column => column !== "*"),
     ...(order_column ? [order_column] : [])];
@@ -107,8 +123,8 @@ function explainRejection({ source_id, columns, filters, group_by, metrics, orde
     }),
     ...filters.filter(f => !["is_null", "not_null"].includes(f.operator) && f.value == null)
       .map(f => `filter ${f.column} ${f.operator} ต้องมี value; ถ้าไม่ต้องการค่าให้ใช้ is_null หรือ not_null`),
-    ...(group_by.length && !metrics.length ? ["group_by ใช้ได้เมื่อมี metrics เท่านั้น"] : []),
-    ...(metrics.length && columns.length ? ["เมื่อมี metrics ระบบไม่คืน columns คืนเฉพาะ group_by และผล metric; ถ้าต้องการรายละเอียดของแถวที่ค่ามากสุดหรือน้อยสุด ให้ตัด metrics แล้วใช้ columns กับ order_column และ limit"] : []),
+    ...(group_by.length && !metrics.length ? [`group_by ใช้ได้เมื่อมี metrics เท่านั้น ถ้าต้องการแถวรายละเอียด ให้ query ใหม่ด้วย ${rowQuery(args, schema)}`] : []),
+    ...(metrics.length && columns.length ? [`เมื่อมี metrics ระบบไม่คืน columns คืนเฉพาะ group_by และผล metric; ถ้าต้องการรายละเอียดของแถวที่ค่ามากสุดหรือน้อยสุด ให้ query ใหม่ด้วย ${rowQuery(args, schema)}`] : []),
     ...metrics.filter(m => ["sum", "avg"].includes(m.function) && schema[m.column] && !/^(smallint|integer|bigint|numeric|real|double precision)/.test(schema[m.column]))
       .map(m => `${m.function} ใช้กับคอลัมน์ตัวเลขเท่านั้น แต่ ${m.column} เป็น ${schema[m.column]}`),
     ...(order_column && !returned.includes(order_column) ? [`order_column ${order_column} ต้องเป็นคอลัมน์ที่ query คืน: ${returned.join(", ")}`] : []),
@@ -227,11 +243,15 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       stopReason = decision.name;
       break;
     }
-    const unsourced = !["discover_database", "search_knowledge"].includes(decision.name) && corrections < MAX_CORRECTIONS &&
-      unsourcedCode(decision, [message, ...history.map(turn => turn.text), scope?.district_id ?? ""], JSON.stringify(evidence.filter(x => x.tool !== "discover_database")));
-    if (unsourced) {
+    const unsourced = !["discover_database", "search_knowledge"].includes(decision.name) && corrections < MAX_CORRECTIONS ?
+      unsourcedCode(decision, [message, ...history.map(turn => turn.text), scope?.district_id ?? ""], JSON.stringify(evidence.filter(x => x.tool !== "discover_database"))) : [];
+    if (unsourced.length) {
+      // Every guessed code in one correction, each with the column that holds its name, so one retry can fix them all.
+      const columns = decision.name === "query_database" ? discovered.get(decision.args.source_id) ?? {} : {};
       correct(response.candidates[0].content, decision.name, "unsourced_code",
-        `${unsourced[0]} ${unsourced[2]} "${unsourced[1]}" ไม่ได้มาจากคำถาม ประวัติ หรือข้อมูลที่อ่านได้ ห้ามเดารหัสหรือส่วนของรหัส ` +
+        `${unsourced.map(([column, value, operator]) => `${column} ${operator} "${value}"` +
+          (nameFor(column, columns) ? ` → ใช้ ${nameFor(column, columns)} contains ชื่อจากคำถามแทน` : "")).join("; ")} ` +
+        `ไม่ได้มาจากคำถาม ประวัติ หรือข้อมูลที่อ่านได้ ห้ามเดารหัสหรือส่วนของรหัส ` +
         `ถ้าคำถามให้ชื่อ ให้ค้นด้วยชื่อ (search หรือ contains ในคอลัมน์ชื่อ) หรือค้นรหัสจากทะเบียนด้วย discover_database และ query_database ก่อน`);
       continue;
     }
@@ -245,11 +265,13 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       continue;
     }
     const signature = JSON.stringify([decision.name, Object.entries(decision.args).sort()]);
-    if (seen.has(signature) && corrections < MAX_CORRECTIONS) {
+    // A repeat never reads again. Once the corrections are spent it still goes back to the model, without counting:
+    // the step limit ends a model that only repeats, and the last step writes up what was read.
+    if (seen.has(signature)) {
       correct(response.candidates[0].content, decision.name, "repeated_call", REPEATED_CALL);
+      if (corrections > MAX_CORRECTIONS) corrections = MAX_CORRECTIONS;
       continue;
     }
-    if (seen.has(signature)) { stopReason = "repeated_tool"; break; }
     // A query the database rejected read nothing, so it spends a step but not the read budget.
     if (evidence.filter(x => x.status !== "invalid_input").length >= MAX_READS) break;
     if (decision.name === "query_database" && !discovered.has(decision.args.source_id)) throw new Error("source_not_discovered");

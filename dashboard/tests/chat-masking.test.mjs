@@ -129,3 +129,11 @@ test('a value hidden once stays hidden when it comes back without the title that
   assert.equal(send(masker, 'คุณสมศรี ใจดี ขอเบิก'), 'คุณ[ชื่อ-1] ขอเบิก');
   assert.equal(send(masker, 'ค้นคำขอของ สมศรี ใจดี และสมศรีคนเดิม'), 'ค้นคำขอของ [ชื่อ-1] และ[ชื่อ-2]คนเดิม');
 });
+
+// heldout lowest-transformer: the clarify question "คุณหมายถึงหม้อแปลงไฟฟ้า…" went back to the model as "คุณ[ชื่อ-1]…".
+test('คุณ as "you" before a verb is not a title, and a name after คุณ is still masked', () => {
+  for (const text of ['คุณหมายถึงหม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA หรือไม่', 'คุณอยากทราบเขตใด', 'คุณระบุชื่อวัสดุได้ไหม',
+    'คุณเลือกเขตบางนาใช่ไหม', 'คุณทราบรหัสวัสดุไหม', 'คุณสนใจสต็อกเขตไหน', 'คุณกรอกรหัสผิด', 'คุณพิมพ์ชื่อวัสดุ'])
+    assert.equal(send(createMasker(), text), text);
+  assert.doesNotMatch(send(createMasker(), 'คุณสมศรีระบุว่าของไม่ครบ'), /สมศรี/);
+});
