@@ -50,7 +50,7 @@ The corpus starts empty. To import reviewed documents:
 ## SAP terms and import rows (migration `202611270001_sap_terms_near_text.sql`)
 
 - Most material names are SAP English ("TRANS 3P4W 12/24KV D416Y240V 250KVA(SL)"). `app/api/chat/sap-terms.mjs` turns Thai material words, phases and units into SAP terms (`หม้อแปลงไฟฟ้า 3 เฟส 250kVA` → `trans 3p 250kva`). Add a word there, with a test in `tests/chat-sap-terms.test.mjs`, when a Thai search misses an English name.
-- The second read of a material search sends them as `p_args.near_text` and adds them to the embedded text. The database scores each row's text list by the larger of `word_similarity` and the share of terms the name holds, so it works without Cloudflare keys too. `near_text` never filters rows, and the model sees its own query.
+- The second read of a material search sends them as `p_args.near_text` and adds them to the embedded text. The database scores each row's text list by the larger of `word_similarity` and the share of terms the name holds, so it works without Cloudflare keys too. `near_text` never filters rows, and the model sees its own query. With `near_text`, `match_score` is the RRF score times the row's text nearness (migration `202611270002`), because many names hold two of three terms and tie in the text list.
 - `staging.*` and `raw.*` sources hold import rows. Discovery leaves them out unless the question is about imports, files, validation or plants (`retrieval.mjs`, `IMPORT_QUESTION`).
 
 ## Checks

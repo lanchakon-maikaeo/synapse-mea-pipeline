@@ -72,7 +72,7 @@ release scope.
 - Database/Auth target: managed Supabase Production project
   `fvdfduuanfrncrwuareb` (`synapse-01`, `ap-southeast-1`).
 - Release code contains the ordered additive migrations in
-  `supabase/migrations/` (67 files, `202607140000` to `202611270001` on 27
+  `supabase/migrations/` (68 files, `202607140000` to `202611270002` on 27
   November 2026). Which of them are live is
   recorded in `ops.schema_migrations` of the Production database; check there
   rather than in this file. Transport schema and API are deployed. Owner-attested depot and partial fleet evidence makes the transport
