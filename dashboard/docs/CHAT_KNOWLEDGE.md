@@ -44,6 +44,7 @@ The corpus starts empty. To import reviewed documents:
 - `rag.material_name_embeddings` holds one BGE-M3 vector per material name, with the md5 of the name it came from. Service role only.
 - `GET /api/internal/material-embeddings` embeds names that have no vector or were renamed: `material_embedding_queue` → Cloudflare → `material_embedding_save` (which skips a name that changed meanwhile). It uses `AGENTIC_ALERT_CRON_SECRET` and the service key, like agentic alerts.
 - pg_cron calls it daily through `ops.invoke_material_embeddings()`. The job is scheduled in production after deploy; a fresh database never calls out.
+- One run starts batches of 100 names for 60 seconds (about 1,000 names) and answers `partial` when names are left; the next run continues from there. To backfill a whole catalog, call `select ops.invoke_material_embeddings();` again until it answers `done`.
 - `vmi_chat_database(..., p_embedding)`: when nothing matches the text, a source with `material_id` gets a second list ranked by the meaning of the material name, fused with the text list by RRF. The chat shows each near match's `match_score` as small text, e.g. "(ความมั่นใจ 0.87)".
 
 ## Checks
