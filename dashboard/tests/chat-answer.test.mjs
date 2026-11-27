@@ -141,3 +141,34 @@ test('a draft that writes a missing value as null is not shown, and the writer i
   assert.equal(requests.length, 1, 'the reviewer is not asked about a draft that cannot be shown');
   assert.match(requests[0].systemInstruction.parts[0].text, /null[^;]*ไม่ระบุ/);
 });
+
+// Probe on Typhoon, 27 Nov: 4 of 6 near-match answers fell back. Twice the writer said "not found" and offered none of
+// the near matches it read; twice it offered them with their confidence and the reviewer still said the question was
+// not answered (answers_question=false), as on production for "หม้อแปลงไฟฟ้า 3 เฟส 250kVA มีรหัสอะไร".
+const near = { tool: 'query_database', source_id: 'core.materials', status: 'no_data', data: [], observed_at: '2026-11-27T10:05:00Z',
+  near_matches: [{ material_id: '612062080050', material_name: 'TRANS 3P4W 12/24KV D416Y240V 250KVA(SL)', match_score: 0.86 },
+    { material_id: '612062080081', material_name: 'TRANS 3P3W 12/24KV 400KVA 220V(SL)', match_score: 0.66 }] };
+const nearQuestion = 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA มีรหัสอะไร';
+
+test('a draft that offers none of the near matches it read is not shown; the evidence answer lists them', async () => {
+  const requests = [];
+  const responses = [call('write_answer', { summary: 'ไม่พบหม้อแปลงไฟฟ้า 3 เฟส 250kVA', items: [], notes: [], evidence_ids: [1] }), approved];
+  const answer = await composeAnswer({ result: { ...base, evidence: [near] }, question: nearQuestion,
+    generate: async body => { requests.push(structuredClone(body)); return responses.shift(); } });
+  assert.equal(answer.answer_validation, 'invalid_draft');
+  assert.equal(requests.length, 1, 'the reviewer is not asked');
+});
+
+test('the writer lists every near match, and the reviewer counts an answer that offers them with their confidence as answering', async () => {
+  const requests = [];
+  const responses = [call('write_answer', { summary: 'ไม่พบรายการที่ตรงทุกคำ รายการใกล้เคียงมีดังนี้',
+    items: ['612062080050 · TRANS 3P4W 12/24KV D416Y240V 250KVA(SL) (ความมั่นใจ 0.86)', '612062080081 · TRANS 3P3W 12/24KV 400KVA 220V(SL) (ความมั่นใจ 0.66)'],
+    notes: [], evidence_ids: [1] }), approved];
+  const answer = await composeAnswer({ result: { ...base, evidence: [near] }, question: nearQuestion,
+    generate: async body => { requests.push(structuredClone(body)); return responses.shift(); } });
+  assert.equal(answer.answer_validation, 'accepted');
+  const [writer, reviewer] = requests.map(r => r.systemInstruction.parts[0].text);
+  assert.match(writer, /near_matches ทุกรายการ/);
+  assert.match(writer, /เฉพาะเมื่อคำตอบมียอดสต็อก/, 'stock freshness is said only for stock figures');
+  assert.match(reviewer, /near_matches[^;]*answers_question=true/);
+});

@@ -118,7 +118,6 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
             </div>
             <div>
               <strong>SYNAPSE Agent</strong>
-              <span><i /> แสดงข้อมูลตามสิทธิ์ผู้ใช้งาน</span>
             </div>
             <button type="button" onClick={() => setOpen(false)} aria-label="ย่อหน้าต่างแชท">—</button>
           </header>
@@ -167,7 +166,6 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
                 </button>
               )}
             </div>
-            <small>ใช้สำหรับค้นหาข้อมูลเท่านั้น การอนุมัติและการจ่ายพัสดุให้ดำเนินการในเมนูที่เกี่ยวข้อง</small>
           </form>
         </section>
       )}
