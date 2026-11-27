@@ -172,3 +172,12 @@ test('the writer lists every near match, and the reviewer counts an answer that 
   assert.match(writer, /เฉพาะเมื่อคำตอบมียอดสต็อก/, 'stock freshness is said only for stock figures');
   assert.match(reviewer, /near_matches[^;]*answers_question=true/);
 });
+
+test('when another read found the item itself, the answer may come from that read without the near matches', async () => {
+  const stock = { tool: 'query_database', source_id: 'analytics.v_warehouse_stock', status: 'ok', observed_at: '2026-11-27T10:05:00Z',
+    data: [{ material_id: '010100200301', material_name: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA', quantity_on_hand: 27 }] };
+  const responses = [call('write_answer', { summary: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA ที่คลังเหลือ 27 เครื่อง', items: [], notes: [], evidence_ids: [2] }), approved];
+  const answer = await composeAnswer({ result: { ...base, evidence: [near, stock] }, question: 'หม้อแปลง 250kVA ที่คลังเหลือเท่าไร',
+    generate: async () => responses.shift() });
+  assert.equal(answer.answer_validation, 'accepted');
+});

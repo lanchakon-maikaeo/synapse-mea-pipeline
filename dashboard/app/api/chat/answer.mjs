@@ -38,7 +38,9 @@ export async function composeAnswer({ result, question, history = /** @type {{ r
   const evidence = result.evidence.filter(e => e.tool !== 'discover_database' && e.status !== 'invalid_input');
   // Never rewrite denied/partial/error output into an apparently successful answer.
   if (result.stop_reason !== 'complete' || !evidence.length || evidence.some(e => !['ok', 'no_data'].includes(e.status))) return fallback('not_applicable');
-  const nearIds = evidence.flatMap(e => e.near_matches ?? []).map(m => m?.material_id).filter(id => typeof id === 'string' && id);
+  // Near matches are the answer only when no read found the thing itself; a stock read that did may answer alone.
+  const nearIds = evidence.some(e => e.status === 'ok') ? []
+    : evidence.flatMap(e => e.near_matches ?? []).map(m => m?.material_id).filter(id => typeof id === 'string' && id);
   const input = { assessed_at:new Date().toISOString(), question, history, evidence: evidence.map((data, i) => ({ id: i + 1, data })),
     labels: labelsFor(evidence.map(e => [e.data, e.near_matches])) };
   if (JSON.stringify(input).length > 40000) return fallback('context_limit');
