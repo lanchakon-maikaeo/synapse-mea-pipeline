@@ -39,6 +39,10 @@ const CORRECTIONS = {
 // Greetings, thanks, goodbyes and questions about the assistant itself; anything else asks for data.
 const CONVERSATIONAL = /สวัสดี|หวัดดี|ขอบคุณ|ขอบใจ|ลาก่อน|บ๊?าย|ไว้คุยกัน|ช่วยอะไร|ทำอะไรได้|ความสามารถ|ใช้งาน(อย่างไร|ยังไง)|คุณ(คือ|เป็น)ใคร|\b(hello|hi|hey|thanks?|thank you|thx|bye|goodbye)\b/i;
 const SEARCH_FIRST = "ข้อความนี้ถามข้อมูลในระบบ ไม่ใช่คำทักทาย ขอบคุณ ลา หรือถามความสามารถ ให้ค้นด้วย discover_database หรือเครื่องมืออ่านข้อมูลก่อนตอบ";
+// A question, not a command or a request for people's details: refusing it before any search only guesses that the data is missing.
+const QUESTION = /ไหน|อะไร|เท่า(?:ไร|ไหร่)|กี่|ใคร|ไหม|มั้ย|หรือ(?:เปล่า|ไม่)|บ้าง|\?|\b(?:which|what|how|who|where|when)\b/i;
+const COMMAND = /อนุมัติ|จ่าย|ยืนยัน|บันทึก|แก้ไข|ลบ|เพิ่ม|สร้าง|ลงทะเบียน|โทร|แจ้ง|ส่งอีเมล|ยกเลิก|\b(?:approve|delete|update|insert|register|call)\b/i;
+const SEARCH_BEFORE_REFUSING = "ยังไม่ได้ค้น catalog จึงยังบอกไม่ได้ว่าไม่มีข้อมูลนี้ ให้ค้นด้วย discover_database ก่อน ถ้าค้นแล้วไม่มีแหล่งข้อมูลที่ตอบได้จึงใช้ unsupported";
 const REPEATED_CALL = "เรียก function นี้ด้วย argument เดิมไปแล้ว ผลอยู่ด้านบนและจะไม่เปลี่ยน: ถ้าข้อมูลพอให้ finish; ถ้าผลเป็น invalid_input ให้แก้ตาม problems; ถ้า no_data มี hints ให้แก้ตาม hints; ถ้า no_data หรือผล aggregate เป็น null แปลว่าไม่มีแถวตรงเงื่อนไข ให้เปลี่ยน filters เช่น ใช้คอลัมน์รหัสกับรหัสจากคำถาม หรือ contains แทน eq";
 const CODE_ARGS = ["material_id", "district_id", "plan_id", "contract_number", "purchase_order", "issue_reference", "handling_unit_code"];
 
@@ -167,6 +171,7 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
   let terminalStatus;
   let reminded = false;
   let notesPointed = false;
+  let searchPointed = false;
   let corrections = 0;
   // The model's call goes back as its tool result, so it sees its own call next to what was wrong.
   const correct = (content, name, reason, message) => {
@@ -236,6 +241,13 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       terminalStatus = "ok";
       stopReason = "complete";
       break;
+    }
+    // Once per run: a second refusal after the reminder stands.
+    if (decision.name === "unsupported" && !evidence.length && !searchPointed && corrections < MAX_CORRECTIONS &&
+        QUESTION.test(message) && !COMMAND.test(message)) {
+      searchPointed = true;
+      correct(response.candidates[0].content, decision.name, "not_searched", SEARCH_BEFORE_REFUSING);
+      continue;
     }
     if (["clarify", "unsupported"].includes(decision.name)) {
       terminalAnswer = decision.args.question ?? decision.args.reason;
