@@ -872,5 +872,6 @@ $$;
 \ir ai_privacy_verify.sql
 \ir near_match_verify.sql
 \ir hybrid_search_verify.sql
+\ir sap_terms_verify.sql
 
 rollback;

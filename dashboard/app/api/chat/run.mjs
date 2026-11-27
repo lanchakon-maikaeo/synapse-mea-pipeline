@@ -2,6 +2,7 @@ import { runAgent } from './harness.mjs';
 import { retrieveDatabase } from './retrieval.mjs';
 import { embedText, embedTexts, fetchProvider } from './embedding.mjs';
 import { asked } from './tools.mjs';
+import { sapTerms } from './sap-terms.mjs';
 import { composeAnswer } from './answer.mjs';
 import { openRouterRequest, openRouterResponse } from './openrouter.mjs';
 import { createMasker } from './masking.mjs';
@@ -33,8 +34,8 @@ export async function runChat({ message, history = /** @type {{ role: string, te
       : embedText({ text: masker.mask(text), apiKey: config.apiKey, ...options });
   } : undefined;
   const materialSources = new Set();
-  // ADR 0002, RRF: a search with no exact hit in a source of materials asks once more with what the text means; the
-  // database fuses the text and meaning ranks. A failed embedding or second read keeps the first result.
+  // ADR 0002, RRF: a search with no exact hit in a source of materials asks once more with what the text means and its
+  // SAP terms; the database fuses the text and meaning ranks. A failed embedding or second read keeps the first result.
   const database = async query => {
     const args = { p_tool: query.name, p_args: query.args, p_request_id: requestId };
     const first = await rpc('vmi_chat_database', args);
@@ -42,9 +43,17 @@ export async function runChat({ message, history = /** @type {{ role: string, te
       .filter(source => source && Object.hasOwn(source.columns ?? {}, 'material_id')).forEach(source => materialSources.add(source.source_id));
     const text = query.name === 'query_database' && first?.status === 'no_data' && !query.args?.metrics?.length &&
       materialSources.has(query.args?.source_id) && asked(query.args);
-    if (!embed || !text) return first;
-    const second = await embed(text).then(vector => rpc('vmi_chat_database', { ...args, p_embedding: `[${vector.join(',')}]` })).catch(() => undefined);
-    return second?.status === 'no_data' ? second : first;
+    if (!text) return first;
+    // Most material names are SAP English ("TRANS 3P4W ... 250KVA"); Thai words also go as SAP terms (near_text), which
+    // the database counts in each name, and they join the text that is embedded.
+    const terms = sapTerms(text);
+    if (!embed && !terms) return first;
+    const vector = embed && await embed(terms ? `${text} ${terms.replaceAll('|', ' ')}` : text).catch(() => undefined);
+    if (!vector && !terms) return first;
+    const second = await rpc('vmi_chat_database', { ...args, p_args: terms ? { ...query.args, near_text: terms } : query.args,
+      ...(vector && { p_embedding: `[${vector.join(',')}]` }) }).catch(() => undefined);
+    // The model sees the query it wrote, not the terms added for it.
+    return second?.status === 'no_data' ? { ...second, ...(first.query !== undefined && { query: first.query }) } : first;
   };
   try {
     const result = await runAgent({

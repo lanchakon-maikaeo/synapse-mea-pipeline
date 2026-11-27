@@ -277,9 +277,10 @@ test('a Thai search term reaches the database as words so their order does not m
     ['write_answer', { summary: 'ไม่พบรายการตรงตัว', items: [], notes: [], evidence_ids: [1] }],
     ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
   );
-  const rpc = async (name, args) => { if (args.p_tool === 'query_database') searched.push(args.p_args.search); return nearRpc(name, args); };
+  const rpc = async (name, args) => { if (args.p_tool === 'query_database') searched.push([args.p_args.search, args.p_args.near_text]); return nearRpc(name, args); };
   await runChat({ message: 'หม้อแปลงไฟฟ้า 250kVA 3 เฟส', config, terms, fetcher, rpc, signal: new AbortController().signal });
-  assert.deepEqual(searched.filter(Boolean), ['หม้อแปลง ไฟฟ้า 250 kVA 3 เฟส'], 'discovery\'s name lookup filters, it does not search');
+  assert.deepEqual(searched.filter(([search]) => search), [['หม้อแปลง ไฟฟ้า 250 kVA 3 เฟส', undefined], ['หม้อแปลง ไฟฟ้า 250 kVA 3 เฟส', 'trans 250kva 3p']],
+    'discovery\'s name lookup filters, it does not search; the second read adds SAP terms');
 });
 
 // Catalog descriptions come from one keyword set per category, so the ranker can pick a source that lacks a column.
@@ -353,7 +354,7 @@ const meaningRpc = calls => async (name, args) => {
   if (args.p_tool === 'discover_database') return nearRpc(name, args);
   if (args.p_args?.metrics?.length) return { tool: 'query_database', source_id: 'core.materials', status: 'ok', data: [{ count_rows: 0 }], query: args.p_args };
   return { tool: 'query_database', source_id: 'core.materials', status: 'no_data', data: [], query: args.p_args,
-    ...(args.p_embedding && { near_matches: [{ material_id: '010101000160', material_name: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 160kVA', match_score: 0.5 }] }) };
+    ...((args.p_embedding || args.p_args?.near_text) && { near_matches: [{ material_id: '010101000160', material_name: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 160kVA', match_score: 0.5 }] }) };
 };
 const withEmbedder = (llm, embedder) => async (url, init) => url.startsWith('https://api.cloudflare.com/') ? embedder(JSON.parse(init.body)) : llm(url, init);
 
@@ -367,18 +368,19 @@ test('a text search with no hit asks once more by meaning, and each near match s
   const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config: cloudflareConfig, terms, rpc: meaningRpc(calls),
     fetcher: withEmbedder(fetcher, body => { embedded.push(body); return Response.json({ success: true, result: { data: [unit] } }); }),
     signal: new AbortController().signal });
-  assert.deepEqual(embedded, [{ text: ['หม้อแปลงไฟฟ้า 3 เฟส 250kVA'] }]);
+  // Production 27 Nov: the register spells it "TRANS 3P4W 12/24KV D416Y240V 250KVA(SL)".
+  assert.deepEqual(embedded, [{ text: ['หม้อแปลงไฟฟ้า 3 เฟส 250kVA trans 3p 250kva'] }]);
   const byMeaning = calls.filter(args => args.p_embedding);
   assert.equal(byMeaning.length, 1);
-  assert.deepEqual(byMeaning[0].p_args, nearQuery);
+  assert.deepEqual(byMeaning[0].p_args, { ...nearQuery, near_text: 'trans 3p 250kva' });
   assert.equal(JSON.parse(byMeaning[0].p_embedding).length, 1024);
   assert.match(result.answer, /• 010101000160 · หม้อแปลงไฟฟ้า 3 เฟส 22kV 160kVA \(ความมั่นใจ 0\.50\)/);
 });
 
-test('without Cloudflare keys, or when embedding fails, the text search result stands', async () => {
+test('without Cloudflare keys, or when embedding fails, the SAP terms still ask once more, and the model sees its own query', async () => {
   for (const [settings, embedder] of [[config, () => assert.fail('no embedder configured')], [cloudflareConfig, () => new Response('', { status: 503 })]]) {
     const calls = [];
-    const { fetcher } = provider(
+    const { requests, fetcher } = provider(
       ['discover_database', { query: 'หม้อแปลง 250kVA' }], ['rank_candidates', { indices: [0] }], ['query_database', nearQuery], ['finish', {}],
       ['write_answer', { summary: 'ไม่พบหม้อแปลงไฟฟ้า 3 เฟส 250kVA', items: [], notes: [], evidence_ids: [1] }],
       ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
@@ -386,6 +388,23 @@ test('without Cloudflare keys, or when embedding fails, the text search result s
     const { result } = await runChat({ message: 'หม้อแปลงไฟฟ้า 3 เฟส 250kVA รหัสอะไร', config: settings, terms, rpc: meaningRpc(calls),
       fetcher: withEmbedder(fetcher, embedder), signal: new AbortController().signal });
     assert.equal(calls.filter(args => args.p_embedding).length, 0);
+    assert.deepEqual(calls.filter(args => args.p_args?.near_text).map(args => args.p_args.near_text), ['trans 3p 250kva']);
     assert.equal(result.stop_reason, 'complete');
+    const written = JSON.parse(requests[4].messages.find(m => m.role === 'user').content);
+    assert.deepEqual(written.evidence[0].data.query, nearQuery);
+    assert.equal(written.evidence[0].data.near_matches.length, 1);
+    assert.doesNotMatch(JSON.stringify(requests) + result.answer, /near_text|trans 3p/);
   }
+});
+
+test('a search with no Thai material word and no Cloudflare keys reads once', async () => {
+  const calls = [];
+  const notebook = { ...nearQuery, filters: [{ column: 'material_name', operator: 'contains', value: 'สมุดบันทึก' }] };
+  const { fetcher } = provider(
+    ['discover_database', { query: 'สมุดบันทึก' }], ['rank_candidates', { indices: [0] }], ['query_database', notebook], ['finish', {}],
+    ['write_answer', { summary: 'ไม่พบสมุดบันทึก', items: [], notes: [], evidence_ids: [1] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  await runChat({ message: 'สมุดบันทึกมีรหัสอะไร', config, terms, rpc: meaningRpc(calls), fetcher, signal: new AbortController().signal });
+  assert.equal(calls.filter(args => args.p_tool === 'query_database' && args.p_args.filters?.[0]?.value === 'สมุดบันทึก').length, 1);
 });

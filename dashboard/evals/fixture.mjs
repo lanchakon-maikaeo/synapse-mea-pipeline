@@ -197,12 +197,16 @@ function wordSimilarity(a, b) {
   return best;
 }
 
-// Mirrors vmi_chat_database (202611260001): contains matches its text, a search matches every word in any order
-// and ranks rows by nearness, and an empty text match returns up to five รายการใกล้เคียง (ADR 0002). The fixture has
+// Mirrors vmi_chat_database (202611270001): contains matches its text, a search matches every word in any order
+// and ranks rows by nearness, and an empty text match returns up to five รายการใกล้เคียง (ADR 0002), scored by the
+// share of near_text's SAP terms a row holds when that beats its text nearness. The fixture has
 // no embeddings, so only the text list ranks them; match_score is that list's RRF score over its maximum, 61/(60 + rank).
 function query(source, rows, args) {
-  const keys = ['source_id', 'columns', 'filters', 'group_by', 'metrics', 'order_column', 'order_direction', 'limit', 'offset', 'search'];
+  const keys = ['source_id', 'columns', 'filters', 'group_by', 'metrics', 'order_column', 'order_direction', 'limit', 'offset', 'search', 'near_text'];
   if (Object.keys(args).some(key => !keys.includes(key))) throw new Invalid();
+  const terms = args.near_text ? args.near_text.split(' ') : [];
+  if (args.near_text != null && (typeof args.near_text !== 'string' || args.near_text.length > 200 ||
+    (args.near_text && !/^[a-z0-9]+(\|[a-z0-9]+)*( [a-z0-9]+(\|[a-z0-9]+)*){0,11}$/.test(args.near_text)))) throw new Invalid();
   const limit = args.limit ?? 20; const offset = args.offset ?? 0;
   if (!(limit >= 1 && limit <= 50) || !(offset >= 0 && offset <= 10000)) throw new Invalid();
   const doc = row => Object.keys(source.columns).map(key => text(row[key])).join(' ');
@@ -263,7 +267,12 @@ function query(source, rows, args) {
     if (names.some((name, i) => !source.columns[name] || names.indexOf(name) !== i)) throw new Invalid();
     output = rows.map(row => Object.fromEntries(names.map(name => [name, row[name] ?? null])));
     if (!output.length && near.length) {
-      const scored = base.slice(0, 20000).map(row => [Math.min(...near.map(score => score(row))), row]).filter(([score]) => score >= 0.4)
+      const cover = row => {
+        if (!terms.length) return 0;
+        const name = doc(row).toLowerCase().replace(/([a-z])\./g, '$1').replace(/([0-9])\s+([a-z])/g, '$1$2');
+        return terms.filter(term => new RegExp(`(^|[^a-z0-9])(${term})`).test(name)).length / terms.length;
+      };
+      const scored = base.slice(0, 20000).map(row => [Math.max(Math.min(...near.map(score => score(row))), cover(row)), row]).filter(([score]) => score >= 0.4)
         .sort((a, b) => b[0] - a[0]);
       const matches = scored.slice(0, 5).map(([score, row]) => ({ ...Object.fromEntries(names.map(name => [name, row[name] ?? null])),
         match_score: Math.round(61 / (60 + 1 + scored.findIndex(([other]) => other === score)) * 100) / 100 }));
