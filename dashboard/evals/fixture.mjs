@@ -197,9 +197,9 @@ function wordSimilarity(a, b) {
   return best;
 }
 
-// Mirrors vmi_chat_database (202611270001): contains matches its text, a search matches every word in any order
+// Mirrors vmi_chat_database (202611270002): contains matches its text, a search matches every word in any order
 // and ranks rows by nearness, and an empty text match returns up to five รายการใกล้เคียง (ADR 0002), scored by the
-// share of near_text's SAP terms a row holds when that beats its text nearness. The fixture has
+// share of near_text's SAP terms a row holds when that beats its text nearness, and scaled by it. The fixture has
 // no embeddings, so only the text list ranks them; match_score is that list's RRF score over its maximum, 61/(60 + rank).
 function query(source, rows, args) {
   const keys = ['source_id', 'columns', 'filters', 'group_by', 'metrics', 'order_column', 'order_direction', 'limit', 'offset', 'search', 'near_text'];
@@ -275,7 +275,7 @@ function query(source, rows, args) {
       const scored = base.slice(0, 20000).map(row => [Math.max(Math.min(...near.map(score => score(row))), cover(row)), row]).filter(([score]) => score >= 0.4)
         .sort((a, b) => b[0] - a[0]);
       const matches = scored.slice(0, 5).map(([score, row]) => ({ ...Object.fromEntries(names.map(name => [name, row[name] ?? null])),
-        match_score: Math.round(61 / (60 + 1 + scored.findIndex(([other]) => other === score)) * 100) / 100 }));
+        match_score: Math.round(61 / (60 + 1 + scored.findIndex(([other]) => other === score)) * (terms.length ? score : 1) * 100) / 100 }));
       if (matches.length) return { page: [], more: false, near: matches };
     }
   }
