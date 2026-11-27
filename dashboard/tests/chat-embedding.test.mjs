@@ -68,3 +68,29 @@ test('knowledge search runs through the existing harness and names the documents
  assert.equal(requests,1);
  await assert.rejects(fetchProvider('https://openrouter.ai/api/v1/chat/completions',{},async()=>new Response(JSON.stringify({error:{metadata:{limit_source:'openrouter_in_flight_budget'}}}),{status:402,headers:{'retry-after':'60'}})),error=>error.message==='provider_capacity_budget'&&error.cause.retry_after_seconds===60);
  });
+
+// ADR 0002, RRF: Cloudflare Workers AI runs BGE-M3 for material names and search text, at most 100 texts per call.
+test('Cloudflare BGE-M3 embeds a batch of texts in order and normalizes each 1024-dimension vector', async () => {
+  const { embedTexts } = await import('../app/api/chat/embedding.mjs');
+  const other = Array(1024).fill(0); other[1] = 3;
+  const account = '0123456789abcdef0123456789abcdef';
+  const result = await embedTexts({ texts: ['หม้อแปลงไฟฟ้า', 'สายเคเบิล'], accountId: account, apiToken: 'cf-test-token-1234567890', fetcher: async (url, init) => {
+    assert.equal(url, `https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/@cf/baai/bge-m3`);
+    assert.equal(init.headers.Authorization, 'Bearer cf-test-token-1234567890');
+    assert.deepEqual(JSON.parse(init.body), { text: ['หม้อแปลงไฟฟ้า', 'สายเคเบิล'] });
+    return Response.json({ success: true, result: { shape: [2, 1024], data: [vector, other] } });
+  } });
+  assert.equal(result.length, 2); assert.equal(result[0][0], 1); assert.equal(result[1][1], 1); assert.equal(result[1].length, 1024);
+});
+test('a Cloudflare reply with the wrong count or shape, or a bad account, never becomes an embedding', async () => {
+  const { embedTexts } = await import('../app/api/chat/embedding.mjs');
+  const call = (reply, extra = {}) => embedTexts({ texts: ['a', 'b'], accountId: '0123456789abcdef0123456789abcdef', apiToken: 'cf-test-token-1234567890',
+    fetcher: async () => Response.json(reply), ...extra });
+  for (const reply of [{ success: true, result: { data: [vector] } }, { success: false, result: { data: [vector, vector] } },
+    { success: true, result: { data: [vector, Array(768).fill(1)] } }, { success: true, result: { response: [{ id: 0, score: 0.9 }] } }]) {
+    await assert.rejects(call(reply), /embedding_output_invalid/);
+  }
+  await assert.rejects(call({}, { accountId: 'not-an-account', fetcher: async () => assert.fail('must not call provider') }), /embedding_input_invalid/);
+  await assert.rejects(call({}, { texts: Array(101).fill('a'), fetcher: async () => assert.fail('must not call provider') }), /embedding_input_invalid/);
+  await assert.rejects(call({}, { fetcher: async () => new Response('', { status: 429 }) }), /provider_rate_limited/);
+});

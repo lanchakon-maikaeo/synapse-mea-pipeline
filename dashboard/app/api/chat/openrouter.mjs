@@ -7,6 +7,8 @@ export const CHAT_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 //   typhoon               api.opentyphoon.ai, LLM_MODEL typhoon-… (default below)
 //   openai-compatible     any https …/chat/completions in LLM_API_URL, LLM_MODEL required
 // Without embeddings, document search (BGE-M3 via OpenRouter) is off.
+// CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN embed with BGE-M3 on Workers AI for any provider: near matches then
+// rank by meaning too (ADR 0002, RRF). Document search also needs CHAT_DOCUMENTS=on, so it stays off while there are none.
 export const TYPHOON_API_URL = 'https://api.opentyphoon.ai/v1/chat/completions';
 export const TYPHOON_MODEL = 'typhoon-v2.5-30b-a3b-instruct';
 
@@ -16,6 +18,11 @@ function compatibleUrl(value) {
     return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash &&
       url.pathname.endsWith('/chat/completions') ? url.href : null;
   } catch { return null; }
+}
+
+export function cloudflareConfig(env = process.env) {
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim() ?? '', apiToken = env.CLOUDFLARE_API_TOKEN?.trim() ?? '';
+  return /^[0-9a-f]{32}$/.test(accountId) && /^[\x21-\x7e]{20,200}$/.test(apiToken) ? { accountId, apiToken } : null;
 }
 
 export function providerConfig(env = process.env) {
@@ -36,7 +43,8 @@ export function providerConfig(env = process.env) {
   if (!valid || !apiUrl ||
       !Number.isFinite(temperature) || temperature < 0 || temperature > 2 ||
       !Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 40000) return null;
-  return { provider, apiKey, model, temperature, timeoutMs, apiUrl, embeddings: provider === 'openrouter' };
+  return { provider, apiKey, model, temperature, timeoutMs, apiUrl, embeddings: provider === 'openrouter', cloudflare: cloudflareConfig(env),
+    documents: env.CHAT_DOCUMENTS?.trim().toLowerCase() === 'on' };
 }
 
 export function openRouterRequest(body, model = CHAT_MODEL) {

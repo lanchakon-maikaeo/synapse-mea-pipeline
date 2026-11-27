@@ -321,7 +321,8 @@ const queryRow = row => {
     ...(latest ? [`${columnLabel(latest[0]).replace(/^เวลา(?:ที่)?/, "")}เมื่อ ${valueLabel(latest[0], latest[1])}`] : [])].slice(0, 4).join(" · ")}`;
 };
 // What the model searched for, as the database echoed it back in query.
-const asked = query => typeof query?.search === "string" && query.search.trim() ? query.search.trim()
+// The text a query searched for: its search, else its first contains or eq text filter.
+export const asked = query => typeof query?.search === "string" && query.search.trim() ? query.search.trim()
   : (Array.isArray(query?.filters) ? query.filters : []).find(f => ["eq", "contains"].includes(f?.operator) && typeof f.value === "string" && f.value.trim())?.value.trim();
 
 // The last line of every answer: where the facts came from and when they were read.
@@ -336,12 +337,15 @@ export function sourceLine(evidence) {
   return `ที่มา: ${sources.join(", ")}${asOf ? ` · ข้อมูล ณ ${date(asOf)}` : observed ? ` · อ่านเมื่อ ${date(observed)}` : ""}`;
 }
 
+// match_score is the fused RRF score over its maximum (ADR 0002); the widget shows it as small text.
+const confidence = score => typeof score === "number" && score >= 0 && score <= 1 ? ` (ความมั่นใจ ${score.toFixed(2)})` : "";
+
 function renderRecordedResult(envelope, includeSources = false) {
   const status = envelope?.status;
   const near = Array.isArray(envelope?.near_matches) ? envelope.near_matches.filter(row => row && typeof row === "object") : [];
   if (status === "no_data" && near.length) return [asked(envelope.query) ? `ไม่พบรายการที่ตรงกับ “${asked(envelope.query)}” รายการที่ใกล้เคียงมีดังนี้`
     : "ไม่พบรายการที่ตรงกัน รายการที่ใกล้เคียงมีดังนี้",
-    ...near.map(row => queryRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== "match_score"))))].join("\n");
+    ...near.map(row => queryRow(Object.fromEntries(Object.entries(row).filter(([key]) => key !== "match_score"))) + confidence(row.match_score))].join("\n");
   if (status === "no_data") return "ไม่พบข้อมูลตามเงื่อนไขที่ระบุ";
   if (status === "forbidden") return "ไม่มีสิทธิ์เข้าถึงข้อมูลส่วนนี้";
   // The query is the model's, not the user's: say what failed without asking the user to check a code they may not have given.

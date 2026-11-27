@@ -259,8 +259,8 @@ reset role;
 insert into p01_checks values
   ('chat_rpcs_anon_denied',
     not has_function_privilege('anon','public.vmi_chat_overview(text,jsonb,uuid)','execute')
-    and not has_function_privilege('anon','public.vmi_chat_database(text,jsonb,uuid)','execute')
-    and not has_function_privilege('anon','public.vmi_chat_knowledge_bge_m3(extensions.vector,integer)','execute'));
+    and not has_function_privilege('anon','public.vmi_chat_database(text,jsonb,uuid,extensions.vector)','execute')
+    and not has_function_privilege('anon','public.vmi_chat_knowledge_bge_m3(extensions.vector,integer,text)','execute'));
 table p01_checks;
 do $$
 begin

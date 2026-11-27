@@ -871,5 +871,6 @@ $$;
 \ir agentic_alerts_verify.sql
 \ir ai_privacy_verify.sql
 \ir near_match_verify.sql
+\ir hybrid_search_verify.sql
 
 rollback;

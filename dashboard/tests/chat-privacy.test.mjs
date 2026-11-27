@@ -96,7 +96,7 @@ test('a document search query is masked before it is sent for embedding', async 
     return Response.json({ model: 'baai/bge-m3', data: [{ index: 0, embedding: Array.from({ length: 1024 }, (_, i) => i + 1) }] });
   };
   await runChat({ message: 'คุณสมศรี ใจดี ต้องเบิกยังไง', terms, fetcher, signal: new AbortController().signal,
-    config: { ...config, provider: 'openrouter', apiKey: 'sk-or-test-key', embeddings: true },
+    config: { ...config, provider: 'openrouter', apiKey: 'sk-or-test-key', embeddings: true, documents: true },
     rpc: async () => ({ tool: 'search_knowledge', status: 'ok', data: [{ content: 'ขั้นตอนเบิก', source_id: 'doc-1' }] }) });
   assert.deepEqual(embedded, ['ขั้นตอนเบิกของ [ชื่อ-1]']);
 });

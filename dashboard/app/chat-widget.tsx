@@ -29,6 +29,12 @@ const examples = [
   "ควรส่งพัสดุอะไรไปคลังไหนก่อน",
 ];
 
+// A near match's confidence (match_score, RRF; ADR 0002) reads as small text after the row.
+function withConfidence(text: string) {
+  return text.split(/(\(ความมั่นใจ [01]\.\d{2}\))/).map((part, index) => index % 2
+    ? <small key={index} className="synapse-chat-confidence">{part}</small> : part);
+}
+
 export default function ChatWidget({ token, suggestedQuestion }: { token: string; suggestedQuestion?: { question: string; id: number } | null }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -120,7 +126,7 @@ export default function ChatWidget({ token, suggestedQuestion }: { token: string
           <div className="synapse-chat-messages" aria-live="polite" aria-busy={busy}>
             {messages.map((message) => (
               <article key={message.id} className={`${message.role} ${message.error ? "error" : ""}`}>
-                <p>{message.text}</p>
+                <p>{withConfidence(message.text)}</p>
               </article>
             ))}
             {messages.length === 1 && (

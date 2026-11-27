@@ -50,10 +50,30 @@ export async function embedText({ text, apiKey, taskType = 'RETRIEVAL_QUERY', si
   // OpenRouter can return the provider's model name instead of its routing slug.
   if (!['baai/bge-m3', 'BAAI/bge-m3', 'parasail-bge-m3'].includes(payload?.model) || !Array.isArray(payload?.data) || payload.data.length !== 1 ||
       payload.data[0]?.index !== 0) throw invalidOutput('response_shape');
-  const values = payload.data[0].embedding;
+  return unitVector(payload.data[0].embedding, invalidOutput);
+}
+
+function unitVector(values, invalidOutput) {
   if (!Array.isArray(values) || values.length !== EMBEDDING_DIMENSIONS ||
       values.some(value => typeof value !== 'number' || !Number.isFinite(value))) throw invalidOutput('vector_shape');
   const norm = Math.hypot(...values);
   if (!Number.isFinite(norm) || !norm) throw invalidOutput('vector_norm');
   return values.map(value => value / norm);
+}
+
+// Cloudflare Workers AI runs the same BGE-M3 (ADR 0002, RRF) and keeps no inputs or outputs.
+// One call takes at most 100 texts; vectors come back in the order of the texts.
+export async function embedTexts({ texts, accountId, apiToken, signal, fetcher = fetch }) {
+  if (!Array.isArray(texts) || !texts.length || texts.length > 100 ||
+      texts.some(text => typeof text !== 'string' || !text.trim() || text.length > 8000) ||
+      !/^[0-9a-f]{32}$/.test(accountId ?? '') || !/^[\x21-\x7e]{20,200}$/.test(apiToken ?? '')) throw Error('embedding_input_invalid');
+  const response = await fetchProvider(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/baai/bge-m3`, {
+    method: 'POST', headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: texts }), redirect: 'error', signal,
+  }, fetcher, 'embedding_unavailable');
+  const payload = await response.json().catch(() => null);
+  const invalidOutput = reason => new Error('embedding_output_invalid', { cause: { embedding_validation: reason } });
+  const data = payload?.result?.data;
+  if (payload?.success !== true || !Array.isArray(data) || data.length !== texts.length) throw invalidOutput('response_shape');
+  return data.map(values => unitVector(values, invalidOutput));
 }
