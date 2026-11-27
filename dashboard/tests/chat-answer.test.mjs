@@ -179,3 +179,36 @@ test('when another read found the item itself, the answer may come from that rea
     generate: async () => responses.shift() });
   assert.equal(answer.answer_validation, 'accepted');
 });
+
+const risk = { tool: 'get_operations_overview', view: 'risk', status: 'ok', observed_at: '2026-11-27T10:05:00Z', data: [
+  { material_id: '030500100077', material_name: 'ลูกถ้วยแขวน 254 มม.', district_id: '5507', district_name_th: 'บางนา', current_stock_qty: 1873, health_band: 'critical' },
+  { material_id: '010100200301', material_name: 'หม้อแปลงไฟฟ้า 3 เฟส 22kV 250kVA', district_id: '5507', district_name_th: 'บางนา', current_stock_qty: 4, health_band: 'critical' },
+  { material_id: '040200300199', material_name: 'กับดักเสิร์จ 24kV 10kA', district_id: '5509', district_name_th: 'คลองเตย', current_stock_qty: 58, health_band: 'critical' }] };
+const riskQuestion = 'ตอนนี้คลังเขตไหนใกล้หมดบ้าง';
+
+test('a draft whose items name none of the materials it read is not shown; the evidence answer lists each one', async () => {
+  const requests = [];
+  const responses = [call('write_answer', { summary: 'คลังเขตที่ใกล้หมดสต็อก ได้แก่ บางนา และคลองเตย',
+    items: ['ชื่อเขต: บางนา · ระดับสต็อก: วิกฤต', 'ชื่อเขต: คลองเตย · ระดับสต็อก: วิกฤต'], notes: [], evidence_ids: [1] }), approved];
+  const answer = await composeAnswer({ result: { ...base, answer: renderToolResult(risk, false), evidence: [risk] }, question: riskQuestion,
+    generate: async body => { requests.push(structuredClone(body)); return responses.shift(); } });
+  assert.equal(answer.answer_validation, 'invalid_draft');
+  assert.equal(requests.length, 1, 'the reviewer is not asked');
+  assert.match(answer.answer, /ลูกถ้วยแขวน 254 มม\./);
+});
+
+test('items that name the materials, even by a shorter name, are checked as usual', async () => {
+  const responses = [call('write_answer', { summary: 'คลังเขตที่ใกล้หมดสต็อก ได้แก่ บางนา และคลองเตย',
+    items: ['ชื่อเขต: บางนา · ชื่อวัสดุ: ลูกถ้วยแขวน · คงเหลือ: 1,873 ลูก'], notes: [], evidence_ids: [1] }), approved];
+  const answer = await composeAnswer({ result: { ...base, evidence: [risk] }, question: riskQuestion, generate: async () => responses.shift() });
+  assert.equal(answer.answer_validation, 'accepted');
+});
+
+test('rows of one material, or an answer without items, need no material name in the items', async () => {
+  const one = { ...risk, data: risk.data.slice(0, 1).concat({ ...risk.data[0], district_id: '5503', district_name_th: 'นนทบุรี' }) };
+  for (const [evidence, items] of [[one, ['ชื่อเขต: บางนา', 'ชื่อเขต: นนทบุรี']], [risk, []]]) {
+    const responses = [call('write_answer', { summary: 'วัสดุระดับวิกฤตอยู่ที่เขตบางนาและเขตอื่น', items, notes: [], evidence_ids: [1] }), approved];
+    const answer = await composeAnswer({ result: { ...base, evidence: [evidence] }, question: riskQuestion, generate: async () => responses.shift() });
+    assert.equal(answer.answer_validation, 'accepted');
+  }
+});

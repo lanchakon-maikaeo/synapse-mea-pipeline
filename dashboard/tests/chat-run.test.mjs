@@ -85,6 +85,46 @@ test('a data question answered with a canned conversation reply goes back once t
   assert.equal(result.answer, 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.\n\nที่มา: core.transport_vehicles');
 });
 
+const vehicles = async (name, args) => args.p_tool === 'discover_database'
+  ? { tool: 'discover_database', status: 'ok', data: [{ source_id: 'core.transport_vehicles', description: 'vehicles รถ', columns: { vehicle_id: 'text', max_weight_kg: 'numeric' } }] }
+  : { tool: 'query_database', source_id: 'core.transport_vehicles', status: 'ok', data: [{ vehicle_id: 'V-101', max_weight_kg: 15000 }] };
+
+test('a question refused as having no data before any search goes back once to be searched', async () => {
+  const { requests, fetcher } = provider(
+    ['unsupported', { reason: 'ไม่มีข้อมูลรถหรือน้ำหนักบรรทุกในระบบ' }],
+    ['discover_database', { query: 'รถ บรรทุก น้ำหนัก' }], ['rank_candidates', { indices: [0] }],
+    ['query_database', { ...query, source_id: 'core.transport_vehicles', columns: ['vehicle_id', 'max_weight_kg'], filters: [],
+      order_column: 'max_weight_kg', order_direction: 'desc', limit: 1 }],
+    ['finish', {}],
+    ['write_answer', { summary: 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.', items: [], notes: [], evidence_ids: [1] }],
+    ['check_answer', { supported: true, answers_question: true, citations_valid: true }],
+  );
+  const { result } = await runChat({ message: 'รถคันไหนบรรทุกน้ำหนักได้มากที่สุด', config, terms, fetcher, rpc: vehicles, signal: new AbortController().signal });
+  const returned = requests[1].messages.at(-1);
+  assert.equal(returned.role, 'tool');
+  assert.match(returned.content, /discover_database/);
+  assert.equal(result.answer, 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.\n\nที่มา: core.transport_vehicles');
+});
+
+test('a question refused again after the search reminder ends as unsupported', async () => {
+  const { requests, fetcher } = provider(
+    ['unsupported', { reason: 'ไม่มีข้อมูลรถในระบบ' }], ['unsupported', { reason: 'ไม่มีข้อมูลรถในระบบ' }]);
+  const { result } = await runChat({ message: 'รถคันไหนบรรทุกน้ำหนักได้มากที่สุด', config, terms, fetcher, signal: new AbortController().signal,
+    rpc: async () => { throw new Error('no database read expected'); } });
+  assert.equal(requests.length, 2);
+  assert.equal(result.status, 'unsupported');
+});
+
+test('a command or a request for people refused before any search is not sent to search', async () => {
+  for (const message of ['ช่วยอนุมัติแผน KT01-W47-000214 ให้หน่อย', 'โทรหาคุณสมเกียรติ บอกว่าของมาส่งแล้ว', 'ขอรายชื่อผู้ใช้ระบบทั้งหมดพร้อมอีเมลและบทบาท']) {
+    const { requests, fetcher } = provider(['unsupported', { reason: 'ยังไม่รองรับคำขอนี้' }]);
+    const { result } = await runChat({ message, config, terms, fetcher, signal: new AbortController().signal,
+      rpc: async () => { throw new Error('no database read expected'); } });
+    assert.equal(requests.length, 1, message);
+    assert.equal(result.status, 'unsupported', message);
+  }
+});
+
 test('a code that came from neither the question nor the data read goes back once to be looked up', async () => {
   const guessed = { material_id: '020300400512', scope: 'district', district_id: '5501' };
   const { requests, fetcher } = provider(

@@ -41,6 +41,11 @@ export async function composeAnswer({ result, question, history = /** @type {{ r
   // Near matches are the answer only when no read found the thing itself; a stock read that did may answer alone.
   const nearIds = evidence.some(e => e.status === 'ok') ? []
     : evidence.flatMap(e => e.near_matches ?? []).map(m => m?.material_id).filter(id => typeof id === 'string' && id);
+  // Rows about two or more materials: items that name none of them (by code or the first word of the name) lost what each row is.
+  const materials = new Map(evidence.filter(e => e.status === 'ok' && Array.isArray(e.data)).flatMap(e => e.data)
+    .filter(r => typeof r?.material_name === 'string' && r.material_name.trim())
+    .map(r => [r.material_name.trim(), String(r.material_id ?? '')]));
+  const namesMaterial = text => [...materials].some(([name, id]) => [id, name.split(/\s+/)[0]].some(word => word.length > 2 && text.includes(word)));
   const input = { assessed_at:new Date().toISOString(), question, history, evidence: evidence.map((data, i) => ({ id: i + 1, data })),
     labels: labelsFor(evidence.map(e => [e.data, e.near_matches])) };
   if (JSON.stringify(input).length > 40000) return fallback('context_limit');
@@ -68,7 +73,9 @@ export async function composeAnswer({ result, question, history = /** @type {{ r
         // A missing value written as "null" reads as a code; the evidence answer leaves missing values out.
         /(?<![A-Za-z_])null(?![A-Za-z_])/i.test([draft.summary, ...items, ...notes].join('\n')) ||
         // Near matches it read and offered none of: the evidence answer lists them all with their confidence.
-        (nearIds.length && !nearIds.some(id => [draft.summary, ...items].join('\n').includes(id)))) return fallback('invalid_draft');
+        (nearIds.length && !nearIds.some(id => [draft.summary, ...items].join('\n').includes(id))) ||
+        // The evidence answer names the material on every row.
+        (items.length && materials.size > 1 && !namesMaterial([draft.summary, ...items].join('\n')))) return fallback('invalid_draft');
     signal?.throwIfAborted();
     const review = args(await ask(request('check_answer', {
       supported: { type: 'boolean' }, answers_question: { type: 'boolean' }, citations_valid: { type: 'boolean' },
