@@ -291,6 +291,9 @@ export async function runAgent({ message, history = /** @type {{ role: string, t
       throw new Error("tool_output_invalid");
     }
     result=annotateStockFreshness(result);
+    // A source with one row per storage location lists the same candidate once per row; one is enough to confirm.
+    if (Array.isArray(result.near_matches))
+      result = { ...result, near_matches: [...new Map(result.near_matches.map(row => [JSON.stringify(row), row])).values()] };
     // The database says only invalid_input; name the source's columns and the broken rules so the model can fix its query.
     if (decision.name === "query_database" && result.status === "invalid_input") {
       const schema = discovered.get(decision.args.source_id) ?? {};
