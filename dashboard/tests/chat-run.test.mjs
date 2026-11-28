@@ -106,6 +106,48 @@ test('a question refused as having no data before any search goes back once to b
   assert.equal(result.answer, 'รถ V-101 บรรทุกได้มากที่สุด 15000 กก.\n\nที่มา: core.transport_vehicles');
 });
 
+// An ordered read of the vehicle table as the database pages it: limit+1 rows read, truncated when more remain.
+function fleet(weights) {
+  const limits = [];
+  const rpc = async (name, args) => {
+    if (args.p_tool === 'discover_database') return vehicles(name, args);
+    const { limit, offset } = args.p_args; limits.push(limit);
+    const rows = weights.map((max_weight_kg, i) => ({ vehicle_id: `V-${i + 1}`, max_weight_kg })).sort((a, b) => b.max_weight_kg - a.max_weight_kg);
+    return { tool: 'query_database', source_id: 'core.transport_vehicles', status: 'ok', data: rows.slice(offset, offset + limit),
+      scope: { role: 'admin', district_id: null, truncated: rows.length > offset + limit }, query: args.p_args };
+  };
+  return { rpc, limits };
+}
+const heaviest = ['query_database', { ...query, source_id: 'core.transport_vehicles', columns: ['vehicle_id', 'max_weight_kg'], filters: [],
+  order_column: 'max_weight_kg', order_direction: 'desc', limit: 1 }];
+const written = ['write_answer', { summary: 'รถที่บรรทุกได้มากที่สุด', items: [], notes: [], evidence_ids: [1] }];
+
+test('an ordered read also returns the rows that tie with its last row, so "the most" names every one of them', async () => {
+  const { rpc, limits } = fleet([5000, 5000, 5000, 5000, 5000, 5000]);
+  const { requests, fetcher } = provider(['discover_database', { query: 'รถ บรรทุก' }], ['rank_candidates', { indices: [0] }], heaviest,
+    ['finish', {}], written, ['check_answer', { supported: true, answers_question: true, citations_valid: true }]);
+  const { result } = await runChat({ message: 'รถคันไหนบรรทุกน้ำหนักได้มากที่สุด', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  assert.deepEqual(limits, [20], 'one read, wide enough for the ties');
+  const read = result.evidence.find(e => e.tool === 'query_database');
+  assert.deepEqual(read.data.map(row => row.vehicle_id), ['V-1', 'V-2', 'V-3', 'V-4', 'V-5', 'V-6']);
+  assert.equal(read.scope.truncated, false);
+  assert.equal(read.query.limit, 1, 'the model sees the limit it asked for');
+  assert.ok(JSON.stringify(requests[3].messages).includes('V-6'), 'the model reads the tied rows');
+  assert.doesNotMatch(result.answer, /ข้อมูลบางส่วน/);
+});
+
+test('an ordered read with no tie at its last row keeps the limit the model asked for', async () => {
+  const { rpc } = fleet([15000, 8000, 5000]);
+  const { fetcher } = provider(['discover_database', { query: 'รถ บรรทุก' }], ['rank_candidates', { indices: [0] }], heaviest,
+    ['finish', {}], written, ['check_answer', { supported: true, answers_question: true, citations_valid: true }]);
+  const { result } = await runChat({ message: 'รถคันไหนบรรทุกน้ำหนักได้มากที่สุด', config, terms, fetcher, rpc, signal: new AbortController().signal });
+  const read = result.evidence.find(e => e.tool === 'query_database');
+  assert.deepEqual(read.data.map(row => row.vehicle_id), ['V-1']);
+  assert.equal(read.scope.truncated, true);
+  assert.match(result.answer, /แสดง 1 รายการแรก เรียงตามน้ำหนักสูงสุด \(กก\.\) จากมากไปน้อย/);
+  assert.doesNotMatch(result.answer, /ข้อมูลบางส่วน/);
+});
+
 test('a question refused again after the search reminder ends as unsupported', async () => {
   const { requests, fetcher } = provider(
     ['unsupported', { reason: 'ไม่มีข้อมูลรถในระบบ' }], ['unsupported', { reason: 'ไม่มีข้อมูลรถในระบบ' }]);
