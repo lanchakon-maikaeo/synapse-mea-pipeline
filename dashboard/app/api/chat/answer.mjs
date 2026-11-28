@@ -1,5 +1,5 @@
 import { sourceLine, wantsSources } from './tools.mjs';
-import { labelsFor } from './labels.mjs';
+import { columnLabel, labelsFor } from './labels.mjs';
 
 // Notebook pattern: tool evidence -> write answer -> validate -> deterministic fallback.
 // ponytail: one writer and one reviewer; measure live accuracy before adding repair loops.
@@ -29,6 +29,17 @@ function args(response, name, keys) {
   if (calls.length !== 1 || calls[0].name !== name || !value || typeof value !== 'object' || Array.isArray(value) ||
       Object.keys(value).length !== keys.length || !keys.every(k => Object.hasOwn(value, k))) throw Error('answer_output_invalid');
   return value;
+}
+
+// A read cut at the limit the model ordered by shows its top rows on purpose: say which rows they are, not that the
+// answer is partial. Other cut reads, and orders the user cannot read in Thai, keep the partial notice.
+function cutNotice(e) {
+  const { order_column: column, order_direction: direction, metrics } = e.query ?? {};
+  const label = column && !metrics?.length && Array.isArray(e.data) ? columnLabel(column) : '';
+  if (!label || /[A-Za-z_]/.test(label)) return 'คำตอบนี้มาจากข้อมูลบางส่วน ยังไม่ใช่ทั้งหมด';
+  const numeric = e.data.every(row => row?.[column] === null || row?.[column] === undefined || Number.isFinite(Number(row[column])));
+  return numeric ? `แสดง ${e.data.length} รายการแรก เรียงตาม${label} จาก${direction === 'desc' ? 'มากไปน้อย' : 'น้อยไปมาก'}`
+    : `แสดง ${e.data.length} รายการแรก เรียงตาม${label}`;
 }
 
 export async function composeAnswer({ result, question, history = /** @type {{ role: string, text: string }[]} */ ([]), generate, signal, temperature = 0 }) {
@@ -86,7 +97,7 @@ export async function composeAnswer({ result, question, history = /** @type {{ r
     // A notice the writer already gave, word for word or as "cannot be confirmed" for stale stock, is not repeated.
     const unsaid = notice => !said.includes(notice) && !(notice.startsWith('ข้อมูลสต็อกไม่เป็นปัจจุบัน') && /ยืนยัน\S{0,30}ไม่ได้|ไม่เป็นปัจจุบัน/.test(said));
     const notices = [...new Set(result.evidence.flatMap(e => [
-      ...(e.scope?.truncated || e.truncated ? ['คำตอบนี้มาจากข้อมูลบางส่วน ยังไม่ใช่ทั้งหมด'] : []),
+      ...(e.scope?.truncated || e.truncated ? [cutNotice(e)] : []),
       // The writer is told to say near matches are near; add the notice only when its answer does not.
       ...(e.near_matches?.length && !said.includes('ใกล้เคียง') ? ['รายการข้างต้นเป็นรายการที่ใกล้เคียง ไม่ใช่รายการที่ตรงกับคำค้น'] : []),
       ...(includeSources && e.retrieval?.status === 'fallback_original_order' ? [e.retrieval.stage === 'sources'

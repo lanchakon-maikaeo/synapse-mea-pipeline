@@ -7,6 +7,20 @@ import { composeAnswer } from './answer.mjs';
 import { openRouterRequest, openRouterResponse } from './openrouter.mjs';
 import { createMasker } from './masking.mjs';
 
+// An ordered row read (no group_by or metrics) under this limit is read this wide, then cut back to the model's limit
+// plus the rows that tie with its last row, like SQL's WITH TIES: "the most" then names every row that shares it.
+const TIES_LIMIT = 20;
+const tied = ({ order_column, group_by, metrics, limit }) => Boolean(order_column) && !group_by?.length && !metrics?.length && limit < TIES_LIMIT;
+function withTies(envelope, { order_column: column, limit }) {
+  if (envelope?.status !== 'ok' || !Array.isArray(envelope.data)) return envelope;
+  const rows = envelope.data;
+  const last = rows[limit - 1]?.[column];
+  let kept = Math.min(limit, rows.length);
+  while (last !== undefined && last !== null && kept < rows.length && String(rows[kept]?.[column]) === String(last)) kept++;
+  return { ...envelope, data: rows.slice(0, kept), scope: { ...envelope.scope, truncated: kept < rows.length || Boolean(envelope.scope?.truncated) },
+    ...(envelope.query && { query: { ...envelope.query, limit } }) };
+}
+
 // One chat question is one AI run. rpc reads Supabase as the signed-in user; every provider
 // call goes through this run's masker. stats is filled even when the run throws.
 export async function runChat({ message, history = /** @type {{ role: string, text: string }[]} */ ([]), scope, requestId, config, topK = 6, terms, rpc, signal,
@@ -38,7 +52,9 @@ export async function runChat({ message, history = /** @type {{ role: string, te
   // SAP terms; the database fuses the text and meaning ranks. A failed embedding or second read keeps the first result.
   const database = async query => {
     const args = { p_tool: query.name, p_args: query.args, p_request_id: requestId };
-    const first = await rpc('vmi_chat_database', args);
+    const first = query.name === 'query_database' && tied(query.args ?? {})
+      ? withTies(await rpc('vmi_chat_database', { ...args, p_args: { ...query.args, limit: TIES_LIMIT } }), query.args)
+      : await rpc('vmi_chat_database', args);
     if (query.name === 'discover_database' && Array.isArray(first?.data)) first.data
       .filter(source => source && Object.hasOwn(source.columns ?? {}, 'material_id')).forEach(source => materialSources.add(source.source_id));
     const text = query.name === 'query_database' && first?.status === 'no_data' && !query.args?.metrics?.length &&
